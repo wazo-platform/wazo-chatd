@@ -1,6 +1,6 @@
 swagger: '2.0'
 info:
-  title: wazo-setupd
+  title: wazo-chatd
   description: "Control your message and presence from a REST API"
   version: 1.0.0
 schemes:
