@@ -6,6 +6,7 @@ import signal
 
 from functools import partial
 from xivo import plugin_helpers
+from xivo.consul_helpers import ServiceCatalogRegistration
 from .http_server import api, CoreRestApi
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,14 @@ logger = logging.getLogger(__name__)
 class Controller:
 
     def __init__(self, config):
+        self._service_discovery_args = [
+            'wazo-chatd',
+            config.get('uuid'),
+            config['consul'],
+            config['service_discovery'],
+            config['bus'],
+            lambda: True,
+        ]
         self.rest_api = CoreRestApi(config)
         plugin_helpers.load(
             namespace='wazo_chatd.plugins',
@@ -27,7 +36,8 @@ class Controller:
         logger.info('wazo-chatd starting...')
         signal.signal(signal.SIGTERM, partial(_sigterm_handler, self))
         try:
-            self.rest_api.run()
+            with ServiceCatalogRegistration(*self._service_discovery_args):
+                self.rest_api.run()
 
         finally:
             logger.info('wazo-chatd stopping...')
