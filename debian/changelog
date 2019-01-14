@@ -1,0 +1,5 @@
+wazo-chatd (19.04~20190114) wazo-dev-stretch; urgency=medium
+
+  * Initial release.
+
+ -- Wazo Maintainers <dev+pkg@wazo.community>  Mon, 14 Jan 2019 11:27:35 -0500

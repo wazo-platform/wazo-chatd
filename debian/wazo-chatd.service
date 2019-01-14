@@ -1,0 +1,11 @@
+[Unit]
+Description=wazo-chatd daemon
+After=network.target
+Before=monit.service
+
+[Service]
+ExecStartPre=/usr/bin/install -o wazo-chatd -g wazo-chatd -d /var/run/wazo-chatd
+ExecStart=/usr/bin/python3 -u /usr/bin/wazo-chatd
+
+[Install]
+WantedBy=multi-user.target

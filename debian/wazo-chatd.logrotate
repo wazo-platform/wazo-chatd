@@ -1,0 +1,7 @@
+/var/log/wazo-chatd.log {
+    daily
+    rotate 15
+    compress
+    copytruncate
+    missingok
+}
