@@ -24,6 +24,11 @@ case "$1" in
         if [ ! -e "$LOG_FILENAME" ]; then
             install -m 0644 -o $USER -g $GROUP /dev/null "$LOG_FILENAME"
         fi
+        if [[ -z "${previous_version}" ]]; then
+            # Add nginx configuration on new installations
+            ln -sf /etc/nginx/locations/https-available/$DAEMONNAME \
+                   /etc/nginx/locations/https-enabled/$DAEMONNAME
+        fi
 
     ;;
 

@@ -1,1 +1,2 @@
 etc/wazo-chatd/conf.d
+etc/nginx/locations/https-enabled
