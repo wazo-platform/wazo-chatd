@@ -13,3 +13,8 @@ services:
       # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/usr/local/lib/python3.5/site-packages/xivo'
     ports:
       - '9304'
+
+  auth:
+    image: wazopbx/wazo-auth-mock
+    ports:
+      - '9497'

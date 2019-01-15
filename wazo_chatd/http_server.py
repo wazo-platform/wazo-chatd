@@ -12,6 +12,8 @@ from flask_cors import CORS
 from flask_restful import Api
 from xivo import http_helpers
 
+from .http import auth_verifier
+
 VERSION = 1.0
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ class CoreRestApi:
         app.after_request(http_helpers.log_request)
         app.secret_key = os.urandom(24)
         app.permanent_session_lifetime = timedelta(minutes=5)
+        auth_verifier.set_config(global_config['auth'])
         self._load_cors()
         self.server = None
 
