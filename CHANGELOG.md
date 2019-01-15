@@ -4,3 +4,4 @@
 
 * New endpoints:
   - GET /1.0/api/api.yml
+  - GET /1.0/config

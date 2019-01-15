@@ -79,3 +79,4 @@ service_discovery:
 
 enabled_plugins:
   api: true
+  config: true

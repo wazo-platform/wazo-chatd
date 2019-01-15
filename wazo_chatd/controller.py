@@ -29,6 +29,7 @@ class Controller:
             names=config['enabled_plugins'],
             dependencies={
                 'api': api,
+                'config': config,
             }
         )
 
