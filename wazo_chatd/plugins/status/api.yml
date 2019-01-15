@@ -1,0 +1,28 @@
+paths:
+  /status:
+    get:
+      summary: Print infos about internal status of wazo-chatd
+      description: '**Required ACL:** `chatd.status.read`'
+      tags:
+        - status
+      responses:
+        '200':
+          description: The internal infos of wazo-chatd
+          schema:
+            $ref: '#/definitions/StatusSummary'
+definitions:
+  StatusSummary:
+    type: object
+    properties:
+      rest-api:
+        $ref: '#/definitions/ComponentWithStatus'
+  ComponentWithStatus:
+    type: object
+    properties:
+      status:
+        $ref: '#/definitions/StatusValue'
+  StatusValue:
+    type: string
+    enum:
+      - fail
+      - ok
