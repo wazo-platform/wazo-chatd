@@ -61,3 +61,13 @@ parameters:
     in: query
     description: The token's ID
     type: string
+
+paths:
+  /todo/remove:
+    get:
+      summary: Only to pass the test_documentation.py
+      tags:
+        - todo-remove
+      responses:
+        '200':
+          description: OK

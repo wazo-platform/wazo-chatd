@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  sync:
+    image: wazopbx/wait
+    environment:
+      TIMEOUT: '${INTEGRATION_TEST_TIMEOUT}'
+
+  chatd:
+    image: wazo-chatd-test
+    volumes:
+      - ../..:/usr/src/wazo-chatd:ro
+      - ./etc/wazo-chatd/conf.d/50-default.yml:/etc/wazo-chatd/conf.d/50-default.yml:ro
+      # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/usr/local/lib/python3.5/site-packages/xivo'
+    ports:
+      - '9304'
