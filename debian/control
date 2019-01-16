@@ -17,8 +17,10 @@ Depends: ${python3:Depends},
          python3-flask-cors,
          python3-flask-restful,
          python3-kombu,
+         python3-marshmallow,
          python3-stevedore,
          python3-yaml,
+         xivo-auth-client-python3,
          xivo-lib-python
 Description: wazo-chatd daemon for Wazo Engine
  Wazo is a system based on a powerful IPBX, to bring an easy to

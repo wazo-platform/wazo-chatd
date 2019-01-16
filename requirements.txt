@@ -1,9 +1,12 @@
+https://github.com/wazo-pbx/xivo-auth-client/archive/master.zip
 https://github.com/wazo-pbx/xivo-lib-python/archive/master.zip
+https://github.com/wazo-pbx/xivo-lib-rest-client/archive/master.zip
 cheroot==6.5.2
 flask-cors==3.0.2
 flask-restful==0.3.5
 flask==1.0.2
 kombu==3.0.35
+marshmallow==2.16.3
 python-consul==0.7.0
 pyyaml==3.12
 stevedore==1.17.1

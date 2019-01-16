@@ -1,0 +1,11 @@
+paths:
+  /config:
+    get:
+      summary: Show the current configuration
+      description: '**Required ACL:** `chatd.config.read`'
+      operationId: getConfig
+      tags:
+        - config
+      responses:
+        '200':
+          description: The configuration of the service

@@ -21,6 +21,7 @@ setup(
         ],
         'wazo_chatd.plugins': [
             'api = wazo_chatd.plugins.api.plugin:Plugin',
+            'config = wazo_chatd.plugins.config.plugin:Plugin',
         ],
     },
 )

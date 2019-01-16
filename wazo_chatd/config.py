@@ -30,6 +30,11 @@ _DEFAULT_CONFIG = {
             'allow_headers': ['Content-Type', 'X-Auth-Token'],
         },
     },
+    'auth': {
+        'host': 'localhost',
+        'port': 9497,
+        'verify_certificate': _CERT_FILE,
+    },
     'bus': {
         'username': 'guest',
         'password': 'guest',
@@ -57,6 +62,7 @@ _DEFAULT_CONFIG = {
     },
     'enabled_plugins': {
         'api': True,
+        'config': True,
     },
 }
 

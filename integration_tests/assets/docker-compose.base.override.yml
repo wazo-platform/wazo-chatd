@@ -1,0 +1,8 @@
+version: '3.7'
+services:
+  sync:
+    depends_on:
+      - auth
+      - chatd
+    environment:
+      TARGETS: chatd:9304 auth:9497
