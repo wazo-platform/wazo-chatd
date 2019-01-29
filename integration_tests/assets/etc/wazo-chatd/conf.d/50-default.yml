@@ -1,3 +1,4 @@
+db_uri: postgresql://wazo-chatd:Secr7t@postgres/wazo-chatd
 auth:
   host: auth
   verify_certificate: false
