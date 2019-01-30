@@ -3,7 +3,7 @@
 
 from wazo_chatd.database.queries.user import UserDAO
 
-from .http import PresenceListResource
+from .http import PresenceListResource, PresenceItemResource
 from .services import PresenceService
 
 
@@ -16,5 +16,11 @@ class Plugin:
         api.add_resource(
             PresenceListResource,
             '/users/presences',
+            resource_class_args=[service],
+        )
+
+        api.add_resource(
+            PresenceItemResource,
+            '/users/<uuid:user_uuid>/presences',
             resource_class_args=[service],
         )

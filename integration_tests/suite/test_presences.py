@@ -3,19 +3,28 @@
 
 from hamcrest import (
     assert_that,
+    calling,
     contains,
     equal_to,
     has_entries,
+    has_properties,
+    is_not,
+    none,
 )
+
+from xivo_test_helpers.hamcrest.raises import raises
+
+from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
 from .helpers.base import (
     BaseIntegrationTest,
+    UNKNOWN_UUID,
     SUBTENANT_UUID,
 )
 
 
-class TestPresences(BaseIntegrationTest):
+class TestPresence(BaseIntegrationTest):
 
     asset = 'base'
 
@@ -58,3 +67,48 @@ class TestPresences(BaseIntegrationTest):
             total=equal_to(2),
             filtered=equal_to(2),
         ))
+
+    @fixtures.db.user()
+    def test_get(self, user):
+        presence = self.chatd.user_presences.get(user.uuid)
+        assert_that(
+            presence,
+            has_entries(
+                uuid=user.uuid,
+                tenant_uuid=user.tenant_uuid,
+                state=user.state,
+                status=user.status,
+            ),
+        )
+
+    def test_get_unknown_uuid(self):
+        assert_that(
+            calling(self.chatd.user_presences.get).with_args(UNKNOWN_UUID),
+            raises(
+                ChatdError,
+                has_properties(
+                    status_code=404,
+                    error_id='unknown-user',
+                    resource='users',
+                    details=is_not(none()),
+                    message=is_not(none()),
+                    timestamp=is_not(none()),
+                )
+            )
+        )
+
+    @fixtures.db.user()
+    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    def test_get_multi_tenant(self, user_1, user_2):
+        result = self.chatd.user_presences.get(user_2.uuid, tenant_uuid=SUBTENANT_UUID)
+        assert_that(result, has_entries(uuid=user_2.uuid))
+
+        assert_that(
+            calling(self.chatd.user_presences.get).with_args(
+                user_1.uuid, tenant_uuid=SUBTENANT_UUID,
+            ),
+            raises(
+                ChatdError,
+                has_properties(status_code=404)
+            )
+        )

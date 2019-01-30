@@ -29,3 +29,13 @@ class PresenceListResource(AuthResource):
             'filtered': filtered,
             'total': total,
         }
+
+
+class PresenceItemResource(AuthResource):
+
+    def __init__(self, service):
+        self._service = service
+
+    @required_acl('chatd.users.{user_uuid}.presences.read')
+    def get(self, user_uuid):
+        return {}, 200

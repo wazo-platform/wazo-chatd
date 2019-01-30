@@ -11,6 +11,22 @@ paths:
           description: Presences list
           schema:
             $ref: '#/definitions/PresenceList'
+  /users/{user_uuid}/presences:
+    get:
+      operationId: get_user_presence
+      summary: Get user presence
+      description: '**Required ACL:** `chatd.users.{user_uuid}.presences.read`'
+      tags:
+      - presences
+      parameters:
+      - $ref: '#/parameters/user_uuid'
+      responses:
+        '200':
+          description: Presence
+          schema:
+            $ref: '#/definitions/Presence'
+        '404':
+          $ref: '#/responses/NotFoundError'
 
 definitions:
   PresenceList:
