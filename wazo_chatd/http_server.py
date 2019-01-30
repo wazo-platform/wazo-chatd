@@ -29,6 +29,7 @@ class CoreRestApi:
         app.before_request(http_helpers.log_before_request)
         app.after_request(http_helpers.log_request)
         app.secret_key = os.urandom(24)
+        app.config.update(global_config)
         app.permanent_session_lifetime = timedelta(minutes=5)
         auth_verifier.set_config(global_config['auth'])
         self._load_cors()

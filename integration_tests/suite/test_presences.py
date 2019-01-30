@@ -21,7 +21,20 @@ class TestPresences(BaseIntegrationTest):
     def test_list(self, user_1, user_2):
         presences = self.chatd.user_presences.list()
         assert_that(presences, has_entries(
-            items=contains(user_1, user_2),
+            items=contains(
+                has_entries(
+                    uuid=user_1.uuid,
+                    tenant_uuid=user_1.tenant_uuid,
+                    state=user_1.state,
+                    status=user_1.status,
+                ),
+                has_entries(
+                    uuid=user_2.uuid,
+                    tenant_uuid=user_2.tenant_uuid,
+                    state=user_2.state,
+                    status=user_2.status,
+                ),
+            ),
             total=equal_to(2),
             filtered=equal_to(2),
         ))
