@@ -9,7 +9,10 @@ from hamcrest import (
 )
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
+from .helpers.base import (
+    BaseIntegrationTest,
+    SUBTENANT_UUID,
+)
 
 
 class TestPresences(BaseIntegrationTest):
@@ -35,6 +38,23 @@ class TestPresences(BaseIntegrationTest):
                     status=user_2.status,
                 ),
             ),
+            total=equal_to(2),
+            filtered=equal_to(2),
+        ))
+
+    @fixtures.db.user()
+    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    def test_list_multi_tenant(self, user_1, user_2):
+        presences = self.chatd.user_presences.list()
+        assert_that(presences, has_entries(
+            items=contains(has_entries(uuid=user_1.uuid)),
+            total=equal_to(1),
+            filtered=equal_to(1),
+        ))
+
+        presences = self.chatd.user_presences.list(recurse=True)
+        assert_that(presences, has_entries(
+            items=contains(has_entries(uuid=user_1.uuid), has_entries(uuid=user_2.uuid)),
             total=equal_to(2),
             filtered=equal_to(2),
         ))
