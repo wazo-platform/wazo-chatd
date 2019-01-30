@@ -21,3 +21,7 @@ class TenantDAO:
         self.session.flush()
 
         return tenant
+
+    def delete(self, tenant):
+        self.session.delete(tenant)
+        self.session.flush()
