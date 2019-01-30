@@ -50,15 +50,45 @@ class TestUser(BaseIntegrationTest):
         ))
 
     @fixtures.db.user()
-    def test_get(self, user):
-        user_uuid = user.uuid
-        result = self._user_dao.get([MASTER_TENANT_UUID], user_uuid)
+    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    def test_get(self, user_1, _):
+        result = self._user_dao.get([MASTER_TENANT_UUID], user_1.uuid)
+        assert_that(result, equal_to(user_1))
 
-        assert_that(result, has_properties(
-            uuid=user_uuid,
-        ))
+        assert_that(
+            calling(self._user_dao.get).with_args(
+                [SUBTENANT_UUID],
+                user_1.uuid,
+            ),
+            raises(
+                UnknownUserException,
+                has_properties(
+                    status_code=404,
+                    id_='unknown-user',
+                    resource='users',
+                    details=is_not(none()),
+                    message=is_not(none()),
+                )
+            )
+        )
 
-        # TODO: add test get SUBTENAN_UUID
+    def test_get_doesnt_exist(self):
+        assert_that(
+            calling(self._user_dao.get).with_args(
+                [MASTER_TENANT_UUID],
+                UNKNOWN_UUID,
+            ),
+            raises(
+                UnknownUserException,
+                has_properties(
+                    status_code=404,
+                    id_='unknown-user',
+                    resource='users',
+                    details=is_not(none()),
+                    message=is_not(none()),
+                )
+            )
+        )
 
     @fixtures.db.user()
     @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
@@ -79,30 +109,16 @@ class TestUser(BaseIntegrationTest):
         assert_that(result, has_items(user_1, user_2))
 
     @fixtures.db.user()
-    @fixtures.db.user()
+    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
     def test_count(self, user_1, user_2):
         result = self._user_dao.count([MASTER_TENANT_UUID])
+        assert_that(result, equal_to(1))
+
+        result = self._user_dao.count([MASTER_TENANT_UUID, SUBTENANT_UUID])
         assert_that(result, equal_to(2))
 
-        # TODO: add test count SUBTENAN_UUID
-
-    def test_get_doesnt_exist(self):
-        assert_that(
-            calling(self._user_dao.get).with_args(
-                [MASTER_TENANT_UUID],
-                UNKNOWN_UUID,
-            ),
-            raises(
-                UnknownUserException,
-                has_properties(
-                    status_code=404,
-                    id_='unknown-user',
-                    resource='users',
-                    details=is_not(none()),
-                    message=is_not(none()),
-                )
-            )
-        )
+        result = self._user_dao.count([SUBTENANT_UUID])
+        assert_that(result, equal_to(1))
 
     @fixtures.db.user()
     def test_update(self, user):
