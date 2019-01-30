@@ -1,0 +1,48 @@
+paths:
+  /users/presences:
+    get:
+      operationId: list_presences
+      summary: List presences
+      description: '**Required ACL:** `chatd.users.presences.read`'
+      tags:
+      - presences
+      responses:
+        '200':
+          description: Presences list
+          schema:
+            $ref: '#/definitions/PresenceList'
+
+definitions:
+  PresenceList:
+    title: PresenceList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Presence'
+      filtered:
+        type: integer
+        description: The number of result matching the searched terms
+      total:
+        type: integer
+        description: The number of results without filter
+
+  Presence:
+    title: Presence
+    properties:
+      user_uuid:
+        type: string
+        description: The UUID of the user
+        readOnly: true
+      state:
+        type: string
+        description: The presence state of the user.
+        enum:
+          - available
+          - unavailable
+          - invisible
+      status:
+        type: string
+        description: An extended description of the user presence.
+    required:
+      - state

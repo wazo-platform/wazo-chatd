@@ -64,6 +64,7 @@ _DEFAULT_CONFIG = {
     'enabled_plugins': {
         'api': True,
         'config': True,
+        'presences': True,
         'status': True,
     },
 }
