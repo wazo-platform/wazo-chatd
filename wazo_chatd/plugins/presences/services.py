@@ -12,3 +12,6 @@ class PresenceService:
 
     def count(self, tenant_uuids, **filter_parameters):
         return self._user_dao.count(tenant_uuids, **filter_parameters)
+
+    def get(self, tenant_uuids, user_uuid):
+        return self._user_dao.get(tenant_uuids, user_uuid)

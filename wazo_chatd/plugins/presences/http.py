@@ -38,4 +38,6 @@ class PresenceItemResource(AuthResource):
 
     @required_acl('chatd.users.{user_uuid}.presences.read')
     def get(self, user_uuid):
-        return {}, 200
+        tenant_uuids = get_tenant_uuids(recurse=True)
+        presence = self._service.get(tenant_uuids, user_uuid)
+        return UserPresenceSchema().dump(presence).data, 200
