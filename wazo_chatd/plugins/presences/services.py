@@ -15,3 +15,6 @@ class PresenceService:
 
     def get(self, tenant_uuids, user_uuid):
         return self._user_dao.get(tenant_uuids, user_uuid)
+
+    def update(self, user):
+        return self._user_dao.update(user)

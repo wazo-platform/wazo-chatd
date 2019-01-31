@@ -27,6 +27,26 @@ paths:
             $ref: '#/definitions/Presence'
         '404':
           $ref: '#/responses/NotFoundError'
+    put:
+      operationId: update_location
+      summary: Update location
+      description: '**Required ACL:** `chatd.users.{user_uuid}.presences.update`'
+      tags:
+      - presences
+      parameters:
+      - $ref: '#/parameters/user_uuid'
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/Presence'
+      responses:
+        '204':
+          $ref: '#/responses/ResourceUpdated'
+        '400':
+          $ref: '#/responses/APIError'
+        '404':
+          $ref: '#/responses/NotFoundError'
 
 definitions:
   PresenceList:

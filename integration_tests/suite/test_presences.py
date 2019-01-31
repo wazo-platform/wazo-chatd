@@ -107,8 +107,41 @@ class TestPresence(BaseIntegrationTest):
             calling(self.chatd.user_presences.get).with_args(
                 user_1.uuid, tenant_uuid=SUBTENANT_UUID,
             ),
+            raises(ChatdError, has_properties(status_code=404))
+        )
+
+    @fixtures.db.user()
+    def test_update(self, user):
+        user_args = {'uuid': user.uuid, 'state': 'INVISIBLE', 'status': 'custom status'}
+        presence = self.chatd.user_presences.update(user_args)
+        assert_that(presence, has_entries(**user_args))
+
+    def test_update_unknown_uuid(self):
+        assert_that(
+            calling(self.chatd.user_presences.update).with_args({'uuid': UNKNOWN_UUID}),
             raises(
                 ChatdError,
-                has_properties(status_code=404)
+                has_properties(
+                    status_code=404,
+                    error_id='unknown-user',
+                    resource='users',
+                    details=is_not(none()),
+                    message=is_not(none()),
+                    timestamp=is_not(none()),
+                )
             )
+        )
+
+    @fixtures.db.user()
+    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    def test_update_multi_tenant(self, user_1, user_2):
+        user_args = {'uuid': user_2.uuid, 'state': 'AVAILABLE'}
+        result = self.chatd.user_presences.update(user_args, tenant_uuid=SUBTENANT_UUID)
+        assert_that(result, has_entries(uuid=user_2.uuid))
+
+        assert_that(
+            calling(self.chatd.user_presences.update).with_args(
+                {'uuid': user_1.uuid}, tenant_uuid=SUBTENANT_UUID,
+            ),
+            raises(ChatdError, has_properties(status_code=404))
         )
