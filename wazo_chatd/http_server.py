@@ -10,15 +10,40 @@ from cheroot import wsgi
 from flask import Flask
 from flask_cors import CORS
 from flask_restful import Api
+from sqlalchemy.exc import SQLAlchemyError
 from xivo import http_helpers
 
 from .http import auth_verifier
+from .database.helpers import Session
 
 VERSION = 1.0
 
 logger = logging.getLogger(__name__)
 app = Flask('wazo-chatd')
 api = Api(app, prefix='/{}'.format(VERSION))
+
+
+def teardown_appcontext(exception):
+    if exception is None:
+        commit_database()
+    else:
+        rollback_database()
+
+    return exception
+
+
+def rollback_database():
+    Session.rollback()
+
+
+def commit_database():
+    try:
+        Session.commit()
+    except SQLAlchemyError:
+        Session.rollback()
+        raise
+    finally:
+        Session.remove()
 
 
 class CoreRestApi:
@@ -28,6 +53,7 @@ class CoreRestApi:
         http_helpers.add_logger(app, logger)
         app.before_request(http_helpers.log_before_request)
         app.after_request(http_helpers.log_request)
+        app.teardown_appcontext(teardown_appcontext)
         app.secret_key = os.urandom(24)
         app.config.update(global_config)
         app.permanent_session_lifetime = timedelta(minutes=5)
