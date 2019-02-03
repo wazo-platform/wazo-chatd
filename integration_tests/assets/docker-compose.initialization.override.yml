@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  sync:
+    depends_on:
+      - auth
+      - chatd
+      - postgres
+    environment:
+      TARGETS: "chatd:9304 auth:9497 postgres:5432"
+
+  chatd:
+    image: wazo-chatd-test
+    volumes:
+      - ./etc/wazo-chatd/conf.d/20-initialization.yml:/etc/wazo-chatd/conf.d/20-initialization.yml:ro
+      - ./key-file.yml:/tmp/key-file.yml:ro
