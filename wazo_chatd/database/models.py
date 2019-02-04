@@ -8,6 +8,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.types import TypeDecorator
 
@@ -42,3 +43,5 @@ class User(Base):
         nullable=False,
     )
     status = Column(Text())
+
+    tenant = relationship('Tenant')

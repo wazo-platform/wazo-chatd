@@ -25,12 +25,12 @@ class Plugin:
         initialization = config['initialization']
 
         auth = AuthClient(**config['auth'])
-        initiator = Initiator(auth)
+        initiator = Initiator(TenantDAO(), UserDAO(), auth)
         if initialization['tenants']:
-            initiator.initiate_tenants(TenantDAO())
+            initiator.initiate_tenants()
         if initialization['users']:
             confd = ConfdClient(**config['confd'])
-            initiator.initiate_users(UserDAO(), confd)
+            initiator.initiate_users(confd)
         if initialization['lines']:
             logger.debug('Initialize lines is not implemented')
         if initialization['sessions']:
