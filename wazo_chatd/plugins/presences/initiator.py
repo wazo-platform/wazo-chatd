@@ -1,11 +1,15 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
+
 from wazo_chatd.database.models import (
     User,
     Tenant,
 )
 from wazo_chatd.database.helpers import session_scope
+
+logger = logging.getLogger(__name__)
 
 
 class Initiator:
@@ -32,12 +36,14 @@ class Initiator:
         tenants_missing = tenants - tenants_cached
         with session_scope():
             for uuid in tenants_missing:
+                logger.debug('Creating tenant with uuid: %s' % uuid)
                 tenant = Tenant(uuid=uuid)
                 self._tenant_dao.create(tenant)
 
         tenants_expired = tenants_cached - tenants
         with session_scope():
             for uuid in tenants_expired:
+                logger.debug('Deleting tenant with uuid: %s' % uuid)
                 tenant = self._tenant_dao.get(uuid)
                 self._tenant_dao.delete(tenant)
 
@@ -54,11 +60,13 @@ class Initiator:
                 # Avoid race condition between init tenant and init user
                 tenant = self._tenant_dao.find_or_create(tenant_uuid)
 
+                logger.debug('Creating user with uuid: %s' % uuid)
                 user = User(uuid=uuid, tenant=tenant, state='unavailable')
                 self._user_dao.create(user)
 
         users_expired = users_cached - users
         with session_scope():
             for uuid, tenant_uuid in users_expired:
+                logger.debug('Deleting user with uuid: %s' % uuid)
                 user = self._user_dao.get([tenant_uuid], uuid)
                 self._user_dao.delete(user)
