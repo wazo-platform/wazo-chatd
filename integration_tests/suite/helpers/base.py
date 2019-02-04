@@ -11,7 +11,9 @@ from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries.user import UserDAO
 from wazo_chatd.database.queries.tenant import TenantDAO
 
+from xivo_test_helpers.auth import AuthClient
 from xivo_test_helpers.asset_launching_test_case import AssetLaunchingTestCase, NoSuchService
+from .wait_strategy import EverythingOkWaitStrategy
 
 VALID_TOKEN = 'valid-token-multi-tenant'
 
@@ -31,6 +33,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
 
     assets_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
     service = 'chatd'
+    wait_strategy = EverythingOkWaitStrategy()
 
     @classmethod
     def setUpClass(cls):
@@ -39,6 +42,8 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         engine = create_engine(DB_URI.format(port=cls.service_port(5432, 'postgres')), echo=DB_ECHO)
         cls._Session.configure(bind=engine)
         cls.chatd = cls.make_chatd(VALID_TOKEN)
+        cls.auth = cls.make_auth(VALID_TOKEN)
+        cls.wait_strategy.wait(cls)
 
     @classmethod
     def make_chatd(cls, token):
@@ -47,12 +52,16 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         except NoSuchService as e:
             logger.debug(e)
             return
-        return ChatdClient(
-            'localhost',
-            port=port,
-            token=token,
-            verify_certificate=False,
-        )
+        return ChatdClient('localhost', port=port, token=token, verify_certificate=False)
+
+    @classmethod
+    def make_auth(cls, token):
+        try:
+            port = cls.service_port(9497, 'auth')
+        except NoSuchService as e:
+            logger.debug(e)
+            return
+        return AuthClient('localhost', port=port)
 
     def setUp(self):
         super().setUp()

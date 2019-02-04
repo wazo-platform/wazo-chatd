@@ -4,5 +4,5 @@ initialization:
   connections: False
   lines: False
   sessions: False
-  tenants: False
+  tenants: True
   users: False

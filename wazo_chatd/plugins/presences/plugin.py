@@ -6,6 +6,7 @@ import logging
 from xivo_auth_client import Client as AuthClient
 
 from wazo_chatd.database.queries.user import UserDAO
+from wazo_chatd.database.queries.tenant import TenantDAO
 
 from .http import PresenceListResource, PresenceItemResource
 from .services import PresenceService
@@ -25,7 +26,7 @@ class Plugin:
         auth = AuthClient(**config['auth'])
         initiator = Initiator(auth)
         if initialization['tenants']:
-            logger.debug('Initialize tenants is not implemented')
+            initiator.initiate_tenants(TenantDAO())
         if initialization['users']:
             logger.debug('Initialize users is not implemented')
         if initialization['lines']:
