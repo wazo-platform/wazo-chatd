@@ -29,7 +29,7 @@ def user(**user_args):
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
-                if inspect(user).persistent:
+                if not inspect(user).deleted:
                     self._user_dao.delete(user)
                 self._session.commit()
             return result
