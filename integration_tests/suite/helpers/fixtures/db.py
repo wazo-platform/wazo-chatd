@@ -8,6 +8,7 @@ from sqlalchemy import inspect
 
 from wazo_chatd.database.models import (
     User,
+    Tenant,
 )
 
 from ..base import MASTER_TENANT_UUID
@@ -31,6 +32,28 @@ def user(**user_args):
             finally:
                 if not inspect(user).deleted:
                     self._user_dao.delete(user)
+                self._session.commit()
+            return result
+        return wrapper
+    return decorator
+
+
+def tenant(**tenant_args):
+    def decorator(decorated):
+        @wraps(decorated)
+        def wrapper(self, *args, **kwargs):
+            tenant_args.setdefault('uuid', str(uuid.uuid4()))
+            model = Tenant(**tenant_args)
+
+            tenant = self._tenant_dao.create(model)
+
+            self._session.commit()
+            args = list(args) + [tenant]
+            try:
+                result = decorated(self, *args, **kwargs)
+            finally:
+                if not inspect(tenant).deleted:
+                    self._tenant_dao.delete(tenant)
                 self._session.commit()
             return result
         return wrapper

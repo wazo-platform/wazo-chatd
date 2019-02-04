@@ -11,16 +11,24 @@ class TenantDAO:
     def session(self):
         return get_dao_session()
 
+    def get(self, tenant_uuid):
+        return self.session.query(Tenant).get(tenant_uuid)
+
+    def list_(self):
+        return self.session.query(Tenant).all()
+
+    def create(self, tenant):
+        self.session.add(tenant)
+        self.session.flush()
+        return tenant
+
     def find_or_create(self, tenant_uuid):
         result = self.session.query(Tenant).get(tenant_uuid)
         if result:
             return result
 
         tenant = Tenant(uuid=tenant_uuid)
-        self.session.add(tenant)
-        self.session.flush()
-
-        return tenant
+        return self.create(tenant)
 
     def delete(self, tenant):
         self.session.delete(tenant)
