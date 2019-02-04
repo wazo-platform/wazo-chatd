@@ -5,4 +5,4 @@ initialization:
   lines: False
   sessions: False
   tenants: True
-  users: False
+  users: True

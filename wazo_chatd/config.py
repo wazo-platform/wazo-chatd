@@ -46,6 +46,11 @@ _DEFAULT_CONFIG = {
         'exchange_type': 'topic',
         'exchange_headers_name': 'wazo-headers',
     },
+    'confd': {
+        'host': 'localhost',
+        'port': 9486,
+        'verify_certificate': _CERT_FILE,
+    },
     'consul': {
         'scheme': 'https',
         'host': 'localhost',

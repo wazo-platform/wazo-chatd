@@ -4,7 +4,6 @@
 import uuid
 
 from functools import wraps
-from sqlalchemy import inspect
 
 from wazo_chatd.database.models import (
     User,
@@ -30,7 +29,8 @@ def user(**user_args):
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
-                if not inspect(user).deleted:
+                user = self._session.query(User).get(user_args['uuid'])
+                if user:
                     self._user_dao.delete(user)
                 self._session.commit()
             return result
@@ -52,7 +52,8 @@ def tenant(**tenant_args):
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
-                if not inspect(tenant).deleted:
+                tenant = self._session.query(Tenant).get(tenant_args['uuid'])
+                if tenant:
                     self._tenant_dao.delete(tenant)
                 self._session.commit()
             return result

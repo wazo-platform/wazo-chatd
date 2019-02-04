@@ -23,3 +23,8 @@ services:
     image: wazopbx/wazo-chatd-db
     ports:
       - "5432"
+
+  confd:
+    image: wazopbx/xivo-confd-mock
+    ports:
+      - 9486

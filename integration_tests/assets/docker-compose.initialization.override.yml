@@ -4,9 +4,10 @@ services:
     depends_on:
       - auth
       - chatd
+      - confd
       - postgres
     environment:
-      TARGETS: "chatd:9304 auth:9497 postgres:5432"
+      TARGETS: "confd:9486 chatd:9304 auth:9497 postgres:5432"
 
   chatd:
     image: wazo-chatd-test

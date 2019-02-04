@@ -4,6 +4,7 @@
 import logging
 
 from xivo_auth_client import Client as AuthClient
+from xivo_confd_client import Client as ConfdClient
 
 from wazo_chatd.database.queries.user import UserDAO
 from wazo_chatd.database.queries.tenant import TenantDAO
@@ -28,7 +29,8 @@ class Plugin:
         if initialization['tenants']:
             initiator.initiate_tenants(TenantDAO())
         if initialization['users']:
-            logger.debug('Initialize users is not implemented')
+            confd = ConfdClient(**config['confd'])
+            initiator.initiate_users(UserDAO(), confd)
         if initialization['lines']:
             logger.debug('Initialize lines is not implemented')
         if initialization['sessions']:
