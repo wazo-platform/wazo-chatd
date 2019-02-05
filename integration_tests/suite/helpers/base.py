@@ -14,6 +14,7 @@ from wazo_chatd.database.queries.tenant import TenantDAO
 from xivo_test_helpers.auth import AuthClient
 from xivo_test_helpers.asset_launching_test_case import AssetLaunchingTestCase, NoSuchService
 
+from .bus import BusClient
 from .confd import ConfdClient
 from .wait_strategy import EverythingOkWaitStrategy
 
@@ -46,6 +47,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         cls.chatd = cls.make_chatd(VALID_TOKEN)
         cls.auth = cls.make_auth(VALID_TOKEN)
         cls.confd = cls.make_confd(VALID_TOKEN)
+        cls.bus = cls.make_bus()
         cls.wait_strategy.wait(cls)
 
     @classmethod
@@ -74,6 +76,15 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
             logger.debug(e)
             return
         return ConfdClient('localhost', port=port)
+
+    @classmethod
+    def make_bus(cls):
+        try:
+            port = cls.service_port(5672, 'rabbitmq')
+        except NoSuchService as e:
+            logger.debug(e)
+            return
+        return BusClient.from_connection_fields(host='localhost', port=port)
 
     def setUp(self):
         super().setUp()

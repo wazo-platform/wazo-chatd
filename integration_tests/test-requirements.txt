@@ -1,4 +1,5 @@
 docker-compose
+kombu
 pyhamcrest
 pytest
 requests

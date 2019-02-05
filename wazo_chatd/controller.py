@@ -8,6 +8,7 @@ from functools import partial
 from xivo import plugin_helpers
 from xivo.consul_helpers import ServiceCatalogRegistration
 
+from . import bus
 from .database.helpers import init_db
 from .http_server import api, CoreRestApi
 
@@ -27,24 +28,24 @@ class Controller:
             lambda: True,
         ]
         self.rest_api = CoreRestApi(config)
+        self.bus_consumer = bus.Consumer(config)
         plugin_helpers.load(
             namespace='wazo_chatd.plugins',
             names=config['enabled_plugins'],
             dependencies={
                 'api': api,
                 'config': config,
+                'bus_consumer': self.bus_consumer,
             }
         )
 
     def run(self):
         logger.info('wazo-chatd starting...')
         signal.signal(signal.SIGTERM, partial(_sigterm_handler, self))
-        try:
+
+        with bus.consumer_thread(self.bus_consumer):
             with ServiceCatalogRegistration(*self._service_discovery_args):
                 self.rest_api.run()
-
-        finally:
-            logger.info('wazo-chatd stopping...')
 
     def stop(self, reason):
         logger.warning('Stopping wazo-chatd: %s', reason)

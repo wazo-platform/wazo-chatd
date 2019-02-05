@@ -28,3 +28,11 @@ services:
     image: wazopbx/xivo-confd-mock
     ports:
       - 9486
+
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - '5672'
+    volumes:
+      - type: tmpfs
+        target: /var/lib/rabbitmq
