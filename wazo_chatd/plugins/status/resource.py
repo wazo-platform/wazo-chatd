@@ -11,7 +11,7 @@ class StatusResource(AuthResource):
     @required_acl('chatd.status.read')
     def get(self):
         result = {
-            'rest-api': {
+            'rest_api': {
                 'status': 'ok',
             }
         }

@@ -33,7 +33,7 @@ class EverythingOkWaitStrategy(WaitStrategy):
             except requests.RequestException:
                 status = {}
             assert_that(status, has_entries({
-                'rest-api': has_entries(status='ok'),
+                'rest_api': has_entries(status='ok'),
             }))
 
         until.assert_(is_ready, tries=60)
