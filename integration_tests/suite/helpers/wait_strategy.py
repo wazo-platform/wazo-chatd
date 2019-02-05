@@ -34,6 +34,7 @@ class EverythingOkWaitStrategy(WaitStrategy):
                 status = {}
             assert_that(status, has_entries({
                 'rest_api': has_entries(status='ok'),
+                'bus_consumer': has_entries(status='ok'),
             }))
 
         until.assert_(is_ready, tries=60)

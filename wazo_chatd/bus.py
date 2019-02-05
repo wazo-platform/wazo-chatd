@@ -13,6 +13,7 @@ from kombu import (
 )
 from kombu.mixins import ConsumerMixin
 
+from xivo.status import Status
 from xivo.pubsub import Pubsub
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class Consumer(ConsumerMixin):
             type=global_config['bus']['exchange_type'],
         )
         self._queue = kombu.Queue(exclusive=True)
+        self._is_running = False
 
     def run(self):
         logger.info("Running AMQP consumer")
@@ -52,6 +54,20 @@ class Consumer(ConsumerMixin):
 
     def get_consumers(self, Consumer, channel):
         return [Consumer(self._queue, callbacks=[self._on_bus_message])]
+
+    def on_connection_error(self, exc, interval):
+        super().on_connection_error(exc, interval)
+        self._is_running = False
+
+    def on_connection_revived(self):
+        super().on_connection_revived()
+        self._is_running = True
+
+    def is_running(self):
+        return self._is_running
+
+    def provide_status(self, status):
+        status['bus_consumer']['status'] = Status.ok if self.is_running() else Status.fail
 
     def on_event(self, routing_key, callback):
         logger.debug('Added callback on event "%s"', routing_key)

@@ -8,11 +8,9 @@ from wazo_chatd.http import AuthResource
 
 class StatusResource(AuthResource):
 
+    def __init__(self, status_aggregator):
+        self.status_aggregator = status_aggregator
+
     @required_acl('chatd.status.read')
     def get(self):
-        result = {
-            'rest_api': {
-                'status': 'ok',
-            }
-        }
-        return result, 200
+        return self.status_aggregator.status(), 200
