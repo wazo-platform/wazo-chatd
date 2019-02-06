@@ -27,12 +27,14 @@ from .helpers.base import (
     MASTER_TENANT_UUID,
     SUBTENANT_UUID,
 )
+from .helpers.wait_strategy import NoWaitStrategy
 
 
 class TestUser(BaseIntegrationTest):
 
     asset = 'database'
     service = 'postgresql'
+    wait_strategy = NoWaitStrategy()
 
     def test_create(self):
         user_uuid = uuid.uuid4()
