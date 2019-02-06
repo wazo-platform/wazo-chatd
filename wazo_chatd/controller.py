@@ -7,6 +7,8 @@ import signal
 from functools import partial
 from xivo import plugin_helpers
 from xivo.consul_helpers import ServiceCatalogRegistration
+
+from .database.helpers import init_db
 from .http_server import api, CoreRestApi
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,7 @@ logger = logging.getLogger(__name__)
 class Controller:
 
     def __init__(self, config):
+        init_db(config['db_uri'])
         self._service_discovery_args = [
             'wazo-chatd',
             config.get('uuid'),

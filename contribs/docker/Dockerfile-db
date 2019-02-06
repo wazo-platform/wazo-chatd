@@ -1,0 +1,15 @@
+FROM wazopbx/wazo-base-db
+MAINTAINER Wazo Maintainers <dev@wazo.community>
+
+ADD . /usr/src/wazo-chatd
+WORKDIR /usr/src/wazo-chatd
+ENV ALEMBIC_DB_URI postgresql://wazo-chatd:Secr7t@localhost/wazo-chatd
+
+RUN true \
+    && python3 setup.py install \
+    && pg_start \
+    && wazo-chatd-init-db --user postgres --pg_db_uri postgresql:///postgres --chatd_db_uri postgresql:///wazo-chatd --db wazo-chatd --owner wazo-chatd --password Secr7t \
+    && (cd /usr/src/wazo-chatd && /usr/bin/python3-alembic -c alembic.ini upgrade head) \
+    && pg_stop \
+    && true
+USER postgres

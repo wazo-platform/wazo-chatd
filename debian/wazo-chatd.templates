@@ -1,0 +1,39 @@
+Template: wazo-chatd/db-host
+Type: string
+Default: localhost
+Description: PostgreSQL host
+ Where is PostgreSQL hosted?
+ .
+
+Template: wazo-chatd/db-admin-username
+Type: string
+Default: postgres
+Description: DB admin username
+ What is the username to access the PostgreSQL database as admin?
+ .
+
+Template: wazo-chatd/db-admin-password
+Type: password
+Description: DB admin password
+ What is the password to access the PostgreSQL database as admin?
+ .
+
+Template: wazo-chatd/db-app-name
+Type: string
+Default: wazo-chatd
+Description: Application DB name
+ What is the name of the PostgreSQL database to be created?
+ .
+
+Template: wazo-chatd/db-app-username
+Type: string
+Default: wazo-chatd
+Description: DB app username
+ What is the username to be created for the app?
+ .
+
+Template: wazo-chatd/db-app-password
+Type: password
+Description: DB app password
+ What is the password to be created for the app?
+ .

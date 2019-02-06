@@ -3,9 +3,10 @@ services:
   sync:
     depends_on:
       - chatd
+      - postgres
       - swagger-validator
     environment:
-      TARGETS: chatd:9304 swagger-validator:8080
+      TARGETS: "chatd:9304 swagger-validator:8080 postgres:5432"
 
   swagger-validator:
     image: swaggerapi/swagger-validator

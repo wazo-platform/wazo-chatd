@@ -30,6 +30,7 @@ _DEFAULT_CONFIG = {
             'allow_headers': ['Content-Type', 'X-Auth-Token'],
         },
     },
+    'db_uri': 'postgresql://asterisk:proformatique@localhost/asterisk',
     'auth': {
         'host': 'localhost',
         'port': 9497,

@@ -1,1 +1,3 @@
 etc/* etc/
+alembic/ usr/share/wazo-chatd/
+alembic.ini usr/share/wazo-chatd/

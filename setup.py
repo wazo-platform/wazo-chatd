@@ -18,6 +18,7 @@ setup(
     entry_points={
         'console_scripts': [
             '{}=wazo_chatd.main:main'.format(NAME),
+            '{}-init-db=wazo_chatd.init_db:main'.format(NAME),
         ],
         'wazo_chatd.plugins': [
             'api = wazo_chatd.plugins.api.plugin:Plugin',
