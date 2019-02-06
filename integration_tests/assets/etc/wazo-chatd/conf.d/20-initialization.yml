@@ -1,5 +1,3 @@
-auth:
-  key_file: /tmp/key-file.yml
 initialization:
   connections: False
   lines: False

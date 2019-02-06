@@ -1,6 +1,7 @@
 db_uri: postgresql://wazo-chatd:Secr7t@postgres/wazo-chatd
 auth:
   host: auth
+  key_file: /tmp/key-file.yml
   verify_certificate: false
 bus:
   host: rabbitmq

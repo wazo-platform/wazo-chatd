@@ -13,4 +13,3 @@ services:
     image: wazo-chatd-test
     volumes:
       - ./etc/wazo-chatd/conf.d/20-initialization.yml:/etc/wazo-chatd/conf.d/20-initialization.yml:ro
-      - ./key-file.yml:/tmp/key-file.yml:ro

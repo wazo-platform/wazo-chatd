@@ -11,6 +11,7 @@ services:
       - ../..:/usr/src/wazo-chatd:ro
       - ./etc/wazo-chatd/conf.d/50-default.yml:/etc/wazo-chatd/conf.d/50-default.yml:ro
       # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/usr/local/lib/python3.5/site-packages/xivo'
+      - ./key-file.yml:/tmp/key-file.yml:ro
     ports:
       - '9304'
 
