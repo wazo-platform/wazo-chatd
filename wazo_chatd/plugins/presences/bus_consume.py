@@ -4,7 +4,7 @@
 import logging
 
 from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.database.models import User
+from wazo_chatd.database.models import User, Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,15 @@ class BusEventHandler:
             self._user_dao.delete(user)
 
     def _tenant_created(self, event):
-        pass
+        tenant_uuid = event['uuid']
+        with session_scope():
+            logger.debug('Creating tenant with uuid: %s' % (tenant_uuid))
+            tenant = Tenant(uuid=tenant_uuid)
+            self._tenant_dao.create(tenant)
 
     def _tenant_deleted(self, event):
-        pass
+        tenant_uuid = event['uuid']
+        with session_scope():
+            logger.debug('Deleting tenant with uuid: %s' % (tenant_uuid))
+            tenant = self._tenant_dao.get(tenant_uuid)
+            self._tenant_dao.delete(tenant)

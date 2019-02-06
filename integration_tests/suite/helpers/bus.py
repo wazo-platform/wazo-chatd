@@ -23,3 +23,19 @@ class BusClient(bus_helper.BusClient):
             },
             'name': 'user_deleted',
         }, 'config.user.deleted')
+
+    def send_tenant_created_event(self, tenant_uuid):
+        self.publish({
+            'data': {
+                'uuid': tenant_uuid,
+            },
+            'name': 'auth_tenant_created',
+        }, 'auth.tenants.{}.created'.format(tenant_uuid))
+
+    def send_tenant_deleted_event(self, tenant_uuid):
+        self.publish({
+            'data': {
+                'uuid': tenant_uuid,
+            },
+            'name': 'auth_tenant_deleted',
+        }, 'auth.tenants.{}.deleted'.format(tenant_uuid))
