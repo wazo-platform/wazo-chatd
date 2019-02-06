@@ -7,6 +7,7 @@ from functools import wraps
 
 from wazo_chatd.database.models import (
     User,
+    Session,
     Tenant,
 )
 
@@ -32,6 +33,31 @@ def user(**user_args):
                 user = self._session.query(User).get(user_args['uuid'])
                 if user:
                     self._user_dao.delete(user)
+                self._session.commit()
+            return result
+        return wrapper
+    return decorator
+
+
+def session(**session_args):
+    def decorator(decorated):
+        @wraps(decorated)
+        def wrapper(self, *args, **kwargs):
+            session_args.setdefault('uuid', str(uuid.uuid4()))
+            session = Session(**session_args)
+
+            self._session.add(session)
+            self._session.flush()
+
+            self._session.commit()
+            args = list(args) + [session]
+            try:
+                result = decorated(self, *args, **kwargs)
+            finally:
+                session = self._session.query(Session).get(session_args['uuid'])
+                if session:
+                    self._session.delete(session)
+                    self._session.flush()
                 self._session.commit()
             return result
         return wrapper

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     ForeignKey,
@@ -36,7 +37,11 @@ class User(Base):
     __tablename__ = 'chatd_user'
 
     uuid = Column(UUIDAsString(36), primary_key=True)
-    tenant_uuid = Column(UUIDAsString(36), ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'), nullable=False)
+    tenant_uuid = Column(
+        UUIDAsString(36),
+        ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
     state = Column(
         String(24),
         CheckConstraint("state in ('available', 'unavailable', 'invisible')"),
@@ -45,3 +50,21 @@ class User(Base):
     status = Column(Text())
 
     tenant = relationship('Tenant')
+    sessions = relationship(
+        'Session',
+        passive_deletes=False,
+        cascade='all,delete-orphan',
+    )
+
+
+class Session(Base):
+
+    __tablename__ = 'chatd_session'
+
+    uuid = Column(UUIDAsString(36), primary_key=True)
+    mobile = Column(Boolean, nullable=False, default=False)
+    user_uuid = Column(
+        UUIDAsString(36),
+        ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
