@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from contextlib import contextmanager
-from functools import wraps
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -16,17 +15,8 @@ def init_db(db_uri):
     Session.configure(bind=engine)
 
 
-def daosession(func):
-    @wraps(func)
-    def wrapped(*args, **kwargs):
-        session = Session()
-        return func(session, *args, **kwargs)
-    return wrapped
-
-
-@daosession
-def get_dao_session(session):
-    return session
+def get_dao_session():
+    return Session()
 
 
 @contextmanager
