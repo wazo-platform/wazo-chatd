@@ -18,6 +18,13 @@ from xivo.pubsub import Pubsub
 
 logger = logging.getLogger(__name__)
 
+ROUTING_KEY_MAPPING = {
+    'auth_tenant_created': 'auth.tenants.*.created',
+    'auth_tenant_deleted': 'auth.tenants.*.deleted',
+    'user_created': 'config.user.created',
+    'user_deleted': 'config.user.deleted',
+}
+
 
 @contextmanager
 def consumer_thread(consumer):
@@ -69,18 +76,21 @@ class Consumer(ConsumerMixin):
     def provide_status(self, status):
         status['bus_consumer']['status'] = Status.ok if self.is_running() else Status.fail
 
-    def on_event(self, routing_key, callback):
-        logger.debug('Added callback on event "%s"', routing_key)
-        self._queue.bindings.add(binding(self._exchange, routing_key=routing_key))
-        self._events_pubsub.subscribe(routing_key, callback)
+    def on_event(self, event_name, callback):
+        logger.debug('Added callback on event "%s"', event_name)
+        self._queue.bindings.add(
+            binding(self._exchange, routing_key=ROUTING_KEY_MAPPING[event_name])
+        )
+        self._events_pubsub.subscribe(event_name, callback)
 
     def _on_bus_message(self, body, message):
         try:
             event = body['data']
+            event_name = body['name']
         except KeyError:
             logger.error('Invalid event message received: %s', event)
         else:
-            self._events_pubsub.publish(message.delivery_info['routing_key'], event)
+            self._events_pubsub.publish(event_name, event)
         finally:
             message.ack()
 

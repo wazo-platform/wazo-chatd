@@ -11,7 +11,8 @@ class BusClient(bus_helper.BusClient):
             'data': {
                 'uuid': user_uuid,
                 'tenant_uuid': tenant_uuid,
-            }
+            },
+            'name': 'user_created',
         }, 'config.user.created')
 
     def send_user_deleted_event(self, user_uuid, tenant_uuid):
@@ -19,5 +20,6 @@ class BusClient(bus_helper.BusClient):
             'data': {
                 'uuid': user_uuid,
                 'tenant_uuid': tenant_uuid,
-            }
+            },
+            'name': 'user_deleted',
         }, 'config.user.deleted')

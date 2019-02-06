@@ -16,10 +16,10 @@ class BusEventHandler:
         self._user_dao = user_dao
 
     def subscribe(self, bus_consumer):
-        bus_consumer.on_event('auth.tenants.*.created', self._tenant_created)
-        bus_consumer.on_event('auth.tenants.*.deleted', self._tenant_deleted)
-        bus_consumer.on_event('config.user.created', self._user_created)
-        bus_consumer.on_event('config.user.deleted', self._user_deleted)
+        bus_consumer.on_event('auth_tenant_created', self._tenant_created)
+        bus_consumer.on_event('auth_tenant_deleted', self._tenant_deleted)
+        bus_consumer.on_event('user_created', self._user_created)
+        bus_consumer.on_event('user_deleted', self._user_deleted)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
