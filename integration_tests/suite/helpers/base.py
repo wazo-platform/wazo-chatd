@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries.user import UserDAO
+from wazo_chatd.database.queries.session import SessionDAO
 from wazo_chatd.database.queries.tenant import TenantDAO
 
 from xivo_test_helpers.auth import AuthClient
@@ -97,6 +98,8 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
 
         UserDAO.session = self._session
         self._user_dao = UserDAO()
+        SessionDAO.session = self._session
+        self._session_dao = SessionDAO()
 
     def tearDown(self):
         self._Session.rollback()

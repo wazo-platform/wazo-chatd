@@ -6,11 +6,13 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKey,
+    # Integer,
     String,
     Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.types import TypeDecorator
 
 Base = declarative_base()
@@ -68,3 +70,6 @@ class Session(Base):
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
         nullable=False,
     )
+
+    user = relationship('User', viewonly=True)
+    tenant_uuid = association_proxy('user', 'tenant_uuid')
