@@ -50,4 +50,4 @@ class PresenceItemResource(AuthResource):
         presence_args = UserPresenceSchema().load(request.get_json()).data
         update_model_instance(presence, presence_args)
         self._service.update(presence)
-        return UserPresenceSchema().dump(presence).data, 200
+        return '', 204

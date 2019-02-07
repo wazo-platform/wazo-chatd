@@ -114,7 +114,9 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(state='unavailable')
     def test_update(self, user):
         user_args = {'uuid': user.uuid, 'state': 'invisible', 'status': 'custom status'}
-        presence = self.chatd.user_presences.update(user_args)
+        self.chatd.user_presences.update(user_args)
+
+        presence = self.chatd.user_presences.get(user_args['uuid'])
         assert_that(presence, has_entries(user_args))
 
     def test_update_unknown_uuid(self):
@@ -137,7 +139,9 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(tenant_uuid=SUBTENANT_UUID, state='unavailable')
     def test_update_multi_tenant(self, user_1, user_2):
         user_args = {'uuid': user_2.uuid, 'state': 'available'}
-        result = self.chatd.user_presences.update(user_args, tenant_uuid=SUBTENANT_UUID)
+        self.chatd.user_presences.update(user_args, tenant_uuid=SUBTENANT_UUID)
+
+        result = self.chatd.user_presences.get(user_args['uuid'])
         assert_that(result, has_entries(user_args))
 
         assert_that(
