@@ -37,7 +37,7 @@ class TestUser(BaseIntegrationTest):
         user = User(
             uuid=user_uuid,
             tenant_uuid=MASTER_TENANT_UUID,
-            state='AVAILABLE',
+            state='available',
             status='description of available state',
         )
         user = self._user_dao.create(user)
@@ -123,7 +123,7 @@ class TestUser(BaseIntegrationTest):
     @fixtures.db.user()
     def test_update(self, user):
         user_uuid = user.uuid
-        user_state = 'INVISIBLE'
+        user_state = 'invisible'
         user_status = 'other status'
 
         user.state = user_state

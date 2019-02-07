@@ -38,7 +38,7 @@ class User(Base):
     tenant_uuid = Column(UUIDAsString(36), ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'), nullable=False)
     state = Column(
         String(24),
-        CheckConstraint("state in ('AVAILABLE', 'UNAVAILABLE', 'INVISIBLE')"),
+        CheckConstraint("state in ('available', 'unavailable', 'invisible')"),
         nullable=False,
     )
     status = Column(Text())
