@@ -28,8 +28,8 @@ paths:
         '404':
           $ref: '#/responses/NotFoundError'
     put:
-      operationId: update_location
-      summary: Update location
+      operationId: update_user_presence
+      summary: Update user presence
       description: '**Required ACL:** `chatd.users.{user_uuid}.presences.update`'
       tags:
       - presences
