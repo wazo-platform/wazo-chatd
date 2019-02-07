@@ -7,6 +7,7 @@ from xivo_auth_client import Client as AuthClient
 from xivo_confd_client import Client as ConfdClient
 
 from wazo_chatd.database.queries.user import UserDAO
+from wazo_chatd.database.queries.session import SessionDAO
 from wazo_chatd.database.queries.tenant import TenantDAO
 
 from .bus_consume import BusEventHandler
@@ -27,7 +28,7 @@ class Plugin:
         initialization = config['initialization']
 
         auth = AuthClient(**config['auth'])
-        initiator = Initiator(TenantDAO(), UserDAO(), auth)
+        initiator = Initiator(TenantDAO(), UserDAO(), SessionDAO(), auth)
         if initialization['tenants']:
             initiator.initiate_tenants()
         if initialization['users']:
@@ -40,7 +41,7 @@ class Plugin:
         if initialization['connections']:
             logger.debug('Initialize connections is not implemented')
 
-        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO())
+        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO())
         bus_event_handler.subscribe(bus_consumer)
 
         api.add_resource(

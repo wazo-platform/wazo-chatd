@@ -11,9 +11,10 @@ logger = logging.getLogger(__name__)
 
 class BusEventHandler:
 
-    def __init__(self, tenant_dao, user_dao):
+    def __init__(self, tenant_dao, user_dao, session_dao):
         self._tenant_dao = tenant_dao
         self._user_dao = user_dao
+        self._session_dao = session_dao
 
     def subscribe(self, bus_consumer):
         bus_consumer.on_event('auth_tenant_created', self._tenant_created)
@@ -71,10 +72,5 @@ class BusEventHandler:
         with session_scope():
             logger.debug('Deleting session with uuid: %s, user_uuid: %s' % (session_uuid, user_uuid))
             user = self._user_dao.get([tenant_uuid], user_uuid)
-            session = self._find_session(user, session_uuid)
+            session = self._session_dao.get(session_uuid)
             self._user_dao.remove_session(user, session)
-
-    def _find_session(self, user, session_uuid):
-        for session in user.sessions:
-            if session.uuid == session_uuid:
-                return session

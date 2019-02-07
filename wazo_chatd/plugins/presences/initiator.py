@@ -15,9 +15,10 @@ logger = logging.getLogger(__name__)
 
 class Initiator:
 
-    def __init__(self, tenant_dao, user_dao, auth):
+    def __init__(self, tenant_dao, user_dao, session_dao, auth):
         self._tenant_dao = tenant_dao
         self._user_dao = user_dao
+        self._session_dao = session_dao
         self._auth = auth
         self._token = None
 
@@ -81,8 +82,8 @@ class Initiator:
             for session in sessions
         )
         sessions_cached = set(
-            (result.Session.uuid, result.Session.user_uuid, result.User.tenant_uuid)
-            for result in self._user_dao.session.query(Session, User).join(User).all()  # TODO Make DAO
+            (session.uuid, session.user_uuid, session.tenant_uuid)
+            for session in self._session_dao.list_()
         )
 
         sessions_missing = sessions - sessions_cached
@@ -98,10 +99,5 @@ class Initiator:
             for uuid, user_uuid, tenant_uuid in sessions_expired:
                 logger.debug('Deleting session with uuid: %s, user_uuid %s' % (uuid, user_uuid))
                 user = self._user_dao.get([tenant_uuid], user_uuid)
-                session = self._find_session(user, uuid)
+                session = self._session_dao.get(uuid)
                 self._user_dao.remove_session(user, session)
-
-    def _find_session(self, user, session_uuid):
-        for session in user.sessions:
-            if session.uuid == session_uuid:
-                return session
