@@ -12,14 +12,17 @@ from hamcrest import (
 from sqlalchemy.inspection import inspect
 
 from wazo_chatd.database.models import Tenant
+
 from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
+from .helpers.wait_strategy import NoWaitStrategy
 
 
 class TestTenant(BaseIntegrationTest):
 
     asset = 'database'
     service = 'postgresql'
+    wait_strategy = NoWaitStrategy()
 
     def test_find_or_create(self):
         tenant_uuid = str(uuid.uuid4())
