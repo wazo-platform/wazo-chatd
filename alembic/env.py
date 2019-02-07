@@ -32,9 +32,9 @@ def get_url():
     # The import should not be top level to allow the usage of the ALEMBIC_DB_URI
     # environment variable when the DB is not hosted on the same host as wazo-chatd.
     # When building the docker image for the database for example.
-    from wazo_chatd.config import load as get_config
+    from wazo_chatd.config import load_config
 
-    chatd_config = get_config('')
+    chatd_config = load_config('')
     return chatd_config.get('db_uri')
 
 
