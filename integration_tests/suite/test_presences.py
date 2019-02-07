@@ -20,6 +20,7 @@ from .helpers import fixtures
 from .helpers.base import (
     BaseIntegrationTest,
     UNKNOWN_UUID,
+    MASTER_TENANT_UUID,
     SUBTENANT_UUID,
 )
 
@@ -51,7 +52,7 @@ class TestPresence(BaseIntegrationTest):
             filtered=equal_to(2),
         ))
 
-    @fixtures.db.user()
+    @fixtures.db.user(tenant_uuid=MASTER_TENANT_UUID)
     @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
     def test_list_multi_tenant(self, user_1, user_2):
         presences = self.chatd.user_presences.list()
@@ -97,7 +98,7 @@ class TestPresence(BaseIntegrationTest):
             )
         )
 
-    @fixtures.db.user()
+    @fixtures.db.user(tenant_uuid=MASTER_TENANT_UUID)
     @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
     def test_get_multi_tenant(self, user_1, user_2):
         result = self.chatd.user_presences.get(user_2.uuid, tenant_uuid=SUBTENANT_UUID)
@@ -110,11 +111,11 @@ class TestPresence(BaseIntegrationTest):
             raises(ChatdError, has_properties(status_code=404))
         )
 
-    @fixtures.db.user()
+    @fixtures.db.user(state='unavailable')
     def test_update(self, user):
         user_args = {'uuid': user.uuid, 'state': 'invisible', 'status': 'custom status'}
         presence = self.chatd.user_presences.update(user_args)
-        assert_that(presence, has_entries(**user_args))
+        assert_that(presence, has_entries(user_args))
 
     def test_update_unknown_uuid(self):
         assert_that(
@@ -132,12 +133,12 @@ class TestPresence(BaseIntegrationTest):
             )
         )
 
-    @fixtures.db.user()
-    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    @fixtures.db.user(tenant_uuid=MASTER_TENANT_UUID)
+    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID, state='unavailable')
     def test_update_multi_tenant(self, user_1, user_2):
         user_args = {'uuid': user_2.uuid, 'state': 'available'}
         result = self.chatd.user_presences.update(user_args, tenant_uuid=SUBTENANT_UUID)
-        assert_that(result, has_entries(uuid=user_2.uuid))
+        assert_that(result, has_entries(user_args))
 
         assert_that(
             calling(self.chatd.user_presences.update).with_args(
