@@ -6,8 +6,9 @@ services:
       - chatd
       - confd
       - postgres
+      - rabbitmq
     environment:
-      TARGETS: "confd:9486 chatd:9304 auth:9497 postgres:5432"
+      TARGETS: "confd:9486 chatd:9304 auth:9497 postgres:5432 rabbitmq:5672"
 
   chatd:
     image: wazo-chatd-test

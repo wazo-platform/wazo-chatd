@@ -10,7 +10,7 @@ from hamcrest import (
 )
 
 from .helpers import fixtures
-from .helpers.wait_strategy import NoWaitStrategy, EverythingOkWaitStrategy
+from .helpers.wait_strategy import EverythingOkWaitStrategy
 from .helpers.base import (
     BaseIntegrationTest,
     VALID_TOKEN,
@@ -22,7 +22,7 @@ TENANT_UUID = str(uuid.uuid4())
 class TestPresenceInitialization(BaseIntegrationTest):
 
     asset = 'initialization'
-    wait_strategy = NoWaitStrategy()
+    wait_strategy = EverythingOkWaitStrategy()
 
     @fixtures.db.tenant()
     @fixtures.db.tenant(uuid=TENANT_UUID)
