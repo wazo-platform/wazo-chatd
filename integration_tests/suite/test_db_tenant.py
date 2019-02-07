@@ -5,6 +5,7 @@ import uuid
 
 from hamcrest import (
     assert_that,
+    calling,
     equal_to,
     has_properties,
     has_items,
@@ -12,10 +13,14 @@ from hamcrest import (
 from sqlalchemy.inspection import inspect
 
 from wazo_chatd.database.models import Tenant
+from wazo_chatd.exceptions import UnknownTenantException
+from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 from .helpers.wait_strategy import NoWaitStrategy
+
+UNKNOWN_UUID = str(uuid.uuid4())
 
 
 class TestTenant(BaseIntegrationTest):
@@ -52,6 +57,11 @@ class TestTenant(BaseIntegrationTest):
     def test_get(self, tenant):
         tenant = self._tenant_dao.get(tenant.uuid)
         assert_that(tenant, equal_to(tenant))
+
+        assert_that(
+            calling(self._tenant_dao.get).with_args(UNKNOWN_UUID),
+            raises(UnknownTenantException),
+        )
 
     @fixtures.db.tenant()
     def test_delete(self, tenant):

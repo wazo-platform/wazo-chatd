@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from ...exceptions import UnknownTenantException
 from ..helpers import get_dao_session
 from ..models import Tenant
 
@@ -12,7 +13,10 @@ class TenantDAO:
         return get_dao_session()
 
     def get(self, tenant_uuid):
-        return self.session.query(Tenant).get(tenant_uuid)
+        tenant = self.session.query(Tenant).get(tenant_uuid)
+        if not tenant:
+            raise UnknownTenantException(tenant_uuid)
+        return tenant
 
     def list_(self):
         return self.session.query(Tenant).all()

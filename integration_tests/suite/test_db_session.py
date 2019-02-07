@@ -5,15 +5,21 @@ import uuid
 
 from hamcrest import (
     assert_that,
+    calling,
     equal_to,
     has_items,
 )
+
+from wazo_chatd.exceptions import UnknownSessionException
+from xivo_test_helpers.hamcrest.raises import raises
+
 from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 from .helpers.wait_strategy import NoWaitStrategy
 
 TENANT_UUID = str(uuid.uuid4())
 USER_UUID = str(uuid.uuid4())
+UNKNOWN_UUID = str(uuid.uuid4())
 
 
 class TestSession(BaseIntegrationTest):
@@ -26,6 +32,11 @@ class TestSession(BaseIntegrationTest):
     def test_get(self, session):
         session = self._session_dao.get(session.uuid)
         assert_that(session, equal_to(session))
+
+        assert_that(
+            calling(self._session_dao.get).with_args(UNKNOWN_UUID),
+            raises(UnknownSessionException),
+        )
 
     @fixtures.db.session()
     @fixtures.db.session()

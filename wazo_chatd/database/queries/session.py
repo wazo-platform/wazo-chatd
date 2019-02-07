@@ -3,6 +3,7 @@
 
 from sqlalchemy.orm import joinedload
 
+from ...exceptions import UnknownSessionException
 from ..helpers import get_dao_session
 from ..models import Session
 
@@ -14,7 +15,10 @@ class SessionDAO:
         return get_dao_session()
 
     def get(self, session_uuid):
-        return self.session.query(Session).get(session_uuid)
+        session = self.session.query(Session).get(session_uuid)
+        if not session:
+            raise UnknownSessionException(session_uuid)
+        return session
 
     def list_(self):
         return self.session.query(Session).options(joinedload('user')).all()
