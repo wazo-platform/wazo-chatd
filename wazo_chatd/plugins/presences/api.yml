@@ -44,7 +44,7 @@ paths:
         '204':
           $ref: '#/responses/ResourceUpdated'
         '400':
-          $ref: '#/responses/APIError'
+          $ref: '#/responses/InvalidRequest'
         '404':
           $ref: '#/responses/NotFoundError'
 
