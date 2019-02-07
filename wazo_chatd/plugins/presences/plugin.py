@@ -36,7 +36,7 @@ class Plugin:
         if initialization['lines']:
             logger.debug('Initialize lines is not implemented')
         if initialization['sessions']:
-            logger.debug('Initialize sessions is not implemented')
+            initiator.initiate_sessions()
         if initialization['connections']:
             logger.debug('Initialize connections is not implemented')
 

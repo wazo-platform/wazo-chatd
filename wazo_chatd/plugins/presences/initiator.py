@@ -5,6 +5,7 @@ import logging
 
 from wazo_chatd.database.models import (
     User,
+    Session,
     Tenant,
 )
 from wazo_chatd.database.helpers import session_scope
@@ -70,3 +71,37 @@ class Initiator:
                 logger.debug('Deleting user with uuid: %s' % uuid)
                 user = self._user_dao.get([tenant_uuid], uuid)
                 self._user_dao.delete(user)
+
+    def initiate_sessions(self):
+        self._auth.set_token(self.token)
+        sessions = self._auth.sessions.list(recurse=True)['items']
+
+        sessions = set(
+            (session['uuid'], session['user_uuid'], session['tenant_uuid'])
+            for session in sessions
+        )
+        sessions_cached = set(
+            (result.Session.uuid, result.Session.user_uuid, result.User.tenant_uuid)
+            for result in self._user_dao.session.query(Session, User).join(User).all()  # TODO Make DAO
+        )
+
+        sessions_missing = sessions - sessions_cached
+        with session_scope():
+            for uuid, user_uuid, tenant_uuid in sessions_missing:
+                logger.debug('Creating session with uuid: %s, user_uuid %s' % (uuid, user_uuid))
+                user = self._user_dao.get([tenant_uuid], user_uuid)
+                session = Session(uuid=uuid, user_uuid=user_uuid)
+                self._user_dao.add_session(user, session)
+
+        sessions_expired = sessions_cached - sessions
+        with session_scope():
+            for uuid, user_uuid, tenant_uuid in sessions_expired:
+                logger.debug('Deleting session with uuid: %s, user_uuid %s' % (uuid, user_uuid))
+                user = self._user_dao.get([tenant_uuid], user_uuid)
+                session = self._find_session(user, uuid)
+                self._user_dao.remove_session(user, session)
+
+    def _find_session(self, user, session_uuid):
+        for session in user.sessions:
+            if session.uuid == session_uuid:
+                return session
