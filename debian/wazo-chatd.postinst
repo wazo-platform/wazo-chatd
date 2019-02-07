@@ -2,6 +2,8 @@
 
 set -e
 
+[ "$DPKG_MAINTSCRIPT_PACKAGE" ] && . /usr/share/debconf/confmodule
+
 DAEMONNAME='wazo-chatd'
 USER='wazo-chatd'
 HOME="/var/lib/${USER}"

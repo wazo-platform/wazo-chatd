@@ -14,6 +14,7 @@ Description: DB admin username
 
 Template: wazo-chatd/db-admin-password
 Type: password
+Default:
 Description: DB admin password
  What is the password to access the PostgreSQL database as admin?
  .
@@ -34,6 +35,7 @@ Description: DB app username
 
 Template: wazo-chatd/db-app-password
 Type: password
+Default: wazo-chatd
 Description: DB app password
  What is the password to be created for the app?
  .
