@@ -38,3 +38,19 @@ class EverythingOkWaitStrategy(WaitStrategy):
             }))
 
         until.assert_(is_ready, tries=60)
+
+
+class RestApiOkWaitStrategy(WaitStrategy):
+
+    def wait(self, integration_test):
+
+        def is_ready():
+            try:
+                status = integration_test.chatd.status.get()
+            except requests.RequestException:
+                status = {}
+            assert_that(status, has_entries({
+                'rest_api': has_entries(status='ok'),
+            }))
+
+        until.assert_(is_ready, tries=60)
