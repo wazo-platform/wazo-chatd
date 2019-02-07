@@ -64,6 +64,7 @@ _DEFAULT_CONFIG = {
     'enabled_plugins': {
         'api': True,
         'config': True,
+        'presences': True,
         'status': True,
     },
 }
@@ -83,12 +84,12 @@ def _get_reinterpreted_raw_values(*configs):
     )
 
 
-def _parse_cli_args(args):
+def _parse_cli_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config-file', action='store', help='The path to the config file')
     parser.add_argument('-d', '--debug', action='store_true', help='Log debug mesages. Override log_level')
     parser.add_argument('-u', '--user', action='store', help='The owner of the process')
-    parsed_args = parser.parse_args()
+    parsed_args = parser.parse_args(argv)
 
     result = {}
     if parsed_args.config_file:

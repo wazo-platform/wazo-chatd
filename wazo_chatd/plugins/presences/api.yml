@@ -1,0 +1,84 @@
+paths:
+  /users/presences:
+    get:
+      operationId: list_presences
+      summary: List presences
+      description: '**Required ACL:** `chatd.users.presences.read`'
+      tags:
+      - presences
+      responses:
+        '200':
+          description: Presences list
+          schema:
+            $ref: '#/definitions/PresenceList'
+  /users/{user_uuid}/presences:
+    get:
+      operationId: get_user_presence
+      summary: Get user presence
+      description: '**Required ACL:** `chatd.users.{user_uuid}.presences.read`'
+      tags:
+      - presences
+      parameters:
+      - $ref: '#/parameters/user_uuid'
+      responses:
+        '200':
+          description: Presence
+          schema:
+            $ref: '#/definitions/Presence'
+        '404':
+          $ref: '#/responses/NotFoundError'
+    put:
+      operationId: update_user_presence
+      summary: Update user presence
+      description: '**Required ACL:** `chatd.users.{user_uuid}.presences.update`'
+      tags:
+      - presences
+      parameters:
+      - $ref: '#/parameters/user_uuid'
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/Presence'
+      responses:
+        '204':
+          $ref: '#/responses/ResourceUpdated'
+        '400':
+          $ref: '#/responses/InvalidRequest'
+        '404':
+          $ref: '#/responses/NotFoundError'
+
+definitions:
+  PresenceList:
+    title: PresenceList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Presence'
+      filtered:
+        type: integer
+        description: The number of result matching the searched terms
+      total:
+        type: integer
+        description: The number of results without filter
+
+  Presence:
+    title: Presence
+    properties:
+      user_uuid:
+        type: string
+        description: The UUID of the user
+        readOnly: true
+      state:
+        type: string
+        description: The presence state of the user.
+        enum:
+          - available
+          - unavailable
+          - invisible
+      status:
+        type: string
+        description: An extended description of the user presence.
+    required:
+      - state

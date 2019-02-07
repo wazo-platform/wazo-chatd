@@ -30,7 +30,7 @@ def upgrade():
         sa.Column(
             'state',
             sa.String(24),
-            sa.CheckConstraint("state in ('AVAILABLE', 'UNAVAILABLE', 'INVISIBLE')"),
+            sa.CheckConstraint("state in ('available', 'unavailable', 'invisible')"),
             nullable=False,
         ),
         sa.Column('status', sa.Text),

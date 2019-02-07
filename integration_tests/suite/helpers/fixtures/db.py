@@ -19,7 +19,7 @@ def user(**user_args):
         def wrapper(self, *args, **kwargs):
             user_args.setdefault('uuid', str(uuid.uuid4()))
             user_args.setdefault('tenant_uuid', MASTER_TENANT_UUID)
-            user_args.setdefault('state', 'UNAVAILABLE')
+            user_args.setdefault('state', 'unavailable')
             model = User(**user_args)
 
             user = self._user_dao.create(model)

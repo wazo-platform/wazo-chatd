@@ -28,13 +28,23 @@ responses:
   NotFoundError:
     description: The resource requested was not found on the server
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/APIError'
   InvalidRequest:
     description: Invalid request
     schema:
-      $ref: '#/definitions/Error'
+      $ref: '#/definitions/APIError'
+  ResourceUpdated:
+    description: Resource was updated successfully
 
 definitions:
+  APIError:
+    type: object
+    allOf:
+    - $ref: '#/definitions/Error'
+    - properties:
+       resource:
+         description: Resource name of the error
+         type: string
   Error:
     title: Error
     description: Error message for the client
@@ -61,3 +71,9 @@ parameters:
     in: query
     description: The token's ID
     type: string
+  user_uuid:
+    name: user_uuid
+    in: path
+    type: string
+    description: The UUID of the user
+    required: true

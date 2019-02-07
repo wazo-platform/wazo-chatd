@@ -81,3 +81,4 @@ enabled_plugins:
   api: true
   config: true
   status: true
+  presences: true
