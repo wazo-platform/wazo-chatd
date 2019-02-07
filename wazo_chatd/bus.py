@@ -19,6 +19,8 @@ from xivo.pubsub import Pubsub
 logger = logging.getLogger(__name__)
 
 ROUTING_KEY_MAPPING = {
+    'auth_session_created': 'auth.sessions.*.created',
+    'auth_session_deleted': 'auth.sessions.*.deleted',
     'auth_tenant_created': 'auth.tenants.*.created',
     'auth_tenant_deleted': 'auth.tenants.*.deleted',
     'user_created': 'config.user.created',

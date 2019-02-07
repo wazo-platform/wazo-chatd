@@ -11,8 +11,11 @@ from hamcrest import (
 )
 from xivo_test_helpers import until
 
+from wazo_chatd.database import models
 from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
+
+USER_UUID_1 = str(uuid.uuid4())
 
 
 class TestEventHandler(BaseIntegrationTest):
@@ -70,3 +73,32 @@ class TestEventHandler(BaseIntegrationTest):
             )))
 
         until.assert_(tenant_deleted, tries=3)
+
+    @fixtures.db.user()
+    def test_session_created(self, user):
+        session_uuid = str(uuid.uuid4())
+        user_uuid = user.uuid
+        self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid)
+
+        def session_created():
+            result = self._session.query(models.Session).all()
+            assert_that(result, has_items(
+                has_properties(uuid=session_uuid, user_uuid=user_uuid),
+            ))
+
+        until.assert_(session_created, tries=3)
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.session(user_uuid=USER_UUID_1)
+    def test_session_deleted(self, user, session):
+        session_uuid = session.uuid
+        user_uuid = user.uuid
+        self.bus.send_session_deleted_event(session_uuid, user_uuid, user.tenant_uuid)
+
+        def session_deleted():
+            result = self._session.query(models.Session).all()
+            assert_that(result, not_(has_items(
+                has_properties(uuid=session_uuid, user_uuid=user_uuid),
+            )))
+
+        until.assert_(session_deleted, tries=3)
