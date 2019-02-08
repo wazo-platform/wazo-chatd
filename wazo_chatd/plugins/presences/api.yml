@@ -80,5 +80,20 @@ definitions:
       status:
         type: string
         description: An extended description of the user presence.
+      sessions:
+        type: array
+        readOnly: true
+        items:
+          $ref: '#/definitions/Session'
     required:
       - state
+
+  Session:
+    properties:
+      uuid:
+        type: string
+        readOnly: True
+      mobile:
+        type: boolean
+        description: Indicate if it is a mobile session or not
+        readOnly: True

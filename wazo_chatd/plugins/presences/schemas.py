@@ -8,6 +8,11 @@ from xivo.mallow.validate import (
 from xivo.mallow_helpers import Schema
 
 
+class SessionPresenceSchema(Schema):
+    uuid = fields.UUID(dump_only=True)
+    mobile = fields.Boolean(dump_only=True)
+
+
 class UserPresenceSchema(Schema):
     uuid = fields.UUID(dump_only=True)
     tenant_uuid = fields.UUID(dump_only=True)
@@ -17,6 +22,11 @@ class UserPresenceSchema(Schema):
         validate=OneOf(['available', 'unavailable', 'invisible']),
     )
     status = fields.String(allow_none=True)
+    sessions = fields.Nested(
+        'SessionPresenceSchema',
+        many=True,
+        dump_only=True
+    )
 
 
 class ListRequestSchema(Schema):

@@ -1,11 +1,14 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import uuid
+
 from hamcrest import (
     assert_that,
     calling,
     contains,
     equal_to,
+    empty,
     has_entries,
     has_properties,
     is_not,
@@ -24,6 +27,8 @@ from .helpers.base import (
     SUBTENANT_UUID,
 )
 
+USER_UUID = str(uuid.uuid4())
+
 
 class TestPresence(BaseIntegrationTest):
 
@@ -40,12 +45,14 @@ class TestPresence(BaseIntegrationTest):
                     tenant_uuid=user_1.tenant_uuid,
                     state=user_1.state,
                     status=user_1.status,
+                    sessions=empty(),
                 ),
                 has_entries(
                     uuid=user_2.uuid,
                     tenant_uuid=user_2.tenant_uuid,
                     state=user_2.state,
                     status=user_2.status,
+                    sessions=empty(),
                 ),
             ),
             total=equal_to(2),
@@ -69,8 +76,10 @@ class TestPresence(BaseIntegrationTest):
             filtered=equal_to(2),
         ))
 
-    @fixtures.db.user()
-    def test_get(self, user):
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
+    @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
+    def test_get(self, user, session_1, session_2):
         presence = self.chatd.user_presences.get(user.uuid)
         assert_that(
             presence,
@@ -79,6 +88,10 @@ class TestPresence(BaseIntegrationTest):
                 tenant_uuid=user.tenant_uuid,
                 state=user.state,
                 status=user.status,
+                sessions=contains(
+                    has_entries(uuid=session_1.uuid, mobile=True),
+                    has_entries(uuid=session_2.uuid, mobile=False),
+                ),
             ),
         )
 
