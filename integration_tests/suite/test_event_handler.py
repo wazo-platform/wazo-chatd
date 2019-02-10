@@ -5,6 +5,9 @@ import uuid
 
 from hamcrest import (
     assert_that,
+    contains,
+    empty,
+    has_entries,
     has_properties,
     has_items,
     not_,
@@ -78,6 +81,9 @@ class TestEventHandler(BaseIntegrationTest):
     def test_session_created(self, user):
         session_uuid = str(uuid.uuid4())
         user_uuid = user.uuid
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
         self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid)
 
         def session_created():
@@ -88,11 +94,19 @@ class TestEventHandler(BaseIntegrationTest):
 
         until.assert_(session_created, tries=3)
 
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            sessions=contains(has_entries(uuid=session_uuid))
+        ))))
+
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_1)
     def test_session_deleted(self, user, session):
         session_uuid = session.uuid
         user_uuid = user.uuid
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
         self.bus.send_session_deleted_event(session_uuid, user_uuid, user.tenant_uuid)
 
         def session_deleted():
@@ -102,3 +116,8 @@ class TestEventHandler(BaseIntegrationTest):
             )))
 
         until.assert_(session_deleted, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            sessions=empty()
+        ))))
