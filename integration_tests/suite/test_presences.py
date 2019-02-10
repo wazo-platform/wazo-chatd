@@ -127,10 +127,16 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(state='unavailable')
     def test_update(self, user):
         user_args = {'uuid': user.uuid, 'state': 'invisible', 'status': 'custom status'}
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
         self.chatd.user_presences.update(user_args)
 
         presence = self.chatd.user_presences.get(user_args['uuid'])
         assert_that(presence, has_entries(user_args))
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(user_args))))
 
     def test_update_unknown_uuid(self):
         assert_that(
