@@ -22,7 +22,7 @@ class Controller:
         init_db(config['db_uri'])
         self._service_discovery_args = [
             'wazo-chatd',
-            config.get('uuid'),
+            config['uuid'],
             config['consul'],
             config['service_discovery'],
             config['bus'],
@@ -31,6 +31,7 @@ class Controller:
         self.status_aggregator = StatusAggregator()
         self.rest_api = CoreRestApi(config)
         self.bus_consumer = bus.Consumer(config)
+        self.bus_publisher = bus.Publisher(config)
         plugin_helpers.load(
             namespace='wazo_chatd.plugins',
             names=config['enabled_plugins'],
@@ -38,6 +39,7 @@ class Controller:
                 'api': api,
                 'config': config,
                 'bus_consumer': self.bus_consumer,
+                'bus_publisher': self.bus_publisher,
                 'status_aggregator': self.status_aggregator,
             }
         )

@@ -25,6 +25,7 @@ Depends: ${python3:Depends},
          python3-stevedore,
          python3-yaml,
          xivo-auth-client-python3,
+         xivo-bus,
          xivo-lib-python
 Description: wazo-chatd daemon for Wazo Engine
  Wazo is a system based on a powerful IPBX, to bring an easy to
