@@ -6,7 +6,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKey,
-    # Integer,
+    Integer,
     String,
     Text,
 )
@@ -54,8 +54,13 @@ class User(Base):
     tenant = relationship('Tenant')
     sessions = relationship(
         'Session',
-        passive_deletes=False,
         cascade='all,delete-orphan',
+        passive_deletes=False,
+    )
+    lines = relationship(
+        'Line',
+        cascade='all,delete-orphan',
+        passive_deletes=False,
     )
 
 
@@ -68,6 +73,29 @@ class Session(Base):
     user_uuid = Column(
         UUIDAsString(36),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
+
+    user = relationship('User', viewonly=True)
+    tenant_uuid = association_proxy('user', 'tenant_uuid')
+
+
+class Line(Base):
+
+    __tablename__ = 'chatd_line'
+
+    id = Column(Integer, primary_key=True)
+    user_uuid = Column(
+        UUIDAsString(36),
+        ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+    )
+    media = Column(
+        String(24),
+        CheckConstraint("state in ('audio', 'video')"),
+    )
+    state = Column(
+        String(24),
+        CheckConstraint("media in ('available', 'unavailable', 'holding', 'ringing', 'talking')"),
         nullable=False,
     )
 

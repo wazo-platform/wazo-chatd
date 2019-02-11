@@ -36,3 +36,11 @@ class UnknownSessionException(APIException):
         msg = 'No such session: "{}"'.format(session_uuid)
         details = {'uuid': str(session_uuid)}
         super().__init__(404, msg, 'unknown-session', details, 'sessions')
+
+
+class UnknownLineException(APIException):
+
+    def __init__(self, line_id):
+        msg = 'No such line: "{}"'.format(line_id)
+        details = {'id': line_id}
+        super().__init__(404, msg, 'unknown-line', details, 'lines')
