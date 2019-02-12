@@ -3,7 +3,6 @@
 
 import logging
 
-from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.models import (
     Line,
     User,
