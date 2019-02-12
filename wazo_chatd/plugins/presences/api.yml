@@ -90,6 +90,11 @@ definitions:
         readOnly: true
         items:
           $ref: '#/definitions/Session'
+      lines:
+        type: array
+        readOnly: true
+        items:
+          $ref: '#/definitions/Line'
     required:
       - state
 
@@ -101,4 +106,10 @@ definitions:
       mobile:
         type: boolean
         description: Indicate if it is a mobile session or not
+        readOnly: True
+
+  Line:
+    properties:
+      id:
+        type: integer
         readOnly: True
