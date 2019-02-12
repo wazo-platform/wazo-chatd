@@ -12,6 +12,7 @@ from wazo_chatd.database.queries.tenant import TenantDAO
 
 from .bus_consume import BusEventHandler
 from .http import PresenceListResource, PresenceItemResource
+from .notifier import PresenceNotifier
 from .services import PresenceService
 from .initiator import Initiator
 
@@ -24,7 +25,10 @@ class Plugin:
         api = dependencies['api']
         config = dependencies['config']
         bus_consumer = dependencies['bus_consumer']
-        service = PresenceService(UserDAO())
+        bus_publisher = dependencies['bus_publisher']
+
+        notifier = PresenceNotifier(bus_publisher)
+        service = PresenceService(UserDAO(), notifier)
         initialization = config['initialization']
 
         auth = AuthClient(**config['auth'])
@@ -41,7 +45,7 @@ class Plugin:
         if initialization['connections']:
             logger.debug('Initialize connections is not implemented')
 
-        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO())
+        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO(), notifier)
         bus_event_handler.subscribe(bus_consumer)
 
         api.add_resource(

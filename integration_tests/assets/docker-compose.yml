@@ -7,11 +7,16 @@ services:
 
   chatd:
     image: wazo-chatd-test
+    environment:
+      XIVO_UUID: 00000000-0000-0000-0000-0000000c4a7d
     volumes:
       - ../..:/usr/src/wazo-chatd:ro
       - ./etc/wazo-chatd/conf.d/50-default.yml:/etc/wazo-chatd/conf.d/50-default.yml:ro
-      # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/usr/local/lib/python3.5/site-packages/xivo'
       - ./key-file.yml:/tmp/key-file.yml:ro
+      # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/usr/local/lib/python3.5/site-packages/xivo'
+      # - '${LOCAL_GIT_REPOS}/xivo-bus/xivo_bus:/usr/local/lib/python3.5/site-packages/xivo_bus'
+      # - '${LOCAL_GIT_REPOS}/xivo-auth-client/xivo_auth_client:/usr/local/lib/python3.5/site-packages/xivo_auth_client'
+      # - '${LOCAL_GIT_REPOS}/xivo-confd-client/xivo_confd_client:/usr/local/lib/python3.5/site-packages/xivo_confd_client'
     ports:
       - '9304'
 

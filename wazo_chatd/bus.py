@@ -9,12 +9,18 @@ from threading import Thread
 from kombu import (
     Connection,
     Exchange,
+    Producer,
     binding,
 )
 from kombu.mixins import ConsumerMixin
 
 from xivo.status import Status
 from xivo.pubsub import Pubsub
+
+from xivo_bus import (
+    Marshaler,
+    Publisher as _Publisher,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +104,24 @@ class Consumer(ConsumerMixin):
 
     def stop(self):
         self.should_stop = True
+
+
+# Must be recreated for each request
+# TODO can be optimized to be instantiated only once by request
+# when the endpoint need to send many messages
+class Publisher:
+
+    def __init__(self, config):
+        self._config = config['bus']
+        self._uuid = config['uuid']
+        self._url = 'amqp://{username}:{password}@{host}:{port}//'.format(**self._config)
+
+    def publish(self, event):
+        bus_connection = Connection(self._url)
+        bus_exchange = kombu.Exchange(
+            self._config['exchange_name'],
+            type=self._config['exchange_type'],
+        )
+        bus_producer = Producer(bus_connection, exchange=bus_exchange, auto_declare=True)
+        bus_marshaler = Marshaler(self._uuid)
+        _Publisher(bus_producer, bus_marshaler).publish(event)

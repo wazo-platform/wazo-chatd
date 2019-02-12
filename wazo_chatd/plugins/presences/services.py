@@ -4,8 +4,9 @@
 
 class PresenceService:
 
-    def __init__(self, user_dao):
+    def __init__(self, user_dao, notifier):
         self._user_dao = user_dao
+        self._notifier = notifier
 
     def list_(self, tenant_uuids, **filter_parameters):
         return self._user_dao.list_(tenant_uuids, **filter_parameters)
@@ -17,4 +18,6 @@ class PresenceService:
         return self._user_dao.get(tenant_uuids, user_uuid)
 
     def update(self, user):
-        return self._user_dao.update(user)
+        self._user_dao.update(user)
+        self._notifier.updated(user)
+        return user

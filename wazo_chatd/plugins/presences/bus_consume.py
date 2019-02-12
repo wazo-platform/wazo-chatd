@@ -11,10 +11,11 @@ logger = logging.getLogger(__name__)
 
 class BusEventHandler:
 
-    def __init__(self, tenant_dao, user_dao, session_dao):
+    def __init__(self, tenant_dao, user_dao, session_dao, notifier):
         self._tenant_dao = tenant_dao
         self._user_dao = user_dao
         self._session_dao = session_dao
+        self._notifier = notifier
 
     def subscribe(self, bus_consumer):
         bus_consumer.on_event('auth_tenant_created', self._tenant_created)
@@ -64,6 +65,7 @@ class BusEventHandler:
             user = self._user_dao.get([tenant_uuid], user_uuid)
             session = Session(uuid=session_uuid, user_uuid=user_uuid)
             self._user_dao.add_session(user, session)
+            self._notifier.updated(user)
 
     def _session_deleted(self, event):
         session_uuid = event['uuid']
@@ -74,3 +76,4 @@ class BusEventHandler:
             user = self._user_dao.get([tenant_uuid], user_uuid)
             session = self._session_dao.get(session_uuid)
             self._user_dao.remove_session(user, session)
+            self._notifier.updated(user)
