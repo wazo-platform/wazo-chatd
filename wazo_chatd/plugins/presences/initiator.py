@@ -3,7 +3,9 @@
 
 import logging
 
+from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.models import (
+    Line,
     User,
     Session,
     Tenant,
@@ -19,10 +21,11 @@ logger = logging.getLogger(__name__)
 
 class Initiator:
 
-    def __init__(self, tenant_dao, user_dao, session_dao, auth):
+    def __init__(self, tenant_dao, user_dao, session_dao, line_dao, auth):
         self._tenant_dao = tenant_dao
         self._user_dao = user_dao
         self._session_dao = session_dao
+        self._line_dao = line_dao
         self._auth = auth
         self._token = None
 
@@ -57,6 +60,9 @@ class Initiator:
         confd.set_token(self.token)
         users = confd.users.list(recurse=True)['items']
 
+        lines = set((line['id'], user['uuid'], user['tenant_uuid']) for user in users for line in user['lines'])
+        lines_cached = set((line.id, line.user_uuid, line.tenant_uuid) for line in self._line_dao.list_())
+
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
         users_cached = set((u.uuid, u.tenant_uuid) for u in self._user_dao.list_(tenant_uuids=None))
 
@@ -80,6 +86,26 @@ class Initiator:
                     logger.warning('%s', e)
                     continue
                 self._user_dao.delete(user)
+
+        lines_missing = lines - lines_cached
+        with session_scope():
+            for id_, user_uuid, tenant_uuid in lines_missing:
+                logger.debug('Creating line with id: %s' % id_)
+                user = self._user_dao.get([tenant_uuid], user_uuid)
+                line = Line(id=id_, state='unavailable')
+                self._user_dao.add_line(user, line)
+
+        lines_expired = lines_cached - lines
+        with session_scope():
+            for id_, user_uuid, tenant_uuid in lines_expired:
+                logger.debug('Deleting line with id: %s' % id_)
+                try:
+                    user = self._user_dao.get([tenant_uuid], user_uuid)
+                    line = self._line_dao.get(id_)
+                except UnknownUserException:
+                    logger.debug('Line already deleted: id: %s, user_uuid: %s' % (id_, user_uuid))
+                    continue
+                self._user_dao.remove_session(user, line)
 
     def initiate_sessions(self):
         self._auth.set_token(self.token)

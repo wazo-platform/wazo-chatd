@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import random
 import uuid
 
 from hamcrest import (
@@ -34,11 +35,14 @@ class TestPresenceInitialization(BaseIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_UUID, state='available')
     @fixtures.db.session(user_uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_2)
+    @fixtures.db.line(user_uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_2, state='available')
     def test_initialization(
         self,
         tenant_deleted, tenant_unchanged,
         user_deleted, user_unchanged,
         session_deleted, session_unchanged,
+        line_deleted, line_unchanged,
     ):
         # setup tenants
         tenant_created_uuid = str(uuid.uuid4())
@@ -49,11 +53,20 @@ class TestPresenceInitialization(BaseIntegrationTest):
             ]
         })
 
-        # setup users
+        # setup users/lines
         user_created_uuid = str(uuid.uuid4())
+        line_created_id = random.randint(1, 1000000)
         self.confd.set_users(
-            {'uuid': user_created_uuid, 'tenant_uuid': tenant_created_uuid},
-            {'uuid': user_unchanged.uuid, 'tenant_uuid': user_unchanged.tenant_uuid},
+            {
+                'uuid': user_created_uuid,
+                'tenant_uuid': tenant_created_uuid,
+                'lines': [{'id': line_created_id}],
+            },
+            {
+                'uuid': user_unchanged.uuid,
+                'tenant_uuid': user_unchanged.tenant_uuid,
+                'lines': [{'id': line_unchanged.id}],
+            },
         )
 
         # setup sessions
@@ -97,4 +110,11 @@ class TestPresenceInitialization(BaseIntegrationTest):
         assert_that(sessions, contains_inanyorder(
             has_properties(uuid=session_unchanged.uuid),
             has_properties(uuid=session_created_uuid),
+        ))
+
+        # test lines
+        lines = self._session.query(models.Line).all()
+        assert_that(lines, contains_inanyorder(
+            has_properties(id=line_unchanged.id, state='available'),
+            has_properties(id=line_created_id, state='unavailable'),
         ))
