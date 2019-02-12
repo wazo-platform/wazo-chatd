@@ -9,6 +9,10 @@ from wazo_chatd.database.models import (
     Tenant,
 )
 from wazo_chatd.database.helpers import session_scope
+from wazo_chatd.exceptions import (
+    UnknownSessionException,
+    UnknownUserException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +74,11 @@ class Initiator:
         with session_scope():
             for uuid, tenant_uuid in users_expired:
                 logger.debug('Deleting user with uuid: %s' % uuid)
-                user = self._user_dao.get([tenant_uuid], uuid)
+                try:
+                    user = self._user_dao.get([tenant_uuid], uuid)
+                except UnknownUserException:
+                    logger.warning('Unknown user_uuid %s tenant_uuid %s' % (uuid, tenant_uuid))
+                    continue
                 self._user_dao.delete(user)
 
     def initiate_sessions(self):
@@ -90,7 +98,13 @@ class Initiator:
         with session_scope():
             for uuid, user_uuid, tenant_uuid in sessions_missing:
                 logger.debug('Creating session with uuid: %s, user_uuid %s' % (uuid, user_uuid))
-                user = self._user_dao.get([tenant_uuid], user_uuid)
+                try:
+                    user = self._user_dao.get([tenant_uuid], user_uuid)
+                except UnknownUserException:
+                    logger.debug('Session has no valid user associated:' +
+                                 'session_uuid %s, user_uuid %s' % uuid, user_uuid)
+                    continue
+
                 session = Session(uuid=uuid, user_uuid=user_uuid)
                 self._user_dao.add_session(user, session)
 
@@ -98,6 +112,11 @@ class Initiator:
         with session_scope():
             for uuid, user_uuid, tenant_uuid in sessions_expired:
                 logger.debug('Deleting session with uuid: %s, user_uuid %s' % (uuid, user_uuid))
-                user = self._user_dao.get([tenant_uuid], user_uuid)
-                session = self._session_dao.get(uuid)
+                try:
+                    user = self._user_dao.get([tenant_uuid], user_uuid)
+                    session = self._session_dao.get(uuid)
+                except (UnknownUserException, UnknownSessionException):
+                    logger.warning('Unknown session or user: session_uuid %s, user_uuid %s' % (uuid, user_uuid))
+                    continue
+
                 self._user_dao.remove_session(user, session)
