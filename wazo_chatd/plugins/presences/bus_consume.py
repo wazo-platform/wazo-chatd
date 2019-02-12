@@ -4,17 +4,24 @@
 import logging
 
 from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.database.models import User, Session, Tenant
+from wazo_chatd.database.models import (
+    Line,
+    Session,
+    Tenant,
+    User,
+)
+
 
 logger = logging.getLogger(__name__)
 
 
 class BusEventHandler:
 
-    def __init__(self, tenant_dao, user_dao, session_dao, notifier):
+    def __init__(self, tenant_dao, user_dao, session_dao, line_dao, notifier):
         self._tenant_dao = tenant_dao
         self._user_dao = user_dao
         self._session_dao = session_dao
+        self._line_dao = line_dao
         self._notifier = notifier
 
     def subscribe(self, bus_consumer):
@@ -24,6 +31,8 @@ class BusEventHandler:
         bus_consumer.on_event('user_deleted', self._user_deleted)
         bus_consumer.on_event('auth_session_created', self._session_created)
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
+        bus_consumer.on_event('line_associated', self._line_associated)
+        bus_consumer.on_event('line_dissociated', self._line_dissociated)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
@@ -76,4 +85,26 @@ class BusEventHandler:
             user = self._user_dao.get([tenant_uuid], user_uuid)
             session = self._session_dao.get(session_uuid)
             self._user_dao.remove_session(user, session)
+            self._notifier.updated(user)
+
+    def _line_associated(self, event):
+        line_id = event['line_id']
+        user_uuid = event['user_uuid']
+        tenant_uuid = event['tenant_uuid']
+        with session_scope():
+            logger.debug('Creating line with id: %s, user_uuid: %s' % (line_id, user_uuid))
+            user = self._user_dao.get([tenant_uuid], user_uuid)
+            line = Line(id=line_id, state='unavailable')
+            self._user_dao.add_line(user, line)
+            self._notifier.updated(user)
+
+    def _line_dissociated(self, event):
+        line_id = event['line_id']
+        user_uuid = event['user_uuid']
+        tenant_uuid = event['tenant_uuid']
+        with session_scope():
+            logger.debug('Deleting line with id: %s, user_uuid: %s' % (line_id, user_uuid))
+            user = self._user_dao.get([tenant_uuid], user_uuid)
+            line = self._line_dao.get(line_id)
+            self._user_dao.remove_line(user, line)
             self._notifier.updated(user)

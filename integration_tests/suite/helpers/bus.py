@@ -59,3 +59,23 @@ class BusClient(bus_helper.BusClient):
             },
             'name': 'auth_session_deleted',
         }, 'auth.sessions.{}.deleted'.format(session_uuid))
+
+    def send_line_created_event(self, line_id, user_uuid, tenant_uuid):
+        self.publish({
+            'data': {
+                'line_id': line_id,
+                'user_uuid': user_uuid,
+                'tenant_uuid': tenant_uuid,
+            },
+            'name': 'line_associated',
+        }, 'config.user_line_association.created')
+
+    def send_line_deleted_event(self, line_id, user_uuid, tenant_uuid):
+        self.publish({
+            'data': {
+                'line_id': line_id,
+                'user_uuid': user_uuid,
+                'tenant_uuid': tenant_uuid,
+            },
+            'name': 'line_dissociated',
+        }, 'config.user_line_association.deleted')

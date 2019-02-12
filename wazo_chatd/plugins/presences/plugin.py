@@ -46,7 +46,7 @@ class Plugin:
         if initialization['connections']:
             logger.debug('Initialize connections is not implemented')
 
-        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO(), notifier)
+        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO(), LineDAO(), notifier)
         bus_event_handler.subscribe(bus_consumer)
 
         api.add_resource(
