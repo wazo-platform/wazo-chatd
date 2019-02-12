@@ -42,14 +42,14 @@ class Initiator:
         tenants_missing = tenants - tenants_cached
         with session_scope():
             for uuid in tenants_missing:
-                logger.debug('Creating tenant with uuid: %s' % uuid)
+                logger.debug('Creating tenant with uuid: %s', uuid)
                 tenant = Tenant(uuid=uuid)
                 self._tenant_dao.create(tenant)
 
         tenants_expired = tenants_cached - tenants
         with session_scope():
             for uuid in tenants_expired:
-                logger.debug('Deleting tenant with uuid: %s' % uuid)
+                logger.debug('Deleting tenant with uuid: %s', uuid)
                 tenant = self._tenant_dao.get(uuid)
                 self._tenant_dao.delete(tenant)
 
@@ -61,23 +61,25 @@ class Initiator:
         users_cached = set((u.uuid, u.tenant_uuid) for u in self._user_dao.list_(tenant_uuids=None))
 
         users_missing = users - users_cached
+        logger.critical('users_missing %s', users_missing)
         with session_scope():
             for uuid, tenant_uuid in users_missing:
                 # Avoid race condition between init tenant and init user
                 tenant = self._tenant_dao.find_or_create(tenant_uuid)
 
-                logger.debug('Creating user with uuid: %s' % uuid)
+                logger.debug('Creating user with uuid: %s', uuid)
                 user = User(uuid=uuid, tenant=tenant, state='unavailable')
                 self._user_dao.create(user)
 
         users_expired = users_cached - users
+        logger.critical('users_expired %s', users_expired)
         with session_scope():
             for uuid, tenant_uuid in users_expired:
-                logger.debug('Deleting user with uuid: %s' % uuid)
+                logger.debug('Deleting user with uuid: %s', uuid)
                 try:
                     user = self._user_dao.get([tenant_uuid], uuid)
-                except UnknownUserException:
-                    logger.warning('Unknown user_uuid %s tenant_uuid %s' % (uuid, tenant_uuid))
+                except UnknownUserException as e:
+                    logger.warning('%s', e)
                     continue
                 self._user_dao.delete(user)
 
@@ -97,12 +99,12 @@ class Initiator:
         sessions_missing = sessions - sessions_cached
         with session_scope():
             for uuid, user_uuid, tenant_uuid in sessions_missing:
-                logger.debug('Creating session with uuid: %s, user_uuid %s' % (uuid, user_uuid))
+                logger.debug('Creating session with uuid: %s, user_uuid %s', uuid, user_uuid)
                 try:
                     user = self._user_dao.get([tenant_uuid], user_uuid)
                 except UnknownUserException:
                     logger.debug('Session has no valid user associated:' +
-                                 'session_uuid %s, user_uuid %s' % uuid, user_uuid)
+                                 'session_uuid %s, user_uuid %s', uuid, user_uuid)
                     continue
 
                 session = Session(uuid=uuid, user_uuid=user_uuid)
@@ -111,12 +113,12 @@ class Initiator:
         sessions_expired = sessions_cached - sessions
         with session_scope():
             for uuid, user_uuid, tenant_uuid in sessions_expired:
-                logger.debug('Deleting session with uuid: %s, user_uuid %s' % (uuid, user_uuid))
+                logger.debug('Deleting session with uuid: %s, user_uuid %s', uuid, user_uuid)
                 try:
                     user = self._user_dao.get([tenant_uuid], user_uuid)
                     session = self._session_dao.get(uuid)
-                except (UnknownUserException, UnknownSessionException):
-                    logger.warning('Unknown session or user: session_uuid %s, user_uuid %s' % (uuid, user_uuid))
+                except (UnknownUserException, UnknownSessionException) as e:
+                    logger.warning('%s', e)
                     continue
 
                 self._user_dao.remove_session(user, session)

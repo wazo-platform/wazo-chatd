@@ -29,7 +29,7 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         with session_scope():
             tenant = self._tenant_dao.find_or_create(tenant_uuid)
-            logger.debug('Creating user with uuid: %s, tenant_uuid: %s' % (user_uuid, tenant_uuid))
+            logger.debug('Creating user with uuid: %s, tenant_uuid: %s', user_uuid, tenant_uuid)
             user = User(uuid=user_uuid, tenant=tenant, state='unavailable')
             self._user_dao.create(user)
 
@@ -37,21 +37,21 @@ class BusEventHandler:
         user_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            logger.debug('Deleting user with uuid: %s, tenant_uuid: %s' % (user_uuid, tenant_uuid))
+            logger.debug('Deleting user with uuid: %s, tenant_uuid: %s', user_uuid, tenant_uuid)
             user = self._user_dao.get([tenant_uuid], user_uuid)
             self._user_dao.delete(user)
 
     def _tenant_created(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
-            logger.debug('Creating tenant with uuid: %s' % (tenant_uuid))
+            logger.debug('Creating tenant with uuid: %s', tenant_uuid)
             tenant = Tenant(uuid=tenant_uuid)
             self._tenant_dao.create(tenant)
 
     def _tenant_deleted(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
-            logger.debug('Deleting tenant with uuid: %s' % (tenant_uuid))
+            logger.debug('Deleting tenant with uuid: %s', tenant_uuid)
             tenant = self._tenant_dao.get(tenant_uuid)
             self._tenant_dao.delete(tenant)
 
@@ -60,7 +60,7 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            logger.debug('Creating session with uuid: %s, user_uuid: %s' % (session_uuid, user_uuid))
+            logger.debug('Creating session with uuid: %s, user_uuid: %s', session_uuid, user_uuid)
             user = self._user_dao.get([tenant_uuid], user_uuid)
             session = Session(uuid=session_uuid, user_uuid=user_uuid)
             self._user_dao.add_session(user, session)
@@ -70,7 +70,7 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            logger.debug('Deleting session with uuid: %s, user_uuid: %s' % (session_uuid, user_uuid))
+            logger.debug('Deleting session with uuid: %s, user_uuid: %s', session_uuid, user_uuid)
             user = self._user_dao.get([tenant_uuid], user_uuid)
             session = self._session_dao.get(session_uuid)
             self._user_dao.remove_session(user, session)
