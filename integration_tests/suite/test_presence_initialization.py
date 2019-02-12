@@ -31,7 +31,7 @@ class TestPresenceInitialization(BaseIntegrationTest):
     @fixtures.db.tenant()
     @fixtures.db.tenant(uuid=TENANT_UUID)
     @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_UUID)
-    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_UUID, state='available')
     @fixtures.db.session(user_uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_2)
     def test_initialization(
@@ -88,8 +88,8 @@ class TestPresenceInitialization(BaseIntegrationTest):
         # test users
         users = self._user_dao.list_(tenant_uuids=None)
         assert_that(users, contains_inanyorder(
-            has_properties(uuid=user_unchanged.uuid),
-            has_properties(uuid=user_created_uuid),
+            has_properties(uuid=user_unchanged.uuid, state='available'),
+            has_properties(uuid=user_created_uuid, state='unavailable'),
         ))
 
         # test session
