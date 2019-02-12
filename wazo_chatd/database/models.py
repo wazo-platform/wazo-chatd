@@ -89,6 +89,7 @@ class Line(Base):
         UUIDAsString(36),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
     )
+    device_name = Column(Text)
     media = Column(
         String(24),
         CheckConstraint("state in ('audio', 'video')"),

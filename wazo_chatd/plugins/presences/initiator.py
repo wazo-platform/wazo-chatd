@@ -60,6 +60,7 @@ class Initiator:
         users = confd.users.list(recurse=True)['items']
         self._add_and_remove_users(confd, users)
         self._add_and_remove_lines(confd, users)
+        self._update_lines(confd, users)
 
     def _add_and_remove_users(self, confd, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
@@ -109,6 +110,24 @@ class Initiator:
                     logger.debug('Line already deleted: id: %s, user_uuid: %s' % (id_, user_uuid))
                     continue
                 self._user_dao.remove_session(user, line)
+
+    def _update_lines(self, confd, users):
+        lines_info = [{'id': line['id'], 'device_name': self._extract_device_name(line)}
+                      for user in users for line in user['lines']]
+        with session_scope():
+            for line_info in lines_info:
+                logger.debug('Updating line with id: %s' % line_info['id'])
+                line = self._line_dao.get(line_info['id'])
+                line.device_name = line_info['device_name']
+                self._line_dao.update(line)
+
+    def _extract_device_name(self, line):
+        if line.get('endpoint_sip'):
+            return 'PJSIP/{}'.format(line['name'])
+        elif line.get('endpoint_sccp'):
+            return 'SCCP/{}'.format(line['name'])
+        elif line.get('endpoint_custom'):
+            return line['endpoint_custom']['interface']
 
     def initiate_sessions(self):
         self._auth.set_token(self.token)

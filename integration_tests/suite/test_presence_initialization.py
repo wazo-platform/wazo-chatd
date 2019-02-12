@@ -36,7 +36,7 @@ class TestPresenceInitialization(BaseIntegrationTest):
     @fixtures.db.session(user_uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_2)
     @fixtures.db.line(user_uuid=USER_UUID_1)
-    @fixtures.db.line(user_uuid=USER_UUID_2, state='available')
+    @fixtures.db.line(user_uuid=USER_UUID_2, state='available', device_name='SCCP/to-change')
     def test_initialization(
         self,
         tenant_deleted, tenant_unchanged,
@@ -55,17 +55,21 @@ class TestPresenceInitialization(BaseIntegrationTest):
 
         # setup users/lines
         user_created_uuid = str(uuid.uuid4())
-        line_created_id = random.randint(1, 1000000)
+        line_1_created_id = random.randint(1, 1000000)
+        line_2_created_id = random.randint(1, 1000000)
         self.confd.set_users(
             {
                 'uuid': user_created_uuid,
                 'tenant_uuid': tenant_created_uuid,
-                'lines': [{'id': line_created_id}],
+                'lines': [
+                    {'id': line_1_created_id, 'name': 'created_1', 'endpoint_sip': {'id': 1}},
+                    {'id': line_2_created_id, 'name': 'created_2', 'endpoint_sccp': {'id': 1}},
+                ]
             },
             {
                 'uuid': user_unchanged.uuid,
                 'tenant_uuid': user_unchanged.tenant_uuid,
-                'lines': [{'id': line_unchanged.id}],
+                'lines': [{'id': line_unchanged.id, 'endpoint_custom': {'interface': 'CUSTOM/changed'}}],
             },
         )
 
@@ -91,6 +95,8 @@ class TestPresenceInitialization(BaseIntegrationTest):
         self.chatd = self.make_chatd(VALID_TOKEN)
         EverythingOkWaitStrategy().wait(self)
 
+        self._session.expire_all()
+
         # test tenants
         tenants = self._tenant_dao.list_()
         assert_that(tenants, contains_inanyorder(
@@ -115,6 +121,7 @@ class TestPresenceInitialization(BaseIntegrationTest):
         # test lines
         lines = self._session.query(models.Line).all()
         assert_that(lines, contains_inanyorder(
-            has_properties(id=line_unchanged.id, state='available'),
-            has_properties(id=line_created_id, state='unavailable'),
+            has_properties(id=line_unchanged.id, state='available', device_name='CUSTOM/changed'),
+            has_properties(id=line_1_created_id, state='unavailable', device_name='PJSIP/created_1'),
+            has_properties(id=line_2_created_id, state='unavailable', device_name='SCCP/created_2'),
         ))

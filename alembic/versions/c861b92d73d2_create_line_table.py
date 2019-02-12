@@ -23,6 +23,7 @@ def upgrade():
             sa.ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
             nullable=False,
         ),
+        sa.Column('device_name', sa.Text),
         sa.Column(
             'state',
             sa.String(24),

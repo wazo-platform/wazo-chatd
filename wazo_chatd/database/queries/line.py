@@ -20,3 +20,7 @@ class LineDAO:
 
     def list_(self):
         return self.session.query(Line).all()
+
+    def update(self, line):
+        self.session.add(line)
+        self.session.flush()

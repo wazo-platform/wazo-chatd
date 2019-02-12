@@ -49,3 +49,12 @@ class TestLine(BaseIntegrationTest):
     @fixtures.db.line(user_uuid=USER_UUID)
     def test_tenant_uuid(self, tenant, _, line):
         assert_that(line.tenant_uuid, equal_to(tenant.uuid))
+
+    @fixtures.db.line(device_name='SIP/abcd')
+    def test_update(self, line):
+        device_name = 'SCCP/efgh'
+        line.device_name = device_name
+        self._line_dao.update(line)
+
+        self._session.expire_all()
+        assert_that(line.device_name, equal_to(device_name))
