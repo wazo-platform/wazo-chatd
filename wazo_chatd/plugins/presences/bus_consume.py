@@ -33,6 +33,7 @@ class BusEventHandler:
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
         bus_consumer.on_event('line_associated', self._line_associated)
         bus_consumer.on_event('line_dissociated', self._line_dissociated)
+        # TODO listen on line_device association and dissociation to update line.device_name
 
     def _user_created(self, event):
         user_uuid = event['uuid']
