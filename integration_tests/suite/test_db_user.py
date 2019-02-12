@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import random
 import uuid
 
 from hamcrest import (
@@ -16,7 +17,7 @@ from hamcrest import (
 )
 from sqlalchemy.inspection import inspect
 
-from wazo_chatd.database.models import User, Session
+from wazo_chatd.database.models import User, Session, Line
 from wazo_chatd.exceptions import UnknownUserException
 from xivo_test_helpers.hamcrest.raises import raises
 
@@ -28,6 +29,8 @@ from .helpers.base import (
     SUBTENANT_UUID,
 )
 from .helpers.wait_strategy import NoWaitStrategy
+
+USER_UUID = str(uuid.uuid4())
 
 
 class TestUser(BaseIntegrationTest):
@@ -156,8 +159,8 @@ class TestUser(BaseIntegrationTest):
         self._session.expire_all()
         assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
 
-    @fixtures.db.user(uuid='000-001')
-    @fixtures.db.session(user_uuid='000-001')
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.session(user_uuid=USER_UUID)
     def test_remove_session(self, user, session):
         self._user_dao.remove_session(user, session)
 
@@ -169,3 +172,32 @@ class TestUser(BaseIntegrationTest):
 
         self._session.expire_all()
         assert_that(user.sessions, empty())
+
+    @fixtures.db.user()
+    def test_add_line(self, user):
+        line_id = random.randint(1, 1000000)
+        line = Line(id=line_id, state='unavailable')
+        self._user_dao.add_line(user, line)
+
+        self._session.expire_all()
+        assert_that(user.lines, contains(has_properties(id=line_id)))
+
+        # twice
+        self._user_dao.add_line(user, line)
+
+        self._session.expire_all()
+        assert_that(user.lines, contains(has_properties(id=line_id)))
+
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.line(user_uuid=USER_UUID)
+    def test_remove_line(self, user, line):
+        self._user_dao.remove_line(user, line)
+
+        self._session.expire_all()
+        assert_that(user.lines, empty())
+
+        # twice
+        self._user_dao.remove_line(user, line)
+
+        self._session.expire_all()
+        assert_that(user.lines, empty())
