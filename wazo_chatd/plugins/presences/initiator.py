@@ -61,7 +61,6 @@ class Initiator:
         users_cached = set((u.uuid, u.tenant_uuid) for u in self._user_dao.list_(tenant_uuids=None))
 
         users_missing = users - users_cached
-        logger.critical('users_missing %s', users_missing)
         with session_scope():
             for uuid, tenant_uuid in users_missing:
                 # Avoid race condition between init tenant and init user
@@ -72,7 +71,6 @@ class Initiator:
                 self._user_dao.create(user)
 
         users_expired = users_cached - users
-        logger.critical('users_expired %s', users_expired)
         with session_scope():
             for uuid, tenant_uuid in users_expired:
                 logger.debug('Deleting user with uuid: %s', uuid)
