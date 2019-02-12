@@ -6,6 +6,9 @@ paths:
       description: '**Required ACL:** `chatd.users.presences.read`'
       tags:
       - presences
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/recurse'
       responses:
         '200':
           description: Presences list

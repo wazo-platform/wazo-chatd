@@ -66,11 +66,19 @@ definitions:
         format: timestamp
 
 parameters:
-  TokenID:
-    name: token
+  recurse:
+    name: recurse
     in: query
-    description: The token's ID
+    type: boolean
+    description: Should the query include sub-tenants
+    default: false
+    required: false
+  tenant_uuid:
+    name: Wazo-Tenant
     type: string
+    in: header
+    description: "The tenant's UUID, defining the ownership of a given resource."
+    required: false
   user_uuid:
     name: user_uuid
     in: path
