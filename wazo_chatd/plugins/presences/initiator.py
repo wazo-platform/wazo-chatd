@@ -58,10 +58,10 @@ class Initiator:
     def initiate_users(self, confd):
         confd.set_token(self.token)
         users = confd.users.list(recurse=True)['items']
+        self._add_and_remove_users(confd, users)
+        self._add_and_remove_lines(confd, users)
 
-        lines = set((line['id'], user['uuid'], user['tenant_uuid']) for user in users for line in user['lines'])
-        lines_cached = set((line.id, line.user_uuid, line.tenant_uuid) for line in self._line_dao.list_())
-
+    def _add_and_remove_users(self, confd, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
         users_cached = set((u.uuid, u.tenant_uuid) for u in self._user_dao.list_(tenant_uuids=None))
 
@@ -85,6 +85,10 @@ class Initiator:
                     logger.warning('%s', e)
                     continue
                 self._user_dao.delete(user)
+
+    def _add_and_remove_lines(self, confd, users):
+        lines = set((line['id'], user['uuid'], user['tenant_uuid']) for user in users for line in user['lines'])
+        lines_cached = set((line.id, line.user_uuid, line.tenant_uuid) for line in self._line_dao.list_())
 
         lines_missing = lines - lines_cached
         with session_scope():
