@@ -7,6 +7,7 @@ import pprint
 from hamcrest import assert_that, empty
 
 from .helpers.base import BaseIntegrationTest
+from .helpers.wait_strategy import RestApiOkWaitStrategy
 
 requests.packages.urllib3.disable_warnings()
 
@@ -14,6 +15,7 @@ requests.packages.urllib3.disable_warnings()
 class TestDocumentation(BaseIntegrationTest):
 
     asset = 'documentation'
+    wait_strategy = RestApiOkWaitStrategy()
 
     def test_documentation_errors(self):
         chatd_port = self.service_port(9304, 'chatd')

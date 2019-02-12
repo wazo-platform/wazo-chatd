@@ -1,6 +1,19 @@
 db_uri: postgresql://wazo-chatd:Secr7t@postgres/wazo-chatd
 auth:
   host: auth
+  key_file: /tmp/key-file.yml
+  verify_certificate: false
+bus:
+  host: rabbitmq
+confd:
+  host: confd
   verify_certificate: false
 service_discovery:
   enabled: false
+
+initialization:
+  connections: False
+  lines: False
+  sessions: False
+  tenants: False
+  users: False

@@ -20,3 +20,19 @@ class UnknownUsersException(APIException):
         )
         details = {'uuids': user_uuids}
         super().__init__(404, msg, 'unknown-users', details, 'users')
+
+
+class UnknownTenantException(APIException):
+
+    def __init__(self, tenant_uuid):
+        msg = 'No such tenant: "{}"'.format(tenant_uuid)
+        details = {'uuid': str(tenant_uuid)}
+        super().__init__(404, msg, 'unknown-tenant', details, 'tenants')
+
+
+class UnknownSessionException(APIException):
+
+    def __init__(self, session_uuid):
+        msg = 'No such session: "{}"'.format(session_uuid)
+        details = {'uuid': str(session_uuid)}
+        super().__init__(404, msg, 'unknown-session', details, 'sessions')

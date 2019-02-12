@@ -14,7 +14,9 @@ definitions:
   StatusSummary:
     type: object
     properties:
-      rest-api:
+      rest_api:
+        $ref: '#/definitions/ComponentWithStatus'
+      bus_consumer:
         $ref: '#/definitions/ComponentWithStatus'
   ComponentWithStatus:
     type: object

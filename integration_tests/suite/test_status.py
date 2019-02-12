@@ -18,6 +18,6 @@ class TestStatusAllOK(BaseIntegrationTest):
 
         def status_ok():
             result = self.chatd.status.get()
-            assert_that(result['rest-api'], has_entries({'status': 'ok'}))
+            assert_that(result['rest_api'], has_entries({'status': 'ok'}))
 
         until.assert_(status_ok, timeout=5)

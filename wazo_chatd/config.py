@@ -5,7 +5,7 @@ import argparse
 import os
 
 from xivo.chain_map import ChainMap
-from xivo.config_helper import read_config_file_hierarchy
+from xivo.config_helper import read_config_file_hierarchy, parse_config_file
 from xivo.xivo_logging import get_log_level_by_name
 
 _CERT_FILE = '/usr/share/xivo-certs/server.crt'
@@ -35,6 +35,7 @@ _DEFAULT_CONFIG = {
         'host': 'localhost',
         'port': 9497,
         'verify_certificate': _CERT_FILE,
+        'key_file': '/var/lib/wazo-auth-keys/wazo-chatd-key.yml',
     },
     'bus': {
         'username': 'guest',
@@ -44,6 +45,11 @@ _DEFAULT_CONFIG = {
         'exchange_name': 'xivo',
         'exchange_type': 'topic',
         'exchange_headers_name': 'wazo-headers',
+    },
+    'confd': {
+        'host': 'localhost',
+        'port': 9486,
+        'verify_certificate': _CERT_FILE,
     },
     'consul': {
         'scheme': 'https',
@@ -67,6 +73,13 @@ _DEFAULT_CONFIG = {
         'presences': True,
         'status': True,
     },
+    'initialization': {
+        'connections': False,
+        'lines': False,
+        'sessions': False,
+        'tenants': False,
+        'users': False,
+    },
 }
 
 
@@ -74,7 +87,13 @@ def load_config(args):
     cli_config = _parse_cli_args(args)
     file_config = read_config_file_hierarchy(ChainMap(cli_config, _DEFAULT_CONFIG))
     reinterpreted_config = _get_reinterpreted_raw_values(cli_config, file_config, _DEFAULT_CONFIG)
-    return ChainMap(reinterpreted_config, cli_config, file_config, _DEFAULT_CONFIG)
+    service_key = _load_key_file(ChainMap(cli_config, file_config, _DEFAULT_CONFIG))
+    return ChainMap(reinterpreted_config, cli_config, service_key, file_config, _DEFAULT_CONFIG)
+
+
+def _load_key_file(config):
+    key_file = parse_config_file(config['auth']['key_file'])
+    return {'auth': {'username': key_file['service_id'], 'password': key_file['service_key']}}
 
 
 def _get_reinterpreted_raw_values(*configs):

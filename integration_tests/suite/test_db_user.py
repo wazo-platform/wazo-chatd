@@ -6,7 +6,9 @@ import uuid
 from hamcrest import (
     assert_that,
     calling,
+    contains,
     equal_to,
+    empty,
     has_items,
     has_properties,
     is_not,
@@ -14,7 +16,7 @@ from hamcrest import (
 )
 from sqlalchemy.inspection import inspect
 
-from wazo_chatd.database.models import User
+from wazo_chatd.database.models import User, Session
 from wazo_chatd.exceptions import UnknownUserException
 from xivo_test_helpers.hamcrest.raises import raises
 
@@ -25,12 +27,14 @@ from .helpers.base import (
     MASTER_TENANT_UUID,
     SUBTENANT_UUID,
 )
+from .helpers.wait_strategy import NoWaitStrategy
 
 
 class TestUser(BaseIntegrationTest):
 
     asset = 'database'
     service = 'postgresql'
+    wait_strategy = NoWaitStrategy()
 
     def test_create(self):
         user_uuid = uuid.uuid4()
@@ -136,3 +140,32 @@ class TestUser(BaseIntegrationTest):
             state=user_state,
             status=user_status,
         ))
+
+    @fixtures.db.user()
+    def test_add_session(self, user):
+        session_uuid = str(uuid.uuid4())
+        session = Session(uuid=session_uuid)
+        self._user_dao.add_session(user, session)
+
+        self._session.expire_all()
+        assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
+
+        # twice
+        self._user_dao.add_session(user, session)
+
+        self._session.expire_all()
+        assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
+
+    @fixtures.db.user(uuid='000-001')
+    @fixtures.db.session(user_uuid='000-001')
+    def test_remove_session(self, user, session):
+        self._user_dao.remove_session(user, session)
+
+        self._session.expire_all()
+        assert_that(user.sessions, empty())
+
+        # twice
+        self._user_dao.remove_session(user, session)
+
+        self._session.expire_all()
+        assert_that(user.sessions, empty())

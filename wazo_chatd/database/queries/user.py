@@ -69,3 +69,13 @@ class UserDAO:
             return query.filter(text('false'))
 
         return query.filter(User.tenant_uuid.in_(tenant_uuids))
+
+    def add_session(self, user, session):
+        if session not in user.sessions:
+            user.sessions.append(session)
+            self.session.flush()
+
+    def remove_session(self, user, session):
+        if session in user.sessions:
+            user.sessions.remove(session)
+            self.session.flush()
