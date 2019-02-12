@@ -22,6 +22,7 @@ paths:
       tags:
       - presences
       parameters:
+      - $ref: '#/parameters/tenant_uuid'
       - $ref: '#/parameters/user_uuid'
       responses:
         '200':
@@ -37,6 +38,7 @@ paths:
       tags:
       - presences
       parameters:
+      - $ref: '#/parameters/tenant_uuid'
       - $ref: '#/parameters/user_uuid'
       - name: body
         in: body
