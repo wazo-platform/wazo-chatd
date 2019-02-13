@@ -12,10 +12,10 @@ class LineDAO:
     def session(self):
         return get_dao_session()
 
-    def get(self, session_uuid):
-        session = self.session.query(Line).get(session_uuid)
+    def get(self, line_id):
+        session = self.session.query(Line).get(line_id)
         if not session:
-            raise UnknownLineException(session_uuid)
+            raise UnknownLineException(line_id)
         return session
 
     def list_(self):
