@@ -113,3 +113,13 @@ definitions:
       id:
         type: integer
         readOnly: True
+      state:
+        type: string
+        description: The current state of the line.
+        readOnly: True
+        enum:
+          - available
+          - holding
+          - ringing
+          - talking
+          - unavailable

@@ -82,8 +82,8 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
-    @fixtures.db.line(user_uuid=USER_UUID)
-    @fixtures.db.line(user_uuid=USER_UUID)
+    @fixtures.db.line(user_uuid=USER_UUID, state='holding')
+    @fixtures.db.line(user_uuid=USER_UUID, state='talking')
     def test_get(self, user, session_1, session_2, line_1, line_2):
         presence = self.chatd.user_presences.get(user.uuid)
         assert_that(
@@ -98,8 +98,8 @@ class TestPresence(BaseIntegrationTest):
                     has_entries(uuid=session_2.uuid, mobile=False),
                 ),
                 lines=contains_inanyorder(
-                    has_entries(id=line_1.id),
-                    has_entries(id=line_2.id),
+                    has_entries(id=line_1.id, state='holding'),
+                    has_entries(id=line_2.id, state='talking'),
                 ),
             ),
         )
