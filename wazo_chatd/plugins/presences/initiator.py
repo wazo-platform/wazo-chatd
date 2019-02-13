@@ -135,7 +135,7 @@ class Initiator:
         elif line.get('endpoint_sccp'):
             return 'SCCP/{}'.format(line['name'])
         elif line.get('endpoint_custom'):
-            return line['endpoint_custom']['interface']
+            return line['name']
 
     def initiate_sessions(self):
         self._auth.set_token(self.token)

@@ -69,7 +69,13 @@ class TestPresenceInitialization(BaseIntegrationTest):
             {
                 'uuid': user_unchanged.uuid,
                 'tenant_uuid': user_unchanged.tenant_uuid,
-                'lines': [{'id': line_unchanged.id, 'endpoint_custom': {'interface': 'CUSTOM/changed'}}],
+                'lines': [
+                    {
+                        'id': line_unchanged.id,
+                        'name': 'CUSTOM/changed',
+                        'endpoint_custom': {'id': 1},
+                    }
+                ],
             },
         )
 
