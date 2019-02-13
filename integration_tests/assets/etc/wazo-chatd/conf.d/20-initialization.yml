@@ -1,6 +1,6 @@
 initialization:
   connections: False
-  lines: False
+  lines: True
   sessions: True
   tenants: True
   users: True

@@ -22,6 +22,7 @@ paths:
       tags:
       - presences
       parameters:
+      - $ref: '#/parameters/tenant_uuid'
       - $ref: '#/parameters/user_uuid'
       responses:
         '200':
@@ -37,6 +38,7 @@ paths:
       tags:
       - presences
       parameters:
+      - $ref: '#/parameters/tenant_uuid'
       - $ref: '#/parameters/user_uuid'
       - name: body
         in: body
@@ -88,6 +90,11 @@ definitions:
         readOnly: true
         items:
           $ref: '#/definitions/Session'
+      lines:
+        type: array
+        readOnly: true
+        items:
+          $ref: '#/definitions/Line'
     required:
       - state
 
@@ -100,3 +107,19 @@ definitions:
         type: boolean
         description: Indicate if it is a mobile session or not
         readOnly: True
+
+  Line:
+    properties:
+      id:
+        type: integer
+        readOnly: True
+      state:
+        type: string
+        description: The current state of the line.
+        readOnly: True
+        enum:
+          - available
+          - holding
+          - ringing
+          - talking
+          - unavailable

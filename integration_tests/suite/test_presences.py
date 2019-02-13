@@ -7,6 +7,7 @@ from hamcrest import (
     assert_that,
     calling,
     contains,
+    contains_inanyorder,
     equal_to,
     empty,
     has_entries,
@@ -46,6 +47,7 @@ class TestPresence(BaseIntegrationTest):
                     state=user_1.state,
                     status=user_1.status,
                     sessions=empty(),
+                    lines=empty(),
                 ),
                 has_entries(
                     uuid=user_2.uuid,
@@ -53,6 +55,7 @@ class TestPresence(BaseIntegrationTest):
                     state=user_2.state,
                     status=user_2.status,
                     sessions=empty(),
+                    lines=empty(),
                 ),
             ),
             total=equal_to(2),
@@ -79,7 +82,9 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
-    def test_get(self, user, session_1, session_2):
+    @fixtures.db.line(user_uuid=USER_UUID, state='holding')
+    @fixtures.db.line(user_uuid=USER_UUID, state='talking')
+    def test_get(self, user, session_1, session_2, line_1, line_2):
         presence = self.chatd.user_presences.get(user.uuid)
         assert_that(
             presence,
@@ -88,9 +93,13 @@ class TestPresence(BaseIntegrationTest):
                 tenant_uuid=user.tenant_uuid,
                 state=user.state,
                 status=user.status,
-                sessions=contains(
+                sessions=contains_inanyorder(
                     has_entries(uuid=session_1.uuid, mobile=True),
                     has_entries(uuid=session_2.uuid, mobile=False),
+                ),
+                lines=contains_inanyorder(
+                    has_entries(id=line_1.id, state='holding'),
+                    has_entries(id=line_2.id, state='talking'),
                 ),
             ),
         )

@@ -1,3 +1,4 @@
+https://github.com/wazo-pbx/xivo-amid-client/archive/master.zip
 https://github.com/wazo-pbx/xivo-auth-client/archive/master.zip
 https://github.com/wazo-pbx/xivo-bus/archive/master.zip
 https://github.com/wazo-pbx/xivo-confd-client/archive/master.zip

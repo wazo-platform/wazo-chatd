@@ -3,9 +3,11 @@
 
 import logging
 
+from xivo_amid_client import Client as AmidClient
 from xivo_auth_client import Client as AuthClient
 from xivo_confd_client import Client as ConfdClient
 
+from wazo_chatd.database.queries.line import LineDAO
 from wazo_chatd.database.queries.user import UserDAO
 from wazo_chatd.database.queries.session import SessionDAO
 from wazo_chatd.database.queries.tenant import TenantDAO
@@ -32,20 +34,21 @@ class Plugin:
         initialization = config['initialization']
 
         auth = AuthClient(**config['auth'])
-        initiator = Initiator(TenantDAO(), UserDAO(), SessionDAO(), auth)
+        initiator = Initiator(TenantDAO(), UserDAO(), SessionDAO(), LineDAO(), auth)
         if initialization['tenants']:
             initiator.initiate_tenants()
         if initialization['users']:
             confd = ConfdClient(**config['confd'])
             initiator.initiate_users(confd)
         if initialization['lines']:
-            logger.debug('Initialize lines is not implemented')
+            amid = AmidClient(**config['amid'])
+            initiator.initiate_lines_state(amid)
         if initialization['sessions']:
             initiator.initiate_sessions()
         if initialization['connections']:
             logger.debug('Initialize connections is not implemented')
 
-        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO(), notifier)
+        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO(), LineDAO(), notifier)
         bus_event_handler.subscribe(bus_consumer)
 
         api.add_resource(

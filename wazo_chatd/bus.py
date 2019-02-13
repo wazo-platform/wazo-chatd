@@ -31,6 +31,9 @@ ROUTING_KEY_MAPPING = {
     'auth_tenant_deleted': 'auth.tenants.*.deleted',
     'user_created': 'config.user.created',
     'user_deleted': 'config.user.deleted',
+    'line_associated': 'config.user_line_association.created',
+    'line_dissociated': 'config.user_line_association.deleted',
+    'DeviceStateChange': 'ami.DeviceStateChange',
 }
 
 

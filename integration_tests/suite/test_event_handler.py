@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import random
 import uuid
 
 from hamcrest import (
@@ -120,4 +121,72 @@ class TestEventHandler(BaseIntegrationTest):
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
             sessions=empty()
+        ))))
+
+    @fixtures.db.user()
+    def test_line_created(self, user):
+        line_id = random.randint(1, 1000000)
+        user_uuid = user.uuid
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_line_created_event(line_id, user_uuid, user.tenant_uuid)
+
+        def line_created():
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, user_uuid=user_uuid),
+            ))
+
+        until.assert_(line_created, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            lines=contains(has_entries(id=line_id))
+        ))))
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1)
+    def test_line_deleted(self, user, line):
+        line_id = line.id
+        user_uuid = user.uuid
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_line_deleted_event(line_id, user_uuid, user.tenant_uuid)
+
+        def line_deleted():
+            result = self._session.query(models.Line).all()
+            assert_that(result, not_(has_items(
+                has_properties(id=line_id, user_uuid=user_uuid),
+            )))
+
+        until.assert_(line_deleted, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            lines=empty()
+        ))))
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1, device_name='PJSIP/name', state='available')
+    def test_line_updated(self, user, line):
+        line_id = line.id
+        device_name = line.device_name
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_line_updated_event(device_name, 'ONHOLD')
+
+        def line_updated():
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, device_name=device_name),
+            ))
+
+        until.assert_(line_updated, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            lines=contains(has_entries(id=line_id, state='holding'))
         ))))

@@ -79,3 +79,13 @@ class UserDAO:
         if session in user.sessions:
             user.sessions.remove(session)
             self.session.flush()
+
+    def add_line(self, user, line):
+        if line not in user.lines:
+            user.lines.append(line)
+            self.session.flush()
+
+    def remove_line(self, user, line):
+        if line in user.lines:
+            user.lines.remove(line)
+            self.session.flush()
