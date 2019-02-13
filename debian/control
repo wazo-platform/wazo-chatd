@@ -24,6 +24,7 @@ Depends: ${python3:Depends},
          python3-sqlalchemy,
          python3-stevedore,
          python3-yaml,
+         xivo-amid-client-python3,
          xivo-auth-client-python3,
          xivo-bus,
          xivo-lib-python

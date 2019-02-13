@@ -3,6 +3,7 @@
 
 import logging
 
+from xivo_amid_client import Client as AmidClient
 from xivo_auth_client import Client as AuthClient
 from xivo_confd_client import Client as ConfdClient
 
@@ -40,7 +41,8 @@ class Plugin:
             confd = ConfdClient(**config['confd'])
             initiator.initiate_users(confd)
         if initialization['lines']:
-            logger.debug('Initialize lines is not implemented')
+            amid = AmidClient(**config['amid'])
+            initiator.initiate_lines_state(amid)
         if initialization['sessions']:
             initiator.initiate_sessions()
         if initialization['connections']:

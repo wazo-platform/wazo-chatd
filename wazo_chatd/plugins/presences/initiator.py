@@ -17,6 +17,14 @@ from wazo_chatd.exceptions import (
 
 logger = logging.getLogger(__name__)
 
+DEVICE_STATE_MAP = {
+    'INUSE': 'talking',
+    'UNAVAILABLE': 'unavailable',
+    'NOT_INUSE': 'available',
+    'RINGING': 'ringing',
+    'ONHOLD': 'holding',
+}
+
 
 class Initiator:
 
@@ -168,3 +176,20 @@ class Initiator:
                     continue
 
                 self._user_dao.remove_session(user, session)
+
+    def initiate_lines_state(self, amid):
+        amid.set_token(self.token)
+        events = amid.action('DeviceStateList')
+
+        device_states = {event['Device']: event['State']
+                         for event in events if event['Event'] == 'DeviceStateChange'}
+        with session_scope():
+            lines = self._line_dao.list_()
+            for line in lines:
+                logger.debug('Updating state of line: %s', line.id)
+                device_state = device_states.get(line.device_name)
+                if not device_state:
+                    logger.warning('Line not found in device states list: id: %s', line.id)
+                    continue
+                line.state = DEVICE_STATE_MAP.get(device_state, 'unavailable')
+                self._line_dao.update(line)

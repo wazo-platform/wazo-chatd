@@ -73,6 +73,25 @@ class TestPresenceInitialization(BaseIntegrationTest):
             },
         )
 
+        # setup line states
+        self.amid.set_devicestatelist(
+            {
+                "Event": "DeviceStateChange",
+                "Device": "PJSIP/created_1",
+                "State": "ONHOLD"
+            },
+            {
+                "Event": "DeviceStateChange",
+                "Device": "SCCP/created_2",
+                "State": "NOT_INUSE"
+            },
+            {
+                "Event": "DeviceStateChange",
+                "Device": "CUSTOM/changed",
+                "State": "INUSE"
+            },
+        )
+
         # setup sessions
         session_created_uuid = str(uuid.uuid4())
         self.auth.set_sessions({
@@ -121,7 +140,7 @@ class TestPresenceInitialization(BaseIntegrationTest):
         # test lines
         lines = self._session.query(models.Line).all()
         assert_that(lines, contains_inanyorder(
-            has_properties(id=line_unchanged.id, state='available', device_name='CUSTOM/changed'),
-            has_properties(id=line_1_created_id, state='unavailable', device_name='PJSIP/created_1'),
-            has_properties(id=line_2_created_id, state='unavailable', device_name='SCCP/created_2'),
+            has_properties(id=line_unchanged.id, state='talking', device_name='CUSTOM/changed'),
+            has_properties(id=line_1_created_id, state='holding', device_name='PJSIP/created_1'),
+            has_properties(id=line_2_created_id, state='available', device_name='SCCP/created_2'),
         ))

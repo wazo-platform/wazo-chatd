@@ -3,6 +3,9 @@ auth:
   host: auth
   key_file: /tmp/key-file.yml
   verify_certificate: false
+amid:
+  host: amid
+  verify_certificate: false
 bus:
   host: rabbitmq
 confd:

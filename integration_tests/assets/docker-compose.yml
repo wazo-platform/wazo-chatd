@@ -30,6 +30,11 @@ services:
     ports:
       - "5432"
 
+  amid:
+    image: wazopbx/xivo-amid-mock
+    ports:
+      - 9491
+
   confd:
     image: wazopbx/xivo-confd-mock
     ports:

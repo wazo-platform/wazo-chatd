@@ -38,6 +38,11 @@ auth:
   port: 9497
   verify_certificate: /usr/share/xivo-certs/server.crt
 
+amid:
+    host: localhost
+    port: 9491
+    verify_certificate: /usr/share/xivo-certs/server.crt
+
 # consul connection informations
 consul:
   scheme: https

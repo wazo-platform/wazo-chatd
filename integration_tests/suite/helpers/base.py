@@ -16,6 +16,7 @@ from wazo_chatd.database.queries.user import UserDAO
 from xivo_test_helpers.auth import AuthClient
 from xivo_test_helpers.asset_launching_test_case import AssetLaunchingTestCase, NoSuchService
 
+from .amid import AmidClient
 from .bus import BusClient
 from .confd import ConfdClient
 from .wait_strategy import EverythingOkWaitStrategy
@@ -46,6 +47,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         cls._Session = scoped_session(sessionmaker())
         engine = create_engine(DB_URI.format(port=cls.service_port(5432, 'postgres')), echo=DB_ECHO)
         cls._Session.configure(bind=engine)
+        cls.amid = cls.make_amid(VALID_TOKEN)
         cls.chatd = cls.make_chatd(VALID_TOKEN)
         cls.auth = cls.make_auth(VALID_TOKEN)
         cls.confd = cls.make_confd(VALID_TOKEN)
@@ -60,6 +62,15 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
             logger.debug(e)
             return
         return ChatdClient('localhost', port=port, token=token, verify_certificate=False)
+
+    @classmethod
+    def make_amid(cls, token):
+        try:
+            port = cls.service_port(9491, 'amid')
+        except NoSuchService as e:
+            logger.debug(e)
+            return
+        return AmidClient('localhost', port=port)
 
     @classmethod
     def make_auth(cls, token):
