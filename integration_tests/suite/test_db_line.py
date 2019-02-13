@@ -39,6 +39,12 @@ class TestLine(BaseIntegrationTest):
         )
 
     @fixtures.db.line()
+    @fixtures.db.line(device_name='name')
+    def test_get_by(self, line, _):
+        line = self._line_dao.get_by(device_name=line.device_name)
+        assert_that(line, equal_to(line))
+
+    @fixtures.db.line()
     @fixtures.db.line()
     def test_list(self, line_1, line_2):
         lines = self._line_dao.list_()

@@ -10,6 +10,7 @@ from xivo.mallow_helpers import Schema
 
 class LinePresenceSchema(Schema):
     id = fields.Integer(dump_only=True)
+    state = fields.String(dump_only=True)
 
 
 class SessionPresenceSchema(Schema):

@@ -10,7 +10,7 @@ from wazo_chatd.database.models import (
     Tenant,
     User,
 )
-
+from .initiator import DEVICE_STATE_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class BusEventHandler:
         bus_consumer.on_event('line_associated', self._line_associated)
         bus_consumer.on_event('line_dissociated', self._line_dissociated)
         # TODO listen on line_device association and dissociation to update line.device_name
+        bus_consumer.on_event('DeviceStateChange', self._device_state_change)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
@@ -109,3 +110,13 @@ class BusEventHandler:
             line = self._line_dao.get(line_id)
             self._user_dao.remove_line(user, line)
             self._notifier.updated(user)
+
+    def _device_state_change(self, event):
+        device_name = event['Device']
+        state = event['State']
+        with session_scope():
+            line = self._line_dao.get_by(device_name=device_name)
+            logger.debug('Updating line with id: %s state: %s' % (line.id, state))
+            line.state = DEVICE_STATE_MAP.get(state, 'unavailable')
+            self._line_dao.update(line)
+            self._notifier.updated(line.user)

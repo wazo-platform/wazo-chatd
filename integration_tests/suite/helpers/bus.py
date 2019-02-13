@@ -79,3 +79,12 @@ class BusClient(bus_helper.BusClient):
             },
             'name': 'line_dissociated',
         }, 'config.user_line_association.deleted')
+
+    def send_line_updated_event(self, device_name, device_state):
+        self.publish({
+            'data': {
+                'State': device_state,
+                'Device': device_name,
+            },
+            'name': 'DeviceStateChange',
+        }, 'ami.DeviceStateChange')

@@ -167,3 +167,26 @@ class TestEventHandler(BaseIntegrationTest):
         assert_that(event, contains(has_entries(data=has_entries(
             lines=empty()
         ))))
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1, device_name='PJSIP/name', state='available')
+    def test_line_updated(self, user, line):
+        line_id = line.id
+        device_name = line.device_name
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_line_updated_event(device_name, 'ONHOLD')
+
+        def line_updated():
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, device_name=device_name),
+            ))
+
+        until.assert_(line_updated, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            lines=contains(has_entries(id=line_id, state='holding'))
+        ))))

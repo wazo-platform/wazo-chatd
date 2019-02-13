@@ -33,6 +33,7 @@ ROUTING_KEY_MAPPING = {
     'user_deleted': 'config.user.deleted',
     'line_associated': 'config.user_line_association.created',
     'line_dissociated': 'config.user_line_association.deleted',
+    'DeviceStateChange': 'ami.DeviceStateChange',
 }
 
 
