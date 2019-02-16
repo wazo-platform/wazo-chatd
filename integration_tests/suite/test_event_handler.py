@@ -179,9 +179,10 @@ class TestEventHandler(BaseIntegrationTest):
         self.bus.send_line_updated_event(device_name, 'ONHOLD')
 
         def line_updated():
+            self._session.expire_all()
             result = self._session.query(models.Line).all()
             assert_that(result, has_items(
-                has_properties(id=line_id, device_name=device_name),
+                has_properties(id=line_id, device_name=device_name, state='holding'),
             ))
 
         until.assert_(line_updated, tries=3)
