@@ -31,7 +31,7 @@ class TestEventHandler(BaseIntegrationTest):
         self.bus.send_tenant_created_event(tenant_uuid)
 
         def tenant_created():
-            result = self._tenant_dao.list_()
+            result = self._dao.tenant.list_()
             assert_that(result, has_items(
                 has_properties(uuid=tenant_uuid),
             ))
@@ -44,7 +44,7 @@ class TestEventHandler(BaseIntegrationTest):
         self.bus.send_tenant_deleted_event(tenant_uuid)
 
         def tenant_deleted():
-            result = self._tenant_dao.list_()
+            result = self._dao.tenant.list_()
             assert_that(result, not_(has_items(
                 has_properties(uuid=tenant_uuid),
             )))
@@ -57,7 +57,7 @@ class TestEventHandler(BaseIntegrationTest):
         self.bus.send_user_created_event(user_uuid, tenant_uuid)
 
         def user_created():
-            result = self._user_dao.list_(tenant_uuids=None)
+            result = self._dao.user.list_(tenant_uuids=None)
             assert_that(result, has_items(
                 has_properties(uuid=user_uuid, tenant_uuid=tenant_uuid),
             ))
@@ -71,7 +71,7 @@ class TestEventHandler(BaseIntegrationTest):
         self.bus.send_user_deleted_event(user_uuid, tenant_uuid)
 
         def user_deleted():
-            result = self._user_dao.list_(tenant_uuids=None)
+            result = self._dao.user.list_(tenant_uuids=None)
             assert_that(result, not_(has_items(
                 has_properties(uuid=user_uuid, tenant_uuid=tenant_uuid),
             )))

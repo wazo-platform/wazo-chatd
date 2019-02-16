@@ -123,14 +123,14 @@ class TestPresenceInitialization(BaseIntegrationTest):
         self._session.expire_all()
 
         # test tenants
-        tenants = self._tenant_dao.list_()
+        tenants = self._dao.tenant.list_()
         assert_that(tenants, contains_inanyorder(
             has_properties(uuid=tenant_unchanged.uuid),
             has_properties(uuid=tenant_created_uuid),
         ))
 
         # test users
-        users = self._user_dao.list_(tenant_uuids=None)
+        users = self._dao.user.list_(tenant_uuids=None)
         assert_that(users, contains_inanyorder(
             has_properties(uuid=user_unchanged.uuid, state='available'),
             has_properties(uuid=user_created_uuid, state='unavailable'),

@@ -30,24 +30,24 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.line()
     def test_get(self, line):
-        line = self._line_dao.get(line.id)
+        line = self._dao.line.get(line.id)
         assert_that(line, equal_to(line))
 
         assert_that(
-            calling(self._line_dao.get).with_args(UNKNOWN_ID),
+            calling(self._dao.line.get).with_args(UNKNOWN_ID),
             raises(UnknownLineException),
         )
 
     @fixtures.db.line()
     @fixtures.db.line(device_name='name')
     def test_get_by(self, line, _):
-        line = self._line_dao.get_by(device_name=line.device_name)
+        line = self._dao.line.get_by(device_name=line.device_name)
         assert_that(line, equal_to(line))
 
     @fixtures.db.line()
     @fixtures.db.line()
     def test_list(self, line_1, line_2):
-        lines = self._line_dao.list_()
+        lines = self._dao.line.list_()
         assert_that(lines, has_items(line_1, line_2))
 
     @fixtures.db.tenant(uuid=TENANT_UUID)
@@ -60,7 +60,7 @@ class TestLine(BaseIntegrationTest):
     def test_update(self, line):
         device_name = 'SCCP/efgh'
         line.device_name = device_name
-        self._line_dao.update(line)
+        self._dao.line.update(line)
 
         self._session.expire_all()
         assert_that(line.device_name, equal_to(device_name))

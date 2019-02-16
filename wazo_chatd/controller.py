@@ -11,6 +11,7 @@ from xivo.status import StatusAggregator
 
 from . import bus
 from .database.helpers import init_db
+from .database.queries import DAO
 from .http_server import api, CoreRestApi
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ class Controller:
             dependencies={
                 'api': api,
                 'config': config,
+                'dao': DAO(),
                 'bus_consumer': self.bus_consumer,
                 'bus_publisher': self.bus_publisher,
                 'status_aggregator': self.status_aggregator,

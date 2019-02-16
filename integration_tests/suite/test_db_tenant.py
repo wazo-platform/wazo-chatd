@@ -31,41 +31,41 @@ class TestTenant(BaseIntegrationTest):
 
     def test_find_or_create(self):
         tenant_uuid = str(uuid.uuid4())
-        created_tenant = self._tenant_dao.find_or_create(tenant_uuid)
+        created_tenant = self._dao.tenant.find_or_create(tenant_uuid)
 
         self._session.expire_all()
         assert_that(inspect(created_tenant).persistent)
         assert_that(created_tenant, has_properties(uuid=tenant_uuid))
 
-        found_tenant = self._tenant_dao.find_or_create(created_tenant.uuid)
+        found_tenant = self._dao.tenant.find_or_create(created_tenant.uuid)
         assert_that(found_tenant, has_properties(uuid=created_tenant.uuid))
 
-        self._tenant_dao.delete(found_tenant)
+        self._dao.tenant.delete(found_tenant)
 
     def test_create(self):
         tenant_uuid = uuid.uuid4()
         tenant = Tenant(uuid=tenant_uuid)
-        tenant = self._tenant_dao.create(tenant)
+        tenant = self._dao.tenant.create(tenant)
 
         self._session.expire_all()
         assert_that(inspect(tenant).persistent)
         assert_that(tenant, has_properties(uuid=str(tenant_uuid)))
 
-        self._tenant_dao.delete(tenant)
+        self._dao.tenant.delete(tenant)
 
     @fixtures.db.tenant()
     def test_get(self, tenant):
-        tenant = self._tenant_dao.get(tenant.uuid)
+        tenant = self._dao.tenant.get(tenant.uuid)
         assert_that(tenant, equal_to(tenant))
 
         assert_that(
-            calling(self._tenant_dao.get).with_args(UNKNOWN_UUID),
+            calling(self._dao.tenant.get).with_args(UNKNOWN_UUID),
             raises(UnknownTenantException),
         )
 
     @fixtures.db.tenant()
     def test_delete(self, tenant):
-        self._tenant_dao.delete(tenant)
+        self._dao.tenant.delete(tenant)
 
         self._session.expire_all()
         assert_that(inspect(tenant).deleted)
@@ -73,5 +73,5 @@ class TestTenant(BaseIntegrationTest):
     @fixtures.db.tenant()
     @fixtures.db.tenant()
     def test_list(self, tenant_1, tenant_2):
-        tenants = self._tenant_dao.list_()
+        tenants = self._dao.tenant.list_()
         assert_that(tenants, has_items(tenant_1, tenant_2))

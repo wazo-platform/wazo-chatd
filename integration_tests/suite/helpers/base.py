@@ -4,14 +4,9 @@
 import logging
 import os
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
-
 from wazo_chatd_client import Client as ChatdClient
-from wazo_chatd.database.queries.line import LineDAO
-from wazo_chatd.database.queries.session import SessionDAO
-from wazo_chatd.database.queries.tenant import TenantDAO
-from wazo_chatd.database.queries.user import UserDAO
+from wazo_chatd.database.queries import DAO
+from wazo_chatd.database.helpers import init_db, get_dao_session, Session
 
 from xivo_test_helpers.auth import AuthClient
 from xivo_test_helpers.asset_launching_test_case import AssetLaunchingTestCase, NoSuchService
@@ -44,9 +39,9 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls._Session = scoped_session(sessionmaker())
-        engine = create_engine(DB_URI.format(port=cls.service_port(5432, 'postgres')), echo=DB_ECHO)
-        cls._Session.configure(bind=engine)
+        init_db(DB_URI.format(port=cls.service_port(5432, 'postgres')), echo=DB_ECHO)
+        cls._Session = Session
+
         cls.amid = cls.make_amid(VALID_TOKEN)
         cls.chatd = cls.make_chatd(VALID_TOKEN)
         cls.auth = cls.make_auth(VALID_TOKEN)
@@ -99,21 +94,15 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
             return
         return BusClient.from_connection_fields(host='localhost', port=port)
 
+    @property
+    def _session(self):
+        return get_dao_session()
+
     def setUp(self):
         super().setUp()
-        self._session = self._Session()
-
-        TenantDAO.session = self._session
-        self._tenant_dao = TenantDAO()
-        self._tenant_dao.find_or_create(MASTER_TENANT_UUID)
-        self._tenant_dao.find_or_create(SUBTENANT_UUID)
-
-        UserDAO.session = self._session
-        self._user_dao = UserDAO()
-        SessionDAO.session = self._session
-        self._session_dao = SessionDAO()
-        LineDAO.session = self._session
-        self._line_dao = LineDAO()
+        self._dao = DAO()
+        self._dao.tenant.find_or_create(MASTER_TENANT_UUID)
+        self._dao.tenant.find_or_create(SUBTENANT_UUID)
 
     def tearDown(self):
         self._Session.rollback()

@@ -7,11 +7,6 @@ from xivo_amid_client import Client as AmidClient
 from xivo_auth_client import Client as AuthClient
 from xivo_confd_client import Client as ConfdClient
 
-from wazo_chatd.database.queries.line import LineDAO
-from wazo_chatd.database.queries.user import UserDAO
-from wazo_chatd.database.queries.session import SessionDAO
-from wazo_chatd.database.queries.tenant import TenantDAO
-
 from .bus_consume import BusEventHandler
 from .http import PresenceListResource, PresenceItemResource
 from .notifier import PresenceNotifier
@@ -26,15 +21,16 @@ class Plugin:
     def load(self, dependencies):
         api = dependencies['api']
         config = dependencies['config']
+        dao = dependencies['dao']
         bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
 
         notifier = PresenceNotifier(bus_publisher)
-        service = PresenceService(UserDAO(), notifier)
+        service = PresenceService(dao, notifier)
         initialization = config['initialization']
 
         auth = AuthClient(**config['auth'])
-        initiator = Initiator(TenantDAO(), UserDAO(), SessionDAO(), LineDAO(), auth)
+        initiator = Initiator(dao, auth)
         if initialization['tenants']:
             initiator.initiate_tenants()
         if initialization['users']:
@@ -48,7 +44,7 @@ class Plugin:
         if initialization['connections']:
             logger.debug('Initialize connections is not implemented')
 
-        bus_event_handler = BusEventHandler(TenantDAO(), UserDAO(), SessionDAO(), LineDAO(), notifier)
+        bus_event_handler = BusEventHandler(dao, notifier)
         bus_event_handler.subscribe(bus_consumer)
 
         api.add_resource(

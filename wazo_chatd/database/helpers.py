@@ -11,8 +11,8 @@ from xivo import sqlalchemy_helper
 Session = scoped_session(sessionmaker())
 
 
-def init_db(db_uri):
-    engine = create_engine(db_uri)
+def init_db(db_uri, echo=False):
+    engine = create_engine(db_uri, echo=echo)
     Session.configure(bind=engine)
     sqlalchemy_helper.handle_db_restart()
 
