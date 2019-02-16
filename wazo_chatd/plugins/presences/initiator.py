@@ -99,7 +99,7 @@ class Initiator:
         lines_missing = lines - lines_cached
         with session_scope():
             for id_, user_uuid, tenant_uuid in lines_missing:
-                logger.debug('Creating line with id: %s' % id_)
+                logger.debug('Creating line with id: %s', id_)
                 user = self._dao.user.get([tenant_uuid], user_uuid)
                 line = Line(id=id_, state='unavailable')
                 self._dao.user.add_line(user, line)
@@ -107,12 +107,12 @@ class Initiator:
         lines_expired = lines_cached - lines
         with session_scope():
             for id_, user_uuid, tenant_uuid in lines_expired:
-                logger.debug('Deleting line with id: %s' % id_)
+                logger.debug('Deleting line with id: %s', id_)
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                     line = self._dao.line.get(id_)
                 except UnknownUserException:
-                    logger.debug('Line already deleted: id: %s, user_uuid: %s' % (id_, user_uuid))
+                    logger.debug('Line already deleted: id: %s, user_uuid: %s', id_, user_uuid)
                     continue
                 self._dao.user.remove_session(user, line)
 
@@ -121,7 +121,7 @@ class Initiator:
                       for user in users for line in user['lines']]
         with session_scope():
             for line_info in lines_info:
-                logger.debug('Updating line with id: %s' % line_info['id'])
+                logger.debug('Updating line with id: %s', line_info['id'])
                 line = self._dao.line.get(line_info['id'])
                 line.device_name = line_info['device_name']
                 self._dao.line.update(line)

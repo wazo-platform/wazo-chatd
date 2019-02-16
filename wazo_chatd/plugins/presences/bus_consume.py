@@ -28,8 +28,8 @@ class BusEventHandler:
         bus_consumer.on_event('user_deleted', self._user_deleted)
         bus_consumer.on_event('auth_session_created', self._session_created)
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
-        bus_consumer.on_event('line_associated', self._line_associated)
-        bus_consumer.on_event('line_dissociated', self._line_dissociated)
+        bus_consumer.on_event('line_associated', self._line_associated)  # user_line associated
+        bus_consumer.on_event('line_dissociated', self._line_dissociated)  # user_line dissociated
         # TODO listen on line_device association and dissociation to update line.device_name
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
 
@@ -91,7 +91,7 @@ class BusEventHandler:
         user_uuid = event['user_uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            logger.debug('Creating line with id: %s, user_uuid: %s' % (line_id, user_uuid))
+            logger.debug('Creating line with id: %s, user_uuid: %s', line_id, user_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
             line = Line(id=line_id, state='unavailable')
             self._dao.user.add_line(user, line)
@@ -102,7 +102,7 @@ class BusEventHandler:
         user_uuid = event['user_uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            logger.debug('Deleting line with id: %s, user_uuid: %s' % (line_id, user_uuid))
+            logger.debug('Deleting line with id: %s, user_uuid: %s', line_id, user_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
             line = self._dao.line.get(line_id)
             self._dao.user.remove_line(user, line)
@@ -113,7 +113,7 @@ class BusEventHandler:
         state = event['State']
         with session_scope():
             line = self._dao.line.get_by(device_name=device_name)
-            logger.debug('Updating line with id: %s state: %s' % (line.id, state))
+            logger.debug('Updating line with id: %s state: %s', line.id, state)
             line.state = DEVICE_STATE_MAP.get(state, 'unavailable')
             self._dao.line.update(line)
             self._notifier.updated(line.user)
