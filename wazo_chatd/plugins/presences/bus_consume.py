@@ -10,7 +10,7 @@ from wazo_chatd.database.models import (
     Tenant,
     User,
 )
-from .initiator import DEVICE_STATE_MAP
+from .initiator import DEVICE_STATE_MAP, extract_device_name
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,8 @@ class BusEventHandler:
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
         bus_consumer.on_event('line_associated', self._line_associated)  # user_line associated
         bus_consumer.on_event('line_dissociated', self._line_dissociated)  # user_line dissociated
-        # TODO listen on line_device association and dissociation to update line.device_name
+        bus_consumer.on_event('line_device_associated', self._line_device_updated)
+        bus_consumer.on_event('line_device_dissociated', self._line_device_updated)
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
 
     def _user_created(self, event):
@@ -107,6 +108,17 @@ class BusEventHandler:
             line = self._dao.line.get(line_id)
             self._dao.user.remove_line(user, line)
             self._notifier.updated(user)
+
+    def _line_device_updated(self, event):
+        line_id = event['line']['id']
+        device_name = extract_device_name(event['line'])
+        with session_scope():
+            logger.debug('Updating line with id: %s, device_name: %s', line_id, device_name)
+            line = self._dao.line.get(line_id)
+            line.device_name = device_name
+            line.state = 'unavailable'  # TODO must fetch the state from asterisk
+            self._dao.line.update(line)
+            self._notifier.updated(line.user)
 
     def _device_state_change(self, event):
         device_name = event['Device']

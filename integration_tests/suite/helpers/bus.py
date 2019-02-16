@@ -88,3 +88,33 @@ class BusClient(bus_helper.BusClient):
             },
             'name': 'DeviceStateChange',
         }, 'ami.DeviceStateChange')
+
+    def send_line_device_associated_event(self, line_id, line_name):
+        self.publish({
+            'data': {
+                'line': {
+                    'id': line_id,
+                    'name': line_name,
+                    'endpoint_sip': {'id': 1},
+                    'endpoint_sccp': {},
+                    'endpoint_custom': {},
+                },
+                'device': {'id': 1},
+            },
+            'name': 'line_device_associated',
+        }, 'config.lines.{}.devices.1.updated'.format(line_id))
+
+    def send_line_device_dissociated_event(self, line_id):
+        self.publish({
+            'data': {
+                'line': {
+                    'id': line_id,
+                    'name': None,
+                    'endpoint_sip': {},
+                    'endpoint_sccp': {},
+                    'endpoint_custom': {},
+                },
+                'device': {'id': 1},
+            },
+            'name': 'line_device_dissociated',
+        }, 'config.lines.{}.devices.1.deleted'.format(line_id))

@@ -26,6 +26,15 @@ DEVICE_STATE_MAP = {
 }
 
 
+def extract_device_name(line):
+    if line.get('endpoint_sip'):
+        return 'PJSIP/{}'.format(line['name'])
+    elif line.get('endpoint_sccp'):
+        return 'SCCP/{}'.format(line['name'])
+    elif line.get('endpoint_custom'):
+        return line['name']
+
+
 class Initiator:
 
     def __init__(self, dao, auth):
@@ -117,7 +126,7 @@ class Initiator:
                 self._dao.user.remove_session(user, line)
 
     def _update_lines(self, confd, users):
-        lines_info = [{'id': line['id'], 'device_name': self._extract_device_name(line)}
+        lines_info = [{'id': line['id'], 'device_name': extract_device_name(line)}
                       for user in users for line in user['lines']]
         with session_scope():
             for line_info in lines_info:
@@ -125,14 +134,6 @@ class Initiator:
                 line = self._dao.line.get(line_info['id'])
                 line.device_name = line_info['device_name']
                 self._dao.line.update(line)
-
-    def _extract_device_name(self, line):
-        if line.get('endpoint_sip'):
-            return 'PJSIP/{}'.format(line['name'])
-        elif line.get('endpoint_sccp'):
-            return 'SCCP/{}'.format(line['name'])
-        elif line.get('endpoint_custom'):
-            return line['name']
 
     def initiate_sessions(self):
         self._auth.set_token(self.token)

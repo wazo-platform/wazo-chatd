@@ -190,3 +190,51 @@ class TestEventHandler(BaseIntegrationTest):
         assert_that(event, contains(has_entries(data=has_entries(
             lines=contains(has_entries(id=line_id, state='holding'))
         ))))
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1, device_name='PJSIP/name')
+    def test_line_device_associated(self, user, line):
+        line_id = line.id
+        line_name = 'other_name'
+        device_name = 'PJSIP/{}'.format(line_name)
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_line_device_associated_event(line_id, line_name)
+
+        def line_device_associated():
+            self._session.expire_all()
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, device_name=device_name),
+            ))
+
+        until.assert_(line_device_associated, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            lines=contains(has_entries(id=line_id, state='unavailable'))
+        ))))
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1, device_name='PJSIP/name')
+    def test_line_device_dissociated(self, user, line):
+        line_id = line.id
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_line_device_dissociated_event(line_id)
+
+        def line_device_associated():
+            self._session.expire_all()
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, device_name=None),
+            ))
+
+        until.assert_(line_device_associated, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            lines=contains(has_entries(id=line_id, state='unavailable'))
+        ))))
