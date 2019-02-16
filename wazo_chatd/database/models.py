@@ -33,6 +33,9 @@ class Tenant(Base):
 
     uuid = Column(UUIDAsString(36), primary_key=True)
 
+    def __repr__(self):
+        return "<Tenant(uuid='{uuid}')>".format(uuid=self.uuid)
+
 
 class User(Base):
 
@@ -63,6 +66,18 @@ class User(Base):
         passive_deletes=False,
     )
 
+    def __repr__(self):
+        return (
+            "<User(uuid='{uuid}', state='{state}', status='{status}',"
+            "lines='{lines}', sessions='{sessions}')>"
+        ).format(
+            uuid=self.uuid,
+            state=self.state,
+            status=self.status,
+            lines=self.lines,
+            sessions=self.sessions,
+        )
+
 
 class Session(Base):
 
@@ -78,6 +93,9 @@ class Session(Base):
 
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
+
+    def __repr__(self):
+        return "<Session(uuid='{uuid}', mobile='{mobile}')>".format(uuid=self.uuid, mobile=self.mobile)
 
 
 class Line(Base):
@@ -102,3 +120,11 @@ class Line(Base):
 
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
+
+    def __repr__(self):
+        return "<Line(id='{id}', device_name='{device_name}', media='{media}', state='{state}')>".format(
+            id=self.id,
+            device_name=self.device_name,
+            media=self.media,
+            state=self.state,
+        )
