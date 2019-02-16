@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
+from xivo import sqlalchemy_helper
 
 Session = scoped_session(sessionmaker())
 
@@ -13,6 +14,7 @@ Session = scoped_session(sessionmaker())
 def init_db(db_uri):
     engine = create_engine(db_uri)
     Session.configure(bind=engine)
+    sqlalchemy_helper.handle_db_restart()
 
 
 def get_dao_session():
