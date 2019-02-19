@@ -107,24 +107,42 @@ class Line(Base):
         UUIDAsString(36),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
     )
-    device_name = Column(Text)
+    device_name = Column(
+        Text,
+        ForeignKey('chatd_device.name', ondelete='SET NULL'),
+    )
     media = Column(
         String(24),
         CheckConstraint("state in ('audio', 'video')"),
     )
+    user = relationship('User', viewonly=True)
+    tenant_uuid = association_proxy('user', 'tenant_uuid')
+
+    device = relationship('Device', viewonly=True)
+    state = association_proxy('device', 'state')
+
+    def __repr__(self):
+        return "<Line(id='{id}', media='{media}', device='{device}', )>".format(
+            id=self.id,
+            media=self.media,
+            device=self.device,
+        )
+
+
+class Device(Base):
+
+    __tablename__ = 'chatd_device'
+
+    name = Column(Text, primary_key=True)
     state = Column(
         String(24),
         CheckConstraint("media in ('available', 'unavailable', 'holding', 'ringing', 'talking')"),
         nullable=False,
+        default='unavailable',
     )
 
-    user = relationship('User', viewonly=True)
-    tenant_uuid = association_proxy('user', 'tenant_uuid')
-
     def __repr__(self):
-        return "<Line(id='{id}', device_name='{device_name}', media='{media}', state='{state}')>".format(
-            id=self.id,
-            device_name=self.device_name,
-            media=self.media,
+        return "<Device(name='{name}', state='{state}')>".format(
+            name=self.name,
             state=self.state,
         )
