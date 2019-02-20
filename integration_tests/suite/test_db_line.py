@@ -56,6 +56,11 @@ class TestLine(BaseIntegrationTest):
     def test_tenant_uuid(self, tenant, _, line):
         assert_that(line.tenant_uuid, equal_to(tenant.uuid))
 
+    @fixtures.db.device(name='SIP/custom-name')
+    @fixtures.db.line(device_name='SIP/custom-name')
+    def test_state(self, device, line):
+        assert_that(line.state, equal_to(device.state))
+
     @fixtures.db.line(media='audio')
     def test_update(self, line):
         line.media = 'video'

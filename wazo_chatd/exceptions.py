@@ -44,3 +44,11 @@ class UnknownLineException(APIException):
         msg = 'No such line: "{}"'.format(line_id)
         details = {'id': line_id}
         super().__init__(404, msg, 'unknown-line', details, 'lines')
+
+
+class UnknownDeviceException(APIException):
+
+    def __init__(self, device_name):
+        msg = 'No such device: "{}"'.format(device_name)
+        details = {'name': device_name}
+        super().__init__(404, msg, 'unknown-device', details, 'devices')
