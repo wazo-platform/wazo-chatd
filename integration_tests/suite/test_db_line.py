@@ -40,12 +40,6 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.line()
     @fixtures.db.line()
-    def test_get_by(self, _, line):
-        result = self._dao.line.get_by(id=line.id)
-        assert_that(result, equal_to(line))
-
-    @fixtures.db.line()
-    @fixtures.db.line()
     def test_list(self, line_1, line_2):
         lines = self._dao.line.list_()
         assert_that(lines, has_items(line_1, line_2))
@@ -80,7 +74,7 @@ class TestLine(BaseIntegrationTest):
     @fixtures.db.device(name='device-name')
     @fixtures.db.line(device_name='device-name')
     def test_dissociate_device(self, device, line):
-        self._dao.line.dissociate_device(line, device)
+        self._dao.line.dissociate_device(line)
 
         self._session.expire_all()
         assert_that(line.device, equal_to(None))

@@ -60,7 +60,7 @@ class BusClient(bus_helper.BusClient):
             'name': 'auth_session_deleted',
         }, 'auth.sessions.{}.deleted'.format(session_uuid))
 
-    def send_line_created_event(self, line_id, user_uuid, tenant_uuid):
+    def send_line_associated_event(self, line_id, user_uuid, tenant_uuid):
         self.publish({
             'data': {
                 'line_id': line_id,
@@ -70,7 +70,7 @@ class BusClient(bus_helper.BusClient):
             'name': 'line_associated',
         }, 'config.user_line_association.created')
 
-    def send_line_deleted_event(self, line_id, user_uuid, tenant_uuid):
+    def send_line_dissociated_event(self, line_id, user_uuid, tenant_uuid):
         self.publish({
             'data': {
                 'line_id': line_id,
@@ -80,7 +80,7 @@ class BusClient(bus_helper.BusClient):
             'name': 'line_dissociated',
         }, 'config.user_line_association.deleted')
 
-    def send_line_updated_event(self, device_name, device_state):
+    def send_device_state_changed_event(self, device_name, device_state):
         self.publish({
             'data': {
                 'State': device_state,

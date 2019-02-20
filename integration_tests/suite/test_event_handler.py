@@ -20,6 +20,7 @@ from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 
 USER_UUID_1 = str(uuid.uuid4())
+DEVICE_NAME = 'PJSIP/name'
 
 
 class TestEventHandler(BaseIntegrationTest):
@@ -124,21 +125,21 @@ class TestEventHandler(BaseIntegrationTest):
         ))))
 
     @fixtures.db.user()
-    def test_line_created(self, user):
+    def test_line_associated(self, user):
         line_id = random.randint(1, 1000000)
         user_uuid = user.uuid
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_line_created_event(line_id, user_uuid, user.tenant_uuid)
+        self.bus.send_line_associated_event(line_id, user_uuid, user.tenant_uuid)
 
-        def line_created():
+        def line_associated():
             result = self._session.query(models.Line).all()
             assert_that(result, has_items(
                 has_properties(id=line_id, user_uuid=user_uuid),
             ))
 
-        until.assert_(line_created, tries=3)
+        until.assert_(line_associated, tries=3)
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
@@ -147,57 +148,59 @@ class TestEventHandler(BaseIntegrationTest):
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1)
-    def test_line_deleted(self, user, line):
+    def test_line_dissociated(self, user, line):
         line_id = line.id
         user_uuid = user.uuid
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_line_deleted_event(line_id, user_uuid, user.tenant_uuid)
+        self.bus.send_line_dissociated_event(line_id, user_uuid, user.tenant_uuid)
 
-        def line_deleted():
+        def line_dissociated():
             result = self._session.query(models.Line).all()
             assert_that(result, not_(has_items(
                 has_properties(id=line_id, user_uuid=user_uuid),
             )))
 
-        until.assert_(line_deleted, tries=3)
+        until.assert_(line_dissociated, tries=3)
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
             lines=empty()
         ))))
 
+    @fixtures.db.device(name=DEVICE_NAME, state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.line(user_uuid=USER_UUID_1, device_name='PJSIP/name', state='available')
-    def test_line_updated(self, user, line):
+    @fixtures.db.line(user_uuid=USER_UUID_1, device_name=DEVICE_NAME)
+    def test_device_state_changed(self, device, user, line):
         line_id = line.id
-        device_name = line.device_name
+        device_name = device.name
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_line_updated_event(device_name, 'ONHOLD')
+        self.bus.send_device_state_changed_event(device_name, 'ONHOLD')
 
-        def line_updated():
+        def device_state_changed():
             self._session.expire_all()
-            result = self._session.query(models.Line).all()
+            result = self._session.query(models.Device).all()
             assert_that(result, has_items(
-                has_properties(id=line_id, device_name=device_name, state='holding'),
+                has_properties(name=device_name, state='holding'),
             ))
 
-        until.assert_(line_updated, tries=3)
+        until.assert_(device_state_changed, tries=3)
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
             lines=contains(has_entries(id=line_id, state='holding'))
         ))))
 
+    @fixtures.db.device(name='PJSIP/name', state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.line(user_uuid=USER_UUID_1, device_name='PJSIP/name')
-    def test_line_device_associated(self, user, line):
+    @fixtures.db.line(user_uuid=USER_UUID_1)
+    def test_line_device_associated(self, device, user, line):
         line_id = line.id
-        line_name = 'other_name'
-        device_name = 'PJSIP/{}'.format(line_name)
+        line_name = 'name'
+        device_name = device.name
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
@@ -214,26 +217,27 @@ class TestEventHandler(BaseIntegrationTest):
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
-            lines=contains(has_entries(id=line_id, state='unavailable'))
+            lines=contains(has_entries(id=line_id, state='available'))
         ))))
 
+    @fixtures.db.device(name=DEVICE_NAME, state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.line(user_uuid=USER_UUID_1, device_name='PJSIP/name')
-    def test_line_device_dissociated(self, user, line):
+    @fixtures.db.line(user_uuid=USER_UUID_1, device_name=DEVICE_NAME)
+    def test_line_device_dissociated(self, device, user, line):
         line_id = line.id
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_line_device_dissociated_event(line_id)
 
-        def line_device_associated():
+        def line_device_dissociated():
             self._session.expire_all()
             result = self._session.query(models.Line).all()
             assert_that(result, has_items(
                 has_properties(id=line_id, device_name=None),
             ))
 
-        until.assert_(line_device_associated, tries=3)
+        until.assert_(line_device_dissociated, tries=3)
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(

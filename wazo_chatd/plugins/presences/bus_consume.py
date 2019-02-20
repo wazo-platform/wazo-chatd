@@ -30,8 +30,8 @@ class BusEventHandler:
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
         bus_consumer.on_event('line_associated', self._line_associated)  # user_line associated
         bus_consumer.on_event('line_dissociated', self._line_dissociated)  # user_line dissociated
-        bus_consumer.on_event('line_device_associated', self._line_device_updated)
-        bus_consumer.on_event('line_device_dissociated', self._line_device_updated)
+        bus_consumer.on_event('line_device_associated', self._line_device_associated)
+        bus_consumer.on_event('line_device_dissociated', self._line_device_dissociated)
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
 
     def _user_created(self, event):
@@ -94,7 +94,7 @@ class BusEventHandler:
         with session_scope():
             logger.debug('Creating line with id: %s, user_uuid: %s', line_id, user_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
-            line = Line(id=line_id, state='unavailable')
+            line = Line(id=line_id)
             self._dao.user.add_line(user, line)
             self._notifier.updated(user)
 
@@ -109,23 +109,34 @@ class BusEventHandler:
             self._dao.user.remove_line(user, line)
             self._notifier.updated(user)
 
-    def _line_device_updated(self, event):
+    def _line_device_associated(self, event):
         line_id = event['line']['id']
         device_name = extract_device_name(event['line'])
         with session_scope():
-            logger.debug('Updating line with id: %s, device_name: %s', line_id, device_name)
+            logger.debug('Associating line "%s" with device "%s"', line_id, device_name)
             line = self._dao.line.get(line_id)
-            line.device_name = device_name
-            line.state = 'unavailable'  # TODO must fetch the state from asterisk
-            self._dao.line.update(line)
+            # TODO create device if not exist
+            device = self._dao.device.get_by(name=device_name)
+            self._dao.line.associate_device(line, device)
+            self._notifier.updated(line.user)
+
+    def _line_device_dissociated(self, event):
+        line_id = event['line']['id']
+        device_name = extract_device_name(event['line'])
+        with session_scope():
+            logger.debug('Dissociating line "%s" with device "%s"', line_id, device_name)
+            line = self._dao.line.get(line_id)
+            self._dao.line.dissociate_device(line)
             self._notifier.updated(line.user)
 
     def _device_state_change(self, event):
         device_name = event['Device']
         state = event['State']
         with session_scope():
-            line = self._dao.line.get_by(device_name=device_name)
-            logger.debug('Updating line with id: %s state: %s', line.id, state)
-            line.state = DEVICE_STATE_MAP.get(state, 'unavailable')
-            self._dao.line.update(line)
-            self._notifier.updated(line.user)
+            # TODO check if we need to create device
+            device = self._dao.device.get_by(name=device_name)
+            device.state = DEVICE_STATE_MAP.get(state, 'unavailable')
+            logger.debug('Updating device with id: %s state: %s', device.name, device.state)
+            self._dao.device.update(device)
+            if device.line:
+                self._notifier.updated(device.line.user)

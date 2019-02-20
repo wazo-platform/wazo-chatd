@@ -15,15 +15,13 @@ class LineDAO:
         return get_dao_session()
 
     def get(self, line_id):
-        return self.get_by(id=line_id)
+        return self._get_by(id=line_id)
 
-    def get_by(self, **kwargs):
+    def _get_by(self, **kwargs):
         filter_ = text('true')
 
         if 'id' in kwargs:
             filter_ = and_(filter_, Line.id == kwargs['id'])
-        if 'device_name' in kwargs:
-            filter_ = and_(filter_, Line.device_name == kwargs['device_name'])
 
         line = self.session.query(Line).filter(filter_).first()
         if not line:
@@ -41,6 +39,6 @@ class LineDAO:
         line.device = device
         self.session.flush()
 
-    def dissociate_device(self, line, device):
+    def dissociate_device(self, line):
         line.device = None
         self.session.flush()

@@ -141,6 +141,8 @@ class Device(Base):
         default='unavailable',
     )
 
+    line = relationship('Line', uselist=False, viewonly=True)
+
     def __repr__(self):
         return "<Device(name='{name}', state='{state}')>".format(
             name=self.name,
