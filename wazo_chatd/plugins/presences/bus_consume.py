@@ -39,7 +39,7 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         with session_scope():
             tenant = self._dao.tenant.find_or_create(tenant_uuid)
-            logger.debug('Creating user with uuid: %s, tenant_uuid: %s', user_uuid, tenant_uuid)
+            logger.debug('Create user "%s"', user_uuid)
             user = User(uuid=user_uuid, tenant=tenant, state='unavailable')
             self._dao.user.create(user)
 
@@ -47,22 +47,22 @@ class BusEventHandler:
         user_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            logger.debug('Deleting user with uuid: %s, tenant_uuid: %s', user_uuid, tenant_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
+            logger.debug('Delete user "%s"', user_uuid)
             self._dao.user.delete(user)
 
     def _tenant_created(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
-            logger.debug('Creating tenant with uuid: %s', tenant_uuid)
+            logger.debug('Create tenant "%s"', tenant_uuid)
             tenant = Tenant(uuid=tenant_uuid)
             self._dao.tenant.create(tenant)
 
     def _tenant_deleted(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
-            logger.debug('Deleting tenant with uuid: %s', tenant_uuid)
             tenant = self._dao.tenant.get(tenant_uuid)
+            logger.debug('Delete tenant "%s"', tenant_uuid)
             self._dao.tenant.delete(tenant)
 
     def _session_created(self, event):
@@ -70,8 +70,8 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            logger.debug('Creating session with uuid: %s, user_uuid: %s', session_uuid, user_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
+            logger.debug('Create session "%s" for user "%s"', session_uuid, user_uuid)
             session = Session(uuid=session_uuid, user_uuid=user_uuid)
             self._dao.user.add_session(user, session)
             self._notifier.updated(user)
@@ -81,9 +81,9 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            logger.debug('Deleting session with uuid: %s, user_uuid: %s', session_uuid, user_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
             session = self._dao.session.get(session_uuid)
+            logger.debug('Delete session "%s" for user "%s"', session_uuid, user_uuid)
             self._dao.user.remove_session(user, session)
             self._notifier.updated(user)
 
@@ -92,8 +92,8 @@ class BusEventHandler:
         user_uuid = event['user_uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            logger.debug('Creating line with id: %s, user_uuid: %s', line_id, user_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
+            logger.debug('Create line "%s"', line_id)
             line = Line(id=line_id)
             self._dao.user.add_line(user, line)
             self._notifier.updated(user)
@@ -103,9 +103,9 @@ class BusEventHandler:
         user_uuid = event['user_uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            logger.debug('Deleting line with id: %s, user_uuid: %s', line_id, user_uuid)
             user = self._dao.user.get([tenant_uuid], user_uuid)
             line = self._dao.line.get(line_id)
+            logger.debug('Delete line "%s"', line_id)
             self._dao.user.remove_line(user, line)
             self._notifier.updated(user)
 
@@ -113,10 +113,10 @@ class BusEventHandler:
         line_id = event['line']['id']
         device_name = extract_device_name(event['line'])
         with session_scope():
-            logger.debug('Associating line "%s" with device "%s"', line_id, device_name)
             line = self._dao.line.get(line_id)
             # TODO create device if not exist
             device = self._dao.device.get_by(name=device_name)
+            logger.debug('Associate line "%s" with device "%s"', line_id, device_name)
             self._dao.line.associate_device(line, device)
             self._notifier.updated(line.user)
 
@@ -124,8 +124,8 @@ class BusEventHandler:
         line_id = event['line']['id']
         device_name = extract_device_name(event['line'])
         with session_scope():
-            logger.debug('Dissociating line "%s" with device "%s"', line_id, device_name)
             line = self._dao.line.get(line_id)
+            logger.debug('Dissociate line "%s" with device "%s"', line_id, device_name)
             self._dao.line.dissociate_device(line)
             self._notifier.updated(line.user)
 
@@ -136,7 +136,7 @@ class BusEventHandler:
             # TODO check if we need to create device
             device = self._dao.device.get_by(name=device_name)
             device.state = DEVICE_STATE_MAP.get(state, 'unavailable')
-            logger.debug('Updating device with id: %s state: %s', device.name, device.state)
+            logger.debug('Update device "%s" with state "%s"', device.name, device.state)
             self._dao.device.update(device)
             if device.line:
                 self._notifier.updated(device.line.user)

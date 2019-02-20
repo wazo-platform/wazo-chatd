@@ -61,15 +61,15 @@ class Initiator:
         tenants_missing = tenants - tenants_cached
         with session_scope():
             for uuid in tenants_missing:
-                logger.debug('Creating tenant with uuid: %s', uuid)
+                logger.debug('Create tenant "%s"', uuid)
                 tenant = Tenant(uuid=uuid)
                 self._dao.tenant.create(tenant)
 
         tenants_expired = tenants_cached - tenants
         with session_scope():
             for uuid in tenants_expired:
-                logger.debug('Deleting tenant with uuid: %s', uuid)
                 tenant = self._dao.tenant.get(uuid)
+                logger.debug('Delete tenant "%s"', uuid)
                 self._dao.tenant.delete(tenant)
 
     def initiate_users(self, confd):
@@ -89,19 +89,19 @@ class Initiator:
                 # Avoid race condition between init tenant and init user
                 tenant = self._dao.tenant.find_or_create(tenant_uuid)
 
-                logger.debug('Creating user with uuid: %s', uuid)
+                logger.debug('Create user "%s"', uuid)
                 user = User(uuid=uuid, tenant=tenant, state='unavailable')
                 self._dao.user.create(user)
 
         users_expired = users_cached - users
         with session_scope():
             for uuid, tenant_uuid in users_expired:
-                logger.debug('Deleting user with uuid: %s', uuid)
                 try:
                     user = self._dao.user.get([tenant_uuid], uuid)
                 except UnknownUserException as e:
                     logger.warning('%s', e)
                     continue
+                logger.debug('Delete user "%s"', uuid)
                 self._dao.user.delete(user)
 
     def _add_and_remove_lines(self, confd, users):
@@ -111,21 +111,21 @@ class Initiator:
         lines_missing = lines - lines_cached
         with session_scope():
             for id_, user_uuid, tenant_uuid in lines_missing:
-                logger.debug('Creating line with id: %s', id_)
                 user = self._dao.user.get([tenant_uuid], user_uuid)
                 line = Line(id=id_)
+                logger.debug('Create line "%s"', id_)
                 self._dao.user.add_line(user, line)
 
         lines_expired = lines_cached - lines
         with session_scope():
             for id_, user_uuid, tenant_uuid in lines_expired:
-                logger.debug('Deleting line with id: %s', id_)
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                     line = self._dao.line.get(id_)
                 except UnknownUserException:
-                    logger.debug('Line already deleted: id: %s, user_uuid: %s', id_, user_uuid)
+                    logger.debug('Line "%s" already deleted', id_)
                     continue
+                logger.debug('Delete line "%s"', id_)
                 self._dao.user.remove_session(user, line)
 
     def _associate_line_device(self, confd, users):
@@ -138,7 +138,7 @@ class Initiator:
                     device = self._dao.device.get_by(name=line_info['device_name'])
                 except (UnknownLineException, UnknownDeviceException):
                     logger.debug(
-                        'unable to associate line "%s" with device "%s"',
+                        'Unable to associate line "%s" with device "%s"',
                         line_info['id'],
                         line_info['device_name'],
                     )
@@ -162,21 +162,19 @@ class Initiator:
         sessions_missing = sessions - sessions_cached
         with session_scope():
             for uuid, user_uuid, tenant_uuid in sessions_missing:
-                logger.debug('Creating session with uuid: %s, user_uuid %s', uuid, user_uuid)
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                 except UnknownUserException:
-                    logger.debug('Session has no valid user associated:' +
-                                 'session_uuid %s, user_uuid %s', uuid, user_uuid)
+                    logger.debug('Session "%s" has no valid user "%s"', uuid, user_uuid)
                     continue
 
+                logger.debug('Create session "%s" for user "%s"', uuid, user_uuid)
                 session = Session(uuid=uuid, user_uuid=user_uuid)
                 self._dao.user.add_session(user, session)
 
         sessions_expired = sessions_cached - sessions
         with session_scope():
             for uuid, user_uuid, tenant_uuid in sessions_expired:
-                logger.debug('Deleting session with uuid: %s, user_uuid %s', uuid, user_uuid)
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                     session = self._dao.session.get(uuid)
@@ -184,6 +182,7 @@ class Initiator:
                     logger.warning('%s', e)
                     continue
 
+                logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
                 self._dao.user.remove_session(user, session)
 
     def initiate_devices(self, amid):
@@ -191,7 +190,7 @@ class Initiator:
         events = amid.action('DeviceStateList')
 
         with session_scope():
-            logger.debug('Deleting all devices')
+            logger.debug('Delete all devices')
             self._dao.device.delete_all()
             for event in events:
                 if event.get('Event') != 'DeviceStateChange':
@@ -202,8 +201,6 @@ class Initiator:
                     'state': DEVICE_STATE_MAP.get(event['State'], 'unavailable'),
                 }
                 logger.debug(
-                    'Creating device "%s" with state: %s',
-                    device_args['name'],
-                    device_args['state'],
+                    'Create device "%s" with state "%s"', device_args['name'], device_args['state']
                 )
                 self._dao.device.create(Device(**device_args))
