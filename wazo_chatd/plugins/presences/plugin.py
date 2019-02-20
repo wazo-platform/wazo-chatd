@@ -31,14 +31,14 @@ class Plugin:
 
         auth = AuthClient(**config['auth'])
         initiator = Initiator(dao, auth)
+        if initialization['lines']:
+            amid = AmidClient(**config['amid'])
+            initiator.initiate_devices(amid)
         if initialization['tenants']:
             initiator.initiate_tenants()
         if initialization['users']:
             confd = ConfdClient(**config['confd'])
             initiator.initiate_users(confd)
-        if initialization['lines']:
-            amid = AmidClient(**config['amid'])
-            initiator.initiate_lines_state(amid)
         if initialization['sessions']:
             initiator.initiate_sessions()
         if initialization['connections']:

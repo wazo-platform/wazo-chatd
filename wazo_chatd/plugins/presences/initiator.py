@@ -4,6 +4,7 @@
 import logging
 
 from wazo_chatd.database.models import (
+    Device,
     Line,
     User,
     Session,
@@ -11,6 +12,8 @@ from wazo_chatd.database.models import (
 )
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.exceptions import (
+    UnknownDeviceException,
+    UnknownLineException,
     UnknownSessionException,
     UnknownUserException,
 )
@@ -74,7 +77,7 @@ class Initiator:
         users = confd.users.list(recurse=True)['items']
         self._add_and_remove_users(confd, users)
         self._add_and_remove_lines(confd, users)
-        self._update_lines(confd, users)
+        self._associate_line_device(confd, users)
 
     def _add_and_remove_users(self, confd, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
@@ -110,7 +113,7 @@ class Initiator:
             for id_, user_uuid, tenant_uuid in lines_missing:
                 logger.debug('Creating line with id: %s', id_)
                 user = self._dao.user.get([tenant_uuid], user_uuid)
-                line = Line(id=id_, state='unavailable')
+                line = Line(id=id_)
                 self._dao.user.add_line(user, line)
 
         lines_expired = lines_cached - lines
@@ -125,15 +128,23 @@ class Initiator:
                     continue
                 self._dao.user.remove_session(user, line)
 
-    def _update_lines(self, confd, users):
+    def _associate_line_device(self, confd, users):
         lines_info = [{'id': line['id'], 'device_name': extract_device_name(line)}
                       for user in users for line in user['lines']]
         with session_scope():
             for line_info in lines_info:
-                logger.debug('Updating line with id: %s', line_info['id'])
-                line = self._dao.line.get(line_info['id'])
-                line.device_name = line_info['device_name']
-                self._dao.line.update(line)
+                try:
+                    line = self._dao.line.get(line_info['id'])
+                    device = self._dao.device.get_by(name=line_info['device_name'])
+                except (UnknownLineException, UnknownDeviceException):
+                    logger.debug(
+                        'unable to associate line "%s" with device "%s"',
+                        line_info['id'],
+                        line_info['device_name'],
+                    )
+                    continue
+                logger.debug('Associate line "%s" with device "%s"', line.id, device.name)
+                self._dao.line.associate_device(line, device)
 
     def initiate_sessions(self):
         self._auth.set_token(self.token)
@@ -175,19 +186,24 @@ class Initiator:
 
                 self._dao.user.remove_session(user, session)
 
-    def initiate_lines_state(self, amid):
+    def initiate_devices(self, amid):
         amid.set_token(self.token)
         events = amid.action('DeviceStateList')
 
-        device_states = {event['Device']: event['State']
-                         for event in events if event['Event'] == 'DeviceStateChange'}
         with session_scope():
-            lines = self._dao.line.list_()
-            for line in lines:
-                logger.debug('Updating state of line: %s', line.id)
-                device_state = device_states.get(line.device_name)
-                if not device_state:
-                    logger.warning('Line not found in device states list: id: %s', line.id)
+            logger.debug('Deleting all devices')
+            self._dao.device.delete_all()
+            for event in events:
+                if event.get('Event') != 'DeviceStateChange':
                     continue
-                line.state = DEVICE_STATE_MAP.get(device_state, 'unavailable')
-                self._dao.line.update(line)
+
+                device_args = {
+                    'name': event['Device'],
+                    'state': DEVICE_STATE_MAP.get(event['State'], 'unavailable'),
+                }
+                logger.debug(
+                    'Creating device "%s" with state: %s',
+                    device_args['name'],
+                    device_args['state'],
+                )
+                self._dao.device.create(Device(**device_args))
