@@ -55,8 +55,8 @@ class TestTenant(BaseIntegrationTest):
 
     @fixtures.db.tenant()
     def test_get(self, tenant):
-        tenant = self._dao.tenant.get(tenant.uuid)
-        assert_that(tenant, equal_to(tenant))
+        result = self._dao.tenant.get(tenant.uuid)
+        assert_that(result, equal_to(tenant))
 
         assert_that(
             calling(self._dao.tenant.get).with_args(UNKNOWN_UUID),

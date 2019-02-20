@@ -30,8 +30,8 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.line()
     def test_get(self, line):
-        line = self._dao.line.get(line.id)
-        assert_that(line, equal_to(line))
+        result = self._dao.line.get(line.id)
+        assert_that(result, equal_to(line))
 
         assert_that(
             calling(self._dao.line.get).with_args(UNKNOWN_ID),
@@ -39,10 +39,10 @@ class TestLine(BaseIntegrationTest):
         )
 
     @fixtures.db.line()
-    @fixtures.db.line(device_name='name')
-    def test_get_by(self, line, _):
-        line = self._dao.line.get_by(device_name=line.device_name)
-        assert_that(line, equal_to(line))
+    @fixtures.db.line()
+    def test_get_by(self, _, line):
+        result = self._dao.line.get_by(id=line.id)
+        assert_that(result, equal_to(line))
 
     @fixtures.db.line()
     @fixtures.db.line()
@@ -56,14 +56,13 @@ class TestLine(BaseIntegrationTest):
     def test_tenant_uuid(self, tenant, _, line):
         assert_that(line.tenant_uuid, equal_to(tenant.uuid))
 
-    @fixtures.db.line(device_name='SIP/abcd')
+    @fixtures.db.line(media='audio')
     def test_update(self, line):
-        device_name = 'SCCP/efgh'
-        line.device_name = device_name
+        line.media = 'video'
         self._dao.line.update(line)
 
         self._session.expire_all()
-        assert_that(line.device_name, equal_to(device_name))
+        assert_that(line.media, equal_to('video'))
 
     @fixtures.db.device()
     @fixtures.db.line()

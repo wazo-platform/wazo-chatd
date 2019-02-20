@@ -30,8 +30,8 @@ class TestSession(BaseIntegrationTest):
 
     @fixtures.db.session()
     def test_get(self, session):
-        session = self._dao.session.get(session.uuid)
-        assert_that(session, equal_to(session))
+        result = self._dao.session.get(session.uuid)
+        assert_that(result, equal_to(session))
 
         assert_that(
             calling(self._dao.session.get).with_args(UNKNOWN_UUID),

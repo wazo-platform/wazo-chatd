@@ -176,7 +176,7 @@ class TestUser(BaseIntegrationTest):
     @fixtures.db.user()
     def test_add_line(self, user):
         line_id = random.randint(1, 1000000)
-        line = Line(id=line_id, state='unavailable')
+        line = Line(id=line_id)
         self._dao.user.add_line(user, line)
 
         self._session.expire_all()
