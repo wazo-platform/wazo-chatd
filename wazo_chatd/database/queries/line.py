@@ -36,3 +36,11 @@ class LineDAO:
     def update(self, line):
         self.session.add(line)
         self.session.flush()
+
+    def associate_device(self, line, device):
+        line.device = device
+        self.session.flush()
+
+    def dissociate_device(self, line, device):
+        line.device = None
+        self.session.flush()

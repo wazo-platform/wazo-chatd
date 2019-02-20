@@ -64,3 +64,19 @@ class TestLine(BaseIntegrationTest):
 
         self._session.expire_all()
         assert_that(line.device_name, equal_to(device_name))
+
+    @fixtures.db.device()
+    @fixtures.db.line()
+    def test_associate_device(self, device, line):
+        self._dao.line.associate_device(line, device)
+
+        self._session.expire_all()
+        assert_that(line.device, equal_to(device))
+
+    @fixtures.db.device(name='device-name')
+    @fixtures.db.line(device_name='device-name')
+    def test_dissociate_device(self, device, line):
+        self._dao.line.dissociate_device(line, device)
+
+        self._session.expire_all()
+        assert_that(line.device, equal_to(None))

@@ -118,7 +118,7 @@ class Line(Base):
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
-    device = relationship('Device', viewonly=True)
+    device = relationship('Device')
     state = association_proxy('device', 'state')
 
     def __repr__(self):
