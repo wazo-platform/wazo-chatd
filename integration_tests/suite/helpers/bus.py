@@ -95,9 +95,9 @@ class BusClient(bus_helper.BusClient):
                 'line': {
                     'id': line_id,
                     'name': line_name,
-                    'endpoint_sip': {'id': 1},
+                    'endpoint_sip': {},
                     'endpoint_sccp': {},
-                    'endpoint_custom': {},
+                    'endpoint_custom': {'id': 1},
                 },
                 'device': {'id': 1},
             },

@@ -6,6 +6,7 @@ import logging
 from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
+    Device,
     Line,
     Session,
     Tenant,
@@ -125,8 +126,9 @@ class BusEventHandler:
         device_name = extract_device_name(event['line'])
         with session_scope():
             line = self._dao.line.get(line_id)
-            # TODO create device if not exist
-            device = self._dao.device.get_by(name=device_name)
+            device = self._dao.device.find_by(name=device_name)
+            if not device:
+                device = self._dao.device.create(Device(name=device_name))
             logger.debug('Associate line "%s" with device "%s"', line_id, device_name)
             self._dao.line.associate_device(line, device)
             self._notifier.updated(line.user)
@@ -142,11 +144,12 @@ class BusEventHandler:
 
     def _device_state_change(self, event):
         device_name = event['Device']
-        state = event['State']
+        state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
-            # TODO check if we need to create device
-            device = self._dao.device.get_by(name=device_name)
-            device.state = DEVICE_STATE_MAP.get(state, 'unavailable')
+            device = self._dao.device.find_by(name=device_name)
+            if not device:
+                device = self._dao.device.create(Device(name=device_name))
+            device.state = state
             logger.debug('Update device "%s" with state "%s"', device.name, device.state)
             self._dao.device.update(device)
             if device.line:

@@ -194,13 +194,26 @@ class TestEventHandler(BaseIntegrationTest):
             lines=contains(has_entries(id=line_id, state='holding'))
         ))))
 
-    @fixtures.db.device(name='PJSIP/name', state='available')
+    def test_device_state_changed_create_device(self):
+        device_name = 'missing-device'
+
+        self.bus.send_device_state_changed_event(device_name, 'ONHOLD')
+
+        def device_state_changed():
+            self._session.expire_all()
+            result = self._session.query(models.Device).all()
+            assert_that(result, has_items(
+                has_properties(name=device_name, state='holding'),
+            ))
+
+        until.assert_(device_state_changed, tries=3)
+
+    @fixtures.db.device(state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1)
     def test_line_device_associated(self, device, user, line):
         line_id = line.id
-        line_name = 'name'
-        device_name = device.name
+        line_name = device_name = device.name
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
@@ -219,6 +232,23 @@ class TestEventHandler(BaseIntegrationTest):
         assert_that(event, contains(has_entries(data=has_entries(
             lines=contains(has_entries(id=line_id, state='available'))
         ))))
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1)
+    def test_line_device_associated_create_device(self, user, line):
+        line_id = line.id
+        line_name = device_name = 'missing-device'
+
+        self.bus.send_line_device_associated_event(line_id, line_name)
+
+        def line_device_associated():
+            self._session.expire_all()
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, device_name=device_name),
+            ))
+
+        until.assert_(line_device_associated, tries=3)
 
     @fixtures.db.device(name=DEVICE_NAME, state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
