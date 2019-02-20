@@ -3,6 +3,7 @@
 
 import logging
 
+from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
     Line,
@@ -70,7 +71,12 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            user = self._dao.user.get([tenant_uuid], user_uuid)
+            try:
+                user = self._dao.user.get([tenant_uuid], user_uuid)
+            except UnknownUserException:
+                logger.debug('Session "%s" has no valid user "%s"', session_uuid, user_uuid)
+                return
+
             logger.debug('Create session "%s" for user "%s"', session_uuid, user_uuid)
             session = Session(uuid=session_uuid, user_uuid=user_uuid)
             self._dao.user.add_session(user, session)
@@ -81,7 +87,12 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            user = self._dao.user.get([tenant_uuid], user_uuid)
+            try:
+                user = self._dao.user.get([tenant_uuid], user_uuid)
+            except UnknownUserException:
+                logger.debug('Session "%s" has no valid user "%s"', session_uuid, user_uuid)
+                return
+
             session = self._dao.session.get(session_uuid)
             logger.debug('Delete session "%s" for user "%s"', session_uuid, user_uuid)
             self._dao.user.remove_session(user, session)

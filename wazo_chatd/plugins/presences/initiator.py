@@ -15,6 +15,7 @@ from wazo_chatd.exceptions import (
     UnknownDeviceException,
     UnknownLineException,
     UnknownSessionException,
+    UnknownTenantException,
     UnknownUserException,
 )
 
@@ -68,7 +69,11 @@ class Initiator:
         tenants_expired = tenants_cached - tenants
         with session_scope():
             for uuid in tenants_expired:
-                tenant = self._dao.tenant.get(uuid)
+                try:
+                    tenant = self._dao.tenant.get(uuid)
+                except UnknownTenantException as e:
+                    logger.warning('%s', e)
+                    continue
                 logger.debug('Delete tenant "%s"', uuid)
                 self._dao.tenant.delete(tenant)
 
@@ -111,7 +116,11 @@ class Initiator:
         lines_missing = lines - lines_cached
         with session_scope():
             for id_, user_uuid, tenant_uuid in lines_missing:
-                user = self._dao.user.get([tenant_uuid], user_uuid)
+                try:
+                    user = self._dao.user.get([tenant_uuid], user_uuid)
+                except UnknownUserException as e:
+                    logger.warning('%s', e)
+                    continue
                 line = Line(id=id_)
                 logger.debug('Create line "%s"', id_)
                 self._dao.user.add_line(user, line)
