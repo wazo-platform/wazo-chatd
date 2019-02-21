@@ -11,7 +11,10 @@ from hamcrest import (
     has_entries,
 )
 
-from ..schemas import UserPresenceSchema
+from ..schemas import (
+    UserPresenceSchema,
+    LinePresenceSchema,
+)
 
 UUID = str(uuid.uuid4())
 
@@ -92,3 +95,23 @@ class TestUserPresenceSchema(unittest.TestCase):
 
         result = self.schema().dump(self.user).data
         assert_that(result, has_entries(line_state='unavailable'))
+
+
+class TestLinePresenceSchema(unittest.TestCase):
+
+    schema = LinePresenceSchema
+
+    def setUp(self):
+        self.line = Mock(id=1)
+
+    def test_set_default_state(self):
+        self.line.state = 'ringing'
+
+        result = self.schema().dump(self.line).data
+        assert_that(result, has_entries(state='ringing'))
+
+    def test_set_default_state_when_none(self):
+        self.line.state = None
+
+        result = self.schema().dump(self.line).data
+        assert_that(result, has_entries(state='unavailable'))
