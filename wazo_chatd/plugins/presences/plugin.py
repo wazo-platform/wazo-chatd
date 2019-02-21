@@ -29,20 +29,12 @@ class Plugin:
         service = PresenceService(dao, notifier)
         initialization = config['initialization']
 
-        auth = AuthClient(**config['auth'])
-        initiator = Initiator(dao, auth)
-        if initialization['lines']:
+        if initialization['enabled']:
+            auth = AuthClient(**config['auth'])
             amid = AmidClient(**config['amid'])
-            initiator.initiate_endpoints(amid)
-        if initialization['tenants']:
-            initiator.initiate_tenants()
-        if initialization['users']:
             confd = ConfdClient(**config['confd'])
-            initiator.initiate_users(confd)
-        if initialization['sessions']:
-            initiator.initiate_sessions()
-        if initialization['connections']:
-            logger.debug('Initialize connections is not implemented')
+            initiator = Initiator(dao, auth, amid, confd)
+            initiator.initiate()
 
         bus_event_handler = BusEventHandler(dao, notifier)
         bus_event_handler.subscribe(bus_consumer)

@@ -1,19 +1,23 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import re
 import random
 import uuid
 
 from hamcrest import (
     assert_that,
     contains_inanyorder,
+    greater_than,
     has_properties,
 )
+
+from xivo_test_helpers import until
 
 from wazo_chatd.database import models
 
 from .helpers import fixtures
-from .helpers.wait_strategy import EverythingOkWaitStrategy
+from .helpers.wait_strategy import NoWaitStrategy, EverythingOkWaitStrategy
 from .helpers.base import (
     BaseIntegrationTest,
     VALID_TOKEN,
@@ -25,10 +29,25 @@ USER_UUID_2 = str(uuid.uuid4())
 ENDPOINT_NAME = 'CUSTOM/name'
 
 
-class TestPresenceInitialization(BaseIntegrationTest):
+class _BaseInitializationTest(BaseIntegrationTest):
 
     asset = 'initialization'
-    wait_strategy = EverythingOkWaitStrategy()
+    wait_strategy = NoWaitStrategy()
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.fix_mock_values()
+        EverythingOkWaitStrategy().wait(cls)
+
+    @classmethod
+    def fix_mock_values(cls):
+        cls.amid.set_devicestatelist()
+        cls.auth.set_tenants({'items': {}})
+        cls.auth.set_sessions({'items': {}})
+
+
+class TestPresenceInitialization(_BaseInitializationTest):
 
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
@@ -206,3 +225,28 @@ class TestPresenceInitialization(BaseIntegrationTest):
             has_properties(name=endpoint_1_created_name, state='holding'),
             has_properties(name=endpoint_2_created_name, state='unavailable'),
         ))
+
+
+class TestInitializationBlock(_BaseInitializationTest):
+
+    def test_server_block_until_initialization_can_be_done(self):
+        self.stop_service('chatd')
+        init_count = self._count_error_initialization()
+        self.stop_service('amid')
+        self.start_service('chatd')
+
+        def server_wait():
+            count = self._count_error_initialization()
+            assert_that(count, greater_than(init_count))
+
+        until.assert_(server_wait, tries=5)
+
+        self.start_service('amid')
+        self.reset_clients()
+        self.fix_mock_values()
+
+        EverythingOkWaitStrategy().wait(self)
+
+    def _count_error_initialization(self):
+        log = self.service_logs('chatd')
+        return len(re.findall('Error to fetch data for initialization', log))

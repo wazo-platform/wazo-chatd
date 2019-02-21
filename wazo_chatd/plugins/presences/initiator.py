@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
+import time
+
+import requests
 
 from wazo_chatd.database.models import (
     Endpoint,
@@ -20,6 +23,9 @@ from wazo_chatd.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+CONNECTION_TRIES = 1000
+CONNECTION_DELAY = 2
 
 DEVICE_STATE_MAP = {
     'INUSE': 'talking',
@@ -49,21 +55,39 @@ def extract_endpoint_name(line):
 
 class Initiator:
 
-    def __init__(self, dao, auth):
+    def __init__(self, dao, auth, amid, confd):
         self._dao = dao
         self._auth = auth
-        self._token = None
+        self._amid = amid
+        self._confd = confd
 
-    @property
-    def token(self):
-        if not self._token:
-            self._token = self._auth.token.new(expiration=120)['token']
-        return self._token
+    def initiate(self):
+        for _ in range(CONNECTION_TRIES):
+            try:
+                token = self._auth.token.new(expiration=120)['token']
+                self._auth.set_token(token)
+                self._amid.set_token(token)
+                self._confd.set_token(token)
 
-    def initiate_tenants(self):
-        self._auth.set_token(self.token)
-        tenants = self._auth.tenants.list()['items']
+                events = self._amid.action('DeviceStateList')
+                tenants = self._auth.tenants.list()['items']
+                users = self._confd.users.list(recurse=True)['items']
+                sessions = self._auth.sessions.list(recurse=True)['items']
+                break
+            except (requests.ConnectionError, requests.HTTPError):
+                logger.info(
+                    'Error to fetch data for initialization, retrying in %s seconds...',
+                    CONNECTION_DELAY
+                )
+                time.sleep(CONNECTION_DELAY)
+                continue
 
+        self.initiate_endpoints(events)
+        self.initiate_tenants(tenants)
+        self.initiate_users(users)
+        self.initiate_sessions(sessions)
+
+    def initiate_tenants(self, tenants):
         tenants = set(tenant['uuid'] for tenant in tenants)
         tenants_cached = set(tenant.uuid for tenant in self._dao.tenant.list_())
 
@@ -85,15 +109,13 @@ class Initiator:
                 logger.debug('Delete tenant "%s"', uuid)
                 self._dao.tenant.delete(tenant)
 
-    def initiate_users(self, confd):
-        confd.set_token(self.token)
-        users = confd.users.list(recurse=True)['items']
-        self._add_and_remove_users(confd, users)
+    def initiate_users(self, users):
+        self._add_and_remove_users(users)
+        self._add_and_remove_lines(users)
         self._add_missing_endpoints(users)  # disconnected SCCP endpoints are missing
-        self._add_and_remove_lines(confd, users)
-        self._associate_line_endpoint(confd, users)
+        self._associate_line_endpoint(users)
 
-    def _add_and_remove_users(self, confd, users):
+    def _add_and_remove_users(self, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
         users_cached = set((u.uuid, u.tenant_uuid) for u in self._dao.user.list_(tenant_uuids=None))
 
@@ -118,7 +140,7 @@ class Initiator:
                 logger.debug('Delete user "%s"', uuid)
                 self._dao.user.delete(user)
 
-    def _add_and_remove_lines(self, confd, users):
+    def _add_and_remove_lines(self, users):
         lines = set((line['id'], user['uuid'], user['tenant_uuid']) for user in users for line in user['lines'])
         lines_cached = set((line.id, line.user_uuid, line.tenant_uuid) for line in self._dao.line.list_())
 
@@ -161,7 +183,7 @@ class Initiator:
                 logger.debug('Create endpoint "%s"', endpoint_name)
                 self._dao.endpoint.create(Endpoint(name=endpoint_name))
 
-    def _associate_line_endpoint(self, confd, users):
+    def _associate_line_endpoint(self, users):
         lines = set((line['id'], extract_endpoint_name(line))
                     for user in users for line in user['lines'])
         with session_scope():
@@ -177,10 +199,7 @@ class Initiator:
                 logger.debug('Associate line "%s" with endpoint "%s"', line.id, endpoint.name)
                 self._dao.line.associate_endpoint(line, endpoint)
 
-    def initiate_sessions(self):
-        self._auth.set_token(self.token)
-        sessions = self._auth.sessions.list(recurse=True)['items']
-
+    def initiate_sessions(self, sessions):
         sessions = set(
             (session['uuid'], session['user_uuid'], session['tenant_uuid'])
             for session in sessions
@@ -216,10 +235,7 @@ class Initiator:
                 logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
                 self._dao.user.remove_session(user, session)
 
-    def initiate_endpoints(self, amid):
-        amid.set_token(self.token)
-        events = amid.action('DeviceStateList')
-
+    def initiate_endpoints(self, events):
         with session_scope():
             logger.debug('Delete all endpoints')
             self._dao.endpoint.delete_all()

@@ -15,8 +15,4 @@ service_discovery:
   enabled: false
 
 initialization:
-  connections: False
-  lines: False
-  sessions: False
-  tenants: False
-  users: False
+  enabled: False
