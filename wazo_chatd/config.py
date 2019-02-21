@@ -80,10 +80,10 @@ _DEFAULT_CONFIG = {
     },
     'initialization': {
         'connections': False,
-        'lines': False,
-        'sessions': False,
-        'tenants': False,
-        'users': False,
+        'lines': True,
+        'sessions': True,
+        'tenants': True,
+        'users': True,
     },
 }
 
