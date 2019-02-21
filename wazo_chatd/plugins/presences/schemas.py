@@ -34,6 +34,8 @@ class UserPresenceSchema(Schema):
         validate=OneOf(['available', 'unavailable', 'invisible']),
     )
     status = fields.String(allow_none=True)
+    line_state = fields.String(dump_only=True)
+
     sessions = fields.Nested(
         'SessionPresenceSchema',
         many=True,
@@ -44,6 +46,23 @@ class UserPresenceSchema(Schema):
         many=True,
         dump_only=True
     )
+
+    @post_dump
+    def _set_line_state(self, user):
+        merged_state = 'unavailable'
+        for line in user['lines']:
+
+            state = line['state']
+            if state == 'ringing':
+                merged_state = state
+            elif state == 'holding' and merged_state != 'ringing':
+                merged_state = state
+            elif state == 'talking' and merged_state not in ('ringing', 'holding'):
+                merged_state = state
+            elif state == 'available' and merged_state not in ('ringing', 'holding', 'talking'):
+                merged_state = state
+
+        user['line_state'] = merged_state
 
 
 class ListRequestSchema(Schema):
