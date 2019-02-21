@@ -27,6 +27,11 @@ DEVICE_STATE_MAP = {
     'NOT_INUSE': 'available',
     'RINGING': 'ringing',
     'ONHOLD': 'holding',
+
+    'RINGINUSE': 'ringing',
+    'UNKNOWN': 'unavailable',
+    'BUSY': 'unavailable',
+    'INVALID': 'unavailable',
 }
 
 
