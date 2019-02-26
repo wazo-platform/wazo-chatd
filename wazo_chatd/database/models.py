@@ -107,9 +107,9 @@ class Line(Base):
         UUIDAsString(36),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
     )
-    device_name = Column(
+    endpoint_name = Column(
         Text,
-        ForeignKey('chatd_device.name', ondelete='SET NULL'),
+        ForeignKey('chatd_endpoint.name', ondelete='SET NULL'),
     )
     media = Column(
         String(24),
@@ -118,20 +118,20 @@ class Line(Base):
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
-    device = relationship('Device')
-    state = association_proxy('device', 'state')
+    endpoint = relationship('Endpoint')
+    state = association_proxy('endpoint', 'state')
 
     def __repr__(self):
-        return "<Line(id='{id}', media='{media}', device='{device}', )>".format(
+        return "<Line(id='{id}', media='{media}', endpoint='{endpoint}', )>".format(
             id=self.id,
             media=self.media,
-            device=self.device,
+            endpoint=self.endpoint,
         )
 
 
-class Device(Base):
+class Endpoint(Base):
 
-    __tablename__ = 'chatd_device'
+    __tablename__ = 'chatd_endpoint'
 
     name = Column(Text, primary_key=True)
     state = Column(
@@ -144,7 +144,7 @@ class Device(Base):
     line = relationship('Line', uselist=False, viewonly=True)
 
     def __repr__(self):
-        return "<Device(name='{name}', state='{state}')>".format(
+        return "<Endpoint(name='{name}', state='{state}')>".format(
             name=self.name,
             state=self.state,
         )

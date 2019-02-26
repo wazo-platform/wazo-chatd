@@ -6,13 +6,13 @@ import logging
 from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
-    Device,
+    Endpoint,
     Line,
     Session,
     Tenant,
     User,
 )
-from .initiator import DEVICE_STATE_MAP, extract_device_name
+from .initiator import DEVICE_STATE_MAP, extract_endpoint_name
 
 logger = logging.getLogger(__name__)
 
@@ -123,34 +123,34 @@ class BusEventHandler:
 
     def _line_device_associated(self, event):
         line_id = event['line']['id']
-        device_name = extract_device_name(event['line'])
+        endpoint_name = extract_endpoint_name(event['line'])
         with session_scope():
             line = self._dao.line.get(line_id)
-            device = self._dao.device.find_by(name=device_name)
-            if not device:
-                device = self._dao.device.create(Device(name=device_name))
-            logger.debug('Associate line "%s" with device "%s"', line_id, device_name)
-            self._dao.line.associate_device(line, device)
+            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+            if not endpoint:
+                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            logger.debug('Associate line "%s" with endpoint "%s"', line_id, endpoint_name)
+            self._dao.line.associate_endpoint(line, endpoint)
             self._notifier.updated(line.user)
 
     def _line_device_dissociated(self, event):
         line_id = event['line']['id']
-        device_name = extract_device_name(event['line'])
+        endpoint_name = extract_endpoint_name(event['line'])
         with session_scope():
             line = self._dao.line.get(line_id)
-            logger.debug('Dissociate line "%s" with device "%s"', line_id, device_name)
-            self._dao.line.dissociate_device(line)
+            logger.debug('Dissociate line "%s" with endpoint "%s"', line_id, endpoint_name)
+            self._dao.line.dissociate_endpoint(line)
             self._notifier.updated(line.user)
 
     def _device_state_change(self, event):
-        device_name = event['Device']
+        endpoint_name = event['Device']
         state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
-            device = self._dao.device.find_by(name=device_name)
-            if not device:
-                device = self._dao.device.create(Device(name=device_name))
-            device.state = state
-            logger.debug('Update device "%s" with state "%s"', device.name, device.state)
-            self._dao.device.update(device)
-            if device.line:
-                self._notifier.updated(device.line.user)
+            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+            if not endpoint:
+                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            endpoint.state = state
+            logger.debug('Update endpoint "%s" with state "%s"', endpoint.name, endpoint.state)
+            self._dao.endpoint.update(endpoint)
+            if endpoint.line:
+                self._notifier.updated(endpoint.line.user)

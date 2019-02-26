@@ -35,10 +35,10 @@ class LineDAO:
         self.session.add(line)
         self.session.flush()
 
-    def associate_device(self, line, device):
-        line.device = device
+    def associate_endpoint(self, line, endpoint):
+        line.endpoint = endpoint
         self.session.flush()
 
-    def dissociate_device(self, line):
-        line.device = None
+    def dissociate_endpoint(self, line):
+        line.endpoint = None
         self.session.flush()

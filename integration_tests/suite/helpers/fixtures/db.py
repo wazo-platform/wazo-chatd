@@ -8,7 +8,7 @@ import uuid
 from functools import wraps
 
 from wazo_chatd.database.models import (
-    Device,
+    Endpoint,
     Line,
     User,
     Session,
@@ -132,31 +132,31 @@ def line(**line_args):
     return decorator
 
 
-def device(**device_args):
+def endpoint(**endpoint_args):
     def decorator(decorated):
         @wraps(decorated)
         def wrapper(self, *args, **kwargs):
-            device_args.setdefault('name', _random_device_name())
-            device_args.setdefault('state', 'unavailable')
+            endpoint_args.setdefault('name', _random_endpoint_name())
+            endpoint_args.setdefault('state', 'unavailable')
 
-            device = Device(**device_args)
+            endpoint = Endpoint(**endpoint_args)
 
-            self._session.add(device)
+            self._session.add(endpoint)
             self._session.flush()
 
             self._session.commit()
-            args = list(args) + [device]
+            args = list(args) + [endpoint]
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
                 self._session.expunge_all()
-                self._session.query(Device).filter(Device.name == device_args['name']).delete()
+                self._session.query(Endpoint).filter(Endpoint.name == endpoint_args['name']).delete()
                 self._session.commit()
             return result
         return wrapper
     return decorator
 
 
-def _random_device_name(length=10):
+def _random_endpoint_name(length=10):
     random_part = ''.join(random.choice(string.ascii_letters) for _ in range(10))
     return 'SIP/{}'.format(random_part)

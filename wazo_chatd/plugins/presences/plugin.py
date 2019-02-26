@@ -33,7 +33,7 @@ class Plugin:
         initiator = Initiator(dao, auth)
         if initialization['lines']:
             amid = AmidClient(**config['amid'])
-            initiator.initiate_devices(amid)
+            initiator.initiate_endpoints(amid)
         if initialization['tenants']:
             initiator.initiate_tenants()
         if initialization['users']:

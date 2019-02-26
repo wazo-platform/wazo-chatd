@@ -20,7 +20,7 @@ from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 
 USER_UUID_1 = str(uuid.uuid4())
-DEVICE_NAME = 'PJSIP/name'
+ENDPOINT_NAME = 'PJSIP/name'
 
 
 class TestEventHandler(BaseIntegrationTest):
@@ -169,51 +169,51 @@ class TestEventHandler(BaseIntegrationTest):
             lines=empty()
         ))))
 
-    @fixtures.db.device(name=DEVICE_NAME, state='available')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.line(user_uuid=USER_UUID_1, device_name=DEVICE_NAME)
-    def test_device_state_changed(self, device, user, line):
+    @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
+    def test_device_state_changed(self, endpoint, user, line):
         line_id = line.id
-        device_name = device.name
+        endpoint_name = endpoint.name
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_device_state_changed_event(device_name, 'ONHOLD')
+        self.bus.send_device_state_changed_event(endpoint_name, 'ONHOLD')
 
-        def device_state_changed():
+        def endpoint_state_changed():
             self._session.expire_all()
-            result = self._session.query(models.Device).all()
+            result = self._session.query(models.Endpoint).all()
             assert_that(result, has_items(
-                has_properties(name=device_name, state='holding'),
+                has_properties(name=endpoint_name, state='holding'),
             ))
 
-        until.assert_(device_state_changed, tries=3)
+        until.assert_(endpoint_state_changed, tries=3)
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
             lines=contains(has_entries(id=line_id, state='holding'))
         ))))
 
-    def test_device_state_changed_create_device(self):
-        device_name = 'missing-device'
+    def test_device_state_changed_create_endpoint(self):
+        endpoint_name = 'missing-endpoint'
 
-        self.bus.send_device_state_changed_event(device_name, 'ONHOLD')
+        self.bus.send_device_state_changed_event(endpoint_name, 'ONHOLD')
 
-        def device_state_changed():
+        def endpoint_state_changed():
             self._session.expire_all()
-            result = self._session.query(models.Device).all()
+            result = self._session.query(models.Endpoint).all()
             assert_that(result, has_items(
-                has_properties(name=device_name, state='holding'),
+                has_properties(name=endpoint_name, state='holding'),
             ))
 
-        until.assert_(device_state_changed, tries=3)
+        until.assert_(endpoint_state_changed, tries=3)
 
-    @fixtures.db.device(state='available')
+    @fixtures.db.endpoint(state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1)
-    def test_line_device_associated(self, device, user, line):
+    def test_line_device_associated(self, endpoint, user, line):
         line_id = line.id
-        line_name = device_name = device.name
+        line_name = endpoint_name = endpoint.name
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
@@ -223,7 +223,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Line).all()
             assert_that(result, has_items(
-                has_properties(id=line_id, device_name=device_name),
+                has_properties(id=line_id, endpoint_name=endpoint_name),
             ))
 
         until.assert_(line_device_associated, tries=3)
@@ -235,9 +235,9 @@ class TestEventHandler(BaseIntegrationTest):
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1)
-    def test_line_device_associated_create_device(self, user, line):
+    def test_line_device_associated_create_endpoint(self, user, line):
         line_id = line.id
-        line_name = device_name = 'missing-device'
+        line_name = endpoint_name = 'missing-endpoint'
 
         self.bus.send_line_device_associated_event(line_id, line_name)
 
@@ -245,15 +245,15 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Line).all()
             assert_that(result, has_items(
-                has_properties(id=line_id, device_name=device_name),
+                has_properties(id=line_id, endpoint_name=endpoint_name),
             ))
 
         until.assert_(line_device_associated, tries=3)
 
-    @fixtures.db.device(name=DEVICE_NAME, state='available')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.line(user_uuid=USER_UUID_1, device_name=DEVICE_NAME)
-    def test_line_device_dissociated(self, device, user, line):
+    @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
+    def test_line_device_dissociated(self, endpoint, user, line):
         line_id = line.id
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
@@ -264,7 +264,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Line).all()
             assert_that(result, has_items(
-                has_properties(id=line_id, device_name=None),
+                has_properties(id=line_id, endpoint_name=None),
             ))
 
         until.assert_(line_device_dissociated, tries=3)

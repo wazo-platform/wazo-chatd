@@ -46,9 +46,9 @@ class UnknownLineException(APIException):
         super().__init__(404, msg, 'unknown-line', details, 'lines')
 
 
-class UnknownDeviceException(APIException):
+class UnknownEndpointException(APIException):
 
-    def __init__(self, device_name):
-        msg = 'No such device: "{}"'.format(device_name)
-        details = {'name': device_name}
-        super().__init__(404, msg, 'unknown-device', details, 'devices')
+    def __init__(self, endpoint_name):
+        msg = 'No such endpoint: "{}"'.format(endpoint_name)
+        details = {'name': endpoint_name}
+        super().__init__(404, msg, 'unknown-endpoint', details, 'endpoints')

@@ -1,7 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from .device import DeviceDAO
+from .endpoint import EndpointDAO
 from .line import LineDAO
 from .session import SessionDAO
 from .tenant import TenantDAO
@@ -11,7 +11,7 @@ from .user import UserDAO
 class DAO:
 
     _daos = {
-        'device': DeviceDAO,
+        'endpoint': EndpointDAO,
         'line': LineDAO,
         'session': SessionDAO,
         'tenant': TenantDAO,

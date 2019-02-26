@@ -4,7 +4,7 @@
 import logging
 
 from wazo_chatd.database.models import (
-    Device,
+    Endpoint,
     Line,
     User,
     Session,
@@ -12,7 +12,7 @@ from wazo_chatd.database.models import (
 )
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.exceptions import (
-    UnknownDeviceException,
+    UnknownEndpointException,
     UnknownLineException,
     UnknownSessionException,
     UnknownTenantException,
@@ -35,7 +35,7 @@ DEVICE_STATE_MAP = {
 }
 
 
-def extract_device_name(line):
+def extract_endpoint_name(line):
     if line.get('endpoint_sip'):
         return 'PJSIP/{}'.format(line['name'])
     elif line.get('endpoint_sccp'):
@@ -87,7 +87,7 @@ class Initiator:
         users = confd.users.list(recurse=True)['items']
         self._add_and_remove_users(confd, users)
         self._add_and_remove_lines(confd, users)
-        self._associate_line_device(confd, users)
+        self._associate_line_endpoint(confd, users)
 
     def _add_and_remove_users(self, confd, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
@@ -142,23 +142,23 @@ class Initiator:
                 logger.debug('Delete line "%s"', id_)
                 self._dao.user.remove_session(user, line)
 
-    def _associate_line_device(self, confd, users):
-        lines_info = [{'id': line['id'], 'device_name': extract_device_name(line)}
+    def _associate_line_endpoint(self, confd, users):
+        lines_info = [{'id': line['id'], 'endpoint_name': extract_endpoint_name(line)}
                       for user in users for line in user['lines']]
         with session_scope():
             for line_info in lines_info:
                 try:
                     line = self._dao.line.get(line_info['id'])
-                    device = self._dao.device.get_by(name=line_info['device_name'])
-                except (UnknownLineException, UnknownDeviceException):
+                    endpoint = self._dao.endpoint.get_by(name=line_info['endpoint_name'])
+                except (UnknownLineException, UnknownEndpointException):
                     logger.debug(
-                        'Unable to associate line "%s" with device "%s"',
+                        'Unable to associate line "%s" with endpoint "%s"',
                         line_info['id'],
-                        line_info['device_name'],
+                        line_info['endpoint_name'],
                     )
                     continue
-                logger.debug('Associate line "%s" with device "%s"', line.id, device.name)
-                self._dao.line.associate_device(line, device)
+                logger.debug('Associate line "%s" with endpoint "%s"', line.id, endpoint.name)
+                self._dao.line.associate_endpoint(line, endpoint)
 
     def initiate_sessions(self):
         self._auth.set_token(self.token)
@@ -199,22 +199,22 @@ class Initiator:
                 logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
                 self._dao.user.remove_session(user, session)
 
-    def initiate_devices(self, amid):
+    def initiate_endpoints(self, amid):
         amid.set_token(self.token)
         events = amid.action('DeviceStateList')
 
         with session_scope():
-            logger.debug('Delete all devices')
-            self._dao.device.delete_all()
+            logger.debug('Delete all endpoints')
+            self._dao.endpoint.delete_all()
             for event in events:
                 if event.get('Event') != 'DeviceStateChange':
                     continue
 
-                device_args = {
+                endpoint_args = {
                     'name': event['Device'],
                     'state': DEVICE_STATE_MAP.get(event['State'], 'unavailable'),
                 }
                 logger.debug(
-                    'Create device "%s" with state "%s"', device_args['name'], device_args['state']
+                    'Create endpoint "%s" with state "%s"', endpoint_args['name'], endpoint_args['state']
                 )
-                self._dao.device.create(Device(**device_args))
+                self._dao.endpoint.create(Endpoint(**endpoint_args))

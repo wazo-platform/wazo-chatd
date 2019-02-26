@@ -50,10 +50,10 @@ class TestLine(BaseIntegrationTest):
     def test_tenant_uuid(self, tenant, _, line):
         assert_that(line.tenant_uuid, equal_to(tenant.uuid))
 
-    @fixtures.db.device(name='SIP/custom-name')
-    @fixtures.db.line(device_name='SIP/custom-name')
-    def test_state(self, device, line):
-        assert_that(line.state, equal_to(device.state))
+    @fixtures.db.endpoint(name='SIP/custom-name')
+    @fixtures.db.line(endpoint_name='SIP/custom-name')
+    def test_state(self, endpoint, line):
+        assert_that(line.state, equal_to(endpoint.state))
 
     @fixtures.db.line(media='audio')
     def test_update(self, line):
@@ -63,18 +63,18 @@ class TestLine(BaseIntegrationTest):
         self._session.expire_all()
         assert_that(line.media, equal_to('video'))
 
-    @fixtures.db.device()
+    @fixtures.db.endpoint()
     @fixtures.db.line()
-    def test_associate_device(self, device, line):
-        self._dao.line.associate_device(line, device)
+    def test_associate_endpoint(self, endpoint, line):
+        self._dao.line.associate_endpoint(line, endpoint)
 
         self._session.expire_all()
-        assert_that(line.device, equal_to(device))
+        assert_that(line.endpoint, equal_to(endpoint))
 
-    @fixtures.db.device(name='device-name')
-    @fixtures.db.line(device_name='device-name')
-    def test_dissociate_device(self, device, line):
-        self._dao.line.dissociate_device(line)
+    @fixtures.db.endpoint(name='endpoint-name')
+    @fixtures.db.line(endpoint_name='endpoint-name')
+    def test_dissociate_endpoint(self, endpoint, line):
+        self._dao.line.dissociate_endpoint(line)
 
         self._session.expire_all()
-        assert_that(line.device, equal_to(None))
+        assert_that(line.endpoint, equal_to(None))

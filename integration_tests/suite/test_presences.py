@@ -29,8 +29,8 @@ from .helpers.base import (
 )
 
 USER_UUID = str(uuid.uuid4())
-DEVICE_NAME_1 = 'PJSIP/name'
-DEVICE_NAME_2 = 'SCCP/name'
+ENDPOINT_NAME_1 = 'PJSIP/name'
+ENDPOINT_NAME_2 = 'SCCP/name'
 
 
 class TestPresence(BaseIntegrationTest):
@@ -81,14 +81,14 @@ class TestPresence(BaseIntegrationTest):
             filtered=equal_to(2),
         ))
 
-    @fixtures.db.device(name=DEVICE_NAME_1, state='holding')
-    @fixtures.db.device(name=DEVICE_NAME_2, state='talking')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='holding')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME_2, state='talking')
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
-    @fixtures.db.line(user_uuid=USER_UUID, device_name=DEVICE_NAME_1)
-    @fixtures.db.line(user_uuid=USER_UUID, device_name=DEVICE_NAME_2)
-    def test_get(self, device_1, device_2, user, session_1, session_2, line_1, line_2):
+    @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_1)
+    @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_2)
+    def test_get(self, endpoint_1, endpoint_2, user, session_1, session_2, line_1, line_2):
         presence = self.chatd.user_presences.get(user.uuid)
         assert_that(
             presence,
