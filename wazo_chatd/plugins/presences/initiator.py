@@ -77,7 +77,7 @@ class Initiator:
                 try:
                     tenant = self._dao.tenant.get(uuid)
                 except UnknownTenantException as e:
-                    logger.warning('%s', e)
+                    logger.warning(e)
                     continue
                 logger.debug('Delete tenant "%s"', uuid)
                 self._dao.tenant.delete(tenant)
@@ -109,7 +109,7 @@ class Initiator:
                 try:
                     user = self._dao.user.get([tenant_uuid], uuid)
                 except UnknownUserException as e:
-                    logger.warning('%s', e)
+                    logger.warning(e)
                     continue
                 logger.debug('Delete user "%s"', uuid)
                 self._dao.user.delete(user)
@@ -124,7 +124,7 @@ class Initiator:
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                 except UnknownUserException as e:
-                    logger.warning('%s', e)
+                    logger.warning(e)
                     continue
                 line = Line(id=id_)
                 logger.debug('Create line "%s"', id_)
@@ -193,7 +193,7 @@ class Initiator:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                     session = self._dao.session.get(uuid)
                 except (UnknownUserException, UnknownSessionException) as e:
-                    logger.warning('%s', e)
+                    logger.warning(e)
                     continue
 
                 logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
