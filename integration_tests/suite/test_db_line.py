@@ -40,6 +40,15 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.line()
     @fixtures.db.line()
+    def test_find(self, line, _):
+        result = self._dao.line.find(line.id)
+        assert_that(result, equal_to(line))
+
+        result = self._dao.line.find(UNKNOWN_ID)
+        assert_that(result, equal_to(None))
+
+    @fixtures.db.line()
+    @fixtures.db.line()
     def test_list(self, line_1, line_2):
         lines = self._dao.line.list_()
         assert_that(lines, has_items(line_1, line_2))

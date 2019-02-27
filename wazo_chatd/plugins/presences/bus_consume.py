@@ -104,12 +104,15 @@ class BusEventHandler:
         endpoint_name = extract_endpoint_name(event['line'])
         with session_scope():
             user = self._dao.user.get([tenant_uuid], user_uuid)
-            logger.debug('Create line "%s"', line_id)
-            line = Line(id=line_id)
+            line = self._dao.line.find(line_id)
+            if not line:
+                line = Line(id=line_id)
+            logger.debug('Associate user "%s" with line "%s"', user_uuid, line_id)
             self._dao.user.add_line(user, line)
             endpoint = self._dao.endpoint.find_by(name=endpoint_name)
             if not endpoint:
                 endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            logger.debug('Associate line "%s" with endpoint "%s"', line_id, endpoint_name)
             self._dao.line.associate_endpoint(line, endpoint)
             self._notifier.updated(user)
 

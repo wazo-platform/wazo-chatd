@@ -15,18 +15,21 @@ class LineDAO:
         return get_dao_session()
 
     def get(self, line_id):
-        return self._get_by(id=line_id)
+        line = self._find_by(id=line_id)
+        if not line:
+            raise UnknownLineException(line_id)
+        return line
 
-    def _get_by(self, **kwargs):
+    def find(self, line_id):
+        return self._find_by(id=line_id)
+
+    def _find_by(self, **kwargs):
         filter_ = text('true')
 
         if 'id' in kwargs:
             filter_ = and_(filter_, Line.id == kwargs['id'])
 
-        line = self.session.query(Line).filter(filter_).first()
-        if not line:
-            raise UnknownLineException(kwargs.get('id'))
-        return line
+        return self.session.query(Line).filter(filter_).first()
 
     def list_(self):
         return self.session.query(Line).all()

@@ -122,7 +122,7 @@ class Line(Base):
     state = association_proxy('endpoint', 'state')
 
     def __repr__(self):
-        return "<Line(id='{id}', media='{media}', endpoint='{endpoint}', )>".format(
+        return "<Line(id='{id}', media='{media}', endpoint='{endpoint}')>".format(
             id=self.id,
             media=self.media,
             endpoint=self.endpoint,

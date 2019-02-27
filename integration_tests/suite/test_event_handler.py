@@ -158,9 +158,6 @@ class TestEventHandler(BaseIntegrationTest):
         line_name = 'myname'
         endpoint_state = endpoint.state
         user_uuid = user.uuid
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
-        event_accumulator = self.bus.accumulator(routing_key)
-
         self.bus.send_user_line_associated_event(line_id, user_uuid, user.tenant_uuid, line_name)
 
         def user_line_associated():
@@ -174,10 +171,23 @@ class TestEventHandler(BaseIntegrationTest):
 
         until.assert_(user_line_associated, tries=3)
 
-        event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(
-            lines=contains(has_entries(id=line_id, state=endpoint_state))
-        ))))
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user()
+    @fixtures.db.line(user_uuid=USER_UUID_1)
+    def test_user_line_associated_already_associated(self, user_1, user_2, line):
+        line_id = line.id
+        user_2_uuid = user_2.uuid
+
+        self.bus.send_user_line_associated_event(line_id, user_2_uuid, user_2.tenant_uuid, None)
+
+        def user_line_associated():
+            self._session.expire_all()
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, user_uuid=user_2_uuid),
+            ))
+
+        until.assert_(user_line_associated, tries=3)
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1)
