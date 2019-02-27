@@ -15,24 +15,33 @@ class LineDAO:
         return get_dao_session()
 
     def get(self, line_id):
-        return self.get_by(id=line_id)
+        line = self._find_by(id=line_id)
+        if not line:
+            raise UnknownLineException(line_id)
+        return line
 
-    def get_by(self, **kwargs):
+    def find(self, line_id):
+        return self._find_by(id=line_id)
+
+    def _find_by(self, **kwargs):
         filter_ = text('true')
 
         if 'id' in kwargs:
             filter_ = and_(filter_, Line.id == kwargs['id'])
-        if 'device_name' in kwargs:
-            filter_ = and_(filter_, Line.device_name == kwargs['device_name'])
 
-        line = self.session.query(Line).filter(filter_).first()
-        if not line:
-            raise UnknownLineException(kwargs.get('id'))
-        return line
+        return self.session.query(Line).filter(filter_).first()
 
     def list_(self):
         return self.session.query(Line).all()
 
     def update(self, line):
         self.session.add(line)
+        self.session.flush()
+
+    def associate_endpoint(self, line, endpoint):
+        line.endpoint = endpoint
+        self.session.flush()
+
+    def dissociate_endpoint(self, line):
+        line.endpoint = None
         self.session.flush()

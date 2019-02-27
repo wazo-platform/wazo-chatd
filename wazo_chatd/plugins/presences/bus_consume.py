@@ -3,25 +3,24 @@
 
 import logging
 
+from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
+    Endpoint,
     Line,
     Session,
     Tenant,
     User,
 )
-from .initiator import DEVICE_STATE_MAP
+from .initiator import DEVICE_STATE_MAP, extract_endpoint_name
 
 logger = logging.getLogger(__name__)
 
 
 class BusEventHandler:
 
-    def __init__(self, tenant_dao, user_dao, session_dao, line_dao, notifier):
-        self._tenant_dao = tenant_dao
-        self._user_dao = user_dao
-        self._session_dao = session_dao
-        self._line_dao = line_dao
+    def __init__(self, dao, notifier):
+        self._dao = dao
         self._notifier = notifier
 
     def subscribe(self, bus_consumer):
@@ -31,51 +30,55 @@ class BusEventHandler:
         bus_consumer.on_event('user_deleted', self._user_deleted)
         bus_consumer.on_event('auth_session_created', self._session_created)
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
-        bus_consumer.on_event('line_associated', self._line_associated)
-        bus_consumer.on_event('line_dissociated', self._line_dissociated)
-        # TODO listen on line_device association and dissociation to update line.device_name
+        bus_consumer.on_event('user_line_associated', self._user_line_associated)
+        bus_consumer.on_event('user_line_dissociated', self._user_line_dissociated)
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            tenant = self._tenant_dao.find_or_create(tenant_uuid)
-            logger.debug('Creating user with uuid: %s, tenant_uuid: %s', user_uuid, tenant_uuid)
+            tenant = self._dao.tenant.find_or_create(tenant_uuid)
+            logger.debug('Create user "%s"', user_uuid)
             user = User(uuid=user_uuid, tenant=tenant, state='unavailable')
-            self._user_dao.create(user)
+            self._dao.user.create(user)
 
     def _user_deleted(self, event):
         user_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
         with session_scope():
-            logger.debug('Deleting user with uuid: %s, tenant_uuid: %s', user_uuid, tenant_uuid)
-            user = self._user_dao.get([tenant_uuid], user_uuid)
-            self._user_dao.delete(user)
+            user = self._dao.user.get([tenant_uuid], user_uuid)
+            logger.debug('Delete user "%s"', user_uuid)
+            self._dao.user.delete(user)
 
     def _tenant_created(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
-            logger.debug('Creating tenant with uuid: %s', tenant_uuid)
+            logger.debug('Create tenant "%s"', tenant_uuid)
             tenant = Tenant(uuid=tenant_uuid)
-            self._tenant_dao.create(tenant)
+            self._dao.tenant.create(tenant)
 
     def _tenant_deleted(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
-            logger.debug('Deleting tenant with uuid: %s', tenant_uuid)
-            tenant = self._tenant_dao.get(tenant_uuid)
-            self._tenant_dao.delete(tenant)
+            tenant = self._dao.tenant.get(tenant_uuid)
+            logger.debug('Delete tenant "%s"', tenant_uuid)
+            self._dao.tenant.delete(tenant)
 
     def _session_created(self, event):
         session_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            logger.debug('Creating session with uuid: %s, user_uuid: %s', session_uuid, user_uuid)
-            user = self._user_dao.get([tenant_uuid], user_uuid)
+            try:
+                user = self._dao.user.get([tenant_uuid], user_uuid)
+            except UnknownUserException:
+                logger.debug('Session "%s" has no valid user "%s"', session_uuid, user_uuid)
+                return
+
+            logger.debug('Create session "%s" for user "%s"', session_uuid, user_uuid)
             session = Session(uuid=session_uuid, user_uuid=user_uuid)
-            self._user_dao.add_session(user, session)
+            self._dao.user.add_session(user, session)
             self._notifier.updated(user)
 
     def _session_deleted(self, event):
@@ -83,40 +86,61 @@ class BusEventHandler:
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
         with session_scope():
-            logger.debug('Deleting session with uuid: %s, user_uuid: %s', session_uuid, user_uuid)
-            user = self._user_dao.get([tenant_uuid], user_uuid)
-            session = self._session_dao.get(session_uuid)
-            self._user_dao.remove_session(user, session)
+            try:
+                user = self._dao.user.get([tenant_uuid], user_uuid)
+            except UnknownUserException:
+                logger.debug('Session "%s" has no valid user "%s"', session_uuid, user_uuid)
+                return
+
+            session = self._dao.session.get(session_uuid)
+            logger.debug('Delete session "%s" for user "%s"', session_uuid, user_uuid)
+            self._dao.user.remove_session(user, session)
             self._notifier.updated(user)
 
-    def _line_associated(self, event):
-        line_id = event['line_id']
-        user_uuid = event['user_uuid']
-        tenant_uuid = event['tenant_uuid']
+    def _user_line_associated(self, event):
+        line_id = event['line']['id']
+        user_uuid = event['user']['uuid']
+        tenant_uuid = event['user']['tenant_uuid']
+        endpoint_name = extract_endpoint_name(event['line'])
         with session_scope():
-            logger.debug('Creating line with id: %s, user_uuid: %s' % (line_id, user_uuid))
-            user = self._user_dao.get([tenant_uuid], user_uuid)
-            line = Line(id=line_id, state='unavailable')
-            self._user_dao.add_line(user, line)
+            user = self._dao.user.get([tenant_uuid], user_uuid)
+            line = self._dao.line.find(line_id)
+            if not line:
+                line = Line(id=line_id)
+            logger.debug('Associate user "%s" with line "%s"', user_uuid, line_id)
+            self._dao.user.add_line(user, line)
+
+            if not endpoint_name:
+                logger.warning('Line "%s" doesn\'t have name', line_id)
+                self._notifier.updated(user)
+                return
+            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+            if not endpoint:
+                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            logger.debug('Associate line "%s" with endpoint "%s"', line_id, endpoint_name)
+            self._dao.line.associate_endpoint(line, endpoint)
             self._notifier.updated(user)
 
-    def _line_dissociated(self, event):
-        line_id = event['line_id']
-        user_uuid = event['user_uuid']
-        tenant_uuid = event['tenant_uuid']
+    def _user_line_dissociated(self, event):
+        line_id = event['line']['id']
+        user_uuid = event['user']['uuid']
+        tenant_uuid = event['user']['tenant_uuid']
         with session_scope():
-            logger.debug('Deleting line with id: %s, user_uuid: %s' % (line_id, user_uuid))
-            user = self._user_dao.get([tenant_uuid], user_uuid)
-            line = self._line_dao.get(line_id)
-            self._user_dao.remove_line(user, line)
+            user = self._dao.user.get([tenant_uuid], user_uuid)
+            line = self._dao.line.get(line_id)
+            logger.debug('Delete line "%s"', line_id)
+            self._dao.user.remove_line(user, line)
             self._notifier.updated(user)
 
     def _device_state_change(self, event):
-        device_name = event['Device']
-        state = event['State']
+        endpoint_name = event['Device']
+        state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
-            line = self._line_dao.get_by(device_name=device_name)
-            logger.debug('Updating line with id: %s state: %s' % (line.id, state))
-            line.state = DEVICE_STATE_MAP.get(state, 'unavailable')
-            self._line_dao.update(line)
-            self._notifier.updated(line.user)
+            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+            if not endpoint:
+                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            endpoint.state = state
+            logger.debug('Update endpoint "%s" with state "%s"', endpoint.name, endpoint.state)
+            self._dao.endpoint.update(endpoint)
+            if endpoint.line:
+                self._notifier.updated(endpoint.line.user)

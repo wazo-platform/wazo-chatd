@@ -1,6 +1,8 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from marshmallow import post_dump
+
 from xivo.mallow import fields
 from xivo.mallow.validate import (
     OneOf,
@@ -11,6 +13,11 @@ from xivo.mallow_helpers import Schema
 class LinePresenceSchema(Schema):
     id = fields.Integer(dump_only=True)
     state = fields.String(dump_only=True)
+
+    @post_dump
+    def _set_default_state(self, data):
+        data['state'] = data['state'] if data['state'] else 'unavailable'
+        return data
 
 
 class SessionPresenceSchema(Schema):

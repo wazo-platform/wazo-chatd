@@ -44,3 +44,11 @@ class UnknownLineException(APIException):
         msg = 'No such line: "{}"'.format(line_id)
         details = {'id': line_id}
         super().__init__(404, msg, 'unknown-line', details, 'lines')
+
+
+class UnknownEndpointException(APIException):
+
+    def __init__(self, endpoint_name):
+        msg = 'No such endpoint: "{}"'.format(endpoint_name)
+        details = {'name': endpoint_name}
+        super().__init__(404, msg, 'unknown-endpoint', details, 'endpoints')

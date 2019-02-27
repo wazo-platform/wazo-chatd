@@ -30,24 +30,27 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.line()
     def test_get(self, line):
-        line = self._line_dao.get(line.id)
-        assert_that(line, equal_to(line))
+        result = self._dao.line.get(line.id)
+        assert_that(result, equal_to(line))
 
         assert_that(
-            calling(self._line_dao.get).with_args(UNKNOWN_ID),
+            calling(self._dao.line.get).with_args(UNKNOWN_ID),
             raises(UnknownLineException),
         )
 
     @fixtures.db.line()
-    @fixtures.db.line(device_name='name')
-    def test_get_by(self, line, _):
-        line = self._line_dao.get_by(device_name=line.device_name)
-        assert_that(line, equal_to(line))
+    @fixtures.db.line()
+    def test_find(self, line, _):
+        result = self._dao.line.find(line.id)
+        assert_that(result, equal_to(line))
+
+        result = self._dao.line.find(UNKNOWN_ID)
+        assert_that(result, equal_to(None))
 
     @fixtures.db.line()
     @fixtures.db.line()
     def test_list(self, line_1, line_2):
-        lines = self._line_dao.list_()
+        lines = self._dao.line.list_()
         assert_that(lines, has_items(line_1, line_2))
 
     @fixtures.db.tenant(uuid=TENANT_UUID)
@@ -56,11 +59,31 @@ class TestLine(BaseIntegrationTest):
     def test_tenant_uuid(self, tenant, _, line):
         assert_that(line.tenant_uuid, equal_to(tenant.uuid))
 
-    @fixtures.db.line(device_name='SIP/abcd')
+    @fixtures.db.endpoint(name='SIP/custom-name')
+    @fixtures.db.line(endpoint_name='SIP/custom-name')
+    def test_state(self, endpoint, line):
+        assert_that(line.state, equal_to(endpoint.state))
+
+    @fixtures.db.line(media='audio')
     def test_update(self, line):
-        device_name = 'SCCP/efgh'
-        line.device_name = device_name
-        self._line_dao.update(line)
+        line.media = 'video'
+        self._dao.line.update(line)
 
         self._session.expire_all()
-        assert_that(line.device_name, equal_to(device_name))
+        assert_that(line.media, equal_to('video'))
+
+    @fixtures.db.endpoint()
+    @fixtures.db.line()
+    def test_associate_endpoint(self, endpoint, line):
+        self._dao.line.associate_endpoint(line, endpoint)
+
+        self._session.expire_all()
+        assert_that(line.endpoint, equal_to(endpoint))
+
+    @fixtures.db.endpoint(name='endpoint-name')
+    @fixtures.db.line(endpoint_name='endpoint-name')
+    def test_dissociate_endpoint(self, endpoint, line):
+        self._dao.line.dissociate_endpoint(line)
+
+        self._session.expire_all()
+        assert_that(line.endpoint, equal_to(None))

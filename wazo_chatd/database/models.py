@@ -33,6 +33,9 @@ class Tenant(Base):
 
     uuid = Column(UUIDAsString(36), primary_key=True)
 
+    def __repr__(self):
+        return "<Tenant(uuid='{uuid}')>".format(uuid=self.uuid)
+
 
 class User(Base):
 
@@ -63,6 +66,18 @@ class User(Base):
         passive_deletes=False,
     )
 
+    def __repr__(self):
+        return (
+            "<User(uuid='{uuid}', state='{state}', status='{status}',"
+            "lines='{lines}', sessions='{sessions}')>"
+        ).format(
+            uuid=self.uuid,
+            state=self.state,
+            status=self.status,
+            lines=self.lines,
+            sessions=self.sessions,
+        )
+
 
 class Session(Base):
 
@@ -79,6 +94,9 @@ class Session(Base):
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
+    def __repr__(self):
+        return "<Session(uuid='{uuid}', mobile='{mobile}')>".format(uuid=self.uuid, mobile=self.mobile)
+
 
 class Line(Base):
 
@@ -89,16 +107,44 @@ class Line(Base):
         UUIDAsString(36),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
     )
-    device_name = Column(Text)
+    endpoint_name = Column(
+        Text,
+        ForeignKey('chatd_endpoint.name', ondelete='SET NULL'),
+    )
     media = Column(
         String(24),
         CheckConstraint("state in ('audio', 'video')"),
     )
+    user = relationship('User', viewonly=True)
+    tenant_uuid = association_proxy('user', 'tenant_uuid')
+
+    endpoint = relationship('Endpoint')
+    state = association_proxy('endpoint', 'state')
+
+    def __repr__(self):
+        return "<Line(id='{id}', media='{media}', endpoint='{endpoint}')>".format(
+            id=self.id,
+            media=self.media,
+            endpoint=self.endpoint,
+        )
+
+
+class Endpoint(Base):
+
+    __tablename__ = 'chatd_endpoint'
+
+    name = Column(Text, primary_key=True)
     state = Column(
         String(24),
         CheckConstraint("media in ('available', 'unavailable', 'holding', 'ringing', 'talking')"),
         nullable=False,
+        default='unavailable',
     )
 
-    user = relationship('User', viewonly=True)
-    tenant_uuid = association_proxy('user', 'tenant_uuid')
+    line = relationship('Line', uselist=False, viewonly=True)
+
+    def __repr__(self):
+        return "<Endpoint(name='{name}', state='{state}')>".format(
+            name=self.name,
+            state=self.state,
+        )

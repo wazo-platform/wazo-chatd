@@ -30,18 +30,18 @@ class TestSession(BaseIntegrationTest):
 
     @fixtures.db.session()
     def test_get(self, session):
-        session = self._session_dao.get(session.uuid)
-        assert_that(session, equal_to(session))
+        result = self._dao.session.get(session.uuid)
+        assert_that(result, equal_to(session))
 
         assert_that(
-            calling(self._session_dao.get).with_args(UNKNOWN_UUID),
+            calling(self._dao.session.get).with_args(UNKNOWN_UUID),
             raises(UnknownSessionException),
         )
 
     @fixtures.db.session()
     @fixtures.db.session()
     def test_list(self, session_1, session_2):
-        sessions = self._session_dao.list_()
+        sessions = self._dao.session.list_()
         assert_that(sessions, has_items(session_1, session_2))
 
     @fixtures.db.tenant(uuid=TENANT_UUID)
