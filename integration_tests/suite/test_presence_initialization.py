@@ -63,6 +63,7 @@ class TestPresenceInitialization(BaseIntegrationTest):
         line_2_created_name = 'created_2'
         line_1_created_id = random.randint(1, 1000000)
         line_2_created_id = random.randint(1, 1000000)
+        line_bugged_id = random.randint(1, 1000000)
         self.confd.set_users(
             {
                 'uuid': user_created_uuid,
@@ -77,6 +78,11 @@ class TestPresenceInitialization(BaseIntegrationTest):
                         'id': line_2_created_id,
                         'name': line_2_created_name,
                         'endpoint_sccp': {'id': 1}
+                    },
+                    {
+                        'id': line_bugged_id,
+                        'name': None,
+                        'endpoint_sip': {'id': 1}
                     },
                 ]
             },
@@ -185,6 +191,11 @@ class TestPresenceInitialization(BaseIntegrationTest):
                 id=line_2_created_id,
                 user_uuid=user_created_uuid,
                 endpoint_name=endpoint_2_created_name
+            ),
+            has_properties(
+                id=line_bugged_id,
+                user_uuid=user_created_uuid,
+                endpoint_name=None,
             ),
         ))
 

@@ -189,6 +189,22 @@ class TestEventHandler(BaseIntegrationTest):
 
         until.assert_(user_line_associated, tries=3)
 
+    @fixtures.db.user()
+    def test_user_line_associated_without_line_name(self, user):
+        line_id = random.randint(1, 1000000)
+        line_name = None
+        user_uuid = user.uuid
+
+        self.bus.send_user_line_associated_event(line_id, user_uuid, user.tenant_uuid, line_name)
+
+        def user_line_associated():
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(id=line_id, endpoint_name=None),
+            ))
+
+        until.assert_(user_line_associated, tries=3)
+
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1)
     def test_user_line_dissociated(self, user, line):

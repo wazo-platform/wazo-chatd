@@ -109,6 +109,11 @@ class BusEventHandler:
                 line = Line(id=line_id)
             logger.debug('Associate user "%s" with line "%s"', user_uuid, line_id)
             self._dao.user.add_line(user, line)
+
+            if not endpoint_name:
+                logger.warning('Line "%s" doesn\'t have name', line_id)
+                self._notifier.updated(user)
+                return
             endpoint = self._dao.endpoint.find_by(name=endpoint_name)
             if not endpoint:
                 endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))

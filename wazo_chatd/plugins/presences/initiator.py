@@ -36,6 +36,9 @@ DEVICE_STATE_MAP = {
 
 
 def extract_endpoint_name(line):
+    if not line['name']:
+        return
+
     if line.get('endpoint_sip'):
         return 'PJSIP/{}'.format(line['name'])
     elif line.get('endpoint_sccp'):
@@ -144,12 +147,17 @@ class Initiator:
                 self._dao.user.remove_session(user, line)
 
     def _add_missing_endpoints(self, users):
-        lines = set(extract_endpoint_name(line) for user in users for line in user['lines'])
+        lines = set((line['id'], extract_endpoint_name(line)) for user in users for line in user['lines'])
         with session_scope():
-            for endpoint_name in lines:
+            for line_id, endpoint_name in lines:
+                if not endpoint_name:
+                    logger.warning('Line "%s" doesn\'t have name', line_id)
+                    continue
+
                 endpoint = self._dao.endpoint.find_by(name=endpoint_name)
                 if endpoint:
                     continue
+
                 logger.debug('Create endpoint "%s"', endpoint_name)
                 self._dao.endpoint.create(Endpoint(name=endpoint_name))
 
