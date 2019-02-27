@@ -30,10 +30,8 @@ class BusEventHandler:
         bus_consumer.on_event('user_deleted', self._user_deleted)
         bus_consumer.on_event('auth_session_created', self._session_created)
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
-        bus_consumer.on_event('line_associated', self._line_associated)  # user_line associated
-        bus_consumer.on_event('line_dissociated', self._line_dissociated)  # user_line dissociated
-        bus_consumer.on_event('line_device_associated', self._line_device_associated)
-        bus_consumer.on_event('line_device_dissociated', self._line_device_dissociated)
+        bus_consumer.on_event('user_line_associated', self._user_line_associated)
+        bus_consumer.on_event('user_line_dissociated', self._user_line_dissociated)
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
 
     def _user_created(self, event):
@@ -99,48 +97,32 @@ class BusEventHandler:
             self._dao.user.remove_session(user, session)
             self._notifier.updated(user)
 
-    def _line_associated(self, event):
-        line_id = event['line_id']
-        user_uuid = event['user_uuid']
-        tenant_uuid = event['tenant_uuid']
+    def _user_line_associated(self, event):
+        line_id = event['line']['id']
+        user_uuid = event['user']['uuid']
+        tenant_uuid = event['user']['tenant_uuid']
+        endpoint_name = extract_endpoint_name(event['line'])
         with session_scope():
             user = self._dao.user.get([tenant_uuid], user_uuid)
             logger.debug('Create line "%s"', line_id)
             line = Line(id=line_id)
             self._dao.user.add_line(user, line)
+            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+            if not endpoint:
+                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            self._dao.line.associate_endpoint(line, endpoint)
             self._notifier.updated(user)
 
-    def _line_dissociated(self, event):
-        line_id = event['line_id']
-        user_uuid = event['user_uuid']
-        tenant_uuid = event['tenant_uuid']
+    def _user_line_dissociated(self, event):
+        line_id = event['line']['id']
+        user_uuid = event['user']['uuid']
+        tenant_uuid = event['user']['tenant_uuid']
         with session_scope():
             user = self._dao.user.get([tenant_uuid], user_uuid)
             line = self._dao.line.get(line_id)
             logger.debug('Delete line "%s"', line_id)
             self._dao.user.remove_line(user, line)
             self._notifier.updated(user)
-
-    def _line_device_associated(self, event):
-        line_id = event['line']['id']
-        endpoint_name = extract_endpoint_name(event['line'])
-        with session_scope():
-            line = self._dao.line.get(line_id)
-            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
-            if not endpoint:
-                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
-            logger.debug('Associate line "%s" with endpoint "%s"', line_id, endpoint_name)
-            self._dao.line.associate_endpoint(line, endpoint)
-            self._notifier.updated(line.user)
-
-    def _line_device_dissociated(self, event):
-        line_id = event['line']['id']
-        endpoint_name = extract_endpoint_name(event['line'])
-        with session_scope():
-            line = self._dao.line.get(line_id)
-            logger.debug('Dissociate line "%s" with endpoint "%s"', line_id, endpoint_name)
-            self._dao.line.dissociate_endpoint(line)
-            self._notifier.updated(line.user)
 
     def _device_state_change(self, event):
         endpoint_name = event['Device']

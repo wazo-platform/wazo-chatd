@@ -60,25 +60,41 @@ class BusClient(bus_helper.BusClient):
             'name': 'auth_session_deleted',
         }, 'auth.sessions.{}.deleted'.format(session_uuid))
 
-    def send_line_associated_event(self, line_id, user_uuid, tenant_uuid):
+    def send_user_line_associated_event(self, line_id, user_uuid, tenant_uuid, line_name):
         self.publish({
             'data': {
-                'line_id': line_id,
-                'user_uuid': user_uuid,
-                'tenant_uuid': tenant_uuid,
+                'line': {
+                    'id': line_id,
+                    'name': line_name,
+                    'endpoint_sip': {'id': 1},
+                    'endpoint_sccp': {},
+                    'endpoint_custom': {},
+                },
+                'user': {
+                    'uuid': user_uuid,
+                    'tenant_uuid': tenant_uuid,
+                },
             },
-            'name': 'line_associated',
-        }, 'config.user_line_association.created')
+            'name': 'user_line_associated',
+        }, 'config.users.{}.lines.{}.updated'.format(user_uuid, line_id))
 
     def send_line_dissociated_event(self, line_id, user_uuid, tenant_uuid):
         self.publish({
             'data': {
-                'line_id': line_id,
-                'user_uuid': user_uuid,
-                'tenant_uuid': tenant_uuid,
+                'line': {
+                    'id': line_id,
+                    'name': None,
+                    'endpoint_sip': {'id': 1},
+                    'endpoint_sccp': {},
+                    'endpoint_custom': {},
+                },
+                'user': {
+                    'uuid': user_uuid,
+                    'tenant_uuid': tenant_uuid,
+                },
             },
-            'name': 'line_dissociated',
-        }, 'config.user_line_association.deleted')
+            'name': 'user_line_dissociated',
+        }, 'config.users.{}.lines.{}.deleted'.format(user_uuid, line_id))
 
     def send_device_state_changed_event(self, device_name, device_state):
         self.publish({

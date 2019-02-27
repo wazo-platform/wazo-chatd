@@ -143,18 +143,16 @@ class Initiator:
                 self._dao.user.remove_session(user, line)
 
     def _associate_line_endpoint(self, confd, users):
-        lines_info = [{'id': line['id'], 'endpoint_name': extract_endpoint_name(line)}
-                      for user in users for line in user['lines']]
+        lines = set((line['id'], extract_endpoint_name(line))
+                    for user in users for line in user['lines'])
         with session_scope():
-            for line_info in lines_info:
+            for line_id, endpoint_name in lines:
                 try:
-                    line = self._dao.line.get(line_info['id'])
-                    endpoint = self._dao.endpoint.get_by(name=line_info['endpoint_name'])
+                    line = self._dao.line.get(line_id)
+                    endpoint = self._dao.endpoint.get_by(name=endpoint_name)
                 except (UnknownLineException, UnknownEndpointException):
                     logger.debug(
-                        'Unable to associate line "%s" with endpoint "%s"',
-                        line_info['id'],
-                        line_info['endpoint_name'],
+                        'Unable to associate line "%s" with endpoint "%s"', line_id, endpoint_name
                     )
                     continue
                 logger.debug('Associate line "%s" with endpoint "%s"', line.id, endpoint.name)

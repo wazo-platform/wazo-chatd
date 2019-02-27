@@ -125,30 +125,63 @@ class TestEventHandler(BaseIntegrationTest):
         ))))
 
     @fixtures.db.user()
-    def test_line_associated(self, user):
+    def test_user_line_associated(self, user):
         line_id = random.randint(1, 1000000)
+        line_name = 'created-line'
         user_uuid = user.uuid
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_line_associated_event(line_id, user_uuid, user.tenant_uuid)
+        self.bus.send_user_line_associated_event(line_id, user_uuid, user.tenant_uuid, line_name)
 
-        def line_associated():
+        def user_line_associated():
             result = self._session.query(models.Line).all()
             assert_that(result, has_items(
-                has_properties(id=line_id, user_uuid=user_uuid),
+                has_properties(
+                    id=line_id,
+                    user_uuid=user_uuid,
+                    endpoint_name='PJSIP/{}'.format(line_name),
+                ),
             ))
 
-        until.assert_(line_associated, tries=3)
+        until.assert_(user_line_associated, tries=3)
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
-            lines=contains(has_entries(id=line_id))
+            lines=contains(has_entries(id=line_id, state='unavailable'))
+        ))))
+
+    @fixtures.db.endpoint(name='PJSIP/myname', state='available')
+    @fixtures.db.user()
+    def test_user_line_associated_with_existing_endpoint(self, endpoint, user):
+        line_id = random.randint(1, 1000000)
+        line_name = 'myname'
+        endpoint_state = endpoint.state
+        user_uuid = user.uuid
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_user_line_associated_event(line_id, user_uuid, user.tenant_uuid, line_name)
+
+        def user_line_associated():
+            result = self._session.query(models.Line).all()
+            assert_that(result, has_items(
+                has_properties(
+                    endpoint_name='PJSIP/{}'.format(line_name),
+                    state=endpoint_state
+                ),
+            ))
+
+        until.assert_(user_line_associated, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(
+            lines=contains(has_entries(id=line_id, state=endpoint_state))
         ))))
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1)
-    def test_line_dissociated(self, user, line):
+    def test_user_line_dissociated(self, user, line):
         line_id = line.id
         user_uuid = user.uuid
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
@@ -156,13 +189,13 @@ class TestEventHandler(BaseIntegrationTest):
 
         self.bus.send_line_dissociated_event(line_id, user_uuid, user.tenant_uuid)
 
-        def line_dissociated():
+        def user_line_dissociated():
             result = self._session.query(models.Line).all()
             assert_that(result, not_(has_items(
                 has_properties(id=line_id, user_uuid=user_uuid),
             )))
 
-        until.assert_(line_dissociated, tries=3)
+        until.assert_(user_line_dissociated, tries=3)
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(
