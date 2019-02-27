@@ -86,6 +86,7 @@ class Initiator:
         confd.set_token(self.token)
         users = confd.users.list(recurse=True)['items']
         self._add_and_remove_users(confd, users)
+        self._add_missing_endpoints(users)  # disconnected SCCP endpoints are missing
         self._add_and_remove_lines(confd, users)
         self._associate_line_endpoint(confd, users)
 
@@ -141,6 +142,16 @@ class Initiator:
                     continue
                 logger.debug('Delete line "%s"', id_)
                 self._dao.user.remove_session(user, line)
+
+    def _add_missing_endpoints(self, users):
+        lines = set(extract_endpoint_name(line) for user in users for line in user['lines'])
+        with session_scope():
+            for endpoint_name in lines:
+                endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+                if endpoint:
+                    continue
+                logger.debug('Create endpoint "%s"', endpoint_name)
+                self._dao.endpoint.create(Endpoint(name=endpoint_name))
 
     def _associate_line_endpoint(self, confd, users):
         lines = set((line['id'], extract_endpoint_name(line))
