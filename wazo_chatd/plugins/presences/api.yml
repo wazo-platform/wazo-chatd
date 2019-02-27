@@ -9,6 +9,7 @@ paths:
       parameters:
       - $ref: '#/parameters/tenant_uuid'
       - $ref: '#/parameters/recurse'
+      - $ref: '#/parameters/user_uuid_query'
       responses:
         '200':
           description: Presences list
@@ -52,6 +53,16 @@ paths:
           $ref: '#/responses/InvalidRequest'
         '404':
           $ref: '#/responses/NotFoundError'
+
+parameters:
+  user_uuid_query:
+    required: false
+    name: user_uuid
+    in: query
+    type: array
+    items:
+      type: string
+    description: Filter by user_uuid. Many uuid can be specified. Each uuid MUST be separated by a comma (,).
 
 definitions:
   PresenceList:

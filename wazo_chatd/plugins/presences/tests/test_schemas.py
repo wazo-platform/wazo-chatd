@@ -4,16 +4,19 @@
 import uuid
 import unittest
 
-from mock import Mock
+from mock import MagicMock, Mock
 
 from hamcrest import (
     assert_that,
+    contains,
+    empty,
     has_entries,
 )
 
 from ..schemas import (
     UserPresenceSchema,
     LinePresenceSchema,
+    ListRequestSchema,
 )
 
 UUID = str(uuid.uuid4())
@@ -115,3 +118,37 @@ class TestLinePresenceSchema(unittest.TestCase):
 
         result = self.schema().dump(self.line).data
         assert_that(result, has_entries(state='unavailable'))
+
+
+class TestListRequestSchema(unittest.TestCase):
+
+    schema = ListRequestSchema
+
+    def setUp(self):
+        self.request_args = MagicMock()
+        self.request_args.to_dict.return_value = {}
+
+    def test_get_user_uuid(self):
+        uuid_1 = str(uuid.uuid4())
+        self.request_args.get.return_value = uuid_1
+        self.request_args.__getitem__.return_value = uuid_1
+
+        result = self.schema().load(self.request_args).data
+        assert_that(result, has_entries(uuids=contains(uuid_1)))
+
+    def test_get_user_uuid_multiple(self):
+        uuid_1 = str(uuid.uuid4())
+        uuid_2 = str(uuid.uuid4())
+        user_uuid = '{},{}'.format(uuid_1, uuid_2)
+        self.request_args.get.return_value = user_uuid
+        self.request_args.__getitem__.return_value = user_uuid
+
+        result = self.schema().load(self.request_args).data
+        assert_that(result, has_entries(uuids=contains(uuid_1, uuid_2)))
+
+    def test_get_user_uuid_empty(self):
+        print(self.request_args.to_dict())
+        self.request_args.get.return_value = ''
+
+        result = self.schema().load(self.request_args).data
+        assert_that(result, has_entries(uuids=empty()))
