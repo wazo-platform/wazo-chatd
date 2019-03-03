@@ -85,6 +85,19 @@ definitions:
       status:
         type: string
         description: An extended description of the user presence.
+      line_state:
+        type: string
+        description:
+          "The current state of the most prioritize state line.
+           The prioritization of each state is the following:
+           ringing > holding > talking > available > unavailable"
+        readOnly: True
+        enum:
+          - available
+          - holding
+          - ringing
+          - talking
+          - unavailable
       sessions:
         type: array
         readOnly: true

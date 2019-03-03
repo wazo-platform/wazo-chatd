@@ -48,6 +48,7 @@ class TestPresence(BaseIntegrationTest):
                     tenant_uuid=user_1.tenant_uuid,
                     state=user_1.state,
                     status=user_1.status,
+                    line_state='unavailable',
                     sessions=empty(),
                     lines=empty(),
                 ),
@@ -56,6 +57,7 @@ class TestPresence(BaseIntegrationTest):
                     tenant_uuid=user_2.tenant_uuid,
                     state=user_2.state,
                     status=user_2.status,
+                    line_state='unavailable',
                     sessions=empty(),
                     lines=empty(),
                 ),
@@ -97,6 +99,7 @@ class TestPresence(BaseIntegrationTest):
                 tenant_uuid=user.tenant_uuid,
                 state=user.state,
                 status=user.status,
+                line_state='holding',
                 sessions=contains_inanyorder(
                     has_entries(uuid=session_1.uuid, mobile=True),
                     has_entries(uuid=session_2.uuid, mobile=False),
