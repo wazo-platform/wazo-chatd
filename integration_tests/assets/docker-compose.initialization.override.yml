@@ -9,7 +9,7 @@ services:
       - postgres
       - rabbitmq
     environment:
-      TARGETS: "amid:9491 confd:9486 chatd:9304 auth:9497 postgres:5432 rabbitmq:5672"
+      TARGETS: "amid:9491 confd:9486 auth:9497 postgres:5432 rabbitmq:5672"  # dont wait chatd
 
   chatd:
     image: wazo-chatd-test

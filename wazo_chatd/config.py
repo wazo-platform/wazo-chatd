@@ -79,11 +79,7 @@ _DEFAULT_CONFIG = {
         'status': True,
     },
     'initialization': {
-        'connections': False,
-        'lines': True,
-        'sessions': True,
-        'tenants': True,
-        'users': True,
+        'enabled': True
     },
 }
 

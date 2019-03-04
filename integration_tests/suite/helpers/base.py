@@ -42,15 +42,19 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         init_db(DB_URI.format(port=cls.service_port(5432, 'postgres')), echo=DB_ECHO)
         cls._Session = Session
 
-        cls.amid = cls.make_amid(VALID_TOKEN)
-        cls.chatd = cls.make_chatd(VALID_TOKEN)
-        cls.auth = cls.make_auth(VALID_TOKEN)
-        cls.confd = cls.make_confd(VALID_TOKEN)
-        cls.bus = cls.make_bus()
+        cls.reset_clients()
         cls.wait_strategy.wait(cls)
 
     @classmethod
-    def make_chatd(cls, token):
+    def reset_clients(cls):
+        cls.amid = cls.make_amid()
+        cls.chatd = cls.make_chatd()
+        cls.auth = cls.make_auth()
+        cls.confd = cls.make_confd()
+        cls.bus = cls.make_bus()
+
+    @classmethod
+    def make_chatd(cls, token=VALID_TOKEN):
         try:
             port = cls.service_port(9304, 'chatd')
         except NoSuchService as e:
@@ -59,7 +63,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         return ChatdClient('localhost', port=port, token=token, verify_certificate=False)
 
     @classmethod
-    def make_amid(cls, token):
+    def make_amid(cls):
         try:
             port = cls.service_port(9491, 'amid')
         except NoSuchService as e:
@@ -68,7 +72,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         return AmidClient('localhost', port=port)
 
     @classmethod
-    def make_auth(cls, token):
+    def make_auth(cls):
         try:
             port = cls.service_port(9497, 'auth')
         except NoSuchService as e:
@@ -77,7 +81,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         return AuthClient('localhost', port=port)
 
     @classmethod
-    def make_confd(cls, token):
+    def make_confd(cls):
         try:
             port = cls.service_port(9486, 'confd')
         except NoSuchService as e:
