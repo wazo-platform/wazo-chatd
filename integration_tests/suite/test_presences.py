@@ -83,6 +83,20 @@ class TestPresence(BaseIntegrationTest):
             filtered=equal_to(2),
         ))
 
+    @fixtures.db.user()
+    @fixtures.db.user()
+    @fixtures.db.user()
+    def test_list_user_uuids(self, user_1, user_2, user_3):
+        presences = self.chatd.user_presences.list(user_uuids=[user_1.uuid, user_2.uuid])
+        assert_that(presences, has_entries(
+            items=contains(
+                has_entries(uuid=user_1.uuid),
+                has_entries(uuid=user_2.uuid),
+            ),
+            total=equal_to(3),
+            filtered=equal_to(2),
+        ))
+
     @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='holding')
     @fixtures.db.endpoint(name=ENDPOINT_NAME_2, state='talking')
     @fixtures.db.user(uuid=USER_UUID)

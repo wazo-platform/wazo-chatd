@@ -18,7 +18,7 @@ from hamcrest import (
 from sqlalchemy.inspection import inspect
 
 from wazo_chatd.database.models import User, Session, Line
-from wazo_chatd.exceptions import UnknownUserException
+from wazo_chatd.exceptions import UnknownUserException, UnknownUsersException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
@@ -114,6 +114,33 @@ class TestUser(BaseIntegrationTest):
     def test_list_bypass_tenant(self, user_1, user_2):
         result = self._dao.user.list_(tenant_uuids=None)
         assert_that(result, has_items(user_1, user_2))
+
+    @fixtures.db.user()
+    @fixtures.db.user()
+    @fixtures.db.user()
+    def test_list_uuids(self, user_1, user_2, user_3):
+        result = self._dao.user.list_(tenant_uuids=None, uuids=[user_2.uuid, user_3.uuid])
+        assert_that(result, has_items(user_2, user_3))
+
+        result = self._dao.user.list_(tenant_uuids=None, uuids=[])
+        assert_that(result, has_items(user_1, user_2, user_3))
+
+        assert_that(
+            calling(self._dao.user.list_).with_args(
+                tenant_uuids=None,
+                uuids=[UNKNOWN_UUID],
+            ),
+            raises(
+                UnknownUsersException,
+                has_properties(
+                    status_code=404,
+                    id_='unknown-users',
+                    resource='users',
+                    details=is_not(none()),
+                    message=is_not(none()),
+                )
+            )
+        )
 
     @fixtures.db.user()
     @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)

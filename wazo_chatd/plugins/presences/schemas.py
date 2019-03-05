@@ -1,7 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import post_dump
+from marshmallow import post_dump, pre_load
 
 from xivo.mallow import fields
 from xivo.mallow.validate import (
@@ -68,3 +68,11 @@ class UserPresenceSchema(Schema):
 class ListRequestSchema(Schema):
 
     recurse = fields.Boolean(missing=False)
+    user_uuid = fields.List(fields.String(), missing=[], attribute='uuids')
+
+    @pre_load
+    def convert_user_uuid_to_list(self, data):
+        result = data.to_dict()
+        if data.get('user_uuid'):
+            result['user_uuid'] = data['user_uuid'].split(',')
+        return result
