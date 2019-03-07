@@ -5,8 +5,8 @@ from requests import HTTPError
 
 from xivo.tenant_flask_helpers import (
     Tenant,
-    get_auth_client,
-    get_token,
+    auth_client,
+    token,
 )
 
 
@@ -16,9 +16,7 @@ def get_tenant_uuids(recurse=False):
     if not recurse:
         return [tenant]
 
-    auth_client = get_auth_client()
-    token_data = get_token()
-    auth_client.set_token(token_data['token'])
+    auth_client.set_token(token.uuid)
 
     try:
         tenants = auth_client.tenants.list(tenant_uuid=tenant)['items']
