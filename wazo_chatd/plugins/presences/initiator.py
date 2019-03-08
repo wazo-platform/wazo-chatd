@@ -152,6 +152,11 @@ class Initiator:
                 except UnknownUserException as e:
                     logger.warning(e)
                     continue
+                if self._dao.line.find(id_):
+                    logger.warning(
+                        'Line "%s" already created. Line multi-users not supported', id_
+                    )
+                    continue
                 line = Line(id=id_)
                 logger.debug('Create line "%s"', id_)
                 self._dao.user.add_line(user, line)
