@@ -27,7 +27,7 @@ _DEFAULT_CONFIG = {
         'private_key': '/usr/share/xivo-certs/server.key',
         'cors': {
             'enabled': True,
-            'allow_headers': ['Content-Type', 'X-Auth-Token'],
+            'allow_headers': ['Content-Type', 'X-Auth-Token', 'Wazo-Tenant'],
         },
     },
     'db_uri': 'postgresql://asterisk:proformatique@localhost/asterisk',
