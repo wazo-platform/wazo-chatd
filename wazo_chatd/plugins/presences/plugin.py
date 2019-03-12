@@ -25,17 +25,20 @@ class Plugin:
         dao = dependencies['dao']
         bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
+        status_aggregator = dependencies['status_aggregator']
 
         notifier = PresenceNotifier(bus_publisher)
         service = PresenceService(dao, notifier)
         initialization = config['initialization']
 
+        auth = AuthClient(**config['auth'])
+        amid = AmidClient(**config['amid'])
+        confd = ConfdClient(**config['confd'])
+        initiator = Initiator(dao, auth, amid, confd)
+        status_aggregator.add_provider(initiator.provide_status)
+
         if initialization['enabled']:
             thread_manager = dependencies['thread_manager']
-            auth = AuthClient(**config['auth'])
-            amid = AmidClient(**config['amid'])
-            confd = ConfdClient(**config['confd'])
-            initiator = Initiator(dao, auth, amid, confd)
             initiator_thread = InitiatorThread(initiator)
             thread_manager.manage(initiator_thread)
 

@@ -3,6 +3,8 @@
 
 import logging
 
+from xivo.status import Status
+
 from wazo_chatd.database.models import (
     Endpoint,
     Line,
@@ -54,6 +56,13 @@ class Initiator:
         self._auth = auth
         self._amid = amid
         self._confd = confd
+        self._is_initialized = False
+
+    def provide_status(self, status):
+        status['presence_initialization']['status'] = Status.ok if self.is_initialized() else Status.fail
+
+    def is_initialized(self):
+        return self._is_initialized
 
     def initiate(self):
         token = self._auth.token.new(expiration=120)['token']
@@ -70,6 +79,7 @@ class Initiator:
         self.initiate_tenants(tenants)
         self.initiate_users(users)
         self.initiate_sessions(sessions)
+        self._is_initialized = True
 
     def initiate_tenants(self, tenants):
         tenants = set(tenant['uuid'] for tenant in tenants)
