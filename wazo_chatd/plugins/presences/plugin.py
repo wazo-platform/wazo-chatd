@@ -12,6 +12,7 @@ from .http import PresenceListResource, PresenceItemResource
 from .notifier import PresenceNotifier
 from .services import PresenceService
 from .initiator import Initiator
+from .initiator_thread import InitiatorThread
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +31,13 @@ class Plugin:
         initialization = config['initialization']
 
         if initialization['enabled']:
+            thread_manager = dependencies['thread_manager']
             auth = AuthClient(**config['auth'])
             amid = AmidClient(**config['amid'])
             confd = ConfdClient(**config['confd'])
             initiator = Initiator(dao, auth, amid, confd)
-            initiator.initiate()
+            initiator_thread = InitiatorThread(initiator)
+            thread_manager.manage(initiator_thread)
 
         bus_event_handler = BusEventHandler(dao, notifier)
         bus_event_handler.subscribe(bus_consumer)
