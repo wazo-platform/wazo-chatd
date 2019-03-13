@@ -13,6 +13,7 @@ from .notifier import PresenceNotifier
 from .services import PresenceService
 from .initiator import Initiator
 from .initiator_thread import InitiatorThread
+from .validator import status_validator
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class Plugin:
         bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
         status_aggregator = dependencies['status_aggregator']
+        status_validator.set_config(status_aggregator, config)
 
         notifier = PresenceNotifier(bus_publisher)
         service = PresenceService(dao, notifier)

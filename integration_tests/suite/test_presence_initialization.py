@@ -6,13 +6,16 @@ import uuid
 
 from hamcrest import (
     assert_that,
+    calling,
     contains_inanyorder,
     has_entries,
     has_properties,
 )
 
 from xivo_test_helpers import until
+from xivo_test_helpers.hamcrest.raises import raises
 
+from wazo_chatd_client.exceptions import ChatdError
 from wazo_chatd.database import models
 
 from .helpers import fixtures
@@ -248,3 +251,35 @@ class TestInitializationNotBlock(_BaseInitializationTest):
         self.fix_mock_values()
 
         PresenceInitOkWaitStrategy().wait(self)
+
+
+class TestPresenceFail(_BaseInitializationTest):
+
+    @fixtures.db.user()
+    def test_api_return_503(self, user):
+        user_args = {'uuid': user.uuid, 'state': 'available'}
+        self.stop_service('chatd')
+        self.stop_service('amid')
+        self.start_service('chatd')
+        self.reset_clients()
+
+        assert_that(
+            calling(self.chatd.user_presences.list),
+            raises(ChatdError, has_properties(error_id='not-initialized', status_code=503))
+        )
+
+        assert_that(
+            calling(self.chatd.user_presences.get).with_args(user_args['uuid']),
+            raises(ChatdError, has_properties(error_id='not-initialized', status_code=503))
+        )
+
+        assert_that(
+            calling(self.chatd.user_presences.update).with_args(user_args),
+            raises(ChatdError, has_properties(error_id='not-initialized', status_code=503))
+        )
+
+        self.start_service('amid')
+        self.reset_clients()
+        self.fix_mock_values()
+        PresenceInitOkWaitStrategy().wait(self)
+        self.chatd.user_presences.list()
