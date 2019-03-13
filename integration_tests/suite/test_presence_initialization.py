@@ -1,14 +1,13 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import re
 import random
 import uuid
 
 from hamcrest import (
     assert_that,
     contains_inanyorder,
-    greater_than,
+    has_entries,
     has_properties,
 )
 
@@ -17,7 +16,7 @@ from xivo_test_helpers import until
 from wazo_chatd.database import models
 
 from .helpers import fixtures
-from .helpers.wait_strategy import NoWaitStrategy, EverythingOkWaitStrategy
+from .helpers.wait_strategy import NoWaitStrategy, PresenceInitOkWaitStrategy
 from .helpers.base import (
     BaseIntegrationTest,
     VALID_TOKEN,
@@ -38,7 +37,7 @@ class _BaseInitializationTest(BaseIntegrationTest):
     def setUpClass(cls):
         super().setUpClass()
         cls.fix_mock_values()
-        EverythingOkWaitStrategy().wait(cls)
+        PresenceInitOkWaitStrategy().wait(cls)
 
     @classmethod
     def fix_mock_values(cls):
@@ -160,7 +159,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
         # start initialization
         self.restart_service('chatd')
         self.chatd = self.make_chatd(VALID_TOKEN)
-        EverythingOkWaitStrategy().wait(self)
+        PresenceInitOkWaitStrategy().wait(self)
 
         self._session.expire_all()
 
@@ -227,17 +226,20 @@ class TestPresenceInitialization(_BaseInitializationTest):
         ))
 
 
-class TestInitializationBlock(_BaseInitializationTest):
+class TestInitializationNotBlock(_BaseInitializationTest):
 
-    def test_server_block_until_initialization_can_be_done(self):
+    def test_server_initialization_do_not_block(self):
         self.stop_service('chatd')
-        init_count = self._count_error_initialization()
         self.stop_service('amid')
         self.start_service('chatd')
+        self.reset_clients()
 
         def server_wait():
-            count = self._count_error_initialization()
-            assert_that(count, greater_than(init_count))
+            status = self.chatd.status.get()
+            assert_that(status, has_entries({
+                'presence_initialization': has_entries(status='fail'),
+                'rest_api': has_entries(status='ok'),
+            }))
 
         until.assert_(server_wait, tries=5)
 
@@ -245,8 +247,4 @@ class TestInitializationBlock(_BaseInitializationTest):
         self.reset_clients()
         self.fix_mock_values()
 
-        EverythingOkWaitStrategy().wait(self)
-
-    def _count_error_initialization(self):
-        log = self.service_logs('chatd')
-        return len(re.findall('Error to fetch data for initialization', log))
+        PresenceInitOkWaitStrategy().wait(self)
