@@ -51,3 +51,8 @@ def main():
                 db_helper.create_db_user(cursor, args.owner, args.password)
             if not db_helper.db_exists(cursor, args.db):
                 db_helper.create_db(cursor, args.db, args.owner)
+
+    conn = psycopg2.connect(args.chatd_db_uri)
+    with conn:
+        with conn.cursor() as cursor:
+            db_helper.create_db_extensions(cursor, ['uuid-ossp'])

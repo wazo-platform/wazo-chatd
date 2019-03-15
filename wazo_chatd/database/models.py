@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
@@ -16,6 +17,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.types import TypeDecorator
 
 Base = declarative_base()
+
+UUID_LENGTH = 36
 
 
 class UUIDAsString(TypeDecorator):
@@ -147,4 +150,47 @@ class Endpoint(Base):
         return "<Endpoint(name='{name}', state='{state}')>".format(
             name=self.name,
             state=self.state,
+        )
+
+
+class Room(Base):
+
+    __tablename__ = 'chatd_room'
+
+    uuid = Column(String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True)
+    name = Column(Text)
+    tenant_uuid = Column(
+        UUIDAsString(UUID_LENGTH),
+        ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
+
+    users = relationship('RoomUser', viewonly=True)
+
+    def __repr__(self):
+        return "<Room(uuid='{uuid}', name='{name}', users='{users}')>".format(
+            uuid=self.uuid,
+            name=self.name,
+            users=self.users,
+        )
+
+
+class RoomUser(Base):
+
+    __tablename__ = 'chatd_room_user'
+
+    room_uuid = Column(
+        String(UUID_LENGTH),
+        ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    uuid = Column(String(UUID_LENGTH), primary_key=True)
+    tenant_uuid = Column(String(UUID_LENGTH), primary_key=True)
+    wazo_uuid = Column(String(UUID_LENGTH), primary_key=True)
+
+    def __repr__(self):
+        return "<RoomUser(uuid='{}', tenant_uuid='{}', wazo_uuid='{}')>".format(
+            self.uuid,
+            self.tenant_uuid,
+            self.wazo_uuid,
         )

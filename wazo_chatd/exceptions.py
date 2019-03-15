@@ -52,3 +52,11 @@ class UnknownEndpointException(APIException):
         msg = 'No such endpoint: "{}"'.format(endpoint_name)
         details = {'name': endpoint_name}
         super().__init__(404, msg, 'unknown-endpoint', details, 'endpoints')
+
+
+class UnknownRoomException(APIException):
+
+    def __init__(self, room_uuid):
+        msg = 'No such room: "{}"'.format(room_uuid)
+        details = {'uuid': str(room_uuid)}
+        super().__init__(404, msg, 'unknown-room', details, 'rooms')
