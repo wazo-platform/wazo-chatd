@@ -9,7 +9,11 @@ from wazo_chatd.database.queries import DAO
 from wazo_chatd.database.helpers import init_db, get_dao_session, Session
 
 from xivo_test_helpers.auth import AuthClient
-from xivo_test_helpers.asset_launching_test_case import AssetLaunchingTestCase, NoSuchService
+from xivo_test_helpers.asset_launching_test_case import (
+    AssetLaunchingTestCase,
+    NoSuchPort,
+    NoSuchService,
+)
 
 from .amid import AmidClient
 from .bus import BusClient
@@ -66,7 +70,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
     def make_amid(cls):
         try:
             port = cls.service_port(9491, 'amid')
-        except NoSuchService as e:
+        except (NoSuchService, NoSuchPort) as e:
             logger.debug(e)
             return
         return AmidClient('localhost', port=port)

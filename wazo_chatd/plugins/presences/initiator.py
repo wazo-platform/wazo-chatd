@@ -2,9 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
-import time
 
-import requests
+from xivo.status import Status
 
 from wazo_chatd.database.models import (
     Endpoint,
@@ -23,9 +22,6 @@ from wazo_chatd.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
-
-CONNECTION_TRIES = 1000
-CONNECTION_DELAY = 2
 
 DEVICE_STATE_MAP = {
     'INUSE': 'talking',
@@ -60,32 +56,30 @@ class Initiator:
         self._auth = auth
         self._amid = amid
         self._confd = confd
+        self._is_initialized = False
+
+    def provide_status(self, status):
+        status['presence_initialization']['status'] = Status.ok if self.is_initialized() else Status.fail
+
+    def is_initialized(self):
+        return self._is_initialized
 
     def initiate(self):
-        for _ in range(CONNECTION_TRIES):
-            try:
-                token = self._auth.token.new(expiration=120)['token']
-                self._auth.set_token(token)
-                self._amid.set_token(token)
-                self._confd.set_token(token)
+        token = self._auth.token.new(expiration=120)['token']
+        self._auth.set_token(token)
+        self._amid.set_token(token)
+        self._confd.set_token(token)
 
-                events = self._amid.action('DeviceStateList')
-                tenants = self._auth.tenants.list()['items']
-                users = self._confd.users.list(recurse=True)['items']
-                sessions = self._auth.sessions.list(recurse=True)['items']
-                break
-            except (requests.ConnectionError, requests.HTTPError):
-                logger.info(
-                    'Error to fetch data for initialization, retrying in %s seconds...',
-                    CONNECTION_DELAY
-                )
-                time.sleep(CONNECTION_DELAY)
-                continue
+        events = self._amid.action('DeviceStateList')
+        tenants = self._auth.tenants.list()['items']
+        users = self._confd.users.list(recurse=True)['items']
+        sessions = self._auth.sessions.list(recurse=True)['items']
 
         self.initiate_endpoints(events)
         self.initiate_tenants(tenants)
         self.initiate_users(users)
         self.initiate_sessions(sessions)
+        self._is_initialized = True
 
     def initiate_tenants(self, tenants):
         tenants = set(tenant['uuid'] for tenant in tenants)

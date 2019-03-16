@@ -10,6 +10,7 @@ from wazo_chatd.plugin_helpers.http import update_model_instance
 from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
 
 from .schemas import ListRequestSchema, UserPresenceSchema
+from .validator import status_validator
 
 
 class PresenceListResource(AuthResource):
@@ -18,6 +19,7 @@ class PresenceListResource(AuthResource):
         self._service = service
 
     @required_acl('chatd.users.presences.read')
+    @status_validator.presence_initialization
     def get(self):
         parameters = ListRequestSchema().load(request.args).data
         tenant_uuids = get_tenant_uuids(parameters.pop('recurse'))
@@ -38,12 +40,14 @@ class PresenceItemResource(AuthResource):
         self._service = service
 
     @required_acl('chatd.users.{user_uuid}.presences.read')
+    @status_validator.presence_initialization
     def get(self, user_uuid):
         tenant_uuids = get_tenant_uuids(recurse=True)
         presence = self._service.get(tenant_uuids, user_uuid)
         return UserPresenceSchema().dump(presence).data, 200
 
     @required_acl('chatd.users.{user_uuid}.presences.update')
+    @status_validator.presence_initialization
     def put(self, user_uuid):
         tenant_uuids = get_tenant_uuids(recurse=True)
         presence = self._service.get(tenant_uuids, user_uuid)

@@ -12,6 +12,8 @@ from .http import PresenceListResource, PresenceItemResource
 from .notifier import PresenceNotifier
 from .services import PresenceService
 from .initiator import Initiator
+from .initiator_thread import InitiatorThread
+from .validator import status_validator
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +26,23 @@ class Plugin:
         dao = dependencies['dao']
         bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
+        status_aggregator = dependencies['status_aggregator']
+        status_validator.set_config(status_aggregator, config)
 
         notifier = PresenceNotifier(bus_publisher)
         service = PresenceService(dao, notifier)
         initialization = config['initialization']
 
+        auth = AuthClient(**config['auth'])
+        amid = AmidClient(**config['amid'])
+        confd = ConfdClient(**config['confd'])
+        initiator = Initiator(dao, auth, amid, confd)
+        status_aggregator.add_provider(initiator.provide_status)
+
         if initialization['enabled']:
-            auth = AuthClient(**config['auth'])
-            amid = AmidClient(**config['amid'])
-            confd = ConfdClient(**config['confd'])
-            initiator = Initiator(dao, auth, amid, confd)
-            initiator.initiate()
+            thread_manager = dependencies['thread_manager']
+            initiator_thread = InitiatorThread(initiator)
+            thread_manager.manage(initiator_thread)
 
         bus_event_handler = BusEventHandler(dao, notifier)
         bus_event_handler.subscribe(bus_consumer)

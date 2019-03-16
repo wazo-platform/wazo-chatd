@@ -18,6 +18,8 @@ definitions:
         $ref: '#/definitions/ComponentWithStatus'
       bus_consumer:
         $ref: '#/definitions/ComponentWithStatus'
+      presence_initialization:
+        $ref: '#/definitions/ComponentWithStatus'
   ComponentWithStatus:
     type: object
     properties:
