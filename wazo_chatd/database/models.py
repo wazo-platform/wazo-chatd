@@ -34,7 +34,7 @@ class Tenant(Base):
 
     __tablename__ = 'chatd_tenant'
 
-    uuid = Column(UUIDAsString(36), primary_key=True)
+    uuid = Column(UUIDAsString(UUID_LENGTH), primary_key=True)
 
     def __repr__(self):
         return "<Tenant(uuid='{uuid}')>".format(uuid=self.uuid)
@@ -44,9 +44,9 @@ class User(Base):
 
     __tablename__ = 'chatd_user'
 
-    uuid = Column(UUIDAsString(36), primary_key=True)
+    uuid = Column(UUIDAsString(UUID_LENGTH), primary_key=True)
     tenant_uuid = Column(
-        UUIDAsString(36),
+        UUIDAsString(UUID_LENGTH),
         ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
         nullable=False,
     )
@@ -86,10 +86,10 @@ class Session(Base):
 
     __tablename__ = 'chatd_session'
 
-    uuid = Column(UUIDAsString(36), primary_key=True)
+    uuid = Column(UUIDAsString(UUID_LENGTH), primary_key=True)
     mobile = Column(Boolean, nullable=False, default=False)
     user_uuid = Column(
-        UUIDAsString(36),
+        UUIDAsString(UUID_LENGTH),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
         nullable=False,
     )
@@ -107,7 +107,7 @@ class Line(Base):
 
     id = Column(Integer, primary_key=True)
     user_uuid = Column(
-        UUIDAsString(36),
+        UUIDAsString(UUID_LENGTH),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
     )
     endpoint_name = Column(
