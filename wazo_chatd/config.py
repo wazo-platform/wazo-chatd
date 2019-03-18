@@ -76,6 +76,7 @@ _DEFAULT_CONFIG = {
         'api': True,
         'config': True,
         'presences': True,
+        'rooms': True,
         'status': True,
     },
     'initialization': {

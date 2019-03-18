@@ -1,0 +1,77 @@
+paths:
+  /users/me/rooms:
+    post:
+      operationId: create_room
+      summary: Create room
+      description: '**Required ACL:** `chatd.users.me.rooms.create`'
+      tags:
+      - rooms
+      responses:
+        '201':
+          description: Room created
+          schema:
+            $ref: '#/definitions/Room'
+        '400':
+          $ref: '#/responses/APIError'
+    get:
+      operationId: get_room
+      summary: Get room
+      description: '**Required ACL:** `chatd.users.me.rooms.read`'
+      tags:
+      - rooms
+      parameters:
+      - $ref: '#/parameters/room_uuid'
+      responses:
+        '200':
+          description: Room
+          schema:
+            $ref: '#/definitions/Rooms'
+        '404':
+          $ref: '#/responses/NotFoundError'
+
+
+parameters:
+  room_uuid:
+    name: room_uuid
+    in: path
+    type: string
+    description: The UUID of the room
+    required: true
+
+definitions:
+  Room:
+    title: Room
+    properties:
+      uuid:
+        type: string
+        description: The UUID of the room
+        readOnly: true
+      name:
+        type: string
+        description: The name of the room
+      users:
+        type: array
+        description: Only one user can be added for now
+        items:
+          $ref: '#/definitions/RoomUser'
+
+  RoomUser:
+    properties:
+      uuid:
+        type: string
+      tenant_uuid:
+        type: string
+        description: The tenant of the user_uuid. Default to the same tenant as the token owner
+      wazo_uuid:
+        type: string
+        description: The wazo of the tenant_uuid. Default to the same wazo as the token owner
+
+  Rooms:
+    title: Rooms
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Room'
+      total:
+        type: integer
