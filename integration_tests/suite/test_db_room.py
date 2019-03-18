@@ -6,15 +6,20 @@ import uuid
 from hamcrest import (
     assert_that,
     calling,
+    contains,
     contains_inanyorder,
+    empty,
     equal_to,
     has_properties,
     is_not,
     none,
 )
+from sqlalchemy.inspection import inspect
 
+from wazo_chatd.database.models import Room, RoomUser
 from wazo_chatd.exceptions import UnknownRoomException
 from xivo_test_helpers.hamcrest.raises import raises
+from xivo_test_helpers.hamcrest.uuid_ import uuid_
 
 from .helpers import fixtures
 from .helpers.base import (
@@ -28,6 +33,8 @@ from .helpers.wait_strategy import NoWaitStrategy
 USER_UUID_1 = str(uuid.uuid4())
 USER_UUID_2 = str(uuid.uuid4())
 USER_UUID_3 = str(uuid.uuid4())
+
+UUID = str(uuid.uuid4())
 
 
 class TestRoom(BaseIntegrationTest):
@@ -94,10 +101,54 @@ class TestRoom(BaseIntegrationTest):
         result = self._dao.room.count([room_1.tenant_uuid], user_uuid=USER_UUID_1)
         assert_that(result, equal_to(2))
 
-    @fixtures.db.room(name='original')
-    def test_update(self, room):
-        room.name = 'updated'
-        self._dao.room.update(room)
+    def test_create(self):
+        room = Room(tenant_uuid=TENANT_1)
+        room = self._dao.room.create(room)
 
         self._session.expire_all()
-        assert_that(room, has_properties(name='updated'))
+        assert_that(room, has_properties(uuid=uuid_()))
+
+    def test_create_with_users(self):
+        room_user = RoomUser(uuid=USER_UUID_1, tenant_uuid=UUID, wazo_uuid=UUID)
+        room = Room(tenant_uuid=TENANT_1, users=[room_user])
+        room = self._dao.room.create(room)
+
+        self._session.expire_all()
+        assert_that(room, has_properties(uuid=uuid_()))
+
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}])
+    def test_delete_cascade(self, room):
+        self._session.query(Room).filter(Room.uuid == room.uuid).delete()
+
+        self._session.expire_all()
+        assert_that(inspect(room).deleted)
+
+        result = self._session.query(RoomUser).filter(RoomUser.uuid == USER_UUID_1).first()
+        assert_that(result, none())
+
+
+class TestRoomUsers(BaseIntegrationTest):
+
+    asset = 'database'
+    service = 'postgresql'
+    wait_strategy = NoWaitStrategy()
+
+    @fixtures.db.room()
+    def test_create(self, room):
+        room_user = RoomUser(uuid=USER_UUID_1, tenant_uuid=UUID, wazo_uuid=UUID)
+        room.users = [room_user]
+        self._session.flush()
+
+        self._session.expire_all()
+        assert_that(inspect(room_user).persistent)
+        assert_that(room.users, contains(room_user))
+
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}])
+    def test_delete(self, room):
+        room_user = room.users[0]
+        room.users = []
+        self._session.flush()
+
+        self._session.expire_all()
+        assert_that(inspect(room_user).deleted)
+        assert_that(room.users, empty())
