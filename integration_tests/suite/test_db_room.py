@@ -1,6 +1,8 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import uuid
+
 from hamcrest import (
     assert_that,
     calling,
@@ -22,6 +24,10 @@ from .helpers.base import (
     SUBTENANT_UUID as TENANT_2,
 )
 from .helpers.wait_strategy import NoWaitStrategy
+
+USER_UUID_1 = str(uuid.uuid4())
+USER_UUID_2 = str(uuid.uuid4())
+USER_UUID_3 = str(uuid.uuid4())
 
 
 class TestRoom(BaseIntegrationTest):
@@ -65,6 +71,13 @@ class TestRoom(BaseIntegrationTest):
         result = self._dao.room.list_([room_1.tenant_uuid, room_2.tenant_uuid])
         assert_that(result, contains_inanyorder(room_1, room_2))
 
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_2}])
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_3}])
+    @fixtures.db.room(users=[{'uuid': USER_UUID_2}, {'uuid': USER_UUID_3}])
+    def test_list_by_user_uuid(self, room_1, room_2, _):
+        result = self._dao.room.list_([room_1.tenant_uuid], user_uuid=USER_UUID_1)
+        assert_that(result, contains_inanyorder(room_1, room_2))
+
     @fixtures.db.room(tenant_uuid=TENANT_1)
     @fixtures.db.room(tenant_uuid=TENANT_2)
     def test_count(self, room_1, room_2):
@@ -72,6 +85,13 @@ class TestRoom(BaseIntegrationTest):
         assert_that(result, equal_to(1))
 
         result = self._dao.room.count([room_1.tenant_uuid, room_2.tenant_uuid])
+        assert_that(result, equal_to(2))
+
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_2}])
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_3}])
+    @fixtures.db.room(users=[{'uuid': USER_UUID_2}, {'uuid': USER_UUID_3}])
+    def test_count_by_user_uuid(self, room_1, room_2, _):
+        result = self._dao.room.count([room_1.tenant_uuid], user_uuid=USER_UUID_1)
         assert_that(result, equal_to(2))
 
     @fixtures.db.room(name='original')

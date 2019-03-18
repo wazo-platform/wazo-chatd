@@ -12,11 +12,12 @@ from wazo_chatd.database.models import (
     Line,
     User,
     Room,
+    RoomUser,
     Session,
     Tenant,
 )
 
-from ..base import MASTER_TENANT_UUID
+from ..base import MASTER_TENANT_UUID, WAZO_UUID
 
 
 def user(**user_args):
@@ -139,6 +140,14 @@ def room(**room_args):
         def wrapper(self, *args, **kwargs):
             room_args.setdefault('uuid', str(uuid.uuid4()))
             room_args.setdefault('tenant_uuid', MASTER_TENANT_UUID)
+            room_args.setdefault('users', [])
+
+            for user_args in room_args['users']:
+                user_args.setdefault('uuid', str(uuid.uuid4()))
+                user_args.setdefault('tenant_uuid', room_args['tenant_uuid'])
+                user_args.setdefault('wazo_uuid', WAZO_UUID)
+
+            room_args['users'] = [RoomUser(**user_args) for user_args in room_args['users']]
             room = Room(**room_args)
 
             self._session.add(room)

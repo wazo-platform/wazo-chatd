@@ -30,6 +30,7 @@ MASTER_TENANT_UUID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1'
 SUBTENANT_UUID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2'
 UNKNOWN_UUID = '00000000-0000-0000-0000-000000000000'
 DIFFERENT_TENANT_UUID = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
+WAZO_UUID = '00000000-0000-0000-0000-0000000c4a7d'
 
 logger = logging.getLogger(__name__)
 

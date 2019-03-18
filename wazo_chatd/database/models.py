@@ -165,7 +165,11 @@ class Room(Base):
         nullable=False,
     )
 
-    users = relationship('RoomUser', viewonly=True)
+    users = relationship(
+        'RoomUser',
+        cascade='all,delete-orphan',
+        passive_deletes=False,
+    )
 
     def __repr__(self):
         return "<Room(uuid='{uuid}', name='{name}', users='{users}')>".format(

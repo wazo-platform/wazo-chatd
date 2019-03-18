@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from ...exceptions import UnknownRoomException
 from ..helpers import get_dao_session
-from ..models import Room
+from ..models import Room, RoomUser
 
 
 class RoomDAO:
@@ -24,14 +24,17 @@ class RoomDAO:
             raise UnknownRoomException(room_uuid)
         return room
 
-    def list_(self, tenant_uuids):
-        return self._list_query(tenant_uuids).all()
+    def list_(self, tenant_uuids, **filter_parameters):
+        return self._list_query(tenant_uuids, **filter_parameters).all()
 
-    def count(self, tenant_uuids):
-        return self._list_query(tenant_uuids).count()
+    def count(self, tenant_uuids, **filter_parameters):
+        return self._list_query(tenant_uuids, **filter_parameters).count()
 
-    def _list_query(self, tenant_uuids=None):
+    def _list_query(self, tenant_uuids=None, user_uuid=None):
         query = self.session.query(Room)
+
+        if user_uuid:
+            query = query.join(RoomUser).filter(RoomUser.uuid == str(user_uuid))
 
         if tenant_uuids is None:
             return query
