@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from marshmallow import ValidationError
 from flask import request
 
 from xivo.auth_verifier import required_acl
@@ -24,7 +25,10 @@ class UserRoomListResource(AuthResource):
         if not self._current_user_is_in_room(token.user_uuid, room_args):
             self._add_current_user(room_args, token.user_uuid)
 
-        Length(equal=2)(room_args['users'])
+        try:
+            Length(equal=2)(room_args['users'])
+        except ValidationError as error:
+            raise ValidationError({'users': error.messages})
 
         room_args['tenant_uuid'] = token.tenant_uuid
         room_args['users'] = [RoomUser(**user) for user in room_args['users']]

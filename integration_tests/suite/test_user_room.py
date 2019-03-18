@@ -118,7 +118,7 @@ class TestUserRoom(BaseIntegrationTest):
         self._session.query(Room).filter(Room.uuid == room['uuid']).delete()
         self._session.commit()
 
-    def test_create_with_wrong_number_of_users(self):
+    def test_create_with_wrong_users_number(self):
         room_args = {
             'users': [
                 {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
@@ -126,10 +126,7 @@ class TestUserRoom(BaseIntegrationTest):
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
         }
-        assert_that(
-            calling(self.chatd.rooms.create_from_user).with_args(room_args),
-            raises(ChatdError, has_properties(status_code=400))  # TODO add error-id
-        )
+        self._assert_create_raise_400_users_error(room_args)
 
         room_args = {
             'users': [
@@ -139,21 +136,27 @@ class TestUserRoom(BaseIntegrationTest):
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
         }
-        assert_that(
-            calling(self.chatd.rooms.create_from_user).with_args(room_args),
-            raises(ChatdError, has_properties(status_code=400))  # TODO add error-id
-        )
+        self._assert_create_raise_400_users_error(room_args)
 
         room_args = {'users': []}
-        assert_that(
-            calling(self.chatd.rooms.create_from_user).with_args(room_args),
-            raises(ChatdError, has_properties(status_code=400))  # TODO add error-id
-        )
+        self._assert_create_raise_400_users_error(room_args)
 
         room_args = {}
-        assert_that(
-            calling(self.chatd.rooms.create_from_user).with_args(room_args),
-            raises(ChatdError, has_properties(status_code=400))  # TODO add error-id
-        )
+        self._assert_create_raise_400_users_error(room_args)
 
-# TODO test if user twice in users
+    def _assert_create_raise_400_users_error(self, room):
+        assert_that(
+            calling(self.chatd.rooms.create_from_user).with_args(room),
+            raises(
+                ChatdError,
+                has_properties(
+                    status_code=400,
+                    details=has_entries(
+                        users=has_entries(
+                            constraint_id='length',
+                            constraint={'equal': 2},
+                        )
+                    )
+                )
+            )
+        )
