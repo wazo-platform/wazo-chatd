@@ -11,6 +11,7 @@ from wazo_chatd.http import AuthResource
 from wazo_chatd.database.models import Room, RoomUser
 
 from xivo.mallow.validate import Length
+from .exceptions import DuplicateUserException
 from .schemas import RoomSchema
 
 
@@ -22,6 +23,10 @@ class UserRoomListResource(AuthResource):
     @required_acl('chatd.users.me.rooms.create')
     def post(self):
         room_args = RoomSchema().load(request.get_json()).data
+
+        if self._is_duplicate_user(room_args['users']):
+            raise DuplicateUserException()
+
         if not self._current_user_is_in_room(token.user_uuid, room_args):
             self._add_current_user(room_args, token.user_uuid)
 
@@ -42,6 +47,12 @@ class UserRoomListResource(AuthResource):
 
     def _add_current_user(self, room_args, user_uuid):
         room_args['users'].append({'uuid': user_uuid})
+
+    def _is_duplicate_user(self, users):
+        unique = set(user['uuid'] for user in users)
+        if len(unique) != len(users):
+            return True
+        return False
 
     @required_acl('chatd.users.me.rooms.read')
     def get(self):

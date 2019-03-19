@@ -160,3 +160,15 @@ class TestUserRoom(BaseIntegrationTest):
                 )
             )
         )
+
+    def test_create_with_same_user(self):
+        room_args = {
+            'users': [
+                {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
+                {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
+            ]
+        }
+        assert_that(
+            calling(self.chatd.rooms.create_from_user).with_args(room_args),
+            raises(ChatdError, has_properties(status_code=400))
+        )
