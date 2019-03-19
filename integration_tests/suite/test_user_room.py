@@ -76,8 +76,8 @@ class TestUserRoom(BaseIntegrationTest):
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
             ]
         }
-        # routing_key = 'chatd.rooms.*.presences.updated'.format(uuid=room.uuid)
-        # event_accumulator = self.bus.accumulator(routing_key)
+        routing_key = 'chatd.users.*.rooms.created'
+        event_accumulator = self.bus.accumulator(routing_key)
 
         room = self.chatd.rooms.create_from_user(room_args)
 
@@ -87,8 +87,18 @@ class TestUserRoom(BaseIntegrationTest):
             users=contains_inanyorder(*room_args['users'])
         ))
 
-        # event = event_accumulator.accumulate()
-        # assert_that(event, contains(has_entries(data=has_entries(room_args))))
+        event = event_accumulator.accumulate()
+        assert_that(event, contains_inanyorder(
+            has_entries(
+                data=has_entries(room_args),
+                required_acl='events.chatd.users.{}.rooms.created'.format(TOKEN_USER_UUID),
+            ),
+            has_entries(
+                data=has_entries(room_args),
+                required_acl='events.chatd.users.{}.rooms.created'.format(UUID),
+            ),
+        ))
+
         self._delete_room(room)
 
     def test_create_minimal_parameters(self):

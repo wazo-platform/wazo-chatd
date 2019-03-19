@@ -1,9 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from xivo_bus.resources.chatd.events import (
-    RoomCreatedEvent,
-)
+from xivo_bus.resources.chatd.events import UserRoomCreatedEvent
 
 from .schemas import RoomSchema
 
@@ -15,5 +13,6 @@ class RoomNotifier:
 
     def created(self, room):
         room_json = RoomSchema().dump(room).data
-        event = RoomCreatedEvent(room_json)
-        self._bus.publish(event)
+        for user in room_json['users']:
+            event = UserRoomCreatedEvent(user['uuid'], room_json)
+            self._bus.publish(event)
