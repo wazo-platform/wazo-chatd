@@ -177,6 +177,7 @@ class Room(Base):
         'RoomMessage',
         cascade='all,delete-orphan',
         passive_deletes=False,
+        order_by='desc(RoomMessage.created_at)',
     )
 
     def __repr__(self):

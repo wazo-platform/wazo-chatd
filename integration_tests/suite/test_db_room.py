@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import datetime
 import uuid
 
 from hamcrest import (
@@ -197,9 +198,19 @@ class TestRoomRelationships(BaseIntegrationTest):
 
     @fixtures.db.room()
     def test_messages_get(self, room):
-        message = RoomMessage(room_uuid=room.uuid, user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
-        self._session.add(message)
-        self._session.flush()
+        now = datetime.datetime.utcnow()
+        yesterday = now - datetime.timedelta(days=1)
+        message_1 = self.add_room_message(room_uuid=room.uuid, created_at=yesterday)
+        message_2 = self.add_room_message(room_uuid=room.uuid, created_at=now)
 
         self._session.expire_all()
-        assert_that(room.messages, contains(message))
+        assert_that(room.messages, contains(message_2, message_1))
+
+    def add_room_message(self, **kwargs):
+        kwargs.setdefault('user_uuid', str(uuid.uuid4()))
+        kwargs.setdefault('tenant_uuid', str(uuid.uuid4()))
+        kwargs.setdefault('wazo_uuid', str(uuid.uuid4()))
+        message = RoomMessage(**kwargs)
+        self._session.add(message)
+        self._session.flush()
+        return message
