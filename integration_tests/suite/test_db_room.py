@@ -164,6 +164,15 @@ class TestRoomRelationships(BaseIntegrationTest):
         assert_that(room.users, empty())
 
     @fixtures.db.room()
+    def test_users_get(self, room):
+        room_user = RoomUser(room_uuid=room.uuid, uuid=USER_UUID_1, tenant_uuid=UUID, wazo_uuid=UUID)
+        self._session.add(room_user)
+        self._session.flush()
+
+        self._session.expire_all()
+        assert_that(room.users, contains(room_user))
+
+    @fixtures.db.room()
     def test_messages_create(self, room):
         message = RoomMessage(user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
         room.messages = [message]
@@ -185,3 +194,12 @@ class TestRoomRelationships(BaseIntegrationTest):
         self._session.expire_all()
         assert_that(inspect(message).deleted)
         assert_that(room.messages, empty())
+
+    @fixtures.db.room()
+    def test_messages_get(self, room):
+        message = RoomMessage(room_uuid=room.uuid, user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
+        self._session.add(message)
+        self._session.flush()
+
+        self._session.expire_all()
+        assert_that(room.messages, contains(message))
