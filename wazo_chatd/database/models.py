@@ -1,10 +1,13 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import datetime
+
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    DateTime,
     ForeignKey,
     Integer,
     String,
@@ -197,4 +200,29 @@ class RoomUser(Base):
             self.uuid,
             self.tenant_uuid,
             self.wazo_uuid,
+        )
+
+
+class RoomMessage(Base):
+
+    __tablename__ = 'chatd_room_message'
+
+    uuid = Column(String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True)
+    room_uuid = Column(
+        String(UUID_LENGTH),
+        ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
+    content = Column(Text)
+    alias = Column(String(256))
+    user_uuid = Column(String(UUID_LENGTH), nullable=False)
+    tenant_uuid = Column(String(UUID_LENGTH), nullable=False)
+    wazo_uuid = Column(String(UUID_LENGTH), nullable=False)
+    created_at = Column(DateTime(), default=datetime.datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return "<RoomMessage(uuid='{uuid}', content='{content}', alias='{alias}')>".format(
+            uuid=self.uuid,
+            content=self.content,
+            alias=self.alias,
         )
