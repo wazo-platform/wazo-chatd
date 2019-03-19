@@ -137,14 +137,14 @@ class TestRoom(BaseIntegrationTest):
         assert_that(room.messages, contains(message))
 
 
-class TestRoomUsers(BaseIntegrationTest):
+class TestRoomRelationships(BaseIntegrationTest):
 
     asset = 'database'
     service = 'postgresql'
     wait_strategy = NoWaitStrategy()
 
     @fixtures.db.room()
-    def test_create(self, room):
+    def test_users_create(self, room):
         room_user = RoomUser(uuid=USER_UUID_1, tenant_uuid=UUID, wazo_uuid=UUID)
         room.users = [room_user]
         self._session.flush()
@@ -154,7 +154,7 @@ class TestRoomUsers(BaseIntegrationTest):
         assert_that(room.users, contains(room_user))
 
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}])
-    def test_delete(self, room):
+    def test_users_delete(self, room):
         room_user = room.users[0]
         room.users = []
         self._session.flush()
@@ -163,15 +163,8 @@ class TestRoomUsers(BaseIntegrationTest):
         assert_that(inspect(room_user).deleted)
         assert_that(room.users, empty())
 
-
-class TestRoomMessages(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
     @fixtures.db.room()
-    def test_create(self, room):
+    def test_messages_create(self, room):
         message = RoomMessage(user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
         room.messages = [message]
         self._session.flush()
@@ -181,7 +174,7 @@ class TestRoomMessages(BaseIntegrationTest):
         assert_that(room.messages, contains(message))
 
     @fixtures.db.room()
-    def test_delete(self, room):
+    def test_messages_delete(self, room):
         message = RoomMessage(user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
         room.messages = [message]
         self._session.flush()
