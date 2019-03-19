@@ -16,7 +16,7 @@ from hamcrest import (
 )
 from sqlalchemy.inspection import inspect
 
-from wazo_chatd.database.models import Room, RoomUser
+from wazo_chatd.database.models import Room, RoomMessage, RoomUser
 from wazo_chatd.exceptions import UnknownRoomException
 from xivo_test_helpers.hamcrest.raises import raises
 from xivo_test_helpers.hamcrest.uuid_ import uuid_
@@ -126,6 +126,16 @@ class TestRoom(BaseIntegrationTest):
         result = self._session.query(RoomUser).filter(RoomUser.uuid == USER_UUID_1).first()
         assert_that(result, none())
 
+    @fixtures.db.room()
+    def test_add_message(self, room):
+        message = RoomMessage(user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
+
+        self._dao.room.add_message(room, message)
+
+        self._session.expire_all()
+        assert_that(inspect(message).persistent)
+        assert_that(room.messages, contains(message))
+
 
 class TestRoomUsers(BaseIntegrationTest):
 
@@ -152,3 +162,33 @@ class TestRoomUsers(BaseIntegrationTest):
         self._session.expire_all()
         assert_that(inspect(room_user).deleted)
         assert_that(room.users, empty())
+
+
+class TestRoomMessages(BaseIntegrationTest):
+
+    asset = 'database'
+    service = 'postgresql'
+    wait_strategy = NoWaitStrategy()
+
+    @fixtures.db.room()
+    def test_create(self, room):
+        message = RoomMessage(user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
+        room.messages = [message]
+        self._session.flush()
+
+        self._session.expire_all()
+        assert_that(inspect(message).persistent)
+        assert_that(room.messages, contains(message))
+
+    @fixtures.db.room()
+    def test_delete(self, room):
+        message = RoomMessage(user_uuid=UUID, tenant_uuid=UUID, wazo_uuid=UUID)
+        room.messages = [message]
+        self._session.flush()
+
+        room.messages = []
+        self._session.flush()
+
+        self._session.expire_all()
+        assert_that(inspect(message).deleted)
+        assert_that(room.messages, empty())

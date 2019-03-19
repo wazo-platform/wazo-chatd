@@ -173,12 +173,18 @@ class Room(Base):
         cascade='all,delete-orphan',
         passive_deletes=False,
     )
+    messages = relationship(
+        'RoomMessage',
+        cascade='all,delete-orphan',
+        passive_deletes=False,
+    )
 
     def __repr__(self):
-        return "<Room(uuid='{uuid}', name='{name}', users='{users}')>".format(
+        return "<Room(uuid='{uuid}', name='{name}', users='{users}', messages='{messages}')>".format(
             uuid=self.uuid,
             name=self.name,
             users=self.users,
+            messages=self.messages,
         )
 
 

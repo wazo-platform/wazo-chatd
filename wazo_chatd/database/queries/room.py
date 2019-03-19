@@ -48,3 +48,7 @@ class RoomDAO:
             return query.filter(text('false'))
 
         return query.filter(Room.tenant_uuid.in_(tenant_uuids))
+
+    def add_message(self, room, message):
+        room.messages.append(message)
+        self.session.flush()
