@@ -16,3 +16,7 @@ class RoomNotifier:
         for user in room_json['users']:
             event = UserRoomCreatedEvent(user['uuid'], room_json)
             self._bus.publish(event)
+
+    def message_created(self, room, message):
+        # TODO send message on each user
+        pass

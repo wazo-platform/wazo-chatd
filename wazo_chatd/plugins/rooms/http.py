@@ -8,11 +8,11 @@ from xivo.auth_verifier import required_acl
 from xivo.tenant_flask_helpers import token
 
 from wazo_chatd.http import AuthResource
-from wazo_chatd.database.models import Room, RoomUser
+from wazo_chatd.database.models import Room, RoomUser, RoomMessage
 
 from xivo.mallow.validate import Length
 from .exceptions import DuplicateUserException
-from .schemas import RoomSchema
+from .schemas import RoomSchema, MessageSchema, ListSchema
 
 
 class UserRoomListResource(AuthResource):
@@ -62,6 +62,36 @@ class UserRoomListResource(AuthResource):
         filtered = total
         return {
             'items': RoomSchema().dump(rooms, many=True).data,
+            'filtered': filtered,
+            'total': total,
+        }
+
+
+class UserRoomMessageListResource(AuthResource):
+
+    def __init__(self, service):
+        self._service = service
+
+    @required_acl('chatd.users.me.rooms.{room_uuid}.messages.create')
+    def post(self, room_uuid):
+        room = self._service.get([token.tenant_uuid], room_uuid)
+        message_args = MessageSchema().load(request.get_json()).data
+        message_args['user_uuid'] = token.user_uuid
+        message_args['tenant_uuid'] = token.tenant_uuid
+        message = RoomMessage(**message_args)
+
+        message = self._service.create_message(room, message)
+        return MessageSchema().dump(message).data, 201
+
+    @required_acl('chatd.users.me.rooms.{room_uuid}.messages.read')
+    def get(self, room_uuid):
+        filter_parameters = ListSchema().load(request.args).data
+        room = self._service.get([token.tenant_uuid], room_uuid)
+        messages = self._service.list_messages(room, **filter_parameters)
+        total = self._service.count_messages(room, filtered=False, **filter_parameters)
+        filtered = self._service.count_messages(room, filtered=True, **filter_parameters)
+        return {
+            'items': MessageSchema().dump(messages, many=True).data,
             'filtered': filtered,
             'total': total,
         }

@@ -1,7 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from .http import UserRoomListResource
+from .http import UserRoomListResource, UserRoomMessageListResource
 from .notifier import RoomNotifier
 from .services import RoomService
 
@@ -20,5 +20,10 @@ class Plugin:
         api.add_resource(
             UserRoomListResource,
             '/users/me/rooms',
+            resource_class_args=[service],
+        )
+        api.add_resource(
+            UserRoomMessageListResource,
+            '/users/me/rooms/<uuid:room_uuid>/messages',
             resource_class_args=[service],
         )
