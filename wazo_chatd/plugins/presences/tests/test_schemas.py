@@ -147,7 +147,6 @@ class TestListRequestSchema(unittest.TestCase):
         assert_that(result, has_entries(uuids=contains(uuid_1, uuid_2)))
 
     def test_get_user_uuid_empty(self):
-        print(self.request_args.to_dict())
         self.request_args.get.return_value = ''
 
         result = self.schema().load(self.request_args).data
