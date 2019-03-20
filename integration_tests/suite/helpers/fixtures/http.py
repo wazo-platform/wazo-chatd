@@ -7,7 +7,7 @@ from functools import wraps
 
 from wazo_chatd.database.models import Room
 
-TOKEN_USER_UUID = '00000000-0000-0000-0000-000000000300'
+from ..base import TOKEN_USER_UUID
 
 
 def room(**room_args):

@@ -8,6 +8,7 @@ from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries import DAO
 from wazo_chatd.database.helpers import init_db, get_dao_session, Session
 
+from xivo_test_helpers.auth import MockUserToken
 from xivo_test_helpers.auth import AuthClient
 from xivo_test_helpers.asset_launching_test_case import (
     AssetLaunchingTestCase,
@@ -20,16 +21,15 @@ from .bus import BusClient
 from .confd import ConfdClient
 from .wait_strategy import EverythingOkWaitStrategy
 
-VALID_TOKEN = 'valid-token-multi-tenant'
-
 DB_URI = 'postgresql://wazo-chatd:Secr7t@localhost:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
-VALID_TOKEN = 'valid-token-multitenant'
-MASTER_TENANT_UUID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1'
-SUBTENANT_UUID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2'
+TOKEN_UUID = '00000000-0000-0000-0000-000000000101'
+TOKEN_TENANT_UUID = '00000000-0000-0000-0000-000000000201'
+TOKEN_SUBTENANT_UUID = '00000000-0000-0000-0000-000000000202'
+TOKEN_USER_UUID = '00000000-0000-0000-0000-000000000301'
+
 UNKNOWN_UUID = '00000000-0000-0000-0000-000000000000'
-DIFFERENT_TENANT_UUID = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
 WAZO_UUID = '00000000-0000-0000-0000-0000000c4a7d'
 
 logger = logging.getLogger(__name__)
@@ -47,8 +47,28 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         init_db(DB_URI.format(port=cls.service_port(5432, 'postgres')), echo=DB_ECHO)
         cls._Session = Session
 
+        cls.create_token()
         cls.reset_clients()
         cls.wait_strategy.wait(cls)
+
+    @classmethod
+    def create_token(cls):
+        cls.auth = cls.make_auth()
+        if not cls.auth:
+            return
+
+        token = MockUserToken(
+            TOKEN_UUID,
+            TOKEN_USER_UUID,
+            metadata={'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID},
+        )
+        cls.auth.set_token(token)
+        cls.auth.set_tenants(
+            {'items': [
+                {'uuid': TOKEN_TENANT_UUID, 'name': 'name1', 'parent_uuid': TOKEN_TENANT_UUID},
+                {'uuid': TOKEN_SUBTENANT_UUID, 'name': 'name2', 'parent_uuid': TOKEN_TENANT_UUID}
+            ]}
+        )
 
     @classmethod
     def reset_clients(cls):
@@ -59,7 +79,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         cls.bus = cls.make_bus()
 
     @classmethod
-    def make_chatd(cls, token=VALID_TOKEN):
+    def make_chatd(cls, token=TOKEN_UUID):
         try:
             port = cls.service_port(9304, 'chatd')
         except NoSuchService as e:
@@ -110,8 +130,9 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
     def setUp(self):
         super().setUp()
         self._dao = DAO()
-        self._dao.tenant.find_or_create(MASTER_TENANT_UUID)
-        self._dao.tenant.find_or_create(SUBTENANT_UUID)
+        self._dao.tenant.find_or_create(TOKEN_TENANT_UUID)
+        self._dao.tenant.find_or_create(TOKEN_SUBTENANT_UUID)
+        self._session.commit()
 
     def tearDown(self):
         self._Session.rollback()

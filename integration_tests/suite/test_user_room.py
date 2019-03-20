@@ -13,7 +13,6 @@ from hamcrest import (
     none,
 )
 
-from xivo_test_helpers.auth import MockUserToken
 from xivo_test_helpers.hamcrest.raises import raises
 from xivo_test_helpers.hamcrest.uuid_ import uuid_
 
@@ -23,12 +22,10 @@ from wazo_chatd_client.exceptions import ChatdError
 from .helpers import fixtures
 from .helpers.base import (
     BaseIntegrationTest,
+    TOKEN_TENANT_UUID,
+    TOKEN_USER_UUID,
     WAZO_UUID,
 )
-
-TOKEN_UUID = '00000000-0000-0000-0000-000000000001'
-TOKEN_TENANT_UUID = '00000000-0000-0000-0000-000000000020'
-TOKEN_USER_UUID = '00000000-0000-0000-0000-000000000300'
 
 UUID = str(uuid.uuid4())
 UUID_2 = str(uuid.uuid4())
@@ -37,23 +34,6 @@ UUID_2 = str(uuid.uuid4())
 class TestUserRoom(BaseIntegrationTest):
 
     asset = 'base'
-
-    # TODO move to base class
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        token = MockUserToken(
-            TOKEN_UUID,
-            TOKEN_USER_UUID,
-            metadata={'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID},
-        )
-        cls.auth.set_token(token)
-        cls.chatd = cls.make_chatd(token=TOKEN_UUID)
-
-    def setUp(self):
-        super().setUp()
-        self._dao.tenant.find_or_create(TOKEN_TENANT_UUID)
-        self._session.commit()
 
     @fixtures.http.room()
     @fixtures.http.room()

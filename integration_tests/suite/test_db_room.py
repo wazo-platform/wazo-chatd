@@ -26,8 +26,8 @@ from .helpers import fixtures
 from .helpers.base import (
     BaseIntegrationTest,
     UNKNOWN_UUID,
-    MASTER_TENANT_UUID as TENANT_1,
-    SUBTENANT_UUID as TENANT_2,
+    TOKEN_TENANT_UUID as TENANT_1,
+    TOKEN_SUBTENANT_UUID as TENANT_2,
 )
 from .helpers.wait_strategy import NoWaitStrategy
 
