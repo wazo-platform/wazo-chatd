@@ -34,7 +34,7 @@ class MessageSchema(Schema):
     created_at = fields.DateTime(dump_only=True)
 
 
-class ListSchema(_ListSchema):
+class ListRequestSchema(_ListSchema):
     default_sort_column = 'created_at'
     sort_columns = ['created_at']
     searchable_columns = []

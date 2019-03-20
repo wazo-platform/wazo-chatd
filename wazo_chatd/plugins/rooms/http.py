@@ -12,7 +12,7 @@ from wazo_chatd.database.models import Room, RoomUser, RoomMessage
 
 from xivo.mallow.validate import Length
 from .exceptions import DuplicateUserException
-from .schemas import RoomSchema, MessageSchema, ListSchema
+from .schemas import RoomSchema, MessageSchema, ListRequestSchema
 
 
 class UserRoomListResource(AuthResource):
@@ -85,7 +85,7 @@ class UserRoomMessageListResource(AuthResource):
 
     @required_acl('chatd.users.me.rooms.{room_uuid}.messages.read')
     def get(self, room_uuid):
-        filter_parameters = ListSchema().load(request.args).data
+        filter_parameters = ListRequestSchema().load(request.args).data
         room = self._service.get([token.tenant_uuid], room_uuid)
         messages = self._service.list_messages(room, **filter_parameters)
         total = self._service.count_messages(room, filtered=False, **filter_parameters)
