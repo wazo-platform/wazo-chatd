@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from ...exceptions import UnknownRoomException
 from ..helpers import get_dao_session
-from ..models import Room, RoomUser
+from ..models import Room, RoomUser, RoomMessage
 
 
 class RoomDAO:
@@ -52,3 +52,28 @@ class RoomDAO:
     def add_message(self, room, message):
         room.messages.append(message)
         self.session.flush()
+
+    def list_messages(self, room, limit=None, **filtered_parameters):
+        query = self._list_messages_query(room.uuid, **filtered_parameters)
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+
+    def count_messages(self, room, filtered=False, **filtered_parameters):
+        query = self._list_messages_query(room.uuid, **filtered_parameters)
+        return query.count()
+
+    def _list_messages_query(self, room_uuid, filtered=None, order='created_at', direction='desc'):
+        query = self.session.query(RoomMessage).filter(RoomMessage.room_uuid == room_uuid)
+        if not filtered:
+            pass
+
+        order_column = getattr(RoomMessage, order)
+        if direction == 'desc':
+            order_column = order_column.desc()
+        else:
+            order_column = order_column.asc()
+
+        query = query.order_by(order_column)
+
+        return query

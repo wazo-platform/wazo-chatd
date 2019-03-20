@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import datetime
 import string
 import random
 import uuid
@@ -12,6 +13,7 @@ from wazo_chatd.database.models import (
     Line,
     User,
     Room,
+    RoomMessage,
     RoomUser,
     Session,
     Tenant,
@@ -141,13 +143,23 @@ def room(**room_args):
             room_args.setdefault('uuid', str(uuid.uuid4()))
             room_args.setdefault('tenant_uuid', MASTER_TENANT_UUID)
             room_args.setdefault('users', [])
+            room_args.setdefault('messages', [])
 
             for user_args in room_args['users']:
                 user_args.setdefault('uuid', str(uuid.uuid4()))
                 user_args.setdefault('tenant_uuid', room_args['tenant_uuid'])
                 user_args.setdefault('wazo_uuid', WAZO_UUID)
 
+            now = datetime.datetime.utcnow()
+            for i, message_args in enumerate(room_args['messages']):
+                created_at = now + datetime.timedelta(seconds=i)
+                message_args.setdefault('user_uuid', str(uuid.uuid4()))
+                message_args.setdefault('tenant_uuid', room_args['tenant_uuid'])
+                message_args.setdefault('wazo_uuid', WAZO_UUID)
+                message_args.setdefault('created_at', created_at)
+
             room_args['users'] = [RoomUser(**user_args) for user_args in room_args['users']]
+            room_args['messages'] = [RoomMessage(**msg_args) for msg_args in room_args['messages']]
             room = Room(**room_args)
 
             self._session.add(room)

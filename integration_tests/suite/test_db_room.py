@@ -137,6 +137,38 @@ class TestRoom(BaseIntegrationTest):
         assert_that(inspect(message).persistent)
         assert_that(room.messages, contains(message))
 
+    @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
+    def test_list_messages(self, room):
+        message_2, message_1 = room.messages
+
+        messages = self._dao.room.list_messages(room)
+
+        assert_that(messages, contains(message_2, message_1))
+
+    @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
+    def test_list_messages_direction(self, room):
+        message_2, message_1 = room.messages
+
+        messages = self._dao.room.list_messages(room, direction='desc')
+        assert_that(messages, contains(message_2, message_1))
+
+        messages = self._dao.room.list_messages(room, direction='asc')
+        assert_that(messages, contains(message_1, message_2))
+
+    @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
+    def test_list_messages_limit(self, room):
+        message_2, message_1 = room.messages
+
+        messages = self._dao.room.list_messages(room, limit=1)
+
+        assert_that(messages, contains(message_2))
+
+    @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
+    def test_count_messages(self, room):
+        count = self._dao.room.count_messages(room)
+
+        assert_that(count, equal_to(2))
+
 
 class TestRoomRelationships(BaseIntegrationTest):
 
