@@ -19,6 +19,7 @@ class RoomNotifier:
 
     def message_created(self, room, message):
         message_json = MessageSchema().dump(message).data
+        message_json['room'] = {'uuid': room.uuid}
         for user in room.users:
             event = UserRoomMessageCreatedEvent(user.uuid, room.uuid, message_json)
             self._bus.publish(event)

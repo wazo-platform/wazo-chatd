@@ -125,11 +125,11 @@ class TestUserRoom(BaseIntegrationTest):
         user_uuid_2 = room['users'][1]['uuid']
         assert_that(event, contains_inanyorder(
             has_entries(
-                data=has_entries(**message),
+                data=has_entries(room={'uuid': room['uuid']}, **message),
                 required_acl=required_acl_fmt.format(user_uuid=user_uuid_1, room_uuid=room['uuid']),
             ),
             has_entries(
-                data=has_entries(**message),
+                data=has_entries(room={'uuid': room['uuid']}, **message),
                 required_acl=required_acl_fmt.format(user_uuid=user_uuid_2, room_uuid=room['uuid']),
             ),
         ))
