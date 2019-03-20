@@ -1,9 +1,9 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from xivo_bus.resources.chatd.events import UserRoomCreatedEvent
+from xivo_bus.resources.chatd.events import UserRoomCreatedEvent, UserRoomMessageCreatedEvent
 
-from .schemas import RoomSchema
+from .schemas import RoomSchema, MessageSchema
 
 
 class RoomNotifier:
@@ -18,5 +18,7 @@ class RoomNotifier:
             self._bus.publish(event)
 
     def message_created(self, room, message):
-        # TODO send message on each user
-        pass
+        message_json = MessageSchema().dump(message).data
+        for user in room.users:
+            event = UserRoomMessageCreatedEvent(user.uuid, room.uuid, message_json)
+            self._bus.publish(event)

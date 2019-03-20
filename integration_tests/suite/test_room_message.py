@@ -7,6 +7,7 @@ from hamcrest import (
     assert_that,
     calling,
     contains,
+    contains_inanyorder,
     equal_to,
     has_entries,
     has_properties,
@@ -105,6 +106,32 @@ class TestUserRoom(BaseIntegrationTest):
             tenant_uuid=TOKEN_TENANT_UUID,
             wazo_uuid=WAZO_UUID,
             created_at=is_not(none())
+        ))
+
+    @fixtures.http.room()
+    def test_create_events(self, room):
+        message_args = {
+            'content': 'Message content',
+            'alias': 'Alias',
+        }
+        routing_key = 'chatd.users.*.rooms.*.messages.created'
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        message = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
+
+        event = event_accumulator.accumulate()
+        required_acl_fmt = 'events.chatd.users.{user_uuid}.rooms.{room_uuid}.messages.created'
+        user_uuid_1 = room['users'][0]['uuid']
+        user_uuid_2 = room['users'][1]['uuid']
+        assert_that(event, contains_inanyorder(
+            has_entries(
+                data=has_entries(**message),
+                required_acl=required_acl_fmt.format(user_uuid=user_uuid_1, room_uuid=room['uuid']),
+            ),
+            has_entries(
+                data=has_entries(**message),
+                required_acl=required_acl_fmt.format(user_uuid=user_uuid_2, room_uuid=room['uuid']),
+            ),
         ))
 
     def test_create_in_unknown_room(self):
