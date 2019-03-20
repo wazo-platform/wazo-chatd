@@ -48,5 +48,4 @@ class ListRequestSchema(_ListSchema):
             field_obj.missing = 'desc'
 
     class Meta:
-        # TODO implement limit
-        exclude = ('offset', 'search', 'limit')
+        exclude = ('offset', 'search')

@@ -27,7 +27,6 @@ class TestListRequestSchema(unittest.TestCase):
         assert_that(result, not_(any_of(
             has_key('offset'),
             has_key('search'),
-            has_key('limit'),
         )))
 
     def test_load_order_default(self):

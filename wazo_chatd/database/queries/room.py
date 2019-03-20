@@ -60,6 +60,7 @@ class RoomDAO:
         return query.all()
 
     def count_messages(self, room, filtered=False, **filtered_parameters):
+        filtered_parameters.pop('limit', None)
         query = self._list_messages_query(room.uuid, **filtered_parameters)
         return query.count()
 

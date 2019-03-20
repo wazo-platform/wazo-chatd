@@ -42,12 +42,13 @@ class TestUserRoom(BaseIntegrationTest):
         message_args = {'content': 'message content'}
         message_1 = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
         message_2 = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
+        self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
 
-        messages = self.chatd.rooms.list_messages_from_user(room['uuid'], direction='asc')
+        messages = self.chatd.rooms.list_messages_from_user(room['uuid'], direction='asc', limit=2)
         assert_that(messages, has_entries(
             items=contains(has_entries(**message_1), has_entries(**message_2)),
-            total=equal_to(2),
-            filtered=equal_to(2),
+            total=equal_to(3),
+            filtered=equal_to(3),
         ))
 
     def test_list_in_unknown_room(self):
