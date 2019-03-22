@@ -19,7 +19,7 @@ from wazo_chatd_client.exceptions import ChatdError
 from wazo_chatd.database import models
 
 from .helpers import fixtures
-from .helpers.wait_strategy import NoWaitStrategy, PresenceInitOkWaitStrategy
+from .helpers.wait_strategy import PresenceInitOkWaitStrategy
 from .helpers.base import BaseIntegrationTest, CHATD_TOKEN_TENANT_UUID
 
 TENANT_UUID = str(uuid.uuid4())
@@ -31,17 +31,7 @@ ENDPOINT_NAME = 'CUSTOM/name'
 class _BaseInitializationTest(BaseIntegrationTest):
 
     asset = 'initialization'
-    wait_strategy = NoWaitStrategy()
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.fix_mock_values()
-        PresenceInitOkWaitStrategy().wait(cls)
-
-    @classmethod
-    def fix_mock_values(cls):
-        cls.amid.set_devicestatelist()
+    wait_strategy = PresenceInitOkWaitStrategy()
 
 
 class TestPresenceInitialization(_BaseInitializationTest):
@@ -241,7 +231,6 @@ class TestInitializationNotBlock(_BaseInitializationTest):
 
         self.start_service('amid')
         self.reset_clients()
-        self.fix_mock_values()
 
         PresenceInitOkWaitStrategy().wait(self)
 
@@ -273,6 +262,5 @@ class TestPresenceFail(_BaseInitializationTest):
 
         self.start_service('amid')
         self.reset_clients()
-        self.fix_mock_values()
         PresenceInitOkWaitStrategy().wait(self)
         self.chatd.user_presences.list()
