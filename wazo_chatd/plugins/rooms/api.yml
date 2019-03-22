@@ -19,7 +19,7 @@ paths:
           schema:
             $ref: '#/definitions/Room'
         '400':
-          $ref: '#/responses/APIError'
+          $ref: '#/responses/InvalidRequest'
     get:
       operationId: get_room
       summary: Get room
@@ -55,7 +55,7 @@ paths:
           schema:
             $ref: '#/definitions/Message'
         '400':
-          $ref: '#/responses/APIError'
+          $ref: '#/responses/InvalidRequest'
         '404':
           $ref: '#/responses/NotFoundError'
     get:
