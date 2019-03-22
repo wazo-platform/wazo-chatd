@@ -39,8 +39,6 @@ class ListRequestSchema(_ListSchema):
     sort_columns = ['created_at']
     searchable_columns = []
 
-    order = fields.String(validate=validate.OneOf(sort_columns), missing=default_sort_column)
-
     def on_bind_field(self, field_name, field_obj):
         super().on_bind_field(field_name, field_obj)
         # TODO add configurable missing direction to lib-python
