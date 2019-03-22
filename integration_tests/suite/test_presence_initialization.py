@@ -20,7 +20,7 @@ from wazo_chatd.database import models
 
 from .helpers import fixtures
 from .helpers.wait_strategy import NoWaitStrategy, PresenceInitOkWaitStrategy
-from .helpers.base import BaseIntegrationTest
+from .helpers.base import BaseIntegrationTest, CHATD_TOKEN_TENANT_UUID
 
 TENANT_UUID = str(uuid.uuid4())
 USER_UUID_1 = str(uuid.uuid4())
@@ -42,8 +42,6 @@ class _BaseInitializationTest(BaseIntegrationTest):
     @classmethod
     def fix_mock_values(cls):
         cls.amid.set_devicestatelist()
-        cls.auth.set_tenants({'items': {}})
-        cls.auth.set_sessions({'items': {}})
 
 
 class TestPresenceInitialization(_BaseInitializationTest):
@@ -68,12 +66,11 @@ class TestPresenceInitialization(_BaseInitializationTest):
     ):
         # setup tenants
         tenant_created_uuid = str(uuid.uuid4())
-        self.auth.set_tenants({
-            'items': [
-                {'uuid': tenant_created_uuid},
-                {'uuid': tenant_unchanged.uuid},
-            ]
-        })
+        self.auth.set_tenants(
+            {'uuid': CHATD_TOKEN_TENANT_UUID, 'parent_uuid': CHATD_TOKEN_TENANT_UUID},
+            {'uuid': tenant_created_uuid, 'parent_uuid': CHATD_TOKEN_TENANT_UUID},
+            {'uuid': tenant_unchanged.uuid, 'parent_uuid': CHATD_TOKEN_TENANT_UUID},
+        )
 
         # setup users/lines
         user_created_uuid = str(uuid.uuid4())
@@ -141,20 +138,18 @@ class TestPresenceInitialization(_BaseInitializationTest):
 
         # setup sessions
         session_created_uuid = str(uuid.uuid4())
-        self.auth.set_sessions({
-            'items': [
-                {
-                    'uuid': session_created_uuid,
-                    'user_uuid': user_created_uuid,
-                    'tenant_uuid': tenant_created_uuid,
-                },
-                {
-                    'uuid': session_unchanged.uuid,
-                    'user_uuid': session_unchanged.user_uuid,
-                    'tenant_uuid': user_unchanged.tenant_uuid,
-                },
-            ]
-        })
+        self.auth.set_sessions(
+            {
+                'uuid': session_created_uuid,
+                'user_uuid': user_created_uuid,
+                'tenant_uuid': tenant_created_uuid,
+            },
+            {
+                'uuid': session_unchanged.uuid,
+                'user_uuid': session_unchanged.user_uuid,
+                'tenant_uuid': user_unchanged.tenant_uuid,
+            },
+        )
 
         # start initialization
         self.restart_service('chatd')
@@ -166,6 +161,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
         # test tenants
         tenants = self._dao.tenant.list_()
         assert_that(tenants, contains_inanyorder(
+            has_properties(uuid=CHATD_TOKEN_TENANT_UUID),
             has_properties(uuid=tenant_unchanged.uuid),
             has_properties(uuid=tenant_created_uuid),
         ))

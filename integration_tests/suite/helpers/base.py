@@ -24,6 +24,8 @@ from .wait_strategy import EverythingOkWaitStrategy
 DB_URI = 'postgresql://wazo-chatd:Secr7t@localhost:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
+CHATD_TOKEN_TENANT_UUID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1'
+
 TOKEN_UUID = '00000000-0000-0000-0000-000000000101'
 TOKEN_TENANT_UUID = '00000000-0000-0000-0000-000000000201'
 TOKEN_SUBTENANT_UUID = '00000000-0000-0000-0000-000000000202'
@@ -64,10 +66,9 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         )
         cls.auth.set_token(token)
         cls.auth.set_tenants(
-            {'items': [
-                {'uuid': TOKEN_TENANT_UUID, 'name': 'name1', 'parent_uuid': TOKEN_TENANT_UUID},
-                {'uuid': TOKEN_SUBTENANT_UUID, 'name': 'name2', 'parent_uuid': TOKEN_TENANT_UUID}
-            ]}
+            {'uuid': CHATD_TOKEN_TENANT_UUID, 'name': 'chatd-token', 'parent_uuid': CHATD_TOKEN_TENANT_UUID},
+            {'uuid': TOKEN_TENANT_UUID, 'name': 'name1', 'parent_uuid': TOKEN_TENANT_UUID},
+            {'uuid': TOKEN_SUBTENANT_UUID, 'name': 'name2', 'parent_uuid': TOKEN_TENANT_UUID},
         )
 
     @classmethod
