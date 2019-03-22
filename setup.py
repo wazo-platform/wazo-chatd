@@ -23,8 +23,9 @@ setup(
         'wazo_chatd.plugins': [
             'api = wazo_chatd.plugins.api.plugin:Plugin',
             'config = wazo_chatd.plugins.config.plugin:Plugin',
-            'status = wazo_chatd.plugins.status.plugin:Plugin',
             'presences = wazo_chatd.plugins.presences.plugin:Plugin',
+            'rooms = wazo_chatd.plugins.rooms.plugin:Plugin',
+            'status = wazo_chatd.plugins.status.plugin:Plugin',
         ],
     },
 )

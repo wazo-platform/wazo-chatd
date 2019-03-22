@@ -20,10 +20,7 @@ from wazo_chatd.database import models
 
 from .helpers import fixtures
 from .helpers.wait_strategy import NoWaitStrategy, PresenceInitOkWaitStrategy
-from .helpers.base import (
-    BaseIntegrationTest,
-    VALID_TOKEN,
-)
+from .helpers.base import BaseIntegrationTest
 
 TENANT_UUID = str(uuid.uuid4())
 USER_UUID_1 = str(uuid.uuid4())
@@ -161,7 +158,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
 
         # start initialization
         self.restart_service('chatd')
-        self.chatd = self.make_chatd(VALID_TOKEN)
+        self.chatd = self.make_chatd()
         PresenceInitOkWaitStrategy().wait(self)
 
         self._session.expire_all()

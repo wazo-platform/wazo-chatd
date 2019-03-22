@@ -1,5 +1,13 @@
 # Changelog
 
+## 19.05
+
+* New endpoints:
+  - GET /1.0/users/me/rooms
+  - POST /1.0/users/me/rooms
+  - GET /1.0/users/me/rooms/{room_uuid}/messages
+  - POST /1.0/users/me/rooms/{room_uuid}/messages
+
 ## 19.03
 
 * New endpoints:

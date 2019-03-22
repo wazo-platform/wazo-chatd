@@ -3,6 +3,7 @@
 
 from .endpoint import EndpointDAO
 from .line import LineDAO
+from .room import RoomDAO
 from .session import SessionDAO
 from .tenant import TenantDAO
 from .user import UserDAO
@@ -13,6 +14,7 @@ class DAO:
     _daos = {
         'endpoint': EndpointDAO,
         'line': LineDAO,
+        'room': RoomDAO,
         'session': SessionDAO,
         'tenant': TenantDAO,
         'user': UserDAO,

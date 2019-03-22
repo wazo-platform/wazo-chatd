@@ -25,8 +25,8 @@ from .helpers import fixtures
 from .helpers.base import (
     BaseIntegrationTest,
     UNKNOWN_UUID,
-    MASTER_TENANT_UUID,
-    SUBTENANT_UUID,
+    TOKEN_TENANT_UUID as TENANT_1,
+    TOKEN_SUBTENANT_UUID as TENANT_2,
 )
 from .helpers.wait_strategy import NoWaitStrategy
 
@@ -43,7 +43,7 @@ class TestUser(BaseIntegrationTest):
         user_uuid = uuid.uuid4()
         user = User(
             uuid=user_uuid,
-            tenant_uuid=MASTER_TENANT_UUID,
+            tenant_uuid=TENANT_1,
             state='available',
             status='description of available state',
         )
@@ -53,36 +53,24 @@ class TestUser(BaseIntegrationTest):
         assert_that(inspect(user).persistent)
         assert_that(user, has_properties(
             uuid=str(user_uuid),
-            tenant_uuid=MASTER_TENANT_UUID,
+            tenant_uuid=TENANT_1,
         ))
 
-    @fixtures.db.user()
-    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
-    def test_get(self, user_1, _):
-        result = self._dao.user.get([MASTER_TENANT_UUID], user_1.uuid)
+    @fixtures.db.user(tenant_uuid=TENANT_1)
+    @fixtures.db.user(tenant_uuid=TENANT_2)
+    def test_get(self, user_1, user_2):
+        result = self._dao.user.get([user_1.tenant_uuid], user_1.uuid)
         assert_that(result, equal_to(user_1))
 
         assert_that(
-            calling(self._dao.user.get).with_args(
-                [SUBTENANT_UUID],
-                user_1.uuid,
-            ),
-            raises(
-                UnknownUserException,
-                has_properties(
-                    status_code=404,
-                    id_='unknown-user',
-                    resource='users',
-                    details=is_not(none()),
-                    message=is_not(none()),
-                )
-            )
+            calling(self._dao.user.get).with_args([user_2.tenant_uuid], user_1.uuid),
+            raises(UnknownUserException, has_properties(status_code=404))
         )
 
     def test_get_doesnt_exist(self):
         assert_that(
             calling(self._dao.user.get).with_args(
-                [MASTER_TENANT_UUID],
+                [TENANT_1],
                 UNKNOWN_UUID,
             ),
             raises(
@@ -97,20 +85,17 @@ class TestUser(BaseIntegrationTest):
             )
         )
 
-    @fixtures.db.user()
-    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    @fixtures.db.user(tenant_uuid=TENANT_1)
+    @fixtures.db.user(tenant_uuid=TENANT_2)
     def test_list(self, user_1, user_2):
-        result = self._dao.user.list_([MASTER_TENANT_UUID])
+        result = self._dao.user.list_([user_1.tenant_uuid])
         assert_that(result, has_items(user_1))
 
-        result = self._dao.user.list_([MASTER_TENANT_UUID, SUBTENANT_UUID])
+        result = self._dao.user.list_([user_1.tenant_uuid, user_2.tenant_uuid])
         assert_that(result, has_items(user_1, user_2))
 
-        result = self._dao.user.list_([SUBTENANT_UUID])
-        assert_that(result, has_items(user_2))
-
-    @fixtures.db.user()
-    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    @fixtures.db.user(tenant_uuid=TENANT_1)
+    @fixtures.db.user(tenant_uuid=TENANT_2)
     def test_list_bypass_tenant(self, user_1, user_2):
         result = self._dao.user.list_(tenant_uuids=None)
         assert_that(result, has_items(user_1, user_2))
@@ -142,17 +127,14 @@ class TestUser(BaseIntegrationTest):
             )
         )
 
-    @fixtures.db.user()
-    @fixtures.db.user(tenant_uuid=SUBTENANT_UUID)
+    @fixtures.db.user(tenant_uuid=TENANT_1)
+    @fixtures.db.user(tenant_uuid=TENANT_2)
     def test_count(self, user_1, user_2):
-        result = self._dao.user.count([MASTER_TENANT_UUID])
+        result = self._dao.user.count([user_1.tenant_uuid])
         assert_that(result, equal_to(1))
 
-        result = self._dao.user.count([MASTER_TENANT_UUID, SUBTENANT_UUID])
+        result = self._dao.user.count([user_1.tenant_uuid, user_2.tenant_uuid])
         assert_that(result, equal_to(2))
-
-        result = self._dao.user.count([SUBTENANT_UUID])
-        assert_that(result, equal_to(1))
 
     @fixtures.db.user()
     def test_update(self, user):

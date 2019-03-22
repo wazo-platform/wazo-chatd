@@ -1,0 +1,184 @@
+paths:
+  /users/me/rooms:
+    post:
+      operationId: create_room
+      summary: Create room
+      description: '**Required ACL:** `chatd.users.me.rooms.create`'
+      tags:
+      - rooms
+      parameters:
+      - name: body
+        in: body
+        description: room to create
+        required: true
+        schema:
+          $ref: '#/definitions/Room'
+      responses:
+        '201':
+          description: Room created
+          schema:
+            $ref: '#/definitions/Room'
+        '400':
+          $ref: '#/responses/APIError'
+    get:
+      operationId: get_room
+      summary: Get room
+      description: '**Required ACL:** `chatd.users.me.rooms.read`'
+      tags:
+      - rooms
+      responses:
+        '200':
+          description: Room
+          schema:
+            $ref: '#/definitions/Rooms'
+        '404':
+          $ref: '#/responses/NotFoundError'
+  /users/me/rooms/{room_uuid}/messages:
+    post:
+      operationId: create_room_message
+      summary: Create room messages
+      description: '**Required ACL:** `chatd.users.me.rooms.{room_uuid}.messages.create`'
+      tags:
+      - rooms
+      - messages
+      parameters:
+      - $ref: '#/parameters/room_uuid'
+      - name: body
+        in: body
+        description: message to create
+        required: true
+        schema:
+          $ref: '#/definitions/UserMessagePOST'
+      responses:
+        '201':
+          description: Message created
+          schema:
+            $ref: '#/definitions/Message'
+        '400':
+          $ref: '#/responses/APIError'
+        '404':
+          $ref: '#/responses/NotFoundError'
+    get:
+      operationId: list_room_message
+      summary: List room messages
+      description: '**Required ACL:** `chatd.users.me.rooms.{room_uuid}.messages.read`'
+      tags:
+      - rooms
+      - messages
+      parameters:
+      - $ref: '#/parameters/room_uuid'
+      - $ref: '#/parameters/direction'
+      - $ref: '#/parameters/limit'
+      - $ref: '#/parameters/order'
+      responses:
+        '200':
+          description: Messages
+          schema:
+            $ref: '#/definitions/Messages'
+        '404':
+          $ref: '#/responses/NotFoundError'
+
+parameters:
+  room_uuid:
+    name: room_uuid
+    in: path
+    type: string
+    description: The UUID of the room
+    required: true
+
+definitions:
+
+  Room:
+    title: Room
+    properties:
+      uuid:
+        type: string
+        description: The UUID of the room
+        readOnly: true
+      name:
+        type: string
+        description: The name of the room
+      users:
+        type: array
+        description: Only one user can be added for now
+        items:
+          $ref: '#/definitions/RoomUser'
+    required:
+      - users
+
+  RoomUser:
+    properties:
+      uuid:
+        type: string
+      tenant_uuid:
+        type: string
+        description: The tenant of the user_uuid. Default to the same tenant as the token owner
+      wazo_uuid:
+        type: string
+        description: The wazo of the tenant_uuid. Default to the same wazo as the token owner
+    required:
+      - uuid
+
+  Rooms:
+    title: Rooms
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Room'
+      filtered:
+        type: integer
+      total:
+        type: integer
+
+  UserMessagePOST:
+    properties:
+      content:
+        type: string
+        description: The content of the message
+      alias:
+        type: string
+        description: Alias/nickname of the sender
+    required:
+      - message
+      - alias
+
+  Message:
+    properties:
+      uuid:
+        type: string
+        description: The UUID of the message
+        readOnly: true
+      content:
+        type: string
+        description: The content of the message
+      alias:
+        type: string
+        description: Alias/nickname of the sender
+      user_uuid:
+        type: string
+        description: user uuid of the sender
+      tenant_uuid:
+        type: string
+        description: tenant uuid of the sender
+      wazo_uuid:
+        type: string
+        description: wazo uuid of the sender
+      created_at:
+        type: string
+        description: The date of the message's creation
+        readOnly: true
+    required:
+      - message
+
+  Messages:
+    title: UserItems
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Message'
+      filtered:
+        type: integer
+      total:
+        type: integer
