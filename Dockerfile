@@ -1,4 +1,4 @@
-FROM python:3.5.3
+FROM python:3.5-stretch
 
 COPY ./contribs/docker/certs /usr/share/xivo-certs
 RUN true \
@@ -7,7 +7,8 @@ RUN true \
     && install -d -o wazo-chatd -g wazo-chatd /var/run/wazo-chatd/ \
     && install -o wazo-chatd -g wazo-chatd /dev/null /var/log/wazo-chatd.log \
     && apt-get -yqq autoremove \
-    && openssl req -x509 -newkey rsa:4096 -keyout /usr/share/xivo-certs/server.key -out /usr/share/xivo-certs/server.crt -nodes -config /usr/share/xivo-certs/openssl.cfg -days 3650
+    && openssl req -x509 -newkey rsa:4096 -keyout /usr/share/xivo-certs/server.key -out /usr/share/xivo-certs/server.crt -nodes -config /usr/share/xivo-certs/openssl.cfg -days 3650 \
+    && chown wazo-chatd:wazo-chatd /usr/share/xivo-certs/*
 
 COPY . /usr/src/wazo-chatd
 WORKDIR /usr/src/wazo-chatd
