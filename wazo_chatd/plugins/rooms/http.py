@@ -5,12 +5,12 @@ from marshmallow import ValidationError
 from flask import request
 
 from xivo.auth_verifier import required_acl
+from xivo.mallow.validate import Length
 from xivo.tenant_flask_helpers import token
 
 from wazo_chatd.http import AuthResource
 from wazo_chatd.database.models import Room, RoomUser, RoomMessage
 
-from xivo.mallow.validate import Length
 from .exceptions import DuplicateUserException
 from .schemas import RoomSchema, MessageSchema, ListRequestSchema
 

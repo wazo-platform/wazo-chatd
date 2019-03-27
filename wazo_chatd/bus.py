@@ -1,17 +1,13 @@
 # Copyright 2015-2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0+
 
-import kombu
 import logging
 
 from contextlib import contextmanager
 from threading import Thread
-from kombu import (
-    Connection,
-    Exchange,
-    Producer,
-    binding,
-)
+
+import kombu
+
 from kombu.mixins import ConsumerMixin
 
 from xivo.status import Status
@@ -59,7 +55,7 @@ class Consumer(ConsumerMixin):
         self._events_pubsub = Pubsub()
 
         self._bus_url = 'amqp://{username}:{password}@{host}:{port}//'.format(**global_config['bus'])
-        self._exchange = Exchange(
+        self._exchange = kombu.Exchange(
             global_config['bus']['exchange_name'],
             type=global_config['bus']['exchange_type'],
         )
@@ -68,12 +64,12 @@ class Consumer(ConsumerMixin):
 
     def run(self):
         logger.info("Running AMQP consumer")
-        with Connection(self._bus_url) as connection:
+        with kombu.Connection(self._bus_url) as connection:
             self.connection = connection
             super().run()
 
-    def get_consumers(self, Consumer, channel):
-        return [Consumer(self._queue, callbacks=[self._on_bus_message])]
+    def get_consumers(self, consumer_class, channel):
+        return [consumer_class(self._queue, callbacks=[self._on_bus_message])]
 
     def on_connection_error(self, exc, interval):
         super().on_connection_error(exc, interval)
@@ -92,7 +88,7 @@ class Consumer(ConsumerMixin):
     def on_event(self, event_name, callback):
         logger.debug('Added callback on event "%s"', event_name)
         self._queue.bindings.add(
-            binding(self._exchange, routing_key=ROUTING_KEY_MAPPING[event_name])
+            kombu.binding(self._exchange, routing_key=ROUTING_KEY_MAPPING[event_name])
         )
         self._events_pubsub.subscribe(event_name, callback)
 
@@ -122,11 +118,11 @@ class Publisher:
         self._url = 'amqp://{username}:{password}@{host}:{port}//'.format(**self._config)
 
     def publish(self, event):
-        bus_connection = Connection(self._url)
+        bus_connection = kombu.Connection(self._url)
         bus_exchange = kombu.Exchange(
             self._config['exchange_name'],
             type=self._config['exchange_type'],
         )
-        bus_producer = Producer(bus_connection, exchange=bus_exchange, auto_declare=True)
+        bus_producer = kombu.Producer(bus_connection, exchange=bus_exchange, auto_declare=True)
         bus_marshaler = Marshaler(self._uuid)
         _Publisher(bus_producer, bus_marshaler).publish(event)
