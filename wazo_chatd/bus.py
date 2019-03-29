@@ -117,7 +117,7 @@ class Publisher:
         self._uuid = config['uuid']
         self._url = 'amqp://{username}:{password}@{host}:{port}//'.format(**self._config)
 
-    def publish(self, event):
+    def publish(self, event, headers=None):
         bus_connection = kombu.Connection(self._url)
         bus_exchange = kombu.Exchange(
             self._config['exchange_name'],
@@ -125,4 +125,4 @@ class Publisher:
         )
         bus_producer = kombu.Producer(bus_connection, exchange=bus_exchange, auto_declare=True)
         bus_marshaler = Marshaler(self._uuid)
-        _Publisher(bus_producer, bus_marshaler).publish(event)
+        _Publisher(bus_producer, bus_marshaler).publish(event, headers=headers)
