@@ -246,3 +246,17 @@ class TestRoomRelationships(BaseIntegrationTest):
         self._session.add(message)
         self._session.flush()
         return message
+
+
+class TestRoomMessageRelationships(BaseIntegrationTest):
+
+    asset = 'database'
+    service = 'postgresql'
+    wait_strategy = NoWaitStrategy()
+
+    @fixtures.db.room(messages=[{'content': 'msg1'}])
+    def test_room_get(self, room):
+        message = room.messages[0]
+
+        self._session.expire_all()
+        assert_that(message.room, equal_to(room))
