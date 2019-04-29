@@ -70,7 +70,9 @@ class TestUserRoom(BaseIntegrationTest):
             user_uuid=TOKEN_USER_UUID,
             tenant_uuid=TOKEN_TENANT_UUID,
             wazo_uuid=WAZO_UUID,
-            created_at=is_not(none())
+            created_at=is_not(none()),
+
+            room=has_entries(uuid=room['uuid']),
         ))
 
     @fixtures.http.room()
@@ -86,7 +88,9 @@ class TestUserRoom(BaseIntegrationTest):
             user_uuid=TOKEN_USER_UUID,
             tenant_uuid=TOKEN_TENANT_UUID,
             wazo_uuid=WAZO_UUID,
-            created_at=is_not(none())
+            created_at=is_not(none()),
+
+            room=has_entries(uuid=room['uuid']),
         ))
 
     @fixtures.http.room()
@@ -106,11 +110,11 @@ class TestUserRoom(BaseIntegrationTest):
         user_uuid_2 = room['users'][1]['uuid']
         assert_that(event, contains_inanyorder(
             has_entries(
-                data=has_entries(room={'uuid': room['uuid']}, **message),
+                data=has_entries(**message),
                 required_acl=required_acl_fmt.format(user_uuid=user_uuid_1, room_uuid=room['uuid']),
             ),
             has_entries(
-                data=has_entries(room={'uuid': room['uuid']}, **message),
+                data=has_entries(**message),
                 required_acl=required_acl_fmt.format(user_uuid=user_uuid_2, room_uuid=room['uuid']),
             ),
         ))

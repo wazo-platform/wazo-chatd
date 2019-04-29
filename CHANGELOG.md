@@ -1,5 +1,11 @@
 # Changelog
 
+## 19.07
+
+* New readonly parameters have been added to the message resource:
+
+  * `room_uuid`
+
 ## 19.05
 
 * New endpoints:
