@@ -67,6 +67,38 @@ class UserRoomListResource(AuthResource):
         }
 
 
+class UserMessageListResource(AuthResource):
+
+    def __init__(self, service):
+        self._service = service
+
+    @required_acl('chatd.users.me.rooms.messages.read')
+    def get(self):
+        filter_parameters = ListRequestSchema().load(request.args).data
+        messages = self._service.list_user_messages(
+            token.tenant_uuid,
+            token.user_uuid,
+            **filter_parameters,
+        )
+        total = self._service.count_user_messages(
+            token.tenant_uuid,
+            token.user_uuid,
+            filtered=False,
+            **filter_parameters,
+        )
+        filtered = self._service.count_user_messages(
+            token.tenant_uuid,
+            token.user_uuid,
+            filtered=True,
+            **filter_parameters,
+        )
+        return {
+            'items': MessageSchema().dump(messages, many=True).data,
+            'filtered': filtered,
+            'total': total,
+        }
+
+
 class UserRoomMessageListResource(AuthResource):
 
     def __init__(self, service):

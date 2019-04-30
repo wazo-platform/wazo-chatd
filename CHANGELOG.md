@@ -2,6 +2,9 @@
 
 ## 19.07
 
+* New endpoints:
+  - GET /1.0/users/me/rooms/messages
+
 * New readonly parameters have been added to the message resource:
 
   * `room_uuid`

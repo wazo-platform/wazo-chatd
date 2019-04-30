@@ -45,3 +45,9 @@ class RoomService:
 
     def count_messages(self, room, **filter_parameters):
         return self._dao.room.count_messages(room, **filter_parameters)
+
+    def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        return self._dao.room.list_user_messages(tenant_uuid, user_uuid, **filter_parameters)
+
+    def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        return self._dao.room.count_user_messages(tenant_uuid, user_uuid, **filter_parameters)

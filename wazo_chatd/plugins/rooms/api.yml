@@ -33,6 +33,19 @@ paths:
             $ref: '#/definitions/Rooms'
         '404':
           $ref: '#/responses/NotFoundError'
+  /users/me/rooms/messages:
+    get:
+      operationId: list_rooms_messages
+      summary: List rooms messages
+      description: '**Required ACL:** `chatd.users.me.rooms.messages.read`'
+      tags:
+      - rooms
+      - messages
+      responses:
+        '200':
+          description: Messages
+          schema:
+            $ref: '#/definitions/Messages'
   /users/me/rooms/{room_uuid}/messages:
     post:
       operationId: create_room_message
