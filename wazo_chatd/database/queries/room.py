@@ -78,3 +78,36 @@ class RoomDAO:
         query = query.order_by(order_column)
 
         return query
+
+    def list_user_messages(self, tenant_uuid, user_uuid, limit=None, **filtered_parameters):
+        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filtered_parameters)
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+
+    def count_user_messages(self, tenant_uuid, user_uuid, filtered=False, **filtered_parameters):
+        filtered_parameters.pop('limit', None)
+        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filtered_parameters)
+        return query.count()
+
+    def _list_user_messages_query(self, tenant_uuid, user_uuid, filtered=None,
+                                  order='created_at', direction='desc'):
+        query = (
+            self.session.query(RoomMessage)
+            .join(Room)
+            .join(RoomUser)
+            .filter(RoomUser.tenant_uuid == tenant_uuid)
+            .filter(RoomUser.uuid == user_uuid)
+        )
+        if not filtered:
+            pass
+
+        order_column = getattr(RoomMessage, order)
+        if direction == 'desc':
+            order_column = order_column.desc()
+        else:
+            order_column = order_column.asc()
+
+        query = query.order_by(order_column)
+
+        return query
