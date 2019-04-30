@@ -42,13 +42,46 @@ class TestUserRoom(BaseIntegrationTest):
         message_args = {'content': 'message content'}
         message_1 = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
         message_2 = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
+
+        messages = self.chatd.rooms.list_messages_from_user(room['uuid'])
+        assert_that(messages, has_entries(
+            items=contains(has_entries(**message_2), has_entries(**message_1)),
+            total=equal_to(2),
+            filtered=equal_to(2),
+        ))
+
+    @fixtures.http.room()
+    def test_list_paginate(self, room):
+        message_args = {'content': 'message content'}
+        self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
+        message_2 = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
         self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
 
-        messages = self.chatd.rooms.list_messages_from_user(room['uuid'], direction='asc', limit=2)
+        messages = self.chatd.rooms.list_messages_from_user(
+            room['uuid'],
+            direction='asc',
+            offset=1,
+            limit=1,
+        )
         assert_that(messages, has_entries(
-            items=contains(has_entries(**message_1), has_entries(**message_2)),
+            items=contains(has_entries(**message_2)),
             total=equal_to(3),
             filtered=equal_to(3),
+        ))
+
+    @fixtures.http.room()
+    def test_list_search(self, room):
+        message_1_args = message_2_args = {'content': 'found'}
+        message_3_args = {'content': 'hidden'}
+        message_1 = self.chatd.rooms.create_message_from_user(room['uuid'], message_1_args)
+        message_2 = self.chatd.rooms.create_message_from_user(room['uuid'], message_2_args)
+        self.chatd.rooms.create_message_from_user(room['uuid'], message_3_args)
+
+        messages = self.chatd.rooms.list_messages_from_user(room['uuid'], search='found')
+        assert_that(messages, has_entries(
+            items=contains(has_entries(**message_2), has_entries(**message_1)),
+            total=equal_to(3),
+            filtered=equal_to(2),
         ))
 
     def test_list_in_unknown_room(self):

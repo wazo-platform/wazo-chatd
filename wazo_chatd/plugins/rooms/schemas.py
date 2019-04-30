@@ -46,10 +46,6 @@ class ListRequestSchema(_ListSchema):
     searchable_columns = []
     default_direction = 'desc'
 
-    class Meta:
-        exclude = ('offset', 'search')
-        strict = True
-
 
 class MessageListRequestSchema(_ListSchema):
     default_sort_column = 'created_at'

@@ -2,6 +2,11 @@
 
 ## 19.07
 
+* New query parameters have been added to the GET /1.0./users/me/rooms/{room_uuid}/messages endpoint:
+
+  - `offset`
+  - `search`
+
 * New endpoints:
   - GET /1.0/users/me/rooms/messages
 
