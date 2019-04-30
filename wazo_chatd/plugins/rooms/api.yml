@@ -41,6 +41,10 @@ paths:
       tags:
       - rooms
       - messages
+      parameters:
+      - $ref: '#/parameters/direction'
+      - $ref: '#/parameters/limit'
+      - $ref: '#/parameters/order'
       responses:
         '200':
           description: Messages
