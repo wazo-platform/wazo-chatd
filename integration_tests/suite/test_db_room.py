@@ -218,6 +218,28 @@ class TestRoom(BaseIntegrationTest):
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'hidden'}, {'content': 'found'}],
+    )
+    def test_list_user_messages_search(self, room):
+        message_found, _ = room.messages
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, search='found')
+
+        assert_that(messages, contains(message_found))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'hidden'}, {'content': 'found with space'}],
+    )
+    def test_list_user_messages_search_with_space(self, room):
+        message_found, _ = room.messages
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, search='found space')
+
+        assert_that(messages, contains(message_found))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
         messages=[{'content': 'older'}],
     )
     @fixtures.db.room(
@@ -228,6 +250,15 @@ class TestRoom(BaseIntegrationTest):
         count = self._dao.room.count_user_messages(UUID, USER_UUID_1)
 
         assert_that(count, equal_to(2))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'hidden'}, {'content': 'found'}],
+    )
+    def test_count_user_messages_with_filtered(self, *_):
+        count = self._dao.room.count_user_messages(UUID, USER_UUID_1, filtered=True, search='found')
+
+        assert_that(count, equal_to(1))
 
 
 class TestRoomRelationships(BaseIntegrationTest):
