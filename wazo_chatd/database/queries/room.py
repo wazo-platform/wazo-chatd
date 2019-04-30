@@ -1,11 +1,16 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from sqlalchemy.sql.functions import ReturnTypeFromArgs
 from sqlalchemy import text
 
 from ...exceptions import UnknownRoomException
 from ..helpers import get_dao_session
 from ..models import Room, RoomUser, RoomMessage
+
+
+class unaccent(ReturnTypeFromArgs):
+    pass
 
 
 class RoomDAO:
@@ -104,6 +109,6 @@ class RoomDAO:
         if search is not None:
             words = [word for word in search.split(' ') if word]
             pattern = '%{}%'.format('%'.join(words))
-            query = query.filter(RoomMessage.content.ilike(pattern))
+            query = query.filter(unaccent(RoomMessage.content).ilike(pattern))
 
         return query

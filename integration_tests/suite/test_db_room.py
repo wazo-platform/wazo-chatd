@@ -263,6 +263,17 @@ class TestRoom(BaseIntegrationTest):
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'hidden'}, {'content': 'fòund with accent'}],
+    )
+    def test_list_user_messages_search_with_accent(self, room):
+        message_found, _ = room.messages
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, search='found')
+
+        assert_that(messages, contains(message_found))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
         messages=[{'content': 'older'}],
     )
     @fixtures.db.room(
