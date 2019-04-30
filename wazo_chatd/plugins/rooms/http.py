@@ -12,7 +12,12 @@ from wazo_chatd.http import AuthResource
 from wazo_chatd.database.models import Room, RoomUser, RoomMessage
 
 from .exceptions import DuplicateUserException
-from .schemas import RoomSchema, MessageSchema, ListRequestSchema
+from .schemas import (
+    ListRequestSchema,
+    MessageListRequestSchema,
+    MessageSchema,
+    RoomSchema,
+)
 
 
 class UserRoomListResource(AuthResource):
@@ -74,7 +79,7 @@ class UserMessageListResource(AuthResource):
 
     @required_acl('chatd.users.me.rooms.messages.read')
     def get(self):
-        filter_parameters = ListRequestSchema().load(request.args).data
+        filter_parameters = MessageListRequestSchema().load(request.args).data
         messages = self._service.list_user_messages(
             token.tenant_uuid,
             token.user_uuid,

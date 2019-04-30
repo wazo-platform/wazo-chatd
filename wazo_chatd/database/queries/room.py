@@ -110,7 +110,7 @@ class RoomDAO:
         if filtered is False:
             return query
 
-        if search:
+        if search is not None:
             words = [word for word in search.split(' ') if word]
             pattern = '%{}%'.format('%'.join(words))
             query = query.filter(RoomMessage.content.ilike(pattern))

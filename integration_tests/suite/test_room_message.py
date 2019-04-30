@@ -144,3 +144,19 @@ class TestUserMessage(BaseIntegrationTest):
             total=equal_to(3),
             filtered=equal_to(3),
         ))
+
+    @fixtures.http.room()
+    @fixtures.http.room()
+    def test_list_with_search(self, room_1, room_2):
+        message_1_args = message_2_args = {'content': 'found'}
+        message_3_args = {'content': 'hidden'}
+        message_1 = self.chatd.rooms.create_message_from_user(room_1['uuid'], message_1_args)
+        message_2 = self.chatd.rooms.create_message_from_user(room_2['uuid'], message_2_args)
+        self.chatd.rooms.create_message_from_user(room_1['uuid'], message_3_args)
+
+        messages = self.chatd.rooms.search_messages_from_user(search='found')
+        assert_that(messages, has_entries(
+            items=contains(has_entries(**message_2), has_entries(**message_1)),
+            total=equal_to(3),
+            filtered=equal_to(2),
+        ))
