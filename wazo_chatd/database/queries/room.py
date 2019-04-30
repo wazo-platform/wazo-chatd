@@ -53,15 +53,15 @@ class RoomDAO:
         room.messages.append(message)
         self.session.flush()
 
-    def list_messages(self, room, limit=None, **filtered_parameters):
-        query = self._list_messages_query(room.uuid, **filtered_parameters)
+    def list_messages(self, room, limit=None, **filter_parameters):
+        query = self._list_messages_query(room.uuid, **filter_parameters)
         if limit:
             query = query.limit(limit)
         return query.all()
 
-    def count_messages(self, room, **filtered_parameters):
-        filtered_parameters.pop('limit', None)
-        query = self._list_messages_query(room.uuid, **filtered_parameters)
+    def count_messages(self, room, **filter_parameters):
+        filter_parameters.pop('limit', None)
+        query = self._list_messages_query(room.uuid, **filter_parameters)
         return query.count()
 
     def _list_messages_query(self, room_uuid, order='created_at', direction='desc'):
@@ -77,18 +77,18 @@ class RoomDAO:
 
         return query
 
-    def list_user_messages(self, tenant_uuid, user_uuid, limit=None, offset=None, **filtered_parameters):
-        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filtered_parameters)
+    def list_user_messages(self, tenant_uuid, user_uuid, limit=None, offset=None, **filter_parameters):
+        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filter_parameters)
         if limit:
             query = query.limit(limit)
         if offset:
             query = query.offset(offset)
         return query.all()
 
-    def count_user_messages(self, tenant_uuid, user_uuid, **filtered_parameters):
-        filtered_parameters.pop('limit', None)
-        filtered_parameters.pop('offset', None)
-        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filtered_parameters)
+    def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        filter_parameters.pop('limit', None)
+        filter_parameters.pop('offset', None)
+        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filter_parameters)
         return query.count()
 
     def _list_user_messages_query(self, tenant_uuid, user_uuid,
