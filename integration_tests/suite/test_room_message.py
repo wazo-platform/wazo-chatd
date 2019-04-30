@@ -163,7 +163,7 @@ class TestUserMessage(BaseIntegrationTest):
 
     asset = 'base'
 
-    def test_list_without_search(self):
+    def test_list(self):
         assert_that(
             calling(self.chatd.rooms.search_messages_from_user),
             raises(ChatdError, has_properties(error_id='invalid-data', status_code=400))
@@ -171,7 +171,28 @@ class TestUserMessage(BaseIntegrationTest):
 
     @fixtures.http.room()
     @fixtures.http.room()
-    def test_list_with_search(self, room_1, room_2):
+    def test_list_paginate(self, room_1, room_2):
+        message_args = {'content': 'search required'}
+        self.chatd.rooms.create_message_from_user(room_1['uuid'], message_args)
+        message_2 = self.chatd.rooms.create_message_from_user(room_1['uuid'], message_args)
+        message_3 = self.chatd.rooms.create_message_from_user(room_2['uuid'], message_args)
+        self.chatd.rooms.create_message_from_user(room_2['uuid'], message_args)
+
+        messages = self.chatd.rooms.search_messages_from_user(
+            search='required',
+            direction='asc',
+            offset=1,
+            limit=2,
+        )
+        assert_that(messages, has_entries(
+            items=contains(has_entries(**message_2), has_entries(**message_3)),
+            total=equal_to(4),
+            filtered=equal_to(4),
+        ))
+
+    @fixtures.http.room()
+    @fixtures.http.room()
+    def test_list_search(self, room_1, room_2):
         message_1_args = message_2_args = {'content': 'found'}
         message_3_args = {'content': 'hidden'}
         message_1 = self.chatd.rooms.create_message_from_user(room_1['uuid'], message_1_args)
@@ -181,21 +202,6 @@ class TestUserMessage(BaseIntegrationTest):
         messages = self.chatd.rooms.search_messages_from_user(search='found')
         assert_that(messages, has_entries(
             items=contains(has_entries(**message_2), has_entries(**message_1)),
-            total=equal_to(3),
-            filtered=equal_to(2),
-        ))
-
-    @fixtures.http.room()
-    def test_list_with_offset(self, room):
-        message_1_args = message_2_args = {'content': 'found'}
-        message_3_args = {'content': 'hidden'}
-        message_1 = self.chatd.rooms.create_message_from_user(room['uuid'], message_1_args)
-        self.chatd.rooms.create_message_from_user(room['uuid'], message_2_args)
-        self.chatd.rooms.create_message_from_user(room['uuid'], message_3_args)
-
-        messages = self.chatd.rooms.search_messages_from_user(search='found', offset=1)
-        assert_that(messages, has_entries(
-            items=contains(has_entries(**message_1)),
             total=equal_to(3),
             filtered=equal_to(2),
         ))
