@@ -48,6 +48,7 @@ class ListRequestSchema(_ListSchema):
 
     class Meta:
         exclude = ('offset', 'search')
+        strict = True
 
 
 class MessageListRequestSchema(_ListSchema):
