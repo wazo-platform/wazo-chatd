@@ -57,6 +57,8 @@ class MessageListRequestSchema(_ListSchema):
     searchable_columns = []
     default_direction = 'desc'
 
+    search = fields.String(required=True)
+
     class Meta:
         exclude = ('offset',)
         strict = True

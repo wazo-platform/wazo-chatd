@@ -51,6 +51,8 @@ paths:
           description: Messages
           schema:
             $ref: '#/definitions/Messages'
+        '400':
+          $ref: '#/responses/InvalidRequest'
   /users/me/rooms/{room_uuid}/messages:
     post:
       operationId: create_room_message

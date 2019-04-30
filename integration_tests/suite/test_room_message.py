@@ -130,20 +130,11 @@ class TestUserMessage(BaseIntegrationTest):
 
     asset = 'base'
 
-    @fixtures.http.room()
-    @fixtures.http.room()
-    def test_list(self, room_1, room_2):
-        message_args = {'content': 'message content'}
-        message_1 = self.chatd.rooms.create_message_from_user(room_1['uuid'], message_args)
-        message_2 = self.chatd.rooms.create_message_from_user(room_2['uuid'], message_args)
-        self.chatd.rooms.create_message_from_user(room_1['uuid'], message_args)
-
-        messages = self.chatd.rooms.search_messages_from_user(direction='asc', limit=2)
-        assert_that(messages, has_entries(
-            items=contains(has_entries(**message_1), has_entries(**message_2)),
-            total=equal_to(3),
-            filtered=equal_to(3),
-        ))
+    def test_list_without_search(self):
+        assert_that(
+            calling(self.chatd.rooms.search_messages_from_user),
+            raises(ChatdError, has_properties(error_id='invalid-data', status_code=400))
+        )
 
     @fixtures.http.room()
     @fixtures.http.room()
