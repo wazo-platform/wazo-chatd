@@ -45,6 +45,7 @@ paths:
       - $ref: '#/parameters/direction'
       - $ref: '#/parameters/limit'
       - $ref: '#/parameters/order'
+      - $ref: '#/parameters/offset'
       - $ref: '#/parameters/search_required'
       responses:
         '200':

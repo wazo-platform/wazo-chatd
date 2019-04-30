@@ -112,3 +112,9 @@ parameters:
     in: query
     type: integer
     description: Search term for filtering a list of items. Only items with a field containing the search term will be returned.
+  offset:
+    required: false
+    name: offset
+    in: query
+    type: integer
+    description: Number of items to skip over in the list. Useful for pagination.

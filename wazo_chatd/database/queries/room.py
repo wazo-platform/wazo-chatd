@@ -79,14 +79,17 @@ class RoomDAO:
 
         return query
 
-    def list_user_messages(self, tenant_uuid, user_uuid, limit=None, **filtered_parameters):
+    def list_user_messages(self, tenant_uuid, user_uuid, limit=None, offset=None, **filtered_parameters):
         query = self._list_user_messages_query(tenant_uuid, user_uuid, **filtered_parameters)
         if limit:
             query = query.limit(limit)
+        if offset:
+            query = query.offset(offset)
         return query.all()
 
     def count_user_messages(self, tenant_uuid, user_uuid, filtered=False, **filtered_parameters):
         filtered_parameters.pop('limit', None)
+        filtered_parameters.pop('offset', None)
         query = self._list_user_messages_query(tenant_uuid, user_uuid, filtered, **filtered_parameters)
         return query.count()
 
