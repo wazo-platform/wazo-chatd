@@ -59,15 +59,13 @@ class RoomDAO:
             query = query.limit(limit)
         return query.all()
 
-    def count_messages(self, room, filtered=False, **filtered_parameters):
+    def count_messages(self, room, **filtered_parameters):
         filtered_parameters.pop('limit', None)
         query = self._list_messages_query(room.uuid, **filtered_parameters)
         return query.count()
 
-    def _list_messages_query(self, room_uuid, filtered=None, order='created_at', direction='desc'):
+    def _list_messages_query(self, room_uuid, order='created_at', direction='desc'):
         query = self.session.query(RoomMessage).filter(RoomMessage.room_uuid == room_uuid)
-        if not filtered:
-            pass
 
         order_column = getattr(RoomMessage, order)
         if direction == 'desc':
@@ -87,13 +85,13 @@ class RoomDAO:
             query = query.offset(offset)
         return query.all()
 
-    def count_user_messages(self, tenant_uuid, user_uuid, filtered=False, **filtered_parameters):
+    def count_user_messages(self, tenant_uuid, user_uuid, **filtered_parameters):
         filtered_parameters.pop('limit', None)
         filtered_parameters.pop('offset', None)
-        query = self._list_user_messages_query(tenant_uuid, user_uuid, filtered, **filtered_parameters)
+        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filtered_parameters)
         return query.count()
 
-    def _list_user_messages_query(self, tenant_uuid, user_uuid, filtered=None,
+    def _list_user_messages_query(self, tenant_uuid, user_uuid,
                                   search=None, order='created_at', direction='desc'):
         query = (
             self.session.query(RoomMessage)
@@ -109,9 +107,6 @@ class RoomDAO:
         else:
             order_column = order_column.asc()
         query = query.order_by(order_column)
-
-        if filtered is False:
-            return query
 
         if search is not None:
             words = [word for word in search.split(' ') if word]

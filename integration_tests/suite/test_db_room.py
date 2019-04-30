@@ -255,8 +255,8 @@ class TestRoom(BaseIntegrationTest):
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
         messages=[{'content': 'hidden'}, {'content': 'found'}],
     )
-    def test_count_user_messages_with_filtered(self, *_):
-        count = self._dao.room.count_user_messages(UUID, USER_UUID_1, filtered=True, search='found')
+    def test_count_user_messages_with_search(self, *_):
+        count = self._dao.room.count_user_messages(UUID, USER_UUID_1, search='found')
 
         assert_that(count, equal_to(1))
 
