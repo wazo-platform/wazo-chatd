@@ -1,7 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from sqlalchemy import text
+from sqlalchemy import text, and_
 
 from ...exceptions import UnknownRoomException
 from ..helpers import get_dao_session
@@ -77,23 +77,20 @@ class RoomDAO:
 
         return query
 
-    def list_user_messages(self, tenant_uuid, user_uuid, limit=None, offset=None, **filter_parameters):
-        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filter_parameters)
-        if limit:
-            query = query.limit(limit)
-        if offset:
-            query = query.offset(offset)
+    def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        filter_ = self._list_filter(**filter_parameters)
+        query = self._build_user_messages_query(tenant_uuid, user_uuid).filter(filter_)
+        query = self._paginate(query, **filter_parameters)
         return query.all()
 
     def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
-        filter_parameters.pop('limit', None)
-        filter_parameters.pop('offset', None)
-        query = self._list_user_messages_query(tenant_uuid, user_uuid, **filter_parameters)
+        filter_ = self._list_filter(**filter_parameters)
+        query = self._build_user_messages_query(tenant_uuid, user_uuid).filter(filter_)
+        query = self._paginate(query, **filter_parameters)
         return query.count()
 
-    def _list_user_messages_query(self, tenant_uuid, user_uuid,
-                                  search=None, order='created_at', direction='desc'):
-        query = (
+    def _build_user_messages_query(self, tenant_uuid, user_uuid, *filters):
+        return (
             self.session.query(RoomMessage)
             .join(Room)
             .join(RoomUser)
@@ -101,16 +98,24 @@ class RoomDAO:
             .filter(RoomUser.uuid == user_uuid)
         )
 
+    def _paginate(self, query, limit=None, offset=None,
+                  order='created_at', direction='desc', **ignored):
         order_column = getattr(RoomMessage, order)
-        if direction == 'desc':
-            order_column = order_column.desc()
-        else:
-            order_column = order_column.asc()
+        order_column = order_column.asc() if direction == 'asc' else order_column.desc()
         query = query.order_by(order_column)
 
+        if limit:
+            query = query.limit(limit)
+        if offset:
+            query = query.offset(offset)
+
+        return query
+
+    def _list_filter(self, search=None, **ignored):
+        filter_ = text('true')
         if search is not None:
             words = [word for word in search.split(' ') if word]
             pattern = '%{}%'.format('%'.join(words))
-            query = query.filter(RoomMessage.content.ilike(pattern))
+            filter_ = and_(filter_, RoomMessage.content.ilike(pattern))
 
-        return query
+        return filter_
