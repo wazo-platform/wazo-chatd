@@ -33,6 +33,12 @@ class MessageSchema(Schema):
     wazo_uuid = fields.UUID(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
+    room = fields.Nested(
+        'RoomSchema',
+        dump_only=True,
+        only=['uuid'],
+    )
+
 
 class ListRequestSchema(_ListSchema):
     default_sort_column = 'created_at'

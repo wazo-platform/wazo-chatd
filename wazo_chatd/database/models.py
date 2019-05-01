@@ -227,6 +227,11 @@ class RoomMessage(Base):
     wazo_uuid = Column(String(UUID_LENGTH), nullable=False)
     created_at = Column(DateTime(), default=datetime.datetime.utcnow, nullable=False)
 
+    room = relationship(
+        'Room',
+        viewonly=True,
+    )
+
     def __repr__(self):
         return "<RoomMessage(uuid='{uuid}', content='{content}', alias='{alias}')>".format(
             uuid=self.uuid,

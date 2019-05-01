@@ -1,5 +1,5 @@
-# Copyright 2015-2019 The Wazo Authors  (see the AUTHORS file)
-# SPDX-License-Identifier: GPL-3.0+
+# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 
@@ -68,8 +68,8 @@ class Consumer(ConsumerMixin):
             self.connection = connection
             super().run()
 
-    def get_consumers(self, consumer_class, channel):
-        return [consumer_class(self._queue, callbacks=[self._on_bus_message])]
+    def get_consumers(self, Consumer, channel):
+        return [Consumer(self._queue, callbacks=[self._on_bus_message])]
 
     def on_connection_error(self, exc, interval):
         super().on_connection_error(exc, interval)
