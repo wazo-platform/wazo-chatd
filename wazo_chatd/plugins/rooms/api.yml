@@ -33,6 +33,27 @@ paths:
             $ref: '#/definitions/Rooms'
         '404':
           $ref: '#/responses/NotFoundError'
+  /users/me/rooms/messages:
+    get:
+      operationId: list_rooms_messages
+      summary: List rooms messages
+      description: '**Required ACL:** `chatd.users.me.rooms.messages.read`'
+      tags:
+      - rooms
+      - messages
+      parameters:
+      - $ref: '#/parameters/direction'
+      - $ref: '#/parameters/limit'
+      - $ref: '#/parameters/order'
+      - $ref: '#/parameters/offset'
+      - $ref: '#/parameters/search_required'
+      responses:
+        '200':
+          description: Messages
+          schema:
+            $ref: '#/definitions/Messages'
+        '400':
+          $ref: '#/responses/InvalidRequest'
   /users/me/rooms/{room_uuid}/messages:
     post:
       operationId: create_room_message
@@ -70,6 +91,8 @@ paths:
       - $ref: '#/parameters/direction'
       - $ref: '#/parameters/limit'
       - $ref: '#/parameters/order'
+      - $ref: '#/parameters/offset'
+      - $ref: '#/parameters/search'
       responses:
         '200':
           description: Messages

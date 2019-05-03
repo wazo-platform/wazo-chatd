@@ -55,4 +55,4 @@ def main():
     conn = psycopg2.connect(args.chatd_db_uri)
     with conn:
         with conn.cursor() as cursor:
-            db_helper.create_db_extensions(cursor, ['uuid-ossp'])
+            db_helper.create_db_extensions(cursor, ['uuid-ossp', 'unaccent'])

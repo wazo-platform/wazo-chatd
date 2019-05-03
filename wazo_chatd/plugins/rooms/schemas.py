@@ -46,5 +46,11 @@ class ListRequestSchema(_ListSchema):
     searchable_columns = []
     default_direction = 'desc'
 
-    class Meta:
-        exclude = ('offset', 'search')
+
+class MessageListRequestSchema(_ListSchema):
+    default_sort_column = 'created_at'
+    sort_columns = ['created_at']
+    searchable_columns = []
+    default_direction = 'desc'
+
+    search = fields.String(required=True)
