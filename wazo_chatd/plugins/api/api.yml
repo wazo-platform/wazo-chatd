@@ -106,6 +106,12 @@ parameters:
     - asc
     - desc
     description: Sort list of items in 'asc' (ascending) or 'desc' (descending) order
+  search:
+    required: false
+    name: search
+    in: query
+    type: integer
+    description: Search term for filtering a list of items. Only items with a field containing the search term will be returned.
   search_required:
     required: true
     name: search
