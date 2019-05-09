@@ -37,7 +37,8 @@ class TestUserRoom(BaseIntegrationTest):
 
     @fixtures.http.room()
     @fixtures.http.room()
-    def test_list(self, room_1, room_2):
+    @fixtures.db.room()
+    def test_list(self, room_1, room_2, _):
         rooms = self.chatd.rooms.list_from_user()
         assert_that(rooms, has_entries(
             items=contains_inanyorder(

@@ -63,7 +63,7 @@ class UserRoomListResource(AuthResource):
     def get(self):
         filter_parameters = {'user_uuid': token.user_uuid}
         rooms = self._service.list_([token.tenant_uuid], **filter_parameters)
-        filtered = total = self._service.count([token.tenant_uuid])
+        filtered = total = self._service.count([token.tenant_uuid], **filter_parameters)
         return {
             'items': RoomSchema().dump(rooms, many=True).data,
             'filtered': filtered,
