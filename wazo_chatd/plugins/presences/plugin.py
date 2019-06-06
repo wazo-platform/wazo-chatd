@@ -4,8 +4,8 @@
 import logging
 
 from wazo_auth_client import Client as AuthClient
+from wazo_confd_client import Client as ConfdClient
 from xivo_amid_client import Client as AmidClient
-from xivo_confd_client import Client as ConfdClient
 
 from .bus_consume import BusEventHandler
 from .http import PresenceListResource, PresenceItemResource
