@@ -91,6 +91,7 @@ definitions:
         description: The presence state of the user.
         enum:
           - available
+          - away
           - unavailable
           - invisible
       status:

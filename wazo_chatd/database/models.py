@@ -55,7 +55,7 @@ class User(Base):
     )
     state = Column(
         String(24),
-        CheckConstraint("state in ('available', 'unavailable', 'invisible')"),
+        CheckConstraint("state in ('available', 'unavailable', 'invisible', 'away')"),
         nullable=False,
     )
     status = Column(Text())

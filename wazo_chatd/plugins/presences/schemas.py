@@ -31,7 +31,7 @@ class UserPresenceSchema(Schema):
 
     state = fields.String(
         required=True,
-        validate=OneOf(['available', 'unavailable', 'invisible']),
+        validate=OneOf(['available', 'unavailable', 'invisible', 'away']),
     )
     status = fields.String(allow_none=True)
     line_state = fields.String(dump_only=True)
