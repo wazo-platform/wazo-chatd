@@ -1,5 +1,11 @@
 # Changelog
 
+## 19.09
+
+* New read only parameters have been added to the user presence resource:
+
+  * `last_activity`
+
 ## 19.07
 
 * New query parameter have been added to the `GET /1.0./users/me/rooms/{room_uuid}/messages`

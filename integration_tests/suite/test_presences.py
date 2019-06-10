@@ -14,6 +14,7 @@ from hamcrest import (
     has_properties,
     is_not,
     none,
+    not_,
 )
 
 from xivo_test_helpers.hamcrest.raises import raises
@@ -48,6 +49,7 @@ class TestPresence(BaseIntegrationTest):
                     tenant_uuid=user_1.tenant_uuid,
                     state=user_1.state,
                     status=user_1.status,
+                    last_activity=none(),
                     line_state='unavailable',
                     sessions=empty(),
                     lines=empty(),
@@ -57,6 +59,7 @@ class TestPresence(BaseIntegrationTest):
                     tenant_uuid=user_2.tenant_uuid,
                     state=user_2.state,
                     status=user_2.status,
+                    last_activity=none(),
                     line_state='unavailable',
                     sessions=empty(),
                     lines=empty(),
@@ -113,6 +116,7 @@ class TestPresence(BaseIntegrationTest):
                 tenant_uuid=user.tenant_uuid,
                 state=user.state,
                 status=user.status,
+                last_activity=none(),
                 line_state='holding',
                 sessions=contains_inanyorder(
                     has_entries(uuid=session_1.uuid, mobile=True),
@@ -163,10 +167,12 @@ class TestPresence(BaseIntegrationTest):
         self.chatd.user_presences.update(user_args)
 
         presence = self.chatd.user_presences.get(user_args['uuid'])
-        assert_that(presence, has_entries(user_args))
+        assert_that(presence, has_entries(last_activity=not_(none()), **user_args))
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(user_args))))
+        assert_that(event, contains(has_entries(
+            data=has_entries(last_activity=not_(none()), **user_args)
+        )))
 
     def test_update_unknown_uuid(self):
         assert_that(
