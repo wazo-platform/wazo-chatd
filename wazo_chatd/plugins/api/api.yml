@@ -22,7 +22,7 @@ security:
 
 responses:
   AnotherServiceUnavailable:
-    description: Another service is unavailable (e.g. wazo-auth, xivo-confd, ...)
+    description: Another service is unavailable (e.g. wazo-auth, wazo-confd, ...)
     schema:
       $ref: '#/definitions/Error'
   NotFoundError:
