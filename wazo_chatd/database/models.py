@@ -59,6 +59,7 @@ class User(Base):
         nullable=False,
     )
     status = Column(Text())
+    last_activity = Column(DateTime())
 
     tenant = relationship('Tenant')
     sessions = relationship(

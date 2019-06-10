@@ -1,6 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import datetime
 import random
 import uuid
 
@@ -41,11 +42,13 @@ class TestUser(BaseIntegrationTest):
 
     def test_create(self):
         user_uuid = uuid.uuid4()
+        last_activity = datetime.datetime.now()
         user = User(
             uuid=user_uuid,
             tenant_uuid=TENANT_1,
             state='available',
             status='description of available state',
+            last_activity=last_activity,
         )
         user = self._dao.user.create(user)
 
@@ -54,6 +57,9 @@ class TestUser(BaseIntegrationTest):
         assert_that(user, has_properties(
             uuid=str(user_uuid),
             tenant_uuid=TENANT_1,
+            state='available',
+            status='description of available state',
+            last_activity=last_activity,
         ))
 
     @fixtures.db.user(tenant_uuid=TENANT_1)
@@ -141,9 +147,11 @@ class TestUser(BaseIntegrationTest):
         user_uuid = user.uuid
         user_state = 'invisible'
         user_status = 'other status'
+        user_last_activity = datetime.datetime.now()
 
         user.state = user_state
         user.status = user_status
+        user.last_activity = user_last_activity
         self._dao.user.update(user)
 
         self._session.expire_all()
@@ -151,6 +159,7 @@ class TestUser(BaseIntegrationTest):
             uuid=user_uuid,
             state=user_state,
             status=user_status,
+            last_activity=user_last_activity,
         ))
 
     @fixtures.db.user()
