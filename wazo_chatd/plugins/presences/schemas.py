@@ -34,6 +34,7 @@ class UserPresenceSchema(Schema):
         validate=OneOf(['available', 'unavailable', 'invisible', 'away']),
     )
     status = fields.String(allow_none=True)
+    last_activity = fields.DateTime(dump_only=True)
     line_state = fields.String(dump_only=True)
 
     sessions = fields.Nested(
