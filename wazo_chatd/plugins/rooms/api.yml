@@ -124,8 +124,8 @@ definitions:
             description: Only one user can be added for now
             items:
               $ref: '#/definitions/RoomUser'
-    required:
-      - users
+        required:
+          - users
 
   RoomRelationBase:
     properties:
@@ -168,7 +168,7 @@ definitions:
         type: string
         description: Alias/nickname of the sender
     required:
-      - message
+      - content
       - alias
 
   Message:
