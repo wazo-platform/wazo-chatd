@@ -1,7 +1,7 @@
 """add_last_activity_to_presence
 
 Revision ID: 007194bcaee2
-Revises: 6c169ed5b4d3
+Revises: fe3c9c8f9b23
 
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '007194bcaee2'
-down_revision = '6c169ed5b4d3'
+down_revision = 'fe3c9c8f9b23'
 
 
 def upgrade():
