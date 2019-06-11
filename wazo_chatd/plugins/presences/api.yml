@@ -99,7 +99,7 @@ definitions:
         description: An extended description of the user presence.
       last_activity:
         type: string
-        description: The date of the user's last activity. The value is updated when the user changes his state explicitly. The value is NULL for new user.
+        description: The date time in UTC of the user's last activity. The value is updated when the user changes his state explicitly. The value is NULL for new user.
         readOnly: True
       line_state:
         type: string
