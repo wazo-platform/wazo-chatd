@@ -1,5 +1,11 @@
 # Changelog
 
+## 19.09
+
+* New state has been added to the `PUT /1.0./users/{user_uuid}/presence` endpoint:
+
+  * `away`
+
 ## 19.07
 
 * New query parameter have been added to the `GET /1.0./users/me/rooms/{room_uuid}/messages`

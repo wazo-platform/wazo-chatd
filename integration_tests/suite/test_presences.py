@@ -154,7 +154,7 @@ class TestPresence(BaseIntegrationTest):
             raises(ChatdError, has_properties(status_code=404))
         )
 
-    @fixtures.db.user(state='unavailable')
+    @fixtures.db.user(state='away')
     def test_update(self, user):
         user_args = {'uuid': user.uuid, 'state': 'invisible', 'status': 'custom status'}
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
