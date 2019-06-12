@@ -274,6 +274,27 @@ class TestRoom(BaseIntegrationTest):
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[
+            {'content': 'msg1', 'created_at': datetime.datetime.fromisoformat('2019-06-12T14:20:00')},
+            {'content': 'msg2', 'created_at': datetime.datetime.fromisoformat('2019-06-12T14:15:00')},
+            {'content': 'msg3', 'created_at': datetime.datetime.fromisoformat('2019-06-12T14:10:00')},
+        ],
+    )
+    def test_list_user_messages_from_date(self, room):
+        message_1 = room.messages[0]  # 14:20
+        message_2 = room.messages[1]  # 14:15
+        message_3 = room.messages[2]  # 14:10
+
+        from_date = datetime.datetime.fromisoformat('2019-06-12T14:10:00')
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, from_date=from_date)
+        assert_that(messages, contains(message_1, message_2, message_3))
+
+        from_date = datetime.datetime.fromisoformat('2019-06-12T08:15:01-06:00')
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, from_date=from_date)
+        assert_that(messages, contains(message_1))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
         messages=[{'content': 'older'}],
     )
     @fixtures.db.room(

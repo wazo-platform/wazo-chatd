@@ -3,6 +3,7 @@
 
 import uuid
 
+from datetime import datetime
 from hamcrest import (
     assert_that,
     calling,
@@ -205,3 +206,44 @@ class TestUserMessage(BaseIntegrationTest):
             total=equal_to(3),
             filtered=equal_to(2),
         ))
+
+    @fixtures.http.room()
+    def test_list_from_date(self, room):
+        message_1_args = {"content": "msg1"}
+        message_2_args = {"content": "msg2"}
+        message_3_args = {"content": "msg3"}
+
+        time_1 = datetime.utcnow().isoformat()
+        message_1 = self.chatd.rooms.create_message_from_user(room["uuid"], message_1_args)
+        message_2 = self.chatd.rooms.create_message_from_user(room["uuid"], message_2_args)
+        time_3 = datetime.utcnow().isoformat()
+        message_3 = self.chatd.rooms.create_message_from_user(room["uuid"], message_3_args)
+
+        messages = self.chatd.rooms.list_messages_from_user(room["uuid"], from_date=time_1)
+        assert_that(
+            messages,
+            has_entries(
+                items=contains(
+                    has_entries(**message_3), has_entries(**message_2), has_entries(**message_1)
+                ),
+                total=equal_to(3),
+                filtered=equal_to(3),
+            ),
+        )
+
+        messages = self.chatd.rooms.list_messages_from_user(room["uuid"], from_date=time_3)
+        assert_that(
+            messages,
+            has_entries(
+                items=contains(has_entries(**message_3)), total=equal_to(3), filtered=equal_to(1)
+            ),
+        )
+
+    @fixtures.http.room()
+    def test_list_from_invalid_date_error(self, room):
+        assert_that(
+            calling(self.chatd.rooms.list_messages_from_user).with_args(
+                room["uuid"], from_date="invalid"
+            ),
+            raises(ChatdError, has_properties(status_code=400, error_id="invalid-data")),
+        )
