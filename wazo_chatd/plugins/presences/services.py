@@ -1,6 +1,8 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import datetime
+
 
 class PresenceService:
 
@@ -18,6 +20,7 @@ class PresenceService:
         return self._dao.user.get(tenant_uuids, user_uuid)
 
     def update(self, user):
+        user.last_activity = datetime.datetime.utcnow()
         self._dao.user.update(user)
         self._notifier.updated(user)
         return user
