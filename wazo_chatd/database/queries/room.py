@@ -105,10 +105,12 @@ class RoomDAO:
 
         return query
 
-    def _list_filter(self, query, search=None, **ignored):
+    def _list_filter(self, query, search=None, from_date=None, **ignored):
         if search is not None:
             words = [word for word in search.split(' ') if word]
             pattern = '%{}%'.format('%'.join(words))
             query = query.filter(unaccent(RoomMessage.content).ilike(pattern))
 
+        if from_date is not None:
+            query = query.filter(RoomMessage.created_at >= from_date)
         return query

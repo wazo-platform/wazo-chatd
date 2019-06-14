@@ -10,6 +10,10 @@
 
   * `last_activity`
 
+* New query parameters have been added to the `GET /1.0/users/me/rooms/{room_uuid}/messages`
+  endpoint:
+
+  * `from_date`
 
 ## 19.07
 

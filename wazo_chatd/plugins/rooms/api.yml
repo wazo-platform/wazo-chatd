@@ -88,6 +88,7 @@ paths:
       - messages
       parameters:
       - $ref: '#/parameters/room_uuid'
+      - $ref: '#/parameters/from_date'
       - $ref: '#/parameters/direction'
       - $ref: '#/parameters/limit'
       - $ref: '#/parameters/order'
@@ -98,6 +99,8 @@ paths:
           description: Messages
           schema:
             $ref: '#/definitions/Messages'
+        '400':
+          $ref: '#/responses/InvalidRequest'
         '404':
           $ref: '#/responses/NotFoundError'
 
@@ -108,6 +111,13 @@ parameters:
     type: string
     description: The UUID of the room
     required: true
+  from_date:
+    name: from_date
+    in: query
+    type: string
+    format: date-time
+    description: 'The date and time from which to retrieve messages.
+      Example: 2019-06-12T10:00:00.000+00:00'
 
 definitions:
 

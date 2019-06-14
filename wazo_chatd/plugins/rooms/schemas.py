@@ -45,6 +45,7 @@ class ListRequestSchema(_ListSchema):
     sort_columns = ['created_at']
     searchable_columns = []
     default_direction = 'desc'
+    from_date = fields.DateTime()
 
 
 class MessageListRequestSchema(_ListSchema):
