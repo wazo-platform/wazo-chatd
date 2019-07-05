@@ -14,7 +14,6 @@ from wazo_chatd.database.models import Room, RoomUser, RoomMessage
 from .exceptions import DuplicateUserException
 from .schemas import (
     ListRequestSchema,
-    MessageListLatestRequestSchema,
     MessageListRequestSchema,
     MessageSchema,
     RoomSchema,
@@ -91,35 +90,6 @@ class UserMessageListResource(AuthResource):
             **filter_parameters,
         )
         total = self._service.count_user_messages(
-            token.tenant_uuid,
-            token.user_uuid,
-        )
-        return {
-            'items': MessageSchema().dump(messages, many=True).data,
-            'filtered': filtered,
-            'total': total,
-        }
-
-
-class UserMessageLatestListResource(AuthResource):
-
-    def __init__(self, service):
-        self._service = service
-
-    @required_acl('chatd.users.me.rooms.messages.latest.read')
-    def get(self):
-        filter_parameters = MessageListLatestRequestSchema().load(request.args).data
-        messages = self._service.list_latest_user_messages(
-            token.tenant_uuid,
-            token.user_uuid,
-            **filter_parameters,
-        )
-        filtered = self._service.count_latest_user_messages(
-            token.tenant_uuid,
-            token.user_uuid,
-            **filter_parameters,
-        )
-        total = self._service.count_latest_user_messages(
             token.tenant_uuid,
             token.user_uuid,
         )

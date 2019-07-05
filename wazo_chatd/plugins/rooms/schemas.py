@@ -1,8 +1,9 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from marshmallow import validates_schema
 from xivo.mallow import fields, validate
-from xivo.mallow_helpers import Schema, ListSchema as _ListSchema
+from xivo.mallow_helpers import Schema, ListSchema as _ListSchema, ValidationError
 
 
 class RoomUserSchema(Schema):
@@ -54,13 +55,10 @@ class MessageListRequestSchema(_ListSchema):
     searchable_columns = []
     default_direction = 'desc'
 
-    search = fields.String(required=True)
-
-
-class MessageListLatestRequestSchema(_ListSchema):
-    default_sort_column = 'created_at'
-    sort_columns = ['created_at']
-    searchable_columns = []
-    default_direction = 'desc'
-
     search = fields.String()
+    distinct = fields.String(validate=validate.OneOf(['room_uuid']))
+
+    @validates_schema
+    def search_or_distinct(self, data):
+        if not data.get('search') and not data.get('distinct'):
+            raise ValidationError('Missing search or distinct')
