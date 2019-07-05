@@ -92,6 +92,29 @@ class RoomDAO:
             .filter(RoomUser.uuid == user_uuid)
         )
 
+    def list_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        query = self._build_latest_user_messages_query(tenant_uuid, user_uuid)
+        query = self._list_filter(query, **filter_parameters)
+        query = self._paginate(query, **filter_parameters)
+        return query.all()
+
+    def count_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        query = self._build_latest_user_messages_query(tenant_uuid, user_uuid)
+        query = self._list_filter(query, **filter_parameters)
+        return query.count()
+
+    def _build_latest_user_messages_query(self, tenant_uuid, user_uuid, *filters):
+        return (
+            self.session.query(RoomMessage)
+            .distinct(RoomMessage.room_uuid)
+            .order_by(RoomMessage.room_uuid, RoomMessage.created_at.desc())
+            .from_self()
+            .join(Room)
+            .join(RoomUser)
+            .filter(RoomUser.tenant_uuid == tenant_uuid)
+            .filter(RoomUser.uuid == user_uuid)
+        )
+
     def _paginate(self, query, limit=None, offset=None,
                   order='created_at', direction='desc', **ignored):
         order_column = getattr(RoomMessage, order)

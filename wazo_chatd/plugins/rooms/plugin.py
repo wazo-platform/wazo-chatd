@@ -3,6 +3,7 @@
 
 from .http import (
     UserRoomListResource,
+    UserMessageLatestListResource,
     UserMessageListResource,
     UserRoomMessageListResource,
 )
@@ -29,6 +30,11 @@ class Plugin:
         api.add_resource(
             UserMessageListResource,
             '/users/me/rooms/messages',
+            resource_class_args=[service],
+        )
+        api.add_resource(
+            UserMessageLatestListResource,
+            '/users/me/rooms/messages/latest',
             resource_class_args=[service],
         )
         api.add_resource(
