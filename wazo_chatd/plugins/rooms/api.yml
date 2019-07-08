@@ -46,7 +46,8 @@ paths:
       - $ref: '#/parameters/limit'
       - $ref: '#/parameters/order'
       - $ref: '#/parameters/offset'
-      - $ref: '#/parameters/search_required'
+      - $ref: '#/parameters/search_distinct'
+      - $ref: '#/parameters/distinct'
       responses:
         '200':
           description: Messages

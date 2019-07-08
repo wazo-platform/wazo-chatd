@@ -318,6 +318,95 @@ class TestRoom(BaseIntegrationTest):
 
         assert_that(count, equal_to(1))
 
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older1'}, {'content': 'newer1'}],
+    )
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older2'}, {'content': 'newer2'}],
+    )
+    def test_list_latest_user_messages(self, room_1, room_2):
+        message_1, message_2 = room_1.messages[0], room_2.messages[0]
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, distinct='room_uuid')
+        assert_that(messages, contains(message_2, message_1))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older1'}, {'content': 'newer1'}],
+    )
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older2'}, {'content': 'newer2'}],
+    )
+    def test_list_latest_user_messages_direction(self, room_1, room_2):
+        message_1, message_2 = room_1.messages[0], room_2.messages[0]
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, distinct='room_uuid', direction='desc')
+        assert_that(messages, contains(message_2, message_1))
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, distinct='room_uuid', direction='asc')
+        assert_that(messages, contains(message_1, message_2))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older1'}, {'content': 'newer1'}],
+    )
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older2'}, {'content': 'newer2'}],
+    )
+    def test_list_latest_user_messages_limit(self, room_1, room_2):
+        message_2 = room_2.messages[0]
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, distinct='room_uuid', limit=1)
+
+        assert_that(messages, contains(message_2))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older1'}, {'content': 'newer1'}],
+    )
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'older2'}, {'content': 'newer2'}],
+    )
+    def test_list_latest_user_messages_offset(self, room_1, room_2):
+        message_1 = room_1.messages[0]
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, distinct='room_uuid', offset=1)
+
+        assert_that(messages, contains(message_1))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'not found'}, {'content': 'found'}],
+    )
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'not found'}, {'content': 'hidden'}],
+    )
+    def test_list_latest_user_messages_search(self, room_1, room_2):
+        message_1 = room_1.messages[0]
+
+        messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, distinct='room_uuid', search='found')
+
+        assert_that(messages, contains(message_1))
+
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'not found'}, {'content': 'found'}],
+    )
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
+        messages=[{'content': 'not found'}, {'content': 'hidden'}],
+    )
+    def test_count_latest_user_messages_with_search(self, *_):
+        count = self._dao.room.count_user_messages(UUID, USER_UUID_1, distinct='room_uuid', search='found')
+
+        assert_that(count, equal_to(1))
+
 
 class TestRoomRelationships(BaseIntegrationTest):
 

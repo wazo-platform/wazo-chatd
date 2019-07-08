@@ -51,3 +51,9 @@ class RoomService:
 
     def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         return self._dao.room.count_user_messages(tenant_uuid, user_uuid, **filter_parameters)
+
+    def list_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        return self._dao.room.list_latest_user_messages(tenant_uuid, user_uuid, **filter_parameters)
+
+    def count_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
+        return self._dao.room.count_latest_user_messages(tenant_uuid, user_uuid, **filter_parameters)

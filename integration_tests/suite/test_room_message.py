@@ -208,6 +208,39 @@ class TestUserMessage(BaseIntegrationTest):
         ))
 
     @fixtures.http.room()
+    @fixtures.http.room()
+    def test_list_distinct(self, room_1, room_2):
+        message_1_args = {'content': 'hidden'}
+        message_2_args = message_3_args = {'content': 'found'}
+        self.chatd.rooms.create_message_from_user(room_1['uuid'], message_1_args)
+        message_2 = self.chatd.rooms.create_message_from_user(room_2['uuid'], message_2_args)
+        message_3 = self.chatd.rooms.create_message_from_user(room_1['uuid'], message_3_args)
+
+        messages = self.chatd.rooms.search_messages_from_user(distinct='room_uuid')
+        assert_that(messages, has_entries(
+            items=contains(has_entries(**message_3), has_entries(**message_2)),
+            total=equal_to(3),
+            filtered=equal_to(2),
+        ))
+
+    @fixtures.http.room()
+    @fixtures.http.room()
+    def test_list_distinct_with_search(self, room_1, room_2):
+        message_1_args = message_3_args = {'content': 'not found'}
+        message_2_args = message_4_args = {'content': 'found'}
+        self.chatd.rooms.create_message_from_user(room_1['uuid'], message_1_args)
+        message_2 = self.chatd.rooms.create_message_from_user(room_1['uuid'], message_2_args)
+        self.chatd.rooms.create_message_from_user(room_2['uuid'], message_3_args)
+        message_4 = self.chatd.rooms.create_message_from_user(room_2['uuid'], message_4_args)
+
+        messages = self.chatd.rooms.search_messages_from_user(distinct='room_uuid', search='found')
+        assert_that(messages, has_entries(
+            items=contains(has_entries(**message_4), has_entries(**message_2)),
+            total=equal_to(4),
+            filtered=equal_to(2),
+        ))
+
+    @fixtures.http.room()
     def test_list_from_date(self, room):
         message_1_args = {"content": "msg1"}
         message_2_args = {"content": "msg2"}

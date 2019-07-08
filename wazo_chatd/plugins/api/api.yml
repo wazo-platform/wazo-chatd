@@ -97,6 +97,15 @@ parameters:
     in: query
     type: integer
     description: Maximum number of items to return in the list
+  distinct:
+    required: false
+    name: distinct
+    in: query
+    type: string
+    enum:
+    - room_uuid
+    description: "Distinct list results by field. Always picks the latest entry.
+      Required if `search` is not specified."
   direction:
     required: false
     name: direction
@@ -110,13 +119,14 @@ parameters:
     required: false
     name: search
     in: query
-    type: integer
-    description: Search term for filtering a list of items. Only items with a field containing the search term will be returned.
-  search_required:
-    required: true
+    type: string
+    description: "Search term for filtering a list of items. Only items with a field containing the search term will be returned.
+      Required if `distinct` is not specified."
+  search_distinct:
+    required: false
     name: search
     in: query
-    type: integer
+    type: string
     description: Search term for filtering a list of items. Only items with a field containing the search term will be returned.
   offset:
     required: false

@@ -234,8 +234,9 @@ class RoomMessage(Base):
     )
 
     def __repr__(self):
-        return "<RoomMessage(uuid='{uuid}', content='{content}', alias='{alias}')>".format(
+        return "<RoomMessage(uuid='{uuid}', created_at='{created_at}' content='{content}', alias='{alias}')>".format(
             uuid=self.uuid,
+            created_at=self.created_at,
             content=self.content,
             alias=self.alias,
         )

@@ -105,7 +105,15 @@ class RoomDAO:
 
         return query
 
-    def _list_filter(self, query, search=None, from_date=None, **ignored):
+    def _list_filter(self, query, search=None, from_date=None, distinct=None, **ignored):
+        if distinct is not None:
+            distinct_field = getattr(RoomMessage, distinct)
+            query = (
+                query.distinct(distinct_field)
+                .order_by(distinct_field, RoomMessage.created_at.desc())
+                .from_self()
+            )
+
         if search is not None:
             words = [word for word in search.split(' ') if word]
             pattern = '%{}%'.format('%'.join(words))
@@ -113,4 +121,5 @@ class RoomDAO:
 
         if from_date is not None:
             query = query.filter(RoomMessage.created_at >= from_date)
+
         return query
