@@ -1,7 +1,10 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import validates_schema
+from marshmallow import (
+    EXCLUDE,
+    validates_schema,
+)
 from xivo.mallow import fields, validate
 from xivo.mallow_helpers import Schema, ListSchema as _ListSchema, ValidationError
 
@@ -22,6 +25,7 @@ class RoomSchema(Schema):
         'RoomUserSchema',
         many=True,
         missing=[],
+        unknown=EXCLUDE
     )
 
 

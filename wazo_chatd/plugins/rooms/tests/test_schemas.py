@@ -20,11 +20,11 @@ class TestListRequestSchema(unittest.TestCase):
     schema = ListRequestSchema
 
     def test_load_direction_missing(self):
-        result = self.schema().load({}).data
+        result = self.schema().load({})
         assert_that(result, has_entries(direction='desc'))
 
     def test_load_order_default(self):
-        result = self.schema().load({}).data
+        result = self.schema().load({})
         assert_that(result, has_entries(order='created_at'))
 
 

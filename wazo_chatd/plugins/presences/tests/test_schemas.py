@@ -52,7 +52,7 @@ class TestUserPresenceSchema(unittest.TestCase):
             self.line_unavailable,
         ]
 
-        result = self.schema().dump(self.user).data
+        result = self.schema().dump(self.user)
         assert_that(result, has_entries(line_state='ringing'))
 
     def test_set_line_state_holding(self):
@@ -66,7 +66,7 @@ class TestUserPresenceSchema(unittest.TestCase):
             self.line_unavailable,
         ]
 
-        result = self.schema().dump(self.user).data
+        result = self.schema().dump(self.user)
         assert_that(result, has_entries(line_state='holding'))
 
     def test_set_line_state_talking(self):
@@ -78,7 +78,7 @@ class TestUserPresenceSchema(unittest.TestCase):
             self.line_unavailable,
         ]
 
-        result = self.schema().dump(self.user).data
+        result = self.schema().dump(self.user)
         assert_that(result, has_entries(line_state='talking'))
 
     def test_set_line_state_available(self):
@@ -88,7 +88,7 @@ class TestUserPresenceSchema(unittest.TestCase):
             self.line_unavailable,
         ]
 
-        result = self.schema().dump(self.user).data
+        result = self.schema().dump(self.user)
         assert_that(result, has_entries(line_state='available'))
 
     def test_set_line_state_unavailable(self):
@@ -96,7 +96,7 @@ class TestUserPresenceSchema(unittest.TestCase):
             self.line_unavailable,
         ]
 
-        result = self.schema().dump(self.user).data
+        result = self.schema().dump(self.user)
         assert_that(result, has_entries(line_state='unavailable'))
 
 
@@ -110,13 +110,13 @@ class TestLinePresenceSchema(unittest.TestCase):
     def test_set_default_state(self):
         self.line.state = 'ringing'
 
-        result = self.schema().dump(self.line).data
+        result = self.schema().dump(self.line)
         assert_that(result, has_entries(state='ringing'))
 
     def test_set_default_state_when_none(self):
         self.line.state = None
 
-        result = self.schema().dump(self.line).data
+        result = self.schema().dump(self.line)
         assert_that(result, has_entries(state='unavailable'))
 
 
@@ -133,7 +133,7 @@ class TestListRequestSchema(unittest.TestCase):
         self.request_args.get.return_value = uuid_1
         self.request_args.__getitem__.return_value = uuid_1
 
-        result = self.schema().load(self.request_args).data
+        result = self.schema().load(self.request_args)
         assert_that(result, has_entries(uuids=contains(uuid_1)))
 
     def test_get_user_uuid_multiple(self):
@@ -143,11 +143,11 @@ class TestListRequestSchema(unittest.TestCase):
         self.request_args.get.return_value = user_uuid
         self.request_args.__getitem__.return_value = user_uuid
 
-        result = self.schema().load(self.request_args).data
+        result = self.schema().load(self.request_args)
         assert_that(result, has_entries(uuids=contains(uuid_1, uuid_2)))
 
     def test_get_user_uuid_empty(self):
         self.request_args.get.return_value = ''
 
-        result = self.schema().load(self.request_args).data
+        result = self.schema().load(self.request_args)
         assert_that(result, has_entries(uuids=empty()))

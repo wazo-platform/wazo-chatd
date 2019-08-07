@@ -64,6 +64,7 @@ class UserPresenceSchema(Schema):
                 merged_state = state
 
         user['line_state'] = merged_state
+        return user
 
 
 class ListRequestSchema(Schema):
