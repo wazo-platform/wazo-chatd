@@ -15,7 +15,7 @@ pull-images:
 	docker pull wazopbx/wazo-confd-mock
 
 chatd:
-	docker build --pull -t wazopbx/wazo-chatd ..
+	docker build -t wazopbx/wazo-chatd ..
 	$(MAKE) chatd-test
 
 chatd-test: egg-info
