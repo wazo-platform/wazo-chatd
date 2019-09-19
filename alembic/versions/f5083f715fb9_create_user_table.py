@@ -14,10 +14,7 @@ down_revision = None
 
 
 def upgrade():
-    op.create_table(
-        'chatd_tenant',
-        sa.Column('uuid', sa.String(36), primary_key=True),
-    )
+    op.create_table('chatd_tenant', sa.Column('uuid', sa.String(36), primary_key=True))
     op.create_table(
         'chatd_user',
         sa.Column('uuid', sa.String(36), primary_key=True),

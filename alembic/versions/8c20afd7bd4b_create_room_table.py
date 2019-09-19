@@ -20,7 +20,7 @@ def upgrade():
             'uuid',
             sa.String(36),
             server_default=sa.text('uuid_generate_v4()'),
-            primary_key=True
+            primary_key=True,
         ),
         sa.Column('name', sa.Text),
         sa.Column(
@@ -36,7 +36,7 @@ def upgrade():
             'room_uuid',
             sa.String(36),
             sa.ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
-            primary_key=True
+            primary_key=True,
         ),
         sa.Column('uuid', sa.String(36), primary_key=True),
         sa.Column('tenant_uuid', sa.String(36), primary_key=True),

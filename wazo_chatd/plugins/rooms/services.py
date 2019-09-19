@@ -3,7 +3,6 @@
 
 
 class RoomService:
-
     def __init__(self, wazo_uuid, dao, notifier):
         self._dao = dao
         self._notifier = notifier
@@ -47,13 +46,21 @@ class RoomService:
         return self._dao.room.count_messages(room, **filter_parameters)
 
     def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
-        return self._dao.room.list_user_messages(tenant_uuid, user_uuid, **filter_parameters)
+        return self._dao.room.list_user_messages(
+            tenant_uuid, user_uuid, **filter_parameters
+        )
 
     def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
-        return self._dao.room.count_user_messages(tenant_uuid, user_uuid, **filter_parameters)
+        return self._dao.room.count_user_messages(
+            tenant_uuid, user_uuid, **filter_parameters
+        )
 
     def list_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
-        return self._dao.room.list_latest_user_messages(tenant_uuid, user_uuid, **filter_parameters)
+        return self._dao.room.list_latest_user_messages(
+            tenant_uuid, user_uuid, **filter_parameters
+        )
 
     def count_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
-        return self._dao.room.count_latest_user_messages(tenant_uuid, user_uuid, **filter_parameters)
+        return self._dao.room.count_latest_user_messages(
+            tenant_uuid, user_uuid, **filter_parameters
+        )

@@ -9,7 +9,6 @@ from ..models import User
 
 
 class UserDAO:
-
     @property
     def session(self):
         return get_dao_session()
@@ -25,8 +24,7 @@ class UserDAO:
 
     def get(self, tenant_uuids, user_uuid):
         query = self.session.query(User).filter(
-            User.tenant_uuid.in_(tenant_uuids),
-            User.uuid == str(user_uuid),
+            User.tenant_uuid.in_(tenant_uuids), User.uuid == str(user_uuid)
         )
 
         user = query.first()
@@ -48,9 +46,7 @@ class UserDAO:
         return users
 
     def count(self, tenant_uuids, **filter_parameters):
-        return self._get_users_query(
-            tenant_uuids, **filter_parameters
-        ).count()
+        return self._get_users_query(tenant_uuids, **filter_parameters).count()
 
     def delete(self, user):
         self.session.delete(user)

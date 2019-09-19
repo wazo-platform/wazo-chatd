@@ -14,7 +14,6 @@ from .validator import status_validator
 
 
 class PresenceListResource(AuthResource):
-
     def __init__(self, service):
         self._service = service
 
@@ -35,7 +34,6 @@ class PresenceListResource(AuthResource):
 
 
 class PresenceItemResource(AuthResource):
-
     def __init__(self, service):
         self._service = service
 

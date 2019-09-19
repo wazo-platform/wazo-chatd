@@ -17,7 +17,10 @@ def room(**room_args):
             room_args.setdefault('users', [])
             if not room_args['users']:
                 room_args['users'].append({'uuid': str(uuid.uuid4())})
-            elif len(room_args['users']) == 1 and room_args['users'][0]['uuid'] == TOKEN_USER_UUID:
+            elif (
+                len(room_args['users']) == 1
+                and room_args['users'][0]['uuid'] == TOKEN_USER_UUID
+            ):
                 room_args['users'].append({'uuid': str(uuid.uuid4())})
 
             room = self.chatd.rooms.create_from_user(room_args)
@@ -30,5 +33,7 @@ def room(**room_args):
                 self._session.query(Room).filter(Room.uuid == room['uuid']).delete()
                 self._session.commit()
             return result
+
         return wrapper
+
     return decorator

@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 class ThreadManager(object):
-
     def __init__(self):
         self._thread_wrappers = []
 

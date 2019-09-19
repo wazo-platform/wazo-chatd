@@ -42,63 +42,78 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user()
     def test_list(self, user_1, user_2):
         presences = self.chatd.user_presences.list()
-        assert_that(presences, has_entries(
-            items=contains(
-                has_entries(
-                    uuid=user_1.uuid,
-                    tenant_uuid=user_1.tenant_uuid,
-                    state=user_1.state,
-                    status=user_1.status,
-                    last_activity=none(),
-                    line_state='unavailable',
-                    sessions=empty(),
-                    lines=empty(),
+        assert_that(
+            presences,
+            has_entries(
+                items=contains(
+                    has_entries(
+                        uuid=user_1.uuid,
+                        tenant_uuid=user_1.tenant_uuid,
+                        state=user_1.state,
+                        status=user_1.status,
+                        last_activity=none(),
+                        line_state='unavailable',
+                        sessions=empty(),
+                        lines=empty(),
+                    ),
+                    has_entries(
+                        uuid=user_2.uuid,
+                        tenant_uuid=user_2.tenant_uuid,
+                        state=user_2.state,
+                        status=user_2.status,
+                        last_activity=none(),
+                        line_state='unavailable',
+                        sessions=empty(),
+                        lines=empty(),
+                    ),
                 ),
-                has_entries(
-                    uuid=user_2.uuid,
-                    tenant_uuid=user_2.tenant_uuid,
-                    state=user_2.state,
-                    status=user_2.status,
-                    last_activity=none(),
-                    line_state='unavailable',
-                    sessions=empty(),
-                    lines=empty(),
-                ),
+                total=equal_to(2),
+                filtered=equal_to(2),
             ),
-            total=equal_to(2),
-            filtered=equal_to(2),
-        ))
+        )
 
     @fixtures.db.user(tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user(tenant_uuid=TOKEN_SUBTENANT_UUID)
     def test_list_multi_tenant(self, user_1, user_2):
         presences = self.chatd.user_presences.list()
-        assert_that(presences, has_entries(
-            items=contains(has_entries(uuid=user_1.uuid)),
-            total=equal_to(1),
-            filtered=equal_to(1),
-        ))
+        assert_that(
+            presences,
+            has_entries(
+                items=contains(has_entries(uuid=user_1.uuid)),
+                total=equal_to(1),
+                filtered=equal_to(1),
+            ),
+        )
 
         presences = self.chatd.user_presences.list(recurse=True)
-        assert_that(presences, has_entries(
-            items=contains(has_entries(uuid=user_1.uuid), has_entries(uuid=user_2.uuid)),
-            total=equal_to(2),
-            filtered=equal_to(2),
-        ))
+        assert_that(
+            presences,
+            has_entries(
+                items=contains(
+                    has_entries(uuid=user_1.uuid), has_entries(uuid=user_2.uuid)
+                ),
+                total=equal_to(2),
+                filtered=equal_to(2),
+            ),
+        )
 
     @fixtures.db.user()
     @fixtures.db.user()
     @fixtures.db.user()
     def test_list_user_uuids(self, user_1, user_2, user_3):
-        presences = self.chatd.user_presences.list(user_uuids=[user_1.uuid, user_2.uuid])
-        assert_that(presences, has_entries(
-            items=contains(
-                has_entries(uuid=user_1.uuid),
-                has_entries(uuid=user_2.uuid),
+        presences = self.chatd.user_presences.list(
+            user_uuids=[user_1.uuid, user_2.uuid]
+        )
+        assert_that(
+            presences,
+            has_entries(
+                items=contains(
+                    has_entries(uuid=user_1.uuid), has_entries(uuid=user_2.uuid)
+                ),
+                total=equal_to(3),
+                filtered=equal_to(2),
             ),
-            total=equal_to(3),
-            filtered=equal_to(2),
-        ))
+        )
 
     @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='holding')
     @fixtures.db.endpoint(name=ENDPOINT_NAME_2, state='talking')
@@ -107,7 +122,9 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
     @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_1)
     @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_2)
-    def test_get(self, endpoint_1, endpoint_2, user, session_1, session_2, line_1, line_2):
+    def test_get(
+        self, endpoint_1, endpoint_2, user, session_1, session_2, line_1, line_2
+    ):
         presence = self.chatd.user_presences.get(user.uuid)
         assert_that(
             presence,
@@ -141,21 +158,23 @@ class TestPresence(BaseIntegrationTest):
                     details=is_not(none()),
                     message=is_not(none()),
                     timestamp=is_not(none()),
-                )
-            )
+                ),
+            ),
         )
 
     @fixtures.db.user(tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user(tenant_uuid=TOKEN_SUBTENANT_UUID)
     def test_get_multi_tenant(self, user_1, user_2):
-        result = self.chatd.user_presences.get(user_2.uuid, tenant_uuid=TOKEN_SUBTENANT_UUID)
+        result = self.chatd.user_presences.get(
+            user_2.uuid, tenant_uuid=TOKEN_SUBTENANT_UUID
+        )
         assert_that(result, has_entries(uuid=user_2.uuid))
 
         assert_that(
             calling(self.chatd.user_presences.get).with_args(
-                user_1.uuid, tenant_uuid=TOKEN_SUBTENANT_UUID,
+                user_1.uuid, tenant_uuid=TOKEN_SUBTENANT_UUID
             ),
-            raises(ChatdError, has_properties(status_code=404))
+            raises(ChatdError, has_properties(status_code=404)),
         )
 
     @fixtures.db.user(state='away')
@@ -170,9 +189,12 @@ class TestPresence(BaseIntegrationTest):
         assert_that(presence, has_entries(last_activity=not_(none()), **user_args))
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(
-            data=has_entries(last_activity=not_(none()), **user_args)
-        )))
+        assert_that(
+            event,
+            contains(
+                has_entries(data=has_entries(last_activity=not_(none()), **user_args))
+            ),
+        )
 
     def test_update_unknown_uuid(self):
         assert_that(
@@ -186,8 +208,8 @@ class TestPresence(BaseIntegrationTest):
                     details=is_not(none()),
                     message=is_not(none()),
                     timestamp=is_not(none()),
-                )
-            )
+                ),
+            ),
         )
 
     @fixtures.db.user(tenant_uuid=TOKEN_TENANT_UUID)
@@ -201,7 +223,7 @@ class TestPresence(BaseIntegrationTest):
 
         assert_that(
             calling(self.chatd.user_presences.update).with_args(
-                {'uuid': user_1.uuid}, tenant_uuid=TOKEN_SUBTENANT_UUID,
+                {'uuid': user_1.uuid}, tenant_uuid=TOKEN_SUBTENANT_UUID
             ),
-            raises(ChatdError, has_properties(status_code=404))
+            raises(ChatdError, has_properties(status_code=404)),
         )

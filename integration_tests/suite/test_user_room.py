@@ -40,45 +40,64 @@ class TestUserRoom(BaseIntegrationTest):
     @fixtures.db.room()
     def test_list(self, room_1, room_2, _):
         rooms = self.chatd.rooms.list_from_user()
-        assert_that(rooms, has_entries(
-            items=contains_inanyorder(
-                has_entries(uuid=room_1['uuid'], users=contains_inanyorder(*room_1['users'])),
-                has_entries(uuid=room_2['uuid'], users=contains_inanyorder(*room_2['users'])),
+        assert_that(
+            rooms,
+            has_entries(
+                items=contains_inanyorder(
+                    has_entries(
+                        uuid=room_1['uuid'], users=contains_inanyorder(*room_1['users'])
+                    ),
+                    has_entries(
+                        uuid=room_2['uuid'], users=contains_inanyorder(*room_2['users'])
+                    ),
+                ),
+                total=equal_to(2),
+                filtered=equal_to(2),
             ),
-            total=equal_to(2),
-            filtered=equal_to(2),
-        ))
+        )
 
     def test_create(self):
         room_args = {
             'name': 'test-room',
             'users': [
-                {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
+                {
+                    'uuid': TOKEN_USER_UUID,
+                    'tenant_uuid': TOKEN_TENANT_UUID,
+                    'wazo_uuid': WAZO_UUID,
+                },
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
-            ]
+            ],
         }
         routing_key = 'chatd.users.*.rooms.created'
         event_accumulator = self.bus.accumulator(routing_key)
 
         room = self.chatd.rooms.create_from_user(room_args)
 
-        assert_that(room, has_entries(
-            uuid=uuid_(),
-            name=room_args['name'],
-            users=contains_inanyorder(*room_args['users'])
-        ))
+        assert_that(
+            room,
+            has_entries(
+                uuid=uuid_(),
+                name=room_args['name'],
+                users=contains_inanyorder(*room_args['users']),
+            ),
+        )
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains_inanyorder(
-            has_entries(
-                data=has_entries(room_args),
-                required_acl='events.chatd.users.{}.rooms.created'.format(TOKEN_USER_UUID),
+        assert_that(
+            event,
+            contains_inanyorder(
+                has_entries(
+                    data=has_entries(room_args),
+                    required_acl='events.chatd.users.{}.rooms.created'.format(
+                        TOKEN_USER_UUID
+                    ),
+                ),
+                has_entries(
+                    data=has_entries(room_args),
+                    required_acl='events.chatd.users.{}.rooms.created'.format(UUID),
+                ),
             ),
-            has_entries(
-                data=has_entries(room_args),
-                required_acl='events.chatd.users.{}.rooms.created'.format(UUID),
-            ),
-        ))
+        )
 
         self._delete_room(room)
 
@@ -87,22 +106,25 @@ class TestUserRoom(BaseIntegrationTest):
 
         room = self.chatd.rooms.create_from_user(room_args)
 
-        assert_that(room, has_entries(
-            uuid=uuid_(),
-            name=none(),
-            users=contains_inanyorder(
-                has_entries(
-                    uuid=TOKEN_USER_UUID,
-                    tenant_uuid=TOKEN_TENANT_UUID,
-                    wazo_uuid=WAZO_UUID,
+        assert_that(
+            room,
+            has_entries(
+                uuid=uuid_(),
+                name=none(),
+                users=contains_inanyorder(
+                    has_entries(
+                        uuid=TOKEN_USER_UUID,
+                        tenant_uuid=TOKEN_TENANT_UUID,
+                        wazo_uuid=WAZO_UUID,
+                    ),
+                    has_entries(
+                        uuid=room_args['users'][0]['uuid'],
+                        tenant_uuid=TOKEN_TENANT_UUID,
+                        wazo_uuid=WAZO_UUID,
+                    ),
                 ),
-                has_entries(
-                    uuid=room_args['users'][0]['uuid'],
-                    tenant_uuid=TOKEN_TENANT_UUID,
-                    wazo_uuid=WAZO_UUID,
-                ),
-            )
-        ))
+            ),
+        )
         self._delete_room(room)
 
     def _delete_room(self, room):
@@ -112,7 +134,11 @@ class TestUserRoom(BaseIntegrationTest):
     def test_create_with_wrong_users_number(self):
         room_args = {
             'users': [
-                {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
+                {
+                    'uuid': TOKEN_USER_UUID,
+                    'tenant_uuid': TOKEN_TENANT_UUID,
+                    'wazo_uuid': WAZO_UUID,
+                },
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
@@ -144,22 +170,29 @@ class TestUserRoom(BaseIntegrationTest):
                     status_code=400,
                     details=has_entries(
                         users=has_entries(
-                            constraint_id='length',
-                            constraint={'equal': 2},
+                            constraint_id='length', constraint={'equal': 2}
                         )
-                    )
-                )
-            )
+                    ),
+                ),
+            ),
         )
 
     def test_create_with_same_user(self):
         room_args = {
             'users': [
-                {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
-                {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
+                {
+                    'uuid': TOKEN_USER_UUID,
+                    'tenant_uuid': TOKEN_TENANT_UUID,
+                    'wazo_uuid': WAZO_UUID,
+                },
+                {
+                    'uuid': TOKEN_USER_UUID,
+                    'tenant_uuid': TOKEN_TENANT_UUID,
+                    'wazo_uuid': WAZO_UUID,
+                },
             ]
         }
         assert_that(
             calling(self.chatd.rooms.create_from_user).with_args(room_args),
-            raises(ChatdError, has_properties(status_code=400))
+            raises(ChatdError, has_properties(status_code=400)),
         )

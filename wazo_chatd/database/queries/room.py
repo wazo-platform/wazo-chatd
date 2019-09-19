@@ -14,7 +14,6 @@ class unaccent(ReturnTypeFromArgs):
 
 
 class RoomDAO:
-
     @property
     def session(self):
         return get_dao_session()
@@ -26,8 +25,7 @@ class RoomDAO:
 
     def get(self, tenant_uuids, room_uuid):
         query = self.session.query(Room).filter(
-            Room.tenant_uuid.in_(tenant_uuids),
-            Room.uuid == str(room_uuid),
+            Room.tenant_uuid.in_(tenant_uuids), Room.uuid == str(room_uuid)
         )
         room = query.first()
         if not room:
@@ -70,7 +68,9 @@ class RoomDAO:
         return query.count()
 
     def _build_messages_query(self, room_uuid):
-        return self.session.query(RoomMessage).filter(RoomMessage.room_uuid == room_uuid)
+        return self.session.query(RoomMessage).filter(
+            RoomMessage.room_uuid == room_uuid
+        )
 
     def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         query = self._build_user_messages_query(tenant_uuid, user_uuid)
@@ -92,8 +92,15 @@ class RoomDAO:
             .filter(RoomUser.uuid == user_uuid)
         )
 
-    def _paginate(self, query, limit=None, offset=None,
-                  order='created_at', direction='desc', **ignored):
+    def _paginate(
+        self,
+        query,
+        limit=None,
+        offset=None,
+        order='created_at',
+        direction='desc',
+        **ignored
+    ):
         order_column = getattr(RoomMessage, order)
         order_column = order_column.asc() if direction == 'asc' else order_column.desc()
         query = query.order_by(order_column)
@@ -105,7 +112,9 @@ class RoomDAO:
 
         return query
 
-    def _list_filter(self, query, search=None, from_date=None, distinct=None, **ignored):
+    def _list_filter(
+        self, query, search=None, from_date=None, distinct=None, **ignored
+    ):
         if distinct is not None:
             distinct_field = getattr(RoomMessage, distinct)
             query = (

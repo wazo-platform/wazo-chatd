@@ -3,11 +3,7 @@
 
 from requests import HTTPError
 
-from xivo.tenant_flask_helpers import (
-    Tenant,
-    auth_client,
-    token,
-)
+from xivo.tenant_flask_helpers import Tenant, auth_client, token
 
 
 def get_tenant_uuids(recurse=False):

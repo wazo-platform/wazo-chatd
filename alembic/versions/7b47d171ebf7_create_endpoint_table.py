@@ -23,7 +23,9 @@ def upgrade():
         sa.Column(
             'state',
             sa.String(24),
-            sa.CheckConstraint("state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"),
+            sa.CheckConstraint(
+                "state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
+            ),
             nullable=False,
         ),
     )
@@ -40,14 +42,18 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_constraint('chatd_line_endpoint_name_fkey', 'chatd_line', type_='foreignkey')
+    op.drop_constraint(
+        'chatd_line_endpoint_name_fkey', 'chatd_line', type_='foreignkey'
+    )
     op.drop_table('chatd_endpoint')
     op.add_column(
         'chatd_line',
         sa.Column(
             'state',
             sa.String(24),
-            sa.CheckConstraint("state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"),
+            sa.CheckConstraint(
+                "state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
+            ),
             nullable=False,
         ),
     )

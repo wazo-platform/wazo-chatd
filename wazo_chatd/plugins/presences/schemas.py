@@ -4,9 +4,7 @@
 from marshmallow import post_dump, pre_load
 
 from xivo.mallow import fields
-from xivo.mallow.validate import (
-    OneOf,
-)
+from xivo.mallow.validate import OneOf
 from xivo.mallow_helpers import Schema
 
 
@@ -30,23 +28,14 @@ class UserPresenceSchema(Schema):
     tenant_uuid = fields.UUID(dump_only=True)
 
     state = fields.String(
-        required=True,
-        validate=OneOf(['available', 'unavailable', 'invisible', 'away']),
+        required=True, validate=OneOf(['available', 'unavailable', 'invisible', 'away'])
     )
     status = fields.String(allow_none=True)
     last_activity = fields.DateTime(dump_only=True)
     line_state = fields.String(dump_only=True)
 
-    sessions = fields.Nested(
-        'SessionPresenceSchema',
-        many=True,
-        dump_only=True
-    )
-    lines = fields.Nested(
-        'LinePresenceSchema',
-        many=True,
-        dump_only=True
-    )
+    sessions = fields.Nested('SessionPresenceSchema', many=True, dump_only=True)
+    lines = fields.Nested('LinePresenceSchema', many=True, dump_only=True)
 
     @post_dump
     def _set_line_state(self, user):
@@ -60,7 +49,11 @@ class UserPresenceSchema(Schema):
                 merged_state = state
             elif state == 'talking' and merged_state not in ('ringing', 'holding'):
                 merged_state = state
-            elif state == 'available' and merged_state not in ('ringing', 'holding', 'talking'):
+            elif state == 'available' and merged_state not in (
+                'ringing',
+                'holding',
+                'talking',
+            ):
                 merged_state = state
 
         user['line_state'] = merged_state

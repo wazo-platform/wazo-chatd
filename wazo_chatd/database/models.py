@@ -63,15 +63,9 @@ class User(Base):
 
     tenant = relationship('Tenant')
     sessions = relationship(
-        'Session',
-        cascade='all,delete-orphan',
-        passive_deletes=False,
+        'Session', cascade='all,delete-orphan', passive_deletes=False
     )
-    lines = relationship(
-        'Line',
-        cascade='all,delete-orphan',
-        passive_deletes=False,
-    )
+    lines = relationship('Line', cascade='all,delete-orphan', passive_deletes=False)
 
     def __repr__(self):
         return (
@@ -102,7 +96,9 @@ class Session(Base):
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
     def __repr__(self):
-        return "<Session(uuid='{uuid}', mobile='{mobile}')>".format(uuid=self.uuid, mobile=self.mobile)
+        return "<Session(uuid='{uuid}', mobile='{mobile}')>".format(
+            uuid=self.uuid, mobile=self.mobile
+        )
 
 
 class Line(Base):
@@ -111,17 +107,10 @@ class Line(Base):
 
     id = Column(Integer, primary_key=True)
     user_uuid = Column(
-        UUIDAsString(UUID_LENGTH),
-        ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+        UUIDAsString(UUID_LENGTH), ForeignKey('chatd_user.uuid', ondelete='CASCADE')
     )
-    endpoint_name = Column(
-        Text,
-        ForeignKey('chatd_endpoint.name', ondelete='SET NULL'),
-    )
-    media = Column(
-        String(24),
-        CheckConstraint("state in ('audio', 'video')"),
-    )
+    endpoint_name = Column(Text, ForeignKey('chatd_endpoint.name', ondelete='SET NULL'))
+    media = Column(String(24), CheckConstraint("state in ('audio', 'video')"))
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
@@ -130,9 +119,7 @@ class Line(Base):
 
     def __repr__(self):
         return "<Line(id='{id}', media='{media}', endpoint='{endpoint}')>".format(
-            id=self.id,
-            media=self.media,
-            endpoint=self.endpoint,
+            id=self.id, media=self.media, endpoint=self.endpoint
         )
 
 
@@ -143,7 +130,9 @@ class Endpoint(Base):
     name = Column(Text, primary_key=True)
     state = Column(
         String(24),
-        CheckConstraint("media in ('available', 'unavailable', 'holding', 'ringing', 'talking')"),
+        CheckConstraint(
+            "media in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
+        ),
         nullable=False,
         default='unavailable',
     )
@@ -152,8 +141,7 @@ class Endpoint(Base):
 
     def __repr__(self):
         return "<Endpoint(name='{name}', state='{state}')>".format(
-            name=self.name,
-            state=self.state,
+            name=self.name, state=self.state
         )
 
 
@@ -161,7 +149,9 @@ class Room(Base):
 
     __tablename__ = 'chatd_room'
 
-    uuid = Column(String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True)
+    uuid = Column(
+        String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True
+    )
     name = Column(Text)
     tenant_uuid = Column(
         UUIDAsString(UUID_LENGTH),
@@ -169,11 +159,7 @@ class Room(Base):
         nullable=False,
     )
 
-    users = relationship(
-        'RoomUser',
-        cascade='all,delete-orphan',
-        passive_deletes=False,
-    )
+    users = relationship('RoomUser', cascade='all,delete-orphan', passive_deletes=False)
     messages = relationship(
         'RoomMessage',
         cascade='all,delete-orphan',
@@ -183,10 +169,7 @@ class Room(Base):
 
     def __repr__(self):
         return "<Room(uuid='{uuid}', name='{name}', users='{users}', messages='{messages}')>".format(
-            uuid=self.uuid,
-            name=self.name,
-            users=self.users,
-            messages=self.messages,
+            uuid=self.uuid, name=self.name, users=self.users, messages=self.messages
         )
 
 
@@ -205,9 +188,7 @@ class RoomUser(Base):
 
     def __repr__(self):
         return "<RoomUser(uuid='{}', tenant_uuid='{}', wazo_uuid='{}')>".format(
-            self.uuid,
-            self.tenant_uuid,
-            self.wazo_uuid,
+            self.uuid, self.tenant_uuid, self.wazo_uuid
         )
 
 
@@ -215,7 +196,9 @@ class RoomMessage(Base):
 
     __tablename__ = 'chatd_room_message'
 
-    uuid = Column(String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True)
+    uuid = Column(
+        String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True
+    )
     room_uuid = Column(
         String(UUID_LENGTH),
         ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
@@ -228,10 +211,7 @@ class RoomMessage(Base):
     wazo_uuid = Column(String(UUID_LENGTH), nullable=False)
     created_at = Column(DateTime(), default=datetime.datetime.utcnow, nullable=False)
 
-    room = relationship(
-        'Room',
-        viewonly=True,
-    )
+    room = relationship('Room', viewonly=True)
 
     def __repr__(self):
         return "<RoomMessage(uuid='{uuid}', created_at='{created_at}' content='{content}', alias='{alias}')>".format(

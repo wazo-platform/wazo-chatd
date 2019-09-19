@@ -27,13 +27,13 @@ def upgrade():
         sa.Column(
             'state',
             sa.String(24),
-            sa.CheckConstraint("state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"),
+            sa.CheckConstraint(
+                "state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
+            ),
             nullable=False,
         ),
         sa.Column(
-            'media',
-            sa.String(24),
-            sa.CheckConstraint("media in ('audio', 'video')"),
+            'media', sa.String(24), sa.CheckConstraint("media in ('audio', 'video')")
         ),
     )
 

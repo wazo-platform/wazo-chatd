@@ -3,13 +3,7 @@
 
 import unittest
 
-from hamcrest import (
-    assert_that,
-    calling,
-    has_entries,
-    not_,
-    raises,
-)
+from hamcrest import assert_that, calling, has_entries, not_, raises
 from xivo.mallow_helpers import ValidationError
 
 from ..schemas import ListRequestSchema, MessageListRequestSchema
@@ -35,9 +29,9 @@ class TestMessageListRequestSchema(unittest.TestCase):
     def test_search_or_distinct_missing(self):
         assert_that(
             calling(self.schema().load).with_args({}),
-            raises(ValidationError, pattern='search or distinct')
+            raises(ValidationError, pattern='search or distinct'),
         )
         assert_that(
             calling(self.schema().load).with_args({'search': 'ok'}),
-            not_(raises(ValidationError, pattern='search or distinct'))
+            not_(raises(ValidationError, pattern='search or distinct')),
         )

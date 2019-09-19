@@ -54,13 +54,16 @@ class TestUser(BaseIntegrationTest):
 
         self._session.expire_all()
         assert_that(inspect(user).persistent)
-        assert_that(user, has_properties(
-            uuid=str(user_uuid),
-            tenant_uuid=TENANT_1,
-            state='available',
-            status='description of available state',
-            last_activity=last_activity,
-        ))
+        assert_that(
+            user,
+            has_properties(
+                uuid=str(user_uuid),
+                tenant_uuid=TENANT_1,
+                state='available',
+                status='description of available state',
+                last_activity=last_activity,
+            ),
+        )
 
     @fixtures.db.user(tenant_uuid=TENANT_1)
     @fixtures.db.user(tenant_uuid=TENANT_2)
@@ -70,15 +73,12 @@ class TestUser(BaseIntegrationTest):
 
         assert_that(
             calling(self._dao.user.get).with_args([user_2.tenant_uuid], user_1.uuid),
-            raises(UnknownUserException, has_properties(status_code=404))
+            raises(UnknownUserException, has_properties(status_code=404)),
         )
 
     def test_get_doesnt_exist(self):
         assert_that(
-            calling(self._dao.user.get).with_args(
-                [TENANT_1],
-                UNKNOWN_UUID,
-            ),
+            calling(self._dao.user.get).with_args([TENANT_1], UNKNOWN_UUID),
             raises(
                 UnknownUserException,
                 has_properties(
@@ -87,8 +87,8 @@ class TestUser(BaseIntegrationTest):
                     resource='users',
                     details=is_not(none()),
                     message=is_not(none()),
-                )
-            )
+                ),
+            ),
         )
 
     @fixtures.db.user(tenant_uuid=TENANT_1)
@@ -110,7 +110,9 @@ class TestUser(BaseIntegrationTest):
     @fixtures.db.user()
     @fixtures.db.user()
     def test_list_uuids(self, user_1, user_2, user_3):
-        result = self._dao.user.list_(tenant_uuids=None, uuids=[user_2.uuid, user_3.uuid])
+        result = self._dao.user.list_(
+            tenant_uuids=None, uuids=[user_2.uuid, user_3.uuid]
+        )
         assert_that(result, has_items(user_2, user_3))
 
         result = self._dao.user.list_(tenant_uuids=None, uuids=[])
@@ -118,8 +120,7 @@ class TestUser(BaseIntegrationTest):
 
         assert_that(
             calling(self._dao.user.list_).with_args(
-                tenant_uuids=None,
-                uuids=[UNKNOWN_UUID],
+                tenant_uuids=None, uuids=[UNKNOWN_UUID]
             ),
             raises(
                 UnknownUsersException,
@@ -129,8 +130,8 @@ class TestUser(BaseIntegrationTest):
                     resource='users',
                     details=is_not(none()),
                     message=is_not(none()),
-                )
-            )
+                ),
+            ),
         )
 
     @fixtures.db.user(tenant_uuid=TENANT_1)
@@ -155,12 +156,15 @@ class TestUser(BaseIntegrationTest):
         self._dao.user.update(user)
 
         self._session.expire_all()
-        assert_that(user, has_properties(
-            uuid=user_uuid,
-            state=user_state,
-            status=user_status,
-            last_activity=user_last_activity,
-        ))
+        assert_that(
+            user,
+            has_properties(
+                uuid=user_uuid,
+                state=user_state,
+                status=user_status,
+                last_activity=user_last_activity,
+            ),
+        )
 
     @fixtures.db.user()
     def test_add_session(self, user):

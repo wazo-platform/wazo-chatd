@@ -9,7 +9,6 @@ from ..models import Session
 
 
 class SessionDAO:
-
     @property
     def session(self):
         return get_dao_session()

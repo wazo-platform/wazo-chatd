@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class Plugin:
-
     def load(self, dependencies):
         api = dependencies['api']
         config = dependencies['config']
@@ -48,9 +47,7 @@ class Plugin:
         bus_event_handler.subscribe(bus_consumer)
 
         api.add_resource(
-            PresenceListResource,
-            '/users/presences',
-            resource_class_args=[service],
+            PresenceListResource, '/users/presences', resource_class_args=[service]
         )
 
         api.add_resource(

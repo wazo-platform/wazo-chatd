@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class Controller:
-
     def __init__(self, config):
         init_db(config['db_uri'])
         self._service_discovery_args = [
@@ -46,7 +45,7 @@ class Controller:
                 'bus_publisher': self.bus_publisher,
                 'status_aggregator': self.status_aggregator,
                 'thread_manager': self.thread_manager,
-            }
+            },
         )
 
     def run(self):

@@ -3,12 +3,7 @@
 
 import uuid
 
-from hamcrest import (
-    assert_that,
-    calling,
-    equal_to,
-    has_items,
-)
+from hamcrest import assert_that, calling, equal_to, has_items
 
 from wazo_chatd.exceptions import UnknownLineException
 from xivo_test_helpers.hamcrest.raises import raises

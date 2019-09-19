@@ -26,5 +26,5 @@ def _update_state_constraint(new_constraint):
     op.create_check_constraint(
         'chatd_user_state_check',
         'chatd_user',
-        sa.sql.column('state').in_(new_constraint)
+        sa.sql.column('state').in_(new_constraint),
     )

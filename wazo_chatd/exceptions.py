@@ -5,7 +5,6 @@ from xivo.rest_api_helpers import APIException
 
 
 class UnknownUserException(APIException):
-
     def __init__(self, user_uuid):
         msg = 'No such user: "{}"'.format(user_uuid)
         details = {'uuid': str(user_uuid)}
@@ -13,17 +12,15 @@ class UnknownUserException(APIException):
 
 
 class UnknownUsersException(APIException):
-
     def __init__(self, user_uuids):
         msg = 'No such users: {}'.format(
-            ', '.join(map(lambda uuid: '"{}"'.format(uuid), user_uuids)),
+            ', '.join(map(lambda uuid: '"{}"'.format(uuid), user_uuids))
         )
         details = {'uuids': user_uuids}
         super().__init__(404, msg, 'unknown-users', details, 'users')
 
 
 class UnknownTenantException(APIException):
-
     def __init__(self, tenant_uuid):
         msg = 'No such tenant: "{}"'.format(tenant_uuid)
         details = {'uuid': str(tenant_uuid)}
@@ -31,7 +28,6 @@ class UnknownTenantException(APIException):
 
 
 class UnknownSessionException(APIException):
-
     def __init__(self, session_uuid):
         msg = 'No such session: "{}"'.format(session_uuid)
         details = {'uuid': str(session_uuid)}
@@ -39,7 +35,6 @@ class UnknownSessionException(APIException):
 
 
 class UnknownLineException(APIException):
-
     def __init__(self, line_id):
         msg = 'No such line: "{}"'.format(line_id)
         details = {'id': line_id}
@@ -47,7 +42,6 @@ class UnknownLineException(APIException):
 
 
 class UnknownEndpointException(APIException):
-
     def __init__(self, endpoint_name):
         msg = 'No such endpoint: "{}"'.format(endpoint_name)
         details = {'name': endpoint_name}
@@ -55,7 +49,6 @@ class UnknownEndpointException(APIException):
 
 
 class UnknownRoomException(APIException):
-
     def __init__(self, room_uuid):
         msg = 'No such room: "{}"'.format(room_uuid)
         details = {'uuid': str(room_uuid)}

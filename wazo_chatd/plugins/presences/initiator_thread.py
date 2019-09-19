@@ -11,13 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 class InitiatorThread(object):
-
     def __init__(self, initiator):
         self._initiator = initiator
         self._started = False
         self._stopped = threading.Event()
         self._retry_time = 0
-        self._retry_time_failed = itertools.chain((1, 2, 4, 8, 16), itertools.repeat(32))
+        self._retry_time_failed = itertools.chain(
+            (1, 2, 4, 8, 16), itertools.repeat(32)
+        )
 
     def start(self):
         if self._started:

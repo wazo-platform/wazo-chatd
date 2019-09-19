@@ -1,10 +1,7 @@
 # Copyright 2019 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import (
-    EXCLUDE,
-    validates_schema,
-)
+from marshmallow import EXCLUDE, validates_schema
 from xivo.mallow import fields, validate
 from xivo.mallow_helpers import Schema, ListSchema as _ListSchema, ValidationError
 
@@ -21,12 +18,7 @@ class RoomSchema(Schema):
 
     name = fields.String(allow_none=True)
 
-    users = fields.Nested(
-        'RoomUserSchema',
-        many=True,
-        missing=[],
-        unknown=EXCLUDE
-    )
+    users = fields.Nested('RoomUserSchema', many=True, missing=[], unknown=EXCLUDE)
 
 
 class MessageSchema(Schema):
@@ -38,11 +30,7 @@ class MessageSchema(Schema):
     wazo_uuid = fields.UUID(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
-    room = fields.Nested(
-        'RoomSchema',
-        dump_only=True,
-        only=['uuid'],
-    )
+    room = fields.Nested('RoomSchema', dump_only=True, only=['uuid'])
 
 
 class ListRequestSchema(_ListSchema):

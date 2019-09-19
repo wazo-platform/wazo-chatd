@@ -8,7 +8,6 @@ from ..controller import _sigterm_handler
 
 
 class Testclassname(TestCase):
-
     def setUp(self):
         pass
 

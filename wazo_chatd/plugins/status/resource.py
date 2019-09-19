@@ -7,7 +7,6 @@ from wazo_chatd.http import AuthResource
 
 
 class StatusResource(AuthResource):
-
     def __init__(self, status_aggregator):
         self.status_aggregator = status_aggregator
 
