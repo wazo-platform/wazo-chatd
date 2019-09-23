@@ -9,7 +9,6 @@ from ..models import Endpoint
 
 
 class EndpointDAO:
-
     @property
     def session(self):
         return get_dao_session()

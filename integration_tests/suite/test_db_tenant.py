@@ -3,13 +3,7 @@
 
 import uuid
 
-from hamcrest import (
-    assert_that,
-    calling,
-    equal_to,
-    has_properties,
-    has_items,
-)
+from hamcrest import assert_that, calling, equal_to, has_properties, has_items
 from sqlalchemy.inspection import inspect
 
 from wazo_chatd.database.models import Tenant

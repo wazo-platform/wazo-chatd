@@ -7,7 +7,6 @@ from ..models import Tenant
 
 
 class TenantDAO:
-
     @property
     def session(self):
         return get_dao_session()

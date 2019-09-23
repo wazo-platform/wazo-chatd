@@ -21,7 +21,6 @@ from .schemas import (
 
 
 class UserRoomListResource(AuthResource):
-
     def __init__(self, service):
         self._service = service
 
@@ -48,7 +47,9 @@ class UserRoomListResource(AuthResource):
         return RoomSchema().dump(room), 201
 
     def _current_user_is_in_room(self, current_user_uuid, room_args):
-        return any(current_user_uuid == str(user['uuid']) for user in room_args['users'])
+        return any(
+            current_user_uuid == str(user['uuid']) for user in room_args['users']
+        )
 
     def _add_current_user(self, room_args, user_uuid):
         room_args['users'].append({'uuid': user_uuid})
@@ -72,7 +73,6 @@ class UserRoomListResource(AuthResource):
 
 
 class UserMessageListResource(AuthResource):
-
     def __init__(self, service):
         self._service = service
 
@@ -80,19 +80,12 @@ class UserMessageListResource(AuthResource):
     def get(self):
         filter_parameters = MessageListRequestSchema().load(request.args)
         messages = self._service.list_user_messages(
-            token.tenant_uuid,
-            token.user_uuid,
-            **filter_parameters,
+            token.tenant_uuid, token.user_uuid, **filter_parameters
         )
         filtered = self._service.count_user_messages(
-            token.tenant_uuid,
-            token.user_uuid,
-            **filter_parameters,
+            token.tenant_uuid, token.user_uuid, **filter_parameters
         )
-        total = self._service.count_user_messages(
-            token.tenant_uuid,
-            token.user_uuid,
-        )
+        total = self._service.count_user_messages(token.tenant_uuid, token.user_uuid)
         return {
             'items': MessageSchema().dump(messages, many=True),
             'filtered': filtered,
@@ -101,7 +94,6 @@ class UserMessageListResource(AuthResource):
 
 
 class UserRoomMessageListResource(AuthResource):
-
     def __init__(self, service):
         self._service = service
 

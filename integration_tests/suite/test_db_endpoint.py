@@ -3,13 +3,7 @@
 
 import uuid
 
-from hamcrest import (
-    assert_that,
-    calling,
-    equal_to,
-    has_items,
-    has_properties,
-)
+from hamcrest import assert_that, calling, equal_to, has_items, has_properties
 from sqlalchemy.inspection import inspect
 
 from wazo_chatd.database.models import Endpoint
@@ -33,17 +27,12 @@ class TestEndpoint(BaseIntegrationTest):
 
     def test_create(self):
         endpoint_name = 'PJSIP/name'
-        endpoint = Endpoint(
-            name=endpoint_name,
-        )
+        endpoint = Endpoint(name=endpoint_name)
         endpoint = self._dao.endpoint.create(endpoint)
 
         self._session.expire_all()
         assert_that(inspect(endpoint).persistent)
-        assert_that(endpoint, has_properties(
-            name=endpoint_name,
-            state='unavailable',
-        ))
+        assert_that(endpoint, has_properties(name=endpoint_name, state='unavailable'))
 
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name='name')

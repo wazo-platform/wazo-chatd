@@ -5,13 +5,7 @@ import logging
 
 from xivo.status import Status
 
-from wazo_chatd.database.models import (
-    Endpoint,
-    Line,
-    User,
-    Session,
-    Tenant,
-)
+from wazo_chatd.database.models import Endpoint, Line, User, Session, Tenant
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.exceptions import (
     UnknownEndpointException,
@@ -29,7 +23,6 @@ DEVICE_STATE_MAP = {
     'NOT_INUSE': 'available',
     'RINGING': 'ringing',
     'ONHOLD': 'holding',
-
     'RINGINUSE': 'ringing',
     'UNKNOWN': 'unavailable',
     'BUSY': 'unavailable',
@@ -50,7 +43,6 @@ def extract_endpoint_name(line):
 
 
 class Initiator:
-
     def __init__(self, dao, auth, amid, confd):
         self._dao = dao
         self._auth = auth
@@ -59,7 +51,9 @@ class Initiator:
         self._is_initialized = False
 
     def provide_status(self, status):
-        status['presence_initialization']['status'] = Status.ok if self.is_initialized() else Status.fail
+        status['presence_initialization']['status'] = (
+            Status.ok if self.is_initialized() else Status.fail
+        )
 
     def is_initialized(self):
         return self._is_initialized
@@ -111,7 +105,9 @@ class Initiator:
 
     def _add_and_remove_users(self, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
-        users_cached = set((u.uuid, u.tenant_uuid) for u in self._dao.user.list_(tenant_uuids=None))
+        users_cached = set(
+            (u.uuid, u.tenant_uuid) for u in self._dao.user.list_(tenant_uuids=None)
+        )
 
         users_missing = users - users_cached
         with session_scope():
@@ -135,8 +131,15 @@ class Initiator:
                 self._dao.user.delete(user)
 
     def _add_and_remove_lines(self, users):
-        lines = set((line['id'], user['uuid'], user['tenant_uuid']) for user in users for line in user['lines'])
-        lines_cached = set((line.id, line.user_uuid, line.tenant_uuid) for line in self._dao.line.list_())
+        lines = set(
+            (line['id'], user['uuid'], user['tenant_uuid'])
+            for user in users
+            for line in user['lines']
+        )
+        lines_cached = set(
+            (line.id, line.user_uuid, line.tenant_uuid)
+            for line in self._dao.line.list_()
+        )
 
         lines_missing = lines - lines_cached
         with session_scope():
@@ -168,7 +171,11 @@ class Initiator:
                 self._dao.user.remove_session(user, line)
 
     def _add_missing_endpoints(self, users):
-        lines = set((line['id'], extract_endpoint_name(line)) for user in users for line in user['lines'])
+        lines = set(
+            (line['id'], extract_endpoint_name(line))
+            for user in users
+            for line in user['lines']
+        )
         with session_scope():
             for line_id, endpoint_name in lines:
                 if not endpoint_name:
@@ -183,8 +190,11 @@ class Initiator:
                 self._dao.endpoint.create(Endpoint(name=endpoint_name))
 
     def _associate_line_endpoint(self, users):
-        lines = set((line['id'], extract_endpoint_name(line))
-                    for user in users for line in user['lines'])
+        lines = set(
+            (line['id'], extract_endpoint_name(line))
+            for user in users
+            for line in user['lines']
+        )
         with session_scope():
             for line_id, endpoint_name in lines:
                 try:
@@ -192,10 +202,14 @@ class Initiator:
                     endpoint = self._dao.endpoint.get_by(name=endpoint_name)
                 except (UnknownLineException, UnknownEndpointException):
                     logger.debug(
-                        'Unable to associate line "%s" with endpoint "%s"', line_id, endpoint_name
+                        'Unable to associate line "%s" with endpoint "%s"',
+                        line_id,
+                        endpoint_name,
                     )
                     continue
-                logger.debug('Associate line "%s" with endpoint "%s"', line.id, endpoint.name)
+                logger.debug(
+                    'Associate line "%s" with endpoint "%s"', line.id, endpoint.name
+                )
                 self._dao.line.associate_endpoint(line, endpoint)
 
     def initiate_sessions(self, sessions):
@@ -247,6 +261,8 @@ class Initiator:
                     'state': DEVICE_STATE_MAP.get(event['State'], 'unavailable'),
                 }
                 logger.debug(
-                    'Create endpoint "%s" with state "%s"', endpoint_args['name'], endpoint_args['state']
+                    'Create endpoint "%s" with state "%s"',
+                    endpoint_args['name'],
+                    endpoint_args['state'],
                 )
                 self._dao.endpoint.create(Endpoint(**endpoint_args))

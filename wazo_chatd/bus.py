@@ -13,10 +13,7 @@ from kombu.mixins import ConsumerMixin
 from xivo.status import Status
 from xivo.pubsub import Pubsub
 
-from xivo_bus import (
-    Marshaler,
-    Publisher as _Publisher,
-)
+from xivo_bus import Marshaler, Publisher as _Publisher
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +47,12 @@ def consumer_thread(consumer):
 
 
 class Consumer(ConsumerMixin):
-
     def __init__(self, global_config):
         self._events_pubsub = Pubsub()
 
-        self._bus_url = 'amqp://{username}:{password}@{host}:{port}//'.format(**global_config['bus'])
+        self._bus_url = 'amqp://{username}:{password}@{host}:{port}//'.format(
+            **global_config['bus']
+        )
         self._exchange = kombu.Exchange(
             global_config['bus']['exchange_name'],
             type=global_config['bus']['exchange_type'],
@@ -83,7 +81,9 @@ class Consumer(ConsumerMixin):
         return self._is_running
 
     def provide_status(self, status):
-        status['bus_consumer']['status'] = Status.ok if self.is_running() else Status.fail
+        status['bus_consumer']['status'] = (
+            Status.ok if self.is_running() else Status.fail
+        )
 
     def on_event(self, event_name, callback):
         logger.debug('Added callback on event "%s"', event_name)
@@ -111,18 +111,20 @@ class Consumer(ConsumerMixin):
 # TODO can be optimized to be instantiated only once by request
 # when the endpoint need to send many messages
 class Publisher:
-
     def __init__(self, config):
         self._config = config['bus']
         self._uuid = config['uuid']
-        self._url = 'amqp://{username}:{password}@{host}:{port}//'.format(**self._config)
+        self._url = 'amqp://{username}:{password}@{host}:{port}//'.format(
+            **self._config
+        )
 
     def publish(self, event, headers=None):
         bus_connection = kombu.Connection(self._url)
         bus_exchange = kombu.Exchange(
-            self._config['exchange_name'],
-            type=self._config['exchange_type'],
+            self._config['exchange_name'], type=self._config['exchange_type']
         )
-        bus_producer = kombu.Producer(bus_connection, exchange=bus_exchange, auto_declare=True)
+        bus_producer = kombu.Producer(
+            bus_connection, exchange=bus_exchange, auto_declare=True
+        )
         bus_marshaler = Marshaler(self._uuid)
         _Publisher(bus_producer, bus_marshaler).publish(event, headers=headers)

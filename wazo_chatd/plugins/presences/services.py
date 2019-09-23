@@ -5,7 +5,6 @@ import datetime
 
 
 class PresenceService:
-
     def __init__(self, dao, notifier):
         self._dao = dao
         self._notifier = notifier

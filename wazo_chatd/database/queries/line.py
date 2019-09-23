@@ -9,7 +9,6 @@ from ..models import Line
 
 
 class LineDAO:
-
     @property
     def session(self):
         return get_dao_session()

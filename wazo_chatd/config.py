@@ -46,16 +46,8 @@ _DEFAULT_CONFIG = {
         'exchange_type': 'topic',
         'exchange_headers_name': 'wazo-headers',
     },
-    'amid': {
-        'host': 'localhost',
-        'port': 9491,
-        'verify_certificate': _CERT_FILE,
-    },
-    'confd': {
-        'host': 'localhost',
-        'port': 9486,
-        'verify_certificate': _CERT_FILE,
-    },
+    'amid': {'host': 'localhost', 'port': 9491, 'verify_certificate': _CERT_FILE},
+    'confd': {'host': 'localhost', 'port': 9486, 'verify_certificate': _CERT_FILE},
     'consul': {
         'scheme': 'https',
         'host': 'localhost',
@@ -79,38 +71,54 @@ _DEFAULT_CONFIG = {
         'rooms': True,
         'status': True,
     },
-    'initialization': {
-        'enabled': True
-    },
+    'initialization': {'enabled': True},
 }
 
 
 def load_config(args):
     cli_config = _parse_cli_args(args)
     file_config = read_config_file_hierarchy(ChainMap(cli_config, _DEFAULT_CONFIG))
-    reinterpreted_config = _get_reinterpreted_raw_values(cli_config, file_config, _DEFAULT_CONFIG)
+    reinterpreted_config = _get_reinterpreted_raw_values(
+        cli_config, file_config, _DEFAULT_CONFIG
+    )
     service_key = _load_key_file(ChainMap(cli_config, file_config, _DEFAULT_CONFIG))
-    return ChainMap(reinterpreted_config, cli_config, service_key, file_config, _DEFAULT_CONFIG)
+    return ChainMap(
+        reinterpreted_config, cli_config, service_key, file_config, _DEFAULT_CONFIG
+    )
 
 
 def _load_key_file(config):
     key_file = parse_config_file(config['auth']['key_file'])
     if not key_file:
         return {}
-    return {'auth': {'username': key_file['service_id'], 'password': key_file['service_key']}}
+    return {
+        'auth': {
+            'username': key_file['service_id'],
+            'password': key_file['service_key'],
+        }
+    }
 
 
 def _get_reinterpreted_raw_values(*configs):
     config = ChainMap(*configs)
     return dict(
-        log_level=get_log_level_by_name('debug' if config['debug'] else config['log_level']),
+        log_level=get_log_level_by_name(
+            'debug' if config['debug'] else config['log_level']
+        )
     )
 
 
 def _parse_cli_args(argv):
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config-file', action='store', help='The path to the config file')
-    parser.add_argument('-d', '--debug', action='store_true', help='Log debug mesages. Override log_level')
+    parser.add_argument(
+        '-c', '--config-file', action='store', help='The path to the config file'
+    )
+    parser.add_argument(
+        '-d',
+        '--debug',
+        action='store_true',
+        help='Log debug mesages. Override log_level',
+    )
     parser.add_argument('-u', '--user', action='store', help='The owner of the process')
     parsed_args = parser.parse_args(argv)
 

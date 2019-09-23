@@ -35,7 +35,6 @@ class _BaseInitializationTest(BaseIntegrationTest):
 
 
 class TestPresenceInitialization(_BaseInitializationTest):
-
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.tenant()
@@ -48,11 +47,16 @@ class TestPresenceInitialization(_BaseInitializationTest):
     @fixtures.db.line(user_uuid=USER_UUID_2, endpoint_name=ENDPOINT_NAME)
     def test_initialization(
         self,
-        endpoint_deleted, endpoint_unchanged,
-        tenant_deleted, tenant_unchanged,
-        user_deleted, user_unchanged,
-        session_deleted, session_unchanged,
-        line_deleted, line_unchanged,
+        endpoint_deleted,
+        endpoint_unchanged,
+        tenant_deleted,
+        tenant_unchanged,
+        user_deleted,
+        user_unchanged,
+        session_deleted,
+        session_unchanged,
+        line_deleted,
+        line_unchanged,
     ):
         # setup tenants
         tenant_created_uuid = str(uuid.uuid4())
@@ -77,19 +81,15 @@ class TestPresenceInitialization(_BaseInitializationTest):
                     {
                         'id': line_1_created_id,
                         'name': line_1_created_name,
-                        'endpoint_sip': {'id': 1}
+                        'endpoint_sip': {'id': 1},
                     },
                     {
                         'id': line_2_created_id,
                         'name': line_2_created_name,
-                        'endpoint_sccp': {'id': 1}
+                        'endpoint_sccp': {'id': 1},
                     },
-                    {
-                        'id': line_bugged_id,
-                        'name': None,
-                        'endpoint_sip': {'id': 1}
-                    },
-                ]
+                    {'id': line_bugged_id, 'name': None, 'endpoint_sip': {'id': 1}},
+                ],
             },
             {
                 'uuid': user_unchanged.uuid,
@@ -111,7 +111,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
             {
                 "Event": "DeviceStateChange",
                 "Device": endpoint_1_created_name,
-                "State": "ONHOLD"
+                "State": "ONHOLD",
             },
             # Simulate no SCCP device returned by asterisk
             # {
@@ -122,7 +122,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
             {
                 "Event": "DeviceStateChange",
                 "Device": endpoint_unchanged.name,
-                "State": "INUSE"
+                "State": "INUSE",
             },
         )
 
@@ -150,70 +150,84 @@ class TestPresenceInitialization(_BaseInitializationTest):
 
         # test tenants
         tenants = self._dao.tenant.list_()
-        assert_that(tenants, contains_inanyorder(
-            has_properties(uuid=CHATD_TOKEN_TENANT_UUID),
-            has_properties(uuid=tenant_unchanged.uuid),
-            has_properties(uuid=tenant_created_uuid),
-        ))
+        assert_that(
+            tenants,
+            contains_inanyorder(
+                has_properties(uuid=CHATD_TOKEN_TENANT_UUID),
+                has_properties(uuid=tenant_unchanged.uuid),
+                has_properties(uuid=tenant_created_uuid),
+            ),
+        )
 
         # test users
         users = self._dao.user.list_(tenant_uuids=None)
-        assert_that(users, contains_inanyorder(
-            has_properties(
-                uuid=user_unchanged.uuid,
-                tenant_uuid=tenant_unchanged.uuid,
-                state='available',
+        assert_that(
+            users,
+            contains_inanyorder(
+                has_properties(
+                    uuid=user_unchanged.uuid,
+                    tenant_uuid=tenant_unchanged.uuid,
+                    state='available',
+                ),
+                has_properties(
+                    uuid=user_created_uuid,
+                    tenant_uuid=tenant_created_uuid,
+                    state='unavailable',
+                ),
             ),
-            has_properties(
-                uuid=user_created_uuid,
-                tenant_uuid=tenant_created_uuid,
-                state='unavailable',
-            ),
-        ))
+        )
 
         # test sessions
         sessions = self._session.query(models.Session).all()
-        assert_that(sessions, contains_inanyorder(
-            has_properties(uuid=session_unchanged.uuid, user_uuid=user_unchanged.uuid),
-            has_properties(uuid=session_created_uuid, user_uuid=user_created_uuid),
-        ))
+        assert_that(
+            sessions,
+            contains_inanyorder(
+                has_properties(
+                    uuid=session_unchanged.uuid, user_uuid=user_unchanged.uuid
+                ),
+                has_properties(uuid=session_created_uuid, user_uuid=user_created_uuid),
+            ),
+        )
 
         # test lines
         lines = self._session.query(models.Line).all()
-        assert_that(lines, contains_inanyorder(
-            has_properties(
-                id=line_unchanged.id,
-                user_uuid=user_unchanged.uuid,
-                endpoint_name=endpoint_unchanged.name
+        assert_that(
+            lines,
+            contains_inanyorder(
+                has_properties(
+                    id=line_unchanged.id,
+                    user_uuid=user_unchanged.uuid,
+                    endpoint_name=endpoint_unchanged.name,
+                ),
+                has_properties(
+                    id=line_1_created_id,
+                    user_uuid=user_created_uuid,
+                    endpoint_name=endpoint_1_created_name,
+                ),
+                has_properties(
+                    id=line_2_created_id,
+                    user_uuid=user_created_uuid,
+                    endpoint_name=endpoint_2_created_name,
+                ),
+                has_properties(
+                    id=line_bugged_id, user_uuid=user_created_uuid, endpoint_name=None
+                ),
             ),
-            has_properties(
-                id=line_1_created_id,
-                user_uuid=user_created_uuid,
-                endpoint_name=endpoint_1_created_name
-            ),
-            has_properties(
-                id=line_2_created_id,
-                user_uuid=user_created_uuid,
-                endpoint_name=endpoint_2_created_name
-            ),
-            has_properties(
-                id=line_bugged_id,
-                user_uuid=user_created_uuid,
-                endpoint_name=None,
-            ),
-        ))
+        )
 
         # test endpoints
         lines = self._session.query(models.Endpoint).all()
-        assert_that(lines, contains_inanyorder(
-            has_properties(name=endpoint_unchanged.name, state='talking'),
-            has_properties(name=endpoint_1_created_name, state='holding'),
-            has_properties(name=endpoint_2_created_name, state='unavailable'),
-        ))
+        assert_that(
+            lines,
+            contains_inanyorder(
+                has_properties(name=endpoint_unchanged.name, state='talking'),
+                has_properties(name=endpoint_1_created_name, state='holding'),
+                has_properties(name=endpoint_2_created_name, state='unavailable'),
+            ),
+        )
 
 
 class TestInitializationNotBlock(_BaseInitializationTest):
-
     def test_server_initialization_do_not_block(self):
         self.stop_service('chatd')
         self.stop_service('amid')
@@ -222,10 +236,15 @@ class TestInitializationNotBlock(_BaseInitializationTest):
 
         def server_wait():
             status = self.chatd.status.get()
-            assert_that(status, has_entries({
-                'presence_initialization': has_entries(status='fail'),
-                'rest_api': has_entries(status='ok'),
-            }))
+            assert_that(
+                status,
+                has_entries(
+                    {
+                        'presence_initialization': has_entries(status='fail'),
+                        'rest_api': has_entries(status='ok'),
+                    }
+                ),
+            )
 
         until.assert_(server_wait, tries=5)
 
@@ -236,7 +255,6 @@ class TestInitializationNotBlock(_BaseInitializationTest):
 
 
 class TestPresenceFail(_BaseInitializationTest):
-
     @fixtures.db.user()
     def test_api_return_503(self, user):
         user_args = {'uuid': user.uuid, 'state': 'available'}
@@ -247,17 +265,23 @@ class TestPresenceFail(_BaseInitializationTest):
 
         assert_that(
             calling(self.chatd.user_presences.list),
-            raises(ChatdError, has_properties(error_id='not-initialized', status_code=503))
+            raises(
+                ChatdError, has_properties(error_id='not-initialized', status_code=503)
+            ),
         )
 
         assert_that(
             calling(self.chatd.user_presences.get).with_args(user_args['uuid']),
-            raises(ChatdError, has_properties(error_id='not-initialized', status_code=503))
+            raises(
+                ChatdError, has_properties(error_id='not-initialized', status_code=503)
+            ),
         )
 
         assert_that(
             calling(self.chatd.user_presences.update).with_args(user_args),
-            raises(ChatdError, has_properties(error_id='not-initialized', status_code=503))
+            raises(
+                ChatdError, has_properties(error_id='not-initialized', status_code=503)
+            ),
         )
 
         self.start_service('amid')

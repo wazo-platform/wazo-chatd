@@ -11,7 +11,6 @@ from .services import RoomService
 
 
 class Plugin:
-
     def load(self, dependencies):
         api = dependencies['api']
         config = dependencies['config']
@@ -22,9 +21,7 @@ class Plugin:
         service = RoomService(config['uuid'], dao, notifier)
 
         api.add_resource(
-            UserRoomListResource,
-            '/users/me/rooms',
-            resource_class_args=[service],
+            UserRoomListResource, '/users/me/rooms', resource_class_args=[service]
         )
         api.add_resource(
             UserMessageListResource,

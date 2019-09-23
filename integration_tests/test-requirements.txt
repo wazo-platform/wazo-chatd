@@ -1,16 +1,4 @@
-docker-compose
-kombu
-openapi-spec-validator
-pyhamcrest
-pytest
-requests
-https://github.com/wazo-pbx/wazo-auth-client/archive/master.zip
-https://github.com/wazo-pbx/wazo-chatd-client/archive/master.zip
-https://github.com/wazo-pbx/xivo-lib-rest-client/archive/master.zip
-https://github.com/wazo-pbx/xivo-test-helpers/archive/master.zip
+# Backward compatiblity for jenkins
 
-# for database tests
-psycopg2-binary
-sqlalchemy
-https://github.com/wazo-pbx/xivo-lib-python/archive/master.zip
+-r test-requirements-for-tox.txt
 -e ..

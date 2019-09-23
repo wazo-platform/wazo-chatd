@@ -5,20 +5,13 @@ import logging
 
 from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.database.models import (
-    Endpoint,
-    Line,
-    Session,
-    Tenant,
-    User,
-)
+from wazo_chatd.database.models import Endpoint, Line, Session, Tenant, User
 from .initiator import DEVICE_STATE_MAP, extract_endpoint_name
 
 logger = logging.getLogger(__name__)
 
 
 class BusEventHandler:
-
     def __init__(self, dao, notifier):
         self._dao = dao
         self._notifier = notifier
@@ -73,7 +66,9 @@ class BusEventHandler:
             try:
                 user = self._dao.user.get([tenant_uuid], user_uuid)
             except UnknownUserException:
-                logger.debug('Session "%s" has no valid user "%s"', session_uuid, user_uuid)
+                logger.debug(
+                    'Session "%s" has no valid user "%s"', session_uuid, user_uuid
+                )
                 return
 
             logger.debug('Create session "%s" for user "%s"', session_uuid, user_uuid)
@@ -89,7 +84,9 @@ class BusEventHandler:
             try:
                 user = self._dao.user.get([tenant_uuid], user_uuid)
             except UnknownUserException:
-                logger.debug('Session "%s" has no valid user "%s"', session_uuid, user_uuid)
+                logger.debug(
+                    'Session "%s" has no valid user "%s"', session_uuid, user_uuid
+                )
                 return
 
             session = self._dao.session.get(session_uuid)
@@ -117,7 +114,9 @@ class BusEventHandler:
             endpoint = self._dao.endpoint.find_by(name=endpoint_name)
             if not endpoint:
                 endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
-            logger.debug('Associate line "%s" with endpoint "%s"', line_id, endpoint_name)
+            logger.debug(
+                'Associate line "%s" with endpoint "%s"', line_id, endpoint_name
+            )
             self._dao.line.associate_endpoint(line, endpoint)
             self._notifier.updated(user)
 
@@ -140,7 +139,9 @@ class BusEventHandler:
             if not endpoint:
                 endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
             endpoint.state = state
-            logger.debug('Update endpoint "%s" with state "%s"', endpoint.name, endpoint.state)
+            logger.debug(
+                'Update endpoint "%s" with state "%s"', endpoint.name, endpoint.state
+            )
             self._dao.endpoint.update(endpoint)
             if endpoint.line:
                 self._notifier.updated(endpoint.line.user)

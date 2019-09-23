@@ -47,7 +47,6 @@ def commit_database():
 
 
 class CoreRestApi:
-
     def __init__(self, global_config):
         self.config = global_config['rest_api']
         http_helpers.add_logger(app, logger)
@@ -73,14 +72,13 @@ class CoreRestApi:
         wsgi_app = wsgi.WSGIPathInfoDispatcher({'/': app})
         self.server = wsgi.WSGIServer(bind_addr=bind_addr, wsgi_app=wsgi_app)
         self.server.ssl_adapter = http_helpers.ssl_adapter(
-            self.config['certificate'],
-            self.config['private_key']
+            self.config['certificate'], self.config['private_key']
         )
         logger.debug(
             'WSGIServer starting... uid: %s, listen: %s:%s',
             os.getuid(),
             bind_addr[0],
-            bind_addr[1]
+            bind_addr[1],
         )
         for route in http_helpers.list_routes(app):
             logger.debug(route)

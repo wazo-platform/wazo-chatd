@@ -6,18 +6,9 @@ import unittest
 
 from mock import MagicMock, Mock
 
-from hamcrest import (
-    assert_that,
-    contains,
-    empty,
-    has_entries,
-)
+from hamcrest import assert_that, contains, empty, has_entries
 
-from ..schemas import (
-    UserPresenceSchema,
-    LinePresenceSchema,
-    ListRequestSchema,
-)
+from ..schemas import UserPresenceSchema, LinePresenceSchema, ListRequestSchema
 
 UUID = str(uuid.uuid4())
 
@@ -32,12 +23,7 @@ class TestUserPresenceSchema(unittest.TestCase):
         self.line_talking = Mock(id=3, state='talking')
         self.line_available = Mock(id=4, state='available')
         self.line_unavailable = Mock(id=5, state='unavailable')
-        self.user = Mock(
-            uuid=UUID,
-            tenant_uuid=UUID,
-            sessions=[],
-            lines=[]
-        )
+        self.user = Mock(uuid=UUID, tenant_uuid=UUID, sessions=[], lines=[])
 
     def test_set_line_state_ringing(self):
         self.user.lines = [
@@ -92,9 +78,7 @@ class TestUserPresenceSchema(unittest.TestCase):
         assert_that(result, has_entries(line_state='available'))
 
     def test_set_line_state_unavailable(self):
-        self.user.lines = [
-            self.line_unavailable,
-        ]
+        self.user.lines = [self.line_unavailable]
 
         result = self.schema().dump(self.user)
         assert_that(result, has_entries(line_state='unavailable'))

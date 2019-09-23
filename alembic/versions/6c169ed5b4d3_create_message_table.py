@@ -21,7 +21,7 @@ def upgrade():
             'uuid',
             sa.String(36),
             server_default=sa.text('uuid_generate_v4()'),
-            primary_key=True
+            primary_key=True,
         ),
         sa.Column(
             'room_uuid',
@@ -34,7 +34,9 @@ def upgrade():
         sa.Column('user_uuid', sa.String(36), nullable=False),
         sa.Column('tenant_uuid', sa.String(36), nullable=False),
         sa.Column('wazo_uuid', sa.String(36), nullable=False),
-        sa.Column('created_at', sa.DateTime, default=datetime.datetime.utcnow, nullable=False),
+        sa.Column(
+            'created_at', sa.DateTime, default=datetime.datetime.utcnow, nullable=False
+        ),
     )
 
 

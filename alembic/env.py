@@ -21,6 +21,7 @@ fileConfig(config.config_file_name)
 
 def get_target_metadata():
     from wazo_chatd.database import models
+
     return models.Base.metadata
 
 
@@ -68,9 +69,11 @@ def run_migrations_online():
     engine = create_engine(url)
 
     connection = engine.connect()
-    context.configure(connection=connection,
-                      target_metadata=get_target_metadata(),
-                      version_table=VERSION_TABLE)
+    context.configure(
+        connection=connection,
+        target_metadata=get_target_metadata(),
+        version_table=VERSION_TABLE,
+    )
 
     try:
         with context.begin_transaction():

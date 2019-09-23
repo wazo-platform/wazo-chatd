@@ -33,9 +33,7 @@ class TestEventHandler(BaseIntegrationTest):
 
         def tenant_created():
             result = self._dao.tenant.list_()
-            assert_that(result, has_items(
-                has_properties(uuid=tenant_uuid),
-            ))
+            assert_that(result, has_items(has_properties(uuid=tenant_uuid)))
 
         until.assert_(tenant_created, tries=3)
 
@@ -46,9 +44,7 @@ class TestEventHandler(BaseIntegrationTest):
 
         def tenant_deleted():
             result = self._dao.tenant.list_()
-            assert_that(result, not_(has_items(
-                has_properties(uuid=tenant_uuid),
-            )))
+            assert_that(result, not_(has_items(has_properties(uuid=tenant_uuid))))
 
         until.assert_(tenant_deleted, tries=3)
 
@@ -59,9 +55,10 @@ class TestEventHandler(BaseIntegrationTest):
 
         def user_created():
             result = self._dao.user.list_(tenant_uuids=None)
-            assert_that(result, has_items(
-                has_properties(uuid=user_uuid, tenant_uuid=tenant_uuid),
-            ))
+            assert_that(
+                result,
+                has_items(has_properties(uuid=user_uuid, tenant_uuid=tenant_uuid)),
+            )
 
         until.assert_(user_created, tries=3)
 
@@ -73,9 +70,12 @@ class TestEventHandler(BaseIntegrationTest):
 
         def user_deleted():
             result = self._dao.user.list_(tenant_uuids=None)
-            assert_that(result, not_(has_items(
-                has_properties(uuid=user_uuid, tenant_uuid=tenant_uuid),
-            )))
+            assert_that(
+                result,
+                not_(
+                    has_items(has_properties(uuid=user_uuid, tenant_uuid=tenant_uuid))
+                ),
+            )
 
         until.assert_(user_deleted, tries=3)
 
@@ -90,16 +90,22 @@ class TestEventHandler(BaseIntegrationTest):
 
         def session_created():
             result = self._session.query(models.Session).all()
-            assert_that(result, has_items(
-                has_properties(uuid=session_uuid, user_uuid=user_uuid),
-            ))
+            assert_that(
+                result,
+                has_items(has_properties(uuid=session_uuid, user_uuid=user_uuid)),
+            )
 
         until.assert_(session_created, tries=3)
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(
-            sessions=contains(has_entries(uuid=session_uuid))
-        ))))
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    data=has_entries(sessions=contains(has_entries(uuid=session_uuid)))
+                )
+            ),
+        )
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_1)
@@ -113,16 +119,15 @@ class TestEventHandler(BaseIntegrationTest):
 
         def session_deleted():
             result = self._session.query(models.Session).all()
-            assert_that(result, not_(has_items(
-                has_properties(uuid=session_uuid, user_uuid=user_uuid),
-            )))
+            assert_that(
+                result,
+                not_(has_items(has_properties(uuid=session_uuid, user_uuid=user_uuid))),
+            )
 
         until.assert_(session_deleted, tries=3)
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(
-            sessions=empty()
-        ))))
+        assert_that(event, contains(has_entries(data=has_entries(sessions=empty()))))
 
     @fixtures.db.user()
     def test_user_line_associated(self, user):
@@ -132,24 +137,36 @@ class TestEventHandler(BaseIntegrationTest):
         routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_user_line_associated_event(line_id, user_uuid, user.tenant_uuid, line_name)
+        self.bus.send_user_line_associated_event(
+            line_id, user_uuid, user.tenant_uuid, line_name
+        )
 
         def user_line_associated():
             result = self._session.query(models.Line).all()
-            assert_that(result, has_items(
-                has_properties(
-                    id=line_id,
-                    user_uuid=user_uuid,
-                    endpoint_name='PJSIP/{}'.format(line_name),
+            assert_that(
+                result,
+                has_items(
+                    has_properties(
+                        id=line_id,
+                        user_uuid=user_uuid,
+                        endpoint_name='PJSIP/{}'.format(line_name),
+                    )
                 ),
-            ))
+            )
 
         until.assert_(user_line_associated, tries=3)
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(
-            lines=contains(has_entries(id=line_id, state='unavailable'))
-        ))))
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    data=has_entries(
+                        lines=contains(has_entries(id=line_id, state='unavailable'))
+                    )
+                )
+            ),
+        )
 
     @fixtures.db.endpoint(name='PJSIP/myname', state='available')
     @fixtures.db.user()
@@ -158,16 +175,20 @@ class TestEventHandler(BaseIntegrationTest):
         line_name = 'myname'
         endpoint_state = endpoint.state
         user_uuid = user.uuid
-        self.bus.send_user_line_associated_event(line_id, user_uuid, user.tenant_uuid, line_name)
+        self.bus.send_user_line_associated_event(
+            line_id, user_uuid, user.tenant_uuid, line_name
+        )
 
         def user_line_associated():
             result = self._session.query(models.Line).all()
-            assert_that(result, has_items(
-                has_properties(
-                    endpoint_name='PJSIP/{}'.format(line_name),
-                    state=endpoint_state
+            assert_that(
+                result,
+                has_items(
+                    has_properties(
+                        endpoint_name='PJSIP/{}'.format(line_name), state=endpoint_state
+                    )
                 ),
-            ))
+            )
 
         until.assert_(user_line_associated, tries=3)
 
@@ -178,14 +199,16 @@ class TestEventHandler(BaseIntegrationTest):
         line_id = line.id
         user_2_uuid = user_2.uuid
 
-        self.bus.send_user_line_associated_event(line_id, user_2_uuid, user_2.tenant_uuid, None)
+        self.bus.send_user_line_associated_event(
+            line_id, user_2_uuid, user_2.tenant_uuid, None
+        )
 
         def user_line_associated():
             self._session.expire_all()
             result = self._session.query(models.Line).all()
-            assert_that(result, has_items(
-                has_properties(id=line_id, user_uuid=user_2_uuid),
-            ))
+            assert_that(
+                result, has_items(has_properties(id=line_id, user_uuid=user_2_uuid))
+            )
 
         until.assert_(user_line_associated, tries=3)
 
@@ -195,13 +218,15 @@ class TestEventHandler(BaseIntegrationTest):
         line_name = None
         user_uuid = user.uuid
 
-        self.bus.send_user_line_associated_event(line_id, user_uuid, user.tenant_uuid, line_name)
+        self.bus.send_user_line_associated_event(
+            line_id, user_uuid, user.tenant_uuid, line_name
+        )
 
         def user_line_associated():
             result = self._session.query(models.Line).all()
-            assert_that(result, has_items(
-                has_properties(id=line_id, endpoint_name=None),
-            ))
+            assert_that(
+                result, has_items(has_properties(id=line_id, endpoint_name=None))
+            )
 
         until.assert_(user_line_associated, tries=3)
 
@@ -217,16 +242,14 @@ class TestEventHandler(BaseIntegrationTest):
 
         def user_line_dissociated():
             result = self._session.query(models.Line).all()
-            assert_that(result, not_(has_items(
-                has_properties(id=line_id, user_uuid=user_uuid),
-            )))
+            assert_that(
+                result, not_(has_items(has_properties(id=line_id, user_uuid=user_uuid)))
+            )
 
         until.assert_(user_line_dissociated, tries=3)
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(
-            lines=empty()
-        ))))
+        assert_that(event, contains(has_entries(data=has_entries(lines=empty()))))
 
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
@@ -242,16 +265,23 @@ class TestEventHandler(BaseIntegrationTest):
         def endpoint_state_changed():
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
-            assert_that(result, has_items(
-                has_properties(name=endpoint_name, state='holding'),
-            ))
+            assert_that(
+                result, has_items(has_properties(name=endpoint_name, state='holding'))
+            )
 
         until.assert_(endpoint_state_changed, tries=3)
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(
-            lines=contains(has_entries(id=line_id, state='holding'))
-        ))))
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    data=has_entries(
+                        lines=contains(has_entries(id=line_id, state='holding'))
+                    )
+                )
+            ),
+        )
 
     def test_device_state_changed_create_endpoint(self):
         endpoint_name = 'missing-endpoint'
@@ -261,8 +291,8 @@ class TestEventHandler(BaseIntegrationTest):
         def endpoint_state_changed():
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
-            assert_that(result, has_items(
-                has_properties(name=endpoint_name, state='holding'),
-            ))
+            assert_that(
+                result, has_items(has_properties(name=endpoint_name, state='holding'))
+            )
 
         until.assert_(endpoint_state_changed, tries=3)
