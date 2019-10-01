@@ -1,6 +1,6 @@
 Format: http://dep.debian.net/deps/dep5
 Upstream-Name: wazo-chatd
-Source: https://github.com/wazo-pbx/wazo-chatd.git
+Source: https://github.com/wazo-platform/wazo-chatd.git
 
 Files: *
 Copyright: 2019 The Wazo Authors
