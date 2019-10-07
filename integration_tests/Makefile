@@ -11,6 +11,7 @@ egg-info:
 pull-images:
 	docker pull rabbitmq
 	docker pull wazopbx/wait
+	docker pull wazopbx/wazo-amid-mock
 	docker pull wazopbx/wazo-auth-mock
 	docker pull wazopbx/wazo-confd-mock
 
