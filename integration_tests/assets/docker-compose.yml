@@ -31,7 +31,7 @@ services:
       - "5432"
 
   amid:
-    image: wazopbx/xivo-amid-mock
+    image: wazopbx/wazo-amid-mock
     ports:
       - 9491
 
