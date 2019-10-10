@@ -9,7 +9,7 @@ extra_config_files: '/etc/wazo-chatd/conf.d'
 debug: false
 log_level: info
 log_file: /var/log/wazo-chatd.log
-pid_file: /var/run/wazo-chatd/wazo-chatd.pid
+pid_file: /run/wazo-chatd/wazo-chatd.pid
 
 # REST API server
 rest_api:
