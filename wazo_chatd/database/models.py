@@ -110,7 +110,7 @@ class Line(Base):
         UUIDAsString(UUID_LENGTH), ForeignKey('chatd_user.uuid', ondelete='CASCADE')
     )
     endpoint_name = Column(Text, ForeignKey('chatd_endpoint.name', ondelete='SET NULL'))
-    media = Column(String(24), CheckConstraint("state in ('audio', 'video')"))
+    media = Column(String(24), CheckConstraint("media in ('audio', 'video')"))
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
@@ -131,7 +131,7 @@ class Endpoint(Base):
     state = Column(
         String(24),
         CheckConstraint(
-            "media in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
+            "state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
         ),
         nullable=False,
         default='unavailable',
