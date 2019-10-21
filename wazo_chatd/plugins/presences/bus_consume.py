@@ -5,7 +5,7 @@ import logging
 
 from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.database.models import Endpoint, Line, Session, Tenant, User
+from wazo_chatd.database.models import Line, Session, Tenant, User
 from .initiator import DEVICE_STATE_MAP, extract_endpoint_name
 
 logger = logging.getLogger(__name__)
@@ -119,9 +119,7 @@ class BusEventHandler:
                 logger.warning('Line "%s" doesn\'t have name', line_id)
                 self._notifier.updated(user)
                 return
-            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
-            if not endpoint:
-                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            endpoint = self._dao.endpoint.find_or_create(endpoint_name)
             logger.debug(
                 'Associate line "%s" with endpoint "%s"', line_id, endpoint_name
             )
@@ -143,9 +141,7 @@ class BusEventHandler:
         endpoint_name = event['Device']
         state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
-            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
-            if not endpoint:
-                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            endpoint = self._dao.endpoint.find_or_create(endpoint_name)
             if (
                 (state in INUSE_STATE and endpoint.channel_state == 'down')
                 or (state not in INUSE_STATE and endpoint.channel_state == 'up')
@@ -171,9 +167,7 @@ class BusEventHandler:
             return
 
         with session_scope():
-            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
-            if not endpoint:
-                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            endpoint = self._dao.endpoint.find_or_create(endpoint_name)
             endpoint.channel_state = 'up'
             logger.debug(
                 'Update endpoint "%s" with state "%s" and channel state "%s"',
@@ -189,9 +183,7 @@ class BusEventHandler:
             return
 
         with session_scope():
-            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
-            if not endpoint:
-                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            endpoint = self._dao.endpoint.find_or_create(endpoint_name)
             old_endpoint_state = endpoint.state
             endpoint.channel_state = 'down'
             if endpoint.state in INUSE_STATE:

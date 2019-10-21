@@ -34,6 +34,19 @@ class TestEndpoint(BaseIntegrationTest):
         assert_that(inspect(endpoint).persistent)
         assert_that(endpoint, has_properties(name=endpoint_name, state='unavailable'))
 
+    def test_find_or_create(self):
+        endpoint_name = 'PJSIP/name'
+        created_endpoint = self._dao.endpoint.find_or_create(endpoint_name)
+
+        self._session.expire_all()
+        assert_that(inspect(created_endpoint).persistent)
+        assert_that(created_endpoint, has_properties(name=endpoint_name))
+
+        found_endpoint = self._dao.tenant.find_or_create(created_endpoint.name)
+        assert_that(found_endpoint, has_properties(uuid=created_endpoint.name))
+
+        self._dao.tenant.delete(found_endpoint)
+
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name='name')
     def test_get_by(self, endpoint, _):
