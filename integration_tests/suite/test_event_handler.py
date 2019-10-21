@@ -83,7 +83,7 @@ class TestEventHandler(BaseIntegrationTest):
     def test_session_created(self, user):
         session_uuid = str(uuid.uuid4())
         user_uuid = user.uuid
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid)
@@ -112,7 +112,7 @@ class TestEventHandler(BaseIntegrationTest):
     def test_session_deleted(self, user, session):
         session_uuid = session.uuid
         user_uuid = user.uuid
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_session_deleted_event(session_uuid, user_uuid, user.tenant_uuid)
@@ -134,7 +134,7 @@ class TestEventHandler(BaseIntegrationTest):
         line_id = random.randint(1, 1000000)
         line_name = 'created-line'
         user_uuid = user.uuid
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_user_line_associated_event(
@@ -235,7 +235,7 @@ class TestEventHandler(BaseIntegrationTest):
     def test_user_line_dissociated(self, user, line):
         line_id = line.id
         user_uuid = user.uuid
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_line_dissociated_event(line_id, user_uuid, user.tenant_uuid)
@@ -257,7 +257,7 @@ class TestEventHandler(BaseIntegrationTest):
     def test_device_state_changed(self, endpoint, user, line):
         line_id = line.id
         endpoint_name = endpoint.name
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_device_state_changed_event(endpoint_name, 'ONHOLD')
@@ -289,7 +289,7 @@ class TestEventHandler(BaseIntegrationTest):
     def test_device_state_change_inuse_when_channel_state_is_up(self, endpoint, user, line):
         line_id = line.id
         endpoint_name = endpoint.name
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_device_state_changed_event(endpoint_name, 'INUSE')
@@ -315,7 +315,7 @@ class TestEventHandler(BaseIntegrationTest):
     def test_device_state_change_not_inuse_when_channel_state_is_down(self, endpoint, user, line):
         line_id = line.id
         endpoint_name = endpoint.name
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_device_state_changed_event(endpoint_name, 'NOT_INUSE')
@@ -413,7 +413,7 @@ class TestEventHandler(BaseIntegrationTest):
     def test_hangup_set_state_to_available_and_send_event(self, endpoint, user, line):
         line_id = line.id
         endpoint_name = endpoint.name
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.bus.send_hangup_event(endpoint_name)
