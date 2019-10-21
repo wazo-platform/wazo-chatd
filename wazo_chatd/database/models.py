@@ -136,12 +136,18 @@ class Endpoint(Base):
         nullable=False,
         default='unavailable',
     )
+    channel_state = Column(
+        String(24),
+        CheckConstraint(
+            "channel_state in ('up', 'down')"
+        ),
+    )
 
     line = relationship('Line', uselist=False, viewonly=True)
 
     def __repr__(self):
-        return "<Endpoint(name='{name}', state='{state}')>".format(
-            name=self.name, state=self.state
+        return "<Endpoint(name='{name}', state='{state}', channel_state='{channel_state}')>".format(
+            name=self.name, state=self.state, channel_state=self.channel_state
         )
 
 

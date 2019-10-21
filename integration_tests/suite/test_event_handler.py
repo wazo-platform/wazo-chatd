@@ -296,3 +296,87 @@ class TestEventHandler(BaseIntegrationTest):
             )
 
         until.assert_(endpoint_state_changed, tries=3)
+
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, channel_state='down')
+    def test_new_channel(self, endpoint):
+        endpoint_name = endpoint.name
+
+        self.bus.send_new_channel_event(endpoint_name)
+
+        def endpoint_channel_state_changed():
+            self._session.expire_all()
+            result = self._session.query(models.Endpoint).all()
+            assert_that(
+                result, has_items(has_properties(name=endpoint_name, channel_state='up'))
+            )
+
+        until.assert_(endpoint_channel_state_changed, tries=3)
+
+    def test_new_channel_create_endpoint(self):
+        endpoint_name = 'missing-endpoint'
+
+        self.bus.send_new_channel_event(endpoint_name)
+
+        def endpoint_channel_state_changed():
+            self._session.expire_all()
+            result = self._session.query(models.Endpoint).all()
+            assert_that(
+                result, has_items(has_properties(name=endpoint_name, channel_state='up'))
+            )
+
+        until.assert_(endpoint_channel_state_changed, tries=3)
+
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, channel_state='up')
+    def test_hangup(self, endpoint):
+        endpoint_name = endpoint.name
+
+        self.bus.send_hangup_event(endpoint_name)
+
+        def endpoint_channel_state_changed():
+            self._session.expire_all()
+            result = self._session.query(models.Endpoint).all()
+            assert_that(
+                result, has_items(has_properties(name=endpoint_name, channel_state='down'))
+            )
+
+        until.assert_(endpoint_channel_state_changed, tries=3)
+
+    def test_hangup_create_endpoint(self):
+        endpoint_name = 'missing-endpoint'
+
+        self.bus.send_hangup_event(endpoint_name)
+
+        def endpoint_channel_state_changed():
+            self._session.expire_all()
+            result = self._session.query(models.Endpoint).all()
+            assert_that(
+                result, has_items(has_properties(name=endpoint_name, channel_state='down'))
+            )
+
+        until.assert_(endpoint_channel_state_changed, tries=3)
+
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='holding', channel_state='up')
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
+    def test_hangup_set_state_to_available_and_send_event(self, endpoint, user, line):
+        line_id = line.id
+        endpoint_name = endpoint.name
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_hangup_event(endpoint_name)
+
+        def endpoint_state_changed():
+            event = event_accumulator.accumulate()
+            assert_that(
+                event,
+                contains(
+                    has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=line_id, state='available'))
+                        )
+                    )
+                ),
+            )
+
+        until.assert_(endpoint_state_changed, tries=3)

@@ -29,6 +29,12 @@ DEVICE_STATE_MAP = {
     'INVALID': 'unavailable',
 }
 
+INUSE_STATE = (
+    'holding',
+    'ringing',
+    'talking',
+)
+
 
 def extract_endpoint_name(line):
     if not line['name']:

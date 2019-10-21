@@ -10,6 +10,12 @@ from .initiator import DEVICE_STATE_MAP, extract_endpoint_name
 
 logger = logging.getLogger(__name__)
 
+INUSE_STATE = (
+    'holding',
+    'ringing',
+    'talking',
+)
+
 
 class BusEventHandler:
     def __init__(self, dao, notifier):
@@ -26,6 +32,8 @@ class BusEventHandler:
         bus_consumer.on_event('user_line_associated', self._user_line_associated)
         bus_consumer.on_event('user_line_dissociated', self._user_line_dissociated)
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
+        bus_consumer.on_event('Hangup', self._channel_deleted)
+        bus_consumer.on_event('Newchannel', self._channel_created)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
@@ -145,3 +153,51 @@ class BusEventHandler:
             self._dao.endpoint.update(endpoint)
             if endpoint.line:
                 self._notifier.updated(endpoint.line.user)
+
+    def _channel_created(self, event):
+        endpoint_name = self._extract_endpoint_from_channel(event['Channel'])
+        if not endpoint_name:
+            return
+
+        with session_scope():
+            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+            if not endpoint:
+                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            endpoint.channel_state = 'up'
+            logger.debug(
+                'Update endpoint "%s" with state "%s" and channel state "%s"',
+                endpoint.name,
+                endpoint.state,
+                endpoint.channel_state,
+            )
+            self._dao.endpoint.update(endpoint)
+
+    def _channel_deleted(self, event):
+        endpoint_name = self._extract_endpoint_from_channel(event['Channel'])
+        if not endpoint_name:
+            return
+
+        with session_scope():
+            endpoint = self._dao.endpoint.find_by(name=endpoint_name)
+            if not endpoint:
+                endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            old_endpoint_state = endpoint.state
+            endpoint.channel_state = 'down'
+            if endpoint.state in INUSE_STATE:
+                endpoint.state = 'available'
+            logger.debug(
+                'Update endpoint "%s" with state "%s" and channel state "%s"',
+                endpoint.name,
+                endpoint.state,
+                endpoint.channel_state,
+            )
+            self._dao.endpoint.update(endpoint)
+            if endpoint.line and old_endpoint_state != endpoint.state:
+                self._notifier.updated(endpoint.line.user)
+
+    def _extract_endpoint_from_channel(self, channel_name):
+        endpoint_name = '-'.join(channel_name.split('-')[:-1])
+        if not endpoint_name:
+            logger.debug('Invalid endpoint from channel "%s"', channel_name)
+            return
+        return endpoint_name
