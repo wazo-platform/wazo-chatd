@@ -146,6 +146,17 @@ class BusEventHandler:
             endpoint = self._dao.endpoint.find_by(name=endpoint_name)
             if not endpoint:
                 endpoint = self._dao.endpoint.create(Endpoint(name=endpoint_name))
+            if (
+                (state in INUSE_STATE and endpoint.channel_state == 'down')
+                or (state not in INUSE_STATE and endpoint.channel_state == 'up')
+            ):
+                logger.debug(
+                    'Invalid endpoint "%s" state "%s", channel state is "%s"',
+                    endpoint_name,
+                    state,
+                    endpoint.channel_state,
+                )
+                return
             endpoint.state = state
             logger.debug(
                 'Update endpoint "%s" with state "%s"', endpoint.name, endpoint.state

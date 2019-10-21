@@ -283,6 +283,58 @@ class TestEventHandler(BaseIntegrationTest):
             ),
         )
 
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available', channel_state='up')
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
+    def test_device_state_change_inuse_when_channel_state_is_up(self, endpoint, user, line):
+        line_id = line.id
+        endpoint_name = endpoint.name
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_device_state_changed_event(endpoint_name, 'INUSE')
+
+        def endpoint_state_changed():
+            event = event_accumulator.accumulate()
+            assert_that(
+                event,
+                contains(
+                    has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=line_id, state='talking'))
+                        )
+                    )
+                ),
+            )
+
+        until.assert_(endpoint_state_changed, tries=3)
+
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='talking', channel_state='down')
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
+    def test_device_state_change_not_inuse_when_channel_state_is_down(self, endpoint, user, line):
+        line_id = line.id
+        endpoint_name = endpoint.name
+        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_device_state_changed_event(endpoint_name, 'NOT_INUSE')
+
+        def endpoint_state_changed():
+            event = event_accumulator.accumulate()
+            assert_that(
+                event,
+                contains(
+                    has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=line_id, state='available'))
+                        )
+                    )
+                ),
+            )
+
+        until.assert_(endpoint_state_changed, tries=3)
+
     def test_device_state_changed_create_endpoint(self):
         endpoint_name = 'missing-endpoint'
 
