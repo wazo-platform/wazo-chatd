@@ -27,7 +27,7 @@ def main():
         conf['log_file'], FOREGROUND, conf['debug'], conf['log_level']
     )
     xivo_logging.silence_loggers(
-        ['Flask-Cors', 'urllib3', 'stevedore.extension'], logging.WARNING
+        ['Flask-Cors', 'urllib3', 'stevedore.extension', 'amqp'], logging.WARNING
     )
 
     set_xivo_uuid(conf, logger)
