@@ -227,8 +227,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         )
 
 
-class TestInitializationNotBlock(_BaseInitializationTest):
-    def test_server_initialization_do_not_block(self):
+class TestInitializationNotBlockOnHTTPError(_BaseInitializationTest):
+    def test_server_initialization_do_not_block_on_http_error(self):
         self.stop_service('chatd')
         self.stop_service('amid')
         self.start_service('chatd')
@@ -249,6 +249,33 @@ class TestInitializationNotBlock(_BaseInitializationTest):
         until.assert_(server_wait, tries=5)
 
         self.start_service('amid')
+        self.reset_clients()
+
+        PresenceInitOkWaitStrategy().wait(self)
+
+
+class TestInitializationNotBlockOnDatabaseError(_BaseInitializationTest):
+    def test_server_initialization_do_not_block_on_database_error(self):
+        self.stop_service('chatd')
+        self.stop_service('postgres')
+        self.start_service('chatd')
+        self.reset_clients()
+
+        def server_wait():
+            status = self.chatd.status.get()
+            assert_that(
+                status,
+                has_entries(
+                    {
+                        'presence_initialization': has_entries(status='fail'),
+                        'rest_api': has_entries(status='ok'),
+                    }
+                ),
+            )
+
+        until.assert_(server_wait, tries=5)
+
+        self.start_service('postgres')
         self.reset_clients()
 
         PresenceInitOkWaitStrategy().wait(self)
