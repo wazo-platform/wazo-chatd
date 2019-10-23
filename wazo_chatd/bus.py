@@ -29,6 +29,8 @@ ROUTING_KEY_MAPPING = {
     'line_device_associated': 'config.lines.*.devices.*.updated',
     'line_device_dissociated': 'config.lines.*.devices.*.deleted',
     'DeviceStateChange': 'ami.DeviceStateChange',
+    'Hangup': 'ami.Hangup',
+    'Newchannel': 'ami.Newchannel',
 }
 
 

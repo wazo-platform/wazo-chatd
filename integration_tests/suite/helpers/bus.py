@@ -107,3 +107,21 @@ class BusClient(bus_helper.BusClient):
             },
             'ami.DeviceStateChange',
         )
+
+    def send_new_channel_event(self, device_name):
+        self.publish(
+            {
+                'data': {'Channel': '{}-0001'.format(device_name)},
+                'name': 'Newchannel',
+            },
+            'ami.Newchannel',
+        )
+
+    def send_hangup_event(self, device_name):
+        self.publish(
+            {
+                'data': {'Channel': '{}-0001'.format(device_name)},
+                'name': 'Hangup',
+            },
+            'ami.Hangup',
+        )

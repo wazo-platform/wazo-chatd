@@ -27,6 +27,12 @@ class EndpointDAO:
             raise UnknownEndpointException(kwargs.get('name'))
         return endpoint
 
+    def find_or_create(self, name):
+        endpoint = self._find_by(name=name)
+        if not endpoint:
+            endpoint = self.create(Endpoint(name=name))
+        return endpoint
+
     def _find_by(self, **kwargs):
         filter_ = text('true')
 
