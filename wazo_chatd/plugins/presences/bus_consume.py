@@ -6,15 +6,9 @@ import logging
 from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import Line, Session, Tenant, User
-from .initiator import DEVICE_STATE_MAP, extract_endpoint_name
+from .initiator import DEVICE_STATE_MAP, INUSE_STATE, extract_endpoint_name
 
 logger = logging.getLogger(__name__)
-
-INUSE_STATE = (
-    'holding',
-    'ringing',
-    'talking',
-)
 
 
 class BusEventHandler:
