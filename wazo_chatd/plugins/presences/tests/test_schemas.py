@@ -23,7 +23,7 @@ class TestUserPresenceSchema(unittest.TestCase):
         self.line_talking = Mock(id=3, state='talking')
         self.line_available = Mock(id=4, state='available')
         self.line_unavailable = Mock(id=5, state='unavailable')
-        self.user = Mock(uuid=UUID, tenant_uuid=UUID, sessions=[], lines=[])
+        self.user = Mock(uuid=UUID, tenant_uuid=UUID, sessions=[], lines=[], refresh_tokens=[])
 
     def test_set_line_state_ringing(self):
         self.user.lines = [
@@ -82,6 +82,62 @@ class TestUserPresenceSchema(unittest.TestCase):
 
         result = self.schema().dump(self.user)
         assert_that(result, has_entries(line_state='unavailable'))
+
+    def test_set_mobile_when_no_refresh_token_and_no_session(self):
+        self.user.refresh_tokens = []
+        self.user.sessions = []
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=False))
+
+    def test_set_mobile_when_no_refresh_token_and_false_session(self):
+        self.user.refresh_tokens = []
+        self.user.sessions = [Mock(uuid=UUID, mobile=False)]
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=False))
+
+    def test_set_mobile_when_no_refresh_token_and_true_session(self):
+        self.user.refresh_tokens = []
+        self.user.sessions = [Mock(uuid=UUID, mobile=True)]
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=True))
+
+    def test_set_mobile_when_false_refresh_token_and_no_session(self):
+        self.user.refresh_tokens = [Mock(mobile=False)]
+        self.user.sessions = []
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=False))
+
+    def test_set_mobile_when_true_refresh_token_and_no_session(self):
+        self.user.refresh_tokens = [Mock(mobile=True)]
+        self.user.sessions = []
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=True))
+
+    def test_set_mobile_when_false_refresh_token_and_true_session(self):
+        self.user.refresh_tokens = [Mock(mobile=False)]
+        self.user.sessions = [Mock(uuid=UUID, mobile=True)]
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=True))
+
+    def test_set_mobile_when_true_refresh_token_and_false_session(self):
+        self.user.refresh_tokens = [Mock(mobile=True)]
+        self.user.sessions = [Mock(uuid=UUID, mobile=False)]
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=True))
+
+    def test_set_mobile_when_false_refresh_token_and_false_session(self):
+        self.user.refresh_tokens = [Mock(mobile=False)]
+        self.user.sessions = [Mock(uuid=UUID, mobile=False)]
+
+        result = self.schema().dump(self.user)
+        assert_that(result, has_entries(mobile=False))
 
 
 class TestLinePresenceSchema(unittest.TestCase):
