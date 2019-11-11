@@ -85,3 +85,13 @@ class UserDAO:
         if line in user.lines:
             user.lines.remove(line)
             self.session.flush()
+
+    def add_refresh_token(self, user, refresh_token):
+        if refresh_token not in user.refresh_tokens:
+            user.refresh_tokens.append(refresh_token)
+            self.session.flush()
+
+    def remove_refresh_token(self, user, refresh_token):
+        if refresh_token in user.refresh_tokens:
+            user.refresh_tokens.remove(refresh_token)
+            self.session.flush()

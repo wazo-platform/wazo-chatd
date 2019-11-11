@@ -65,18 +65,22 @@ class User(Base):
     sessions = relationship(
         'Session', cascade='all,delete-orphan', passive_deletes=False
     )
+    refresh_tokens = relationship(
+        'RefreshToken', cascade='all,delete-orphan', passive_deletes=False
+    )
     lines = relationship('Line', cascade='all,delete-orphan', passive_deletes=False)
 
     def __repr__(self):
         return (
             "<User(uuid='{uuid}', state='{state}', status='{status}',"
-            "lines='{lines}', sessions='{sessions}')>"
+            "lines='{lines}', sessions='{sessions}', refresh_tokens='{refresh_tokens}')>"
         ).format(
             uuid=self.uuid,
             state=self.state,
             status=self.status,
             lines=self.lines,
             sessions=self.sessions,
+            refresh_tokens=self.refresh_tokens,
         )
 
 
