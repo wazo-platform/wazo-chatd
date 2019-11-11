@@ -18,6 +18,8 @@ from xivo_bus import Marshaler, Publisher as _Publisher
 logger = logging.getLogger(__name__)
 
 ROUTING_KEY_MAPPING = {
+    'auth_refresh_token_created': 'auth.users.*.tokens.*.created',
+    'auth_refresh_token_deleted': 'auth.users.*.tokens.*.deleted',
     'auth_session_created': 'auth.sessions.*.created',
     'auth_session_deleted': 'auth.sessions.*.deleted',
     'auth_tenant_created': 'auth.tenants.*.created',

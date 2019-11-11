@@ -5,7 +5,13 @@ import logging
 
 from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.database.models import Line, Session, Tenant, User
+from wazo_chatd.database.models import (
+    Line,
+    RefreshToken,
+    Session,
+    Tenant,
+    User,
+)
 from .initiator import DEVICE_STATE_MAP, INUSE_STATE, extract_endpoint_name
 
 logger = logging.getLogger(__name__)
@@ -23,6 +29,8 @@ class BusEventHandler:
         bus_consumer.on_event('user_deleted', self._user_deleted)
         bus_consumer.on_event('auth_session_created', self._session_created)
         bus_consumer.on_event('auth_session_deleted', self._session_deleted)
+        bus_consumer.on_event('auth_refresh_token_created', self._refresh_token_created)
+        bus_consumer.on_event('auth_refresh_token_deleted', self._refresh_token_deleted)
         bus_consumer.on_event('user_line_associated', self._user_line_associated)
         bus_consumer.on_event('user_line_dissociated', self._user_line_dissociated)
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
@@ -94,6 +102,43 @@ class BusEventHandler:
             session = self._dao.session.get(session_uuid)
             logger.debug('Delete session "%s" for user "%s"', session_uuid, user_uuid)
             self._dao.user.remove_session(user, session)
+            self._notifier.updated(user)
+
+    def _refresh_token_created(self, event):
+        mobile = event['mobile']
+        tenant_uuid = event['tenant_uuid']
+        user_uuid = event['user_uuid']
+        client_id = event['client_id']
+        with session_scope():
+            try:
+                user = self._dao.user.get([tenant_uuid], user_uuid)
+            except UnknownUserException:
+                logger.debug(
+                    'Refresh token "%s" has no valid user "%s"', client_id, user_uuid
+                )
+                return
+
+            logger.debug('Create refresh token "%s" for user "%s"', client_id, user_uuid)
+            refresh_token = RefreshToken(client_id=client_id, user_uuid=user_uuid, mobile=mobile)
+            self._dao.user.add_refresh_token(user, refresh_token)
+            self._notifier.updated(user)
+
+    def _refresh_token_deleted(self, event):
+        tenant_uuid = event['tenant_uuid']
+        user_uuid = event['user_uuid']
+        client_id = event['client_id']
+        with session_scope():
+            try:
+                user = self._dao.user.get([tenant_uuid], user_uuid)
+            except UnknownUserException:
+                logger.debug(
+                    'Refresh token "%s" has no valid user "%s"', client_id, user_uuid
+                )
+                return
+
+            refresh_token = self._dao.refresh_token.get(user_uuid, client_id)
+            logger.debug('Delete refresh token "%s" for user "%s"', client_id, user_uuid)
+            self._dao.user.remove_refresh_token(user, refresh_token)
             self._notifier.updated(user)
 
     def _user_line_associated(self, event):
