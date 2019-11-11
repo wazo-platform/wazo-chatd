@@ -137,11 +137,13 @@ class TestPresenceInitialization(_BaseInitializationTest):
                 'uuid': session_created_uuid,
                 'user_uuid': user_created_uuid,
                 'tenant_uuid': tenant_created_uuid,
+                'mobile': True,
             },
             {
                 'uuid': session_unchanged.uuid,
                 'user_uuid': session_unchanged.user_uuid,
-                'tenant_uuid': user_unchanged.tenant_uuid,
+                'tenant_uuid': session_unchanged.tenant_uuid,
+                'mobile': session_unchanged.mobile,
             },
         )
 
@@ -204,9 +206,15 @@ class TestPresenceInitialization(_BaseInitializationTest):
             sessions,
             contains_inanyorder(
                 has_properties(
-                    uuid=session_unchanged.uuid, user_uuid=user_unchanged.uuid
+                    uuid=session_unchanged.uuid,
+                    user_uuid=user_unchanged.uuid,
+                    mobile=session_unchanged.mobile,
                 ),
-                has_properties(uuid=session_created_uuid, user_uuid=user_created_uuid),
+                has_properties(
+                    uuid=session_created_uuid,
+                    user_uuid=user_created_uuid,
+                    mobile=True,
+                ),
             ),
         )
 

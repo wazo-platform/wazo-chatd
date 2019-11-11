@@ -229,6 +229,10 @@ class Initiator:
                 self._dao.line.associate_endpoint(line, endpoint)
 
     def initiate_sessions(self, sessions):
+        self._add_and_remove_sessions(sessions)
+        self._update_sessions(sessions)
+
+    def _add_and_remove_sessions(self, sessions):
         sessions = set(
             (session['uuid'], session['user_uuid'], session['tenant_uuid'])
             for session in sessions
@@ -263,6 +267,14 @@ class Initiator:
 
                 logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
                 self._dao.user.remove_session(user, session)
+
+    def _update_sessions(self, sessions):
+        with session_scope():
+            for session in sessions:
+                cached_session = self._dao.session.get(session['uuid'])
+                if session['mobile'] != cached_session.mobile:
+                    cached_session.mobile = session['mobile']
+                    self._dao.session.update(cached_session)
 
     def initiate_refresh_tokens(self, tokens):
         self._add_and_remove_refresh_tokens(tokens)

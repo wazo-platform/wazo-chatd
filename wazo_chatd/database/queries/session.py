@@ -21,3 +21,7 @@ class SessionDAO:
 
     def list_(self):
         return self.session.query(Session).options(joinedload('user')).all()
+
+    def update(self, session):
+        self.session.add(session)
+        self.session.flush()

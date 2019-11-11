@@ -44,3 +44,12 @@ class TestSession(BaseIntegrationTest):
     @fixtures.db.session(user_uuid=USER_UUID)
     def test_tenant_uuid(self, tenant, _, session):
         assert_that(session.tenant_uuid, equal_to(tenant.uuid))
+
+    @fixtures.db.session(mobile=False)
+    def test_update(self, session):
+        mobile = True
+        session.mobile = mobile
+        self._dao.session.update(session)
+
+        self._session.expire_all()
+        assert_that(session.mobile, equal_to(mobile))
