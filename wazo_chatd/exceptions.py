@@ -34,6 +34,13 @@ class UnknownSessionException(APIException):
         super().__init__(404, msg, 'unknown-session', details, 'sessions')
 
 
+class UnknownRefreshTokenException(APIException):
+    def __init__(self, client_id, user_uuid):
+        msg = 'No such refresh_token (client_id): "{}"'.format(client_id)
+        details = {'client_id': client_id, 'user_uuid': str(user_uuid)}
+        super().__init__(404, msg, 'unknown-refresh_token', details, 'refresh_tokens')
+
+
 class UnknownLineException(APIException):
     def __init__(self, line_id):
         msg = 'No such line: "{}"'.format(line_id)

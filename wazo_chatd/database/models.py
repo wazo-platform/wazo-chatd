@@ -101,6 +101,28 @@ class Session(Base):
         )
 
 
+class RefreshToken(Base):
+
+    __tablename__ = 'chatd_refresh_token'
+
+    client_id = Column(Text, nullable=False, primary_key=True)
+    user_uuid = Column(
+        UUIDAsString(UUID_LENGTH),
+        ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+        nullable=False,
+        primary_key=True,
+    )
+    mobile = Column(Boolean, nullable=False, default=False)
+
+    user = relationship('User', viewonly=True)
+    tenant_uuid = association_proxy('user', 'tenant_uuid')
+
+    def __repr__(self):
+        return "<RefreshToken(client_id='{client_id}', user_uuid='{user_uuid}', mobile='{mobile}')>".format(
+            client_id=self.client_id, user_uuid=self.user_uuid, mobile=self.mobile,
+        )
+
+
 class Line(Base):
 
     __tablename__ = 'chatd_line'

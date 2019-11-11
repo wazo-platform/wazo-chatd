@@ -3,6 +3,7 @@
 
 from .endpoint import EndpointDAO
 from .line import LineDAO
+from .refresh_token import RefreshTokenDAO
 from .room import RoomDAO
 from .session import SessionDAO
 from .tenant import TenantDAO
@@ -14,6 +15,7 @@ class DAO:
     _daos = {
         'endpoint': EndpointDAO,
         'line': LineDAO,
+        'refresh_token': RefreshTokenDAO,
         'room': RoomDAO,
         'session': SessionDAO,
         'tenant': TenantDAO,
