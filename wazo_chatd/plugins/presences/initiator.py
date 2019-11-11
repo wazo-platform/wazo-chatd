@@ -5,11 +5,19 @@ import logging
 
 from xivo.status import Status
 
-from wazo_chatd.database.models import Endpoint, Line, User, Session, Tenant
+from wazo_chatd.database.models import (
+    Endpoint,
+    Line,
+    RefreshToken,
+    Session,
+    Tenant,
+    User,
+)
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.exceptions import (
     UnknownEndpointException,
     UnknownLineException,
+    UnknownRefreshTokenException,
     UnknownSessionException,
     UnknownTenantException,
     UnknownUserException,
@@ -74,11 +82,13 @@ class Initiator:
         tenants = self._auth.tenants.list()['items']
         users = self._confd.users.list(recurse=True)['items']
         sessions = self._auth.sessions.list(recurse=True)['items']
+        refresh_tokens = self._auth.refresh_tokens.list(recurse=True)['items']
 
         self.initiate_endpoints(events)
         self.initiate_tenants(tenants)
         self.initiate_users(users)
         self.initiate_sessions(sessions)
+        self.initiate_refresh_tokens(refresh_tokens)
         self._is_initialized = True
 
     def initiate_tenants(self, tenants):
@@ -253,6 +263,42 @@ class Initiator:
 
                 logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
                 self._dao.user.remove_session(user, session)
+
+    def initiate_refresh_tokens(self, tokens):
+        tokens = set(
+            (token['client_id'], token['user_uuid'], token['tenant_uuid'])
+            for token in tokens
+        )
+        tokens_cached = set(
+            (token.client_id, token.user_uuid, token.tenant_uuid)
+            for token in self._dao.refresh_token.list_()
+        )
+
+        tokens_missing = tokens - tokens_cached
+        with session_scope():
+            for client_id, user_uuid, tenant_uuid in tokens_missing:
+                try:
+                    user = self._dao.user.get([tenant_uuid], user_uuid)
+                except UnknownUserException:
+                    logger.debug('Refresh token "%s" has no valid user "%s"', client_id, user_uuid)
+                    continue
+
+                logger.debug('Create refresh token "%s" for user "%s"', client_id, user_uuid)
+                token = RefreshToken(client_id=client_id, user_uuid=user_uuid)
+                self._dao.user.add_refresh_token(user, token)
+
+        tokens_expired = tokens_cached - tokens
+        with session_scope():
+            for client_id, user_uuid, tenant_uuid in tokens_expired:
+                try:
+                    user = self._dao.user.get([tenant_uuid], user_uuid)
+                    token = self._dao.refresh_token.get(user_uuid, client_id)
+                except (UnknownUserException, UnknownRefreshTokenException) as e:
+                    logger.warning(e)
+                    continue
+
+                logger.debug('Delete refresh token "%s" for user "%s"', client_id, user_uuid)
+                self._dao.user.remove_refresh_token(user, token)
 
     def initiate_endpoints(self, events):
         with session_scope():
