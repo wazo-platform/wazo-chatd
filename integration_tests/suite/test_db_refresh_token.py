@@ -49,3 +49,12 @@ class TestRefreshToken(BaseIntegrationTest):
     @fixtures.db.refresh_token(user_uuid=USER_UUID)
     def test_tenant_uuid(self, tenant, _, refresh_token):
         assert_that(refresh_token.tenant_uuid, equal_to(tenant.uuid))
+
+    @fixtures.db.refresh_token(mobile=False)
+    def test_update(self, refresh_token):
+        mobile = True
+        refresh_token.mobile = mobile
+        self._dao.refresh_token.update(refresh_token)
+
+        self._session.expire_all()
+        assert_that(refresh_token.mobile, equal_to(mobile))

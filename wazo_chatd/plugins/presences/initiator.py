@@ -265,6 +265,10 @@ class Initiator:
                 self._dao.user.remove_session(user, session)
 
     def initiate_refresh_tokens(self, tokens):
+        self._add_and_remove_refresh_tokens(tokens)
+        self._update_refresh_tokens(tokens)
+
+    def _add_and_remove_refresh_tokens(self, tokens):
         tokens = set(
             (token['client_id'], token['user_uuid'], token['tenant_uuid'])
             for token in tokens
@@ -299,6 +303,14 @@ class Initiator:
 
                 logger.debug('Delete refresh token "%s" for user "%s"', client_id, user_uuid)
                 self._dao.user.remove_refresh_token(user, token)
+
+    def _update_refresh_tokens(self, tokens):
+        with session_scope():
+            for token in tokens:
+                cached_token = self._dao.refresh_token.get(token['user_uuid'], token['client_id'])
+                if token['mobile'] != cached_token.mobile:
+                    cached_token.mobile = token['mobile']
+                    self._dao.refresh_token.update(cached_token)
 
     def initiate_endpoints(self, events):
         with session_scope():

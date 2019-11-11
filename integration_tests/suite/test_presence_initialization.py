@@ -216,10 +216,14 @@ class TestPresenceInitialization(_BaseInitializationTest):
             refresh_tokens,
             contains_inanyorder(
                 has_properties(
-                    client_id=refresh_token_unchanged.client_id, user_uuid=user_unchanged.uuid
+                    client_id=refresh_token_unchanged.client_id,
+                    user_uuid=user_unchanged.uuid,
+                    mobile=refresh_token_unchanged.mobile,
                 ),
                 has_properties(
-                    client_id=refresh_token_created_client_id, user_uuid=user_created_uuid
+                    client_id=refresh_token_created_client_id,
+                    user_uuid=user_created_uuid,
+                    mobile=True,
                 ),
             ),
         )

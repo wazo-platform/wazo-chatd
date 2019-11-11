@@ -21,3 +21,7 @@ class RefreshTokenDAO:
 
     def list_(self):
         return self.session.query(RefreshToken).options(joinedload('user')).all()
+
+    def update(self, refresh_token):
+        self.session.add(refresh_token)
+        self.session.flush()
