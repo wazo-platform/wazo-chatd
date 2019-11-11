@@ -69,6 +69,7 @@ class BusEventHandler:
             self._dao.tenant.delete(tenant)
 
     def _session_created(self, event):
+        mobile = event['mobile']
         session_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
@@ -82,7 +83,7 @@ class BusEventHandler:
                 return
 
             logger.debug('Create session "%s" for user "%s"', session_uuid, user_uuid)
-            session = Session(uuid=session_uuid, user_uuid=user_uuid)
+            session = Session(uuid=session_uuid, user_uuid=user_uuid, mobile=mobile)
             self._dao.user.add_session(user, session)
             self._notifier.updated(user)
 

@@ -86,13 +86,13 @@ class TestEventHandler(BaseIntegrationTest):
         routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid)
+        self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid, mobile=True)
 
         def session_created():
             result = self._session.query(models.Session).all()
             assert_that(
                 result,
-                has_items(has_properties(uuid=session_uuid, user_uuid=user_uuid)),
+                has_items(has_properties(uuid=session_uuid, user_uuid=user_uuid, mobile=True)),
             )
 
         until.assert_(session_created, tries=3)
@@ -102,7 +102,7 @@ class TestEventHandler(BaseIntegrationTest):
             event,
             contains(
                 has_entries(
-                    data=has_entries(sessions=contains(has_entries(uuid=session_uuid)))
+                    data=has_entries(sessions=contains(has_entries(uuid=session_uuid, mobile=True)))
                 )
             ),
         )

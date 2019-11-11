@@ -35,13 +35,14 @@ class BusClient(bus_helper.BusClient):
             'config.user.deleted',
         )
 
-    def send_session_created_event(self, session_uuid, user_uuid, tenant_uuid):
+    def send_session_created_event(self, session_uuid, user_uuid, tenant_uuid, mobile=False):
         self.publish(
             {
                 'data': {
                     'uuid': session_uuid,
                     'user_uuid': user_uuid,
                     'tenant_uuid': tenant_uuid,
+                    'mobile': mobile,
                 },
                 'name': 'auth_session_created',
             },
