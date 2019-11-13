@@ -1,4 +1,5 @@
 nose
+mock
 docker-compose
 kombu
 openapi-spec-validator
