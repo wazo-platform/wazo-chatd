@@ -35,13 +35,14 @@ class BusClient(bus_helper.BusClient):
             'config.user.deleted',
         )
 
-    def send_session_created_event(self, session_uuid, user_uuid, tenant_uuid):
+    def send_session_created_event(self, session_uuid, user_uuid, tenant_uuid, mobile=False):
         self.publish(
             {
                 'data': {
                     'uuid': session_uuid,
                     'user_uuid': user_uuid,
                     'tenant_uuid': tenant_uuid,
+                    'mobile': mobile,
                 },
                 'name': 'auth_session_created',
             },
@@ -59,6 +60,33 @@ class BusClient(bus_helper.BusClient):
                 'name': 'auth_session_deleted',
             },
             'auth.sessions.{}.deleted'.format(session_uuid),
+        )
+
+    def send_refresh_token_created_event(self, client_id, user_uuid, tenant_uuid, mobile=False):
+        self.publish(
+            {
+                'data': {
+                    'client_id': client_id,
+                    'user_uuid': user_uuid,
+                    'tenant_uuid': tenant_uuid,
+                    'mobile': mobile,
+                },
+                'name': 'auth_refresh_token_created',
+            },
+            'auth.users.{}.tokens.{}.created'.format(user_uuid, client_id),
+        )
+
+    def send_refresh_token_deleted_event(self, client_id, user_uuid, tenant_uuid):
+        self.publish(
+            {
+                'data': {
+                    'client_id': client_id,
+                    'user_uuid': user_uuid,
+                    'tenant_uuid': tenant_uuid,
+                },
+                'name': 'auth_refresh_token_deleted',
+            },
+            'auth.users.{}.tokens.{}.deleted'.format(user_uuid, client_id),
         )
 
     def send_user_line_associated_event(

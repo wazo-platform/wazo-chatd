@@ -33,6 +33,7 @@ class UserPresenceSchema(Schema):
     status = fields.String(allow_none=True)
     last_activity = fields.DateTime(dump_only=True)
     line_state = fields.String(dump_only=True)
+    mobile = fields.Boolean(dump_only=True)
 
     sessions = fields.Nested('SessionPresenceSchema', many=True, dump_only=True)
     lines = fields.Nested('LinePresenceSchema', many=True, dump_only=True)
@@ -57,6 +58,21 @@ class UserPresenceSchema(Schema):
                 merged_state = state
 
         user['line_state'] = merged_state
+        return user
+
+    @post_dump(pass_original=True)
+    def _set_mobile(self, user, raw_user):
+        for token in raw_user.refresh_tokens:
+            if token.mobile is True:
+                user['mobile'] = True
+                return user
+
+        for session in raw_user.sessions:
+            if session.mobile is True:
+                user['mobile'] = True
+                return user
+
+        user['mobile'] = False
         return user
 
 

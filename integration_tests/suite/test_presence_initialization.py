@@ -43,6 +43,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
     @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_UUID, state='available')
     @fixtures.db.session(user_uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_2)
+    @fixtures.db.refresh_token(client_id='deleted', user_uuid=USER_UUID_1)
+    @fixtures.db.refresh_token(client_id='unchanged', user_uuid=USER_UUID_2)
     @fixtures.db.line(user_uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_2, endpoint_name=ENDPOINT_NAME)
     def test_initialization(
@@ -55,6 +57,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         user_unchanged,
         session_deleted,
         session_unchanged,
+        refresh_token_deleted,
+        refresh_token_unchanged,
         line_deleted,
         line_unchanged,
     ):
@@ -133,11 +137,30 @@ class TestPresenceInitialization(_BaseInitializationTest):
                 'uuid': session_created_uuid,
                 'user_uuid': user_created_uuid,
                 'tenant_uuid': tenant_created_uuid,
+                'mobile': True,
             },
             {
                 'uuid': session_unchanged.uuid,
                 'user_uuid': session_unchanged.user_uuid,
-                'tenant_uuid': user_unchanged.tenant_uuid,
+                'tenant_uuid': session_unchanged.tenant_uuid,
+                'mobile': session_unchanged.mobile,
+            },
+        )
+
+        # setup refresh_tokens
+        refresh_token_created_client_id = 'created'
+        self.auth.set_refresh_tokens(
+            {
+                'client_id': refresh_token_created_client_id,
+                'user_uuid': user_created_uuid,
+                'tenant_uuid': tenant_created_uuid,
+                'mobile': True,
+            },
+            {
+                'client_id': 'unchanged',
+                'user_uuid': refresh_token_unchanged.user_uuid,
+                'tenant_uuid': refresh_token_unchanged.tenant_uuid,
+                'mobile': refresh_token_unchanged.mobile,
             },
         )
 
@@ -183,9 +206,33 @@ class TestPresenceInitialization(_BaseInitializationTest):
             sessions,
             contains_inanyorder(
                 has_properties(
-                    uuid=session_unchanged.uuid, user_uuid=user_unchanged.uuid
+                    uuid=session_unchanged.uuid,
+                    user_uuid=user_unchanged.uuid,
+                    mobile=session_unchanged.mobile,
                 ),
-                has_properties(uuid=session_created_uuid, user_uuid=user_created_uuid),
+                has_properties(
+                    uuid=session_created_uuid,
+                    user_uuid=user_created_uuid,
+                    mobile=True,
+                ),
+            ),
+        )
+
+        # test refresh_tokens
+        refresh_tokens = self._session.query(models.RefreshToken).all()
+        assert_that(
+            refresh_tokens,
+            contains_inanyorder(
+                has_properties(
+                    client_id=refresh_token_unchanged.client_id,
+                    user_uuid=user_unchanged.uuid,
+                    mobile=refresh_token_unchanged.mobile,
+                ),
+                has_properties(
+                    client_id=refresh_token_created_client_id,
+                    user_uuid=user_created_uuid,
+                    mobile=True,
+                ),
             ),
         )
 

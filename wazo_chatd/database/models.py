@@ -65,18 +65,22 @@ class User(Base):
     sessions = relationship(
         'Session', cascade='all,delete-orphan', passive_deletes=False
     )
+    refresh_tokens = relationship(
+        'RefreshToken', cascade='all,delete-orphan', passive_deletes=False
+    )
     lines = relationship('Line', cascade='all,delete-orphan', passive_deletes=False)
 
     def __repr__(self):
         return (
             "<User(uuid='{uuid}', state='{state}', status='{status}',"
-            "lines='{lines}', sessions='{sessions}')>"
+            "lines='{lines}', sessions='{sessions}', refresh_tokens='{refresh_tokens}')>"
         ).format(
             uuid=self.uuid,
             state=self.state,
             status=self.status,
             lines=self.lines,
             sessions=self.sessions,
+            refresh_tokens=self.refresh_tokens,
         )
 
 
@@ -98,6 +102,28 @@ class Session(Base):
     def __repr__(self):
         return "<Session(uuid='{uuid}', mobile='{mobile}')>".format(
             uuid=self.uuid, mobile=self.mobile
+        )
+
+
+class RefreshToken(Base):
+
+    __tablename__ = 'chatd_refresh_token'
+
+    client_id = Column(Text, nullable=False, primary_key=True)
+    user_uuid = Column(
+        UUIDAsString(UUID_LENGTH),
+        ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+        nullable=False,
+        primary_key=True,
+    )
+    mobile = Column(Boolean, nullable=False, default=False)
+
+    user = relationship('User', viewonly=True)
+    tenant_uuid = association_proxy('user', 'tenant_uuid')
+
+    def __repr__(self):
+        return "<RefreshToken(client_id='{client_id}', user_uuid='{user_uuid}', mobile='{mobile}')>".format(
+            client_id=self.client_id, user_uuid=self.user_uuid, mobile=self.mobile,
         )
 
 

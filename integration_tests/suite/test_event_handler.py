@@ -86,13 +86,13 @@ class TestEventHandler(BaseIntegrationTest):
         routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid)
+        self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid, mobile=True)
 
         def session_created():
             result = self._session.query(models.Session).all()
             assert_that(
                 result,
-                has_items(has_properties(uuid=session_uuid, user_uuid=user_uuid)),
+                has_items(has_properties(uuid=session_uuid, user_uuid=user_uuid, mobile=True)),
             )
 
         until.assert_(session_created, tries=3)
@@ -102,7 +102,7 @@ class TestEventHandler(BaseIntegrationTest):
             event,
             contains(
                 has_entries(
-                    data=has_entries(sessions=contains(has_entries(uuid=session_uuid)))
+                    data=has_entries(sessions=contains(has_entries(uuid=session_uuid, mobile=True)))
                 )
             ),
         )
@@ -128,6 +128,58 @@ class TestEventHandler(BaseIntegrationTest):
 
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(sessions=empty()))))
+
+    @fixtures.db.user()
+    def test_refresh_token_created(self, user):
+        client_id = 'my-client-id'
+        user_uuid = user.uuid
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_refresh_token_created_event(
+            client_id, user_uuid, user.tenant_uuid, mobile=True
+        )
+
+        def refresh_token_created():
+            result = self._session.query(models.RefreshToken).all()
+            assert_that(
+                result,
+                has_items(has_properties(client_id=client_id, user_uuid=user_uuid)),
+            )
+
+        until.assert_(refresh_token_created, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    data=has_entries(mobile=True)
+                )
+            ),
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.refresh_token(user_uuid=USER_UUID_1, mobile=True)
+    def test_refresh_token_deleted(self, user, token):
+        client_id = token.client_id
+        user_uuid = user.uuid
+        routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_refresh_token_deleted_event(client_id, user_uuid, user.tenant_uuid)
+
+        def refresh_token_deleted():
+            result = self._session.query(models.RefreshToken).all()
+            assert_that(
+                result,
+                not_(has_items(has_properties(client_id=client_id, user_uuid=user_uuid))),
+            )
+
+        until.assert_(refresh_token_deleted, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(event, contains(has_entries(data=has_entries(mobile=False))))
 
     @fixtures.db.user()
     def test_user_line_associated(self, user):

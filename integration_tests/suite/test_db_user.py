@@ -18,7 +18,7 @@ from hamcrest import (
 )
 from sqlalchemy.inspection import inspect
 
-from wazo_chatd.database.models import User, Session, Line
+from wazo_chatd.database.models import User, Session, Line, RefreshToken
 from wazo_chatd.exceptions import UnknownUserException, UnknownUsersException
 from xivo_test_helpers.hamcrest.raises import raises
 
@@ -194,6 +194,35 @@ class TestUser(BaseIntegrationTest):
 
         self._session.expire_all()
         assert_that(user.sessions, empty())
+
+    @fixtures.db.user()
+    def test_add_refresh_token(self, user):
+        token_client_id = 'my-client-id'
+        token = RefreshToken(client_id=token_client_id)
+        self._dao.user.add_refresh_token(user, token)
+
+        self._session.expire_all()
+        assert_that(user.refresh_tokens, contains(has_properties(client_id=token_client_id)))
+
+        # twice
+        self._dao.user.add_refresh_token(user, token)
+
+        self._session.expire_all()
+        assert_that(user.refresh_tokens, contains(has_properties(client_id=token_client_id)))
+
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.refresh_token(user_uuid=USER_UUID)
+    def test_remove_refresh_token(self, user, token):
+        self._dao.user.remove_refresh_token(user, token)
+
+        self._session.expire_all()
+        assert_that(user.refresh_tokens, empty())
+
+        # twice
+        self._dao.user.remove_refresh_token(user, token)
+
+        self._session.expire_all()
+        assert_that(user.refresh_tokens, empty())
 
     @fixtures.db.user()
     def test_add_line(self, user):

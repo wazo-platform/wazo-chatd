@@ -53,6 +53,7 @@ class TestPresence(BaseIntegrationTest):
                         status=user_1.status,
                         last_activity=none(),
                         line_state='unavailable',
+                        mobile=False,
                         sessions=empty(),
                         lines=empty(),
                     ),
@@ -63,6 +64,7 @@ class TestPresence(BaseIntegrationTest):
                         status=user_2.status,
                         last_activity=none(),
                         line_state='unavailable',
+                        mobile=False,
                         sessions=empty(),
                         lines=empty(),
                     ),
@@ -120,10 +122,12 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
+    @fixtures.db.refresh_token(user_uuid=USER_UUID, mobile=True)
+    @fixtures.db.refresh_token(user_uuid=USER_UUID, mobile=False)
     @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_1)
     @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_2)
     def test_get(
-        self, endpoint_1, endpoint_2, user, session_1, session_2, line_1, line_2
+        self, endpoint_1, endpoint_2, user, session_1, session_2, _, __, line_1, line_2
     ):
         presence = self.chatd.user_presences.get(user.uuid)
         assert_that(
@@ -135,6 +139,7 @@ class TestPresence(BaseIntegrationTest):
                 status=user.status,
                 last_activity=none(),
                 line_state='holding',
+                mobile=True,
                 sessions=contains_inanyorder(
                     has_entries(uuid=session_1.uuid, mobile=True),
                     has_entries(uuid=session_2.uuid, mobile=False),
@@ -175,6 +180,50 @@ class TestPresence(BaseIntegrationTest):
                 user_1.uuid, tenant_uuid=TOKEN_SUBTENANT_UUID
             ),
             raises(ChatdError, has_properties(status_code=404)),
+        )
+
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
+    @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
+    def test_get_mobile_when_session(self, user, session_1, session_2):
+        presence = self.chatd.user_presences.get(user.uuid)
+        assert_that(
+            presence,
+            has_entries(
+                uuid=user.uuid,
+                tenant_uuid=user.tenant_uuid,
+                mobile=True,
+                sessions=contains_inanyorder(
+                    has_entries(uuid=session_1.uuid, mobile=False),
+                    has_entries(uuid=session_2.uuid, mobile=True),
+                ),
+            ),
+        )
+
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.refresh_token(user_uuid=USER_UUID, mobile=False)
+    @fixtures.db.refresh_token(user_uuid=USER_UUID, mobile=True)
+    def test_get_mobile_when_refresh_token(self, user, token_1, token_2):
+        presence = self.chatd.user_presences.get(user.uuid)
+        assert_that(
+            presence,
+            has_entries(
+                uuid=user.uuid,
+                tenant_uuid=user.tenant_uuid,
+                mobile=True,
+            ),
+        )
+
+    @fixtures.db.user(uuid=USER_UUID)
+    def test_get_mobile_when_no_session_or_refresh_token(self, user):
+        presence = self.chatd.user_presences.get(user.uuid)
+        assert_that(
+            presence,
+            has_entries(
+                uuid=user.uuid,
+                tenant_uuid=user.tenant_uuid,
+                mobile=False,
+            ),
         )
 
     @fixtures.db.user(state='away')

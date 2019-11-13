@@ -124,6 +124,16 @@ definitions:
         readOnly: true
         items:
           $ref: '#/definitions/Line'
+      mobile:
+        type: boolean
+        readOnly: true
+        description: |
+          If the user uses a mobile application and can be considered reachable.
+
+          mobile will be true in the following situations
+
+          * The user has a mobile refresh token
+          * The user has a mobile session
     required:
       - state
 
