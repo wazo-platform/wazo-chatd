@@ -1,4 +1,3 @@
-nose
 mock
 docker-compose
 kombu
