@@ -271,8 +271,8 @@ class Initiator:
     def _update_sessions(self, sessions):
         with session_scope():
             for session in sessions:
-                cached_session = self._dao.session.get(session['uuid'])
-                if session['mobile'] != cached_session.mobile:
+                cached_session = self._dao.session.find(session['uuid'])
+                if cached_session and session['mobile'] != cached_session.mobile:
                     cached_session.mobile = session['mobile']
                     self._dao.session.update(cached_session)
 
