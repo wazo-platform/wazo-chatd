@@ -67,9 +67,15 @@ class UserDAO:
         return query.filter(User.tenant_uuid.in_(tenant_uuids))
 
     def add_session(self, user, session):
-        if session not in user.sessions:
-            user.sessions.append(session)
-            self.session.flush()
+        if session in user.sessions:
+            return
+
+        for existing_session in user.sessions:
+            if existing_session.uuid == session.uuid:
+                user.sessions.remove(existing_session)
+
+        user.sessions.append(session)
+        self.session.flush()
 
     def remove_session(self, user, session):
         if session in user.sessions:
@@ -87,9 +93,15 @@ class UserDAO:
             self.session.flush()
 
     def add_refresh_token(self, user, refresh_token):
-        if refresh_token not in user.refresh_tokens:
-            user.refresh_tokens.append(refresh_token)
-            self.session.flush()
+        if refresh_token in user.refresh_tokens:
+            return
+
+        for existing_token in user.refresh_tokens:
+            if existing_token.client_id == refresh_token.client_id:
+                user.refresh_tokens.remove(existing_token)
+
+        user.refresh_tokens.append(refresh_token)
+        self.session.flush()
 
     def remove_refresh_token(self, user, refresh_token):
         if refresh_token in user.refresh_tokens:
