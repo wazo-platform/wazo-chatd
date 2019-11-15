@@ -175,7 +175,14 @@ class TestUser(BaseIntegrationTest):
         self._session.expire_all()
         assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
 
-        # twice
+        # twice with same instance
+        self._dao.user.add_session(user, session)
+
+        self._session.expire_all()
+        assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
+
+        # twice with different instances
+        session = Session(uuid=session_uuid)
         self._dao.user.add_session(user, session)
 
         self._session.expire_all()
@@ -204,7 +211,14 @@ class TestUser(BaseIntegrationTest):
         self._session.expire_all()
         assert_that(user.refresh_tokens, contains(has_properties(client_id=token_client_id)))
 
-        # twice
+        # twice with same instance
+        self._dao.user.add_refresh_token(user, token)
+
+        self._session.expire_all()
+        assert_that(user.refresh_tokens, contains(has_properties(client_id=token_client_id)))
+
+        # twice with different instances
+        token = RefreshToken(client_id=token_client_id)
         self._dao.user.add_refresh_token(user, token)
 
         self._session.expire_all()
