@@ -47,7 +47,12 @@ _DEFAULT_CONFIG = {
         'exchange_headers_name': 'wazo-headers',
     },
     'amid': {'host': 'localhost', 'port': 9491, 'verify_certificate': _CERT_FILE},
-    'confd': {'host': 'localhost', 'port': 9486, 'verify_certificate': _CERT_FILE},
+    'confd': {
+        'host': 'localhost',
+        'port': 9486,
+        'timeout': 90,
+        'verify_certificate': _CERT_FILE,
+    },
     'consul': {
         'scheme': 'https',
         'host': 'localhost',
