@@ -319,8 +319,8 @@ class Initiator:
     def _update_refresh_tokens(self, tokens):
         with session_scope():
             for token in tokens:
-                cached_token = self._dao.refresh_token.get(token['user_uuid'], token['client_id'])
-                if token['mobile'] != cached_token.mobile:
+                cached_token = self._dao.refresh_token.find(token['user_uuid'], token['client_id'])
+                if cached_token and token['mobile'] != cached_token.mobile:
                     cached_token.mobile = token['mobile']
                     self._dao.refresh_token.update(cached_token)
 

@@ -40,6 +40,15 @@ class TestRefreshToken(BaseIntegrationTest):
 
     @fixtures.db.refresh_token()
     @fixtures.db.refresh_token()
+    def test_find(self, refresh_token, _):
+        result = self._dao.refresh_token.find(refresh_token.user_uuid, refresh_token.client_id)
+        assert_that(result, equal_to(refresh_token))
+
+        result = self._dao.refresh_token.find(UNKNOWN_UUID, 'not-found')
+        assert_that(result, equal_to(None))
+
+    @fixtures.db.refresh_token()
+    @fixtures.db.refresh_token()
     def test_list(self, refresh_token_1, refresh_token_2):
         refresh_tokens = self._dao.refresh_token.list_()
         assert_that(refresh_tokens, has_items(refresh_token_1, refresh_token_2))
