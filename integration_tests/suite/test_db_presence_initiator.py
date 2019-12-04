@@ -38,3 +38,15 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
 
         result = self._dao.session.find(session_uuid)
         assert_that(result, equal_to(None))
+
+    @fixtures.db.tenant(uuid=TENANT_UUID)
+    def test_initiate_refresh_token_when_no_user_associate(self, tenant):
+        client_id = 'my-client-id'
+        refresh_tokens = [
+            {'client_id': client_id, 'user_uuid': USER_UUID, 'tenant_uuid': TENANT_UUID}
+        ]
+
+        self.initiator.initiate_refresh_tokens(refresh_tokens)
+
+        result = self._dao.refresh_token.find(USER_UUID, client_id)
+        assert_that(result, equal_to(None))
