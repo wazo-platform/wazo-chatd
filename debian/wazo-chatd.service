@@ -6,6 +6,7 @@ Before=monit.service
 [Service]
 ExecStartPre=/usr/bin/install -o wazo-chatd -g wazo-chatd -d /run/wazo-chatd
 ExecStart=/usr/bin/python3 -u /usr/bin/wazo-chatd
+SyslogIdentifier=wazo-chatd
 
 [Install]
 WantedBy=multi-user.target
