@@ -36,6 +36,7 @@ rest_api:
 auth:
   host: localhost
   port: 9497
+  https: true
   verify_certificate: /usr/share/xivo-certs/server.crt
 
 amid:
@@ -47,6 +48,7 @@ confd:
   host: localhost
   port: 9486
   timeout: 90
+  https: true
   verify_certificate: /usr/share/xivo-certs/server.crt
 
 # consul connection informations

@@ -35,6 +35,7 @@ _DEFAULT_CONFIG = {
         'host': 'localhost',
         'port': 9497,
         'verify_certificate': _CERT_FILE,
+        'https': True,
         'key_file': '/var/lib/wazo-auth-keys/wazo-chatd-key.yml',
     },
     'bus': {
@@ -51,6 +52,7 @@ _DEFAULT_CONFIG = {
         'host': 'localhost',
         'port': 9486,
         'timeout': 90,
+        'https': True,
         'verify_certificate': _CERT_FILE,
     },
     'consul': {
