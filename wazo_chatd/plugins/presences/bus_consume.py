@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -23,7 +23,7 @@ class BusEventHandler:
         self._notifier = notifier
 
     def subscribe(self, bus_consumer):
-        bus_consumer.on_event('auth_tenant_created', self._tenant_created)
+        bus_consumer.on_event('auth_tenant_added', self._tenant_created)
         bus_consumer.on_event('auth_tenant_deleted', self._tenant_deleted)
         bus_consumer.on_event('user_created', self._user_created)
         bus_consumer.on_event('user_deleted', self._user_deleted)

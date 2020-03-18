@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -22,7 +22,7 @@ ROUTING_KEY_MAPPING = {
     'auth_refresh_token_deleted': 'auth.users.*.tokens.*.deleted',
     'auth_session_created': 'auth.sessions.*.created',
     'auth_session_deleted': 'auth.sessions.*.deleted',
-    'auth_tenant_created': 'auth.tenants.*.created',
+    'auth_tenant_added': 'auth.tenants.*.created',
     'auth_tenant_deleted': 'auth.tenants.*.deleted',
     'user_created': 'config.user.created',
     'user_deleted': 'config.user.deleted',
