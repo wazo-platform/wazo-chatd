@@ -5,7 +5,6 @@ auth:
   verify_certificate: false
 amid:
   host: amid
-  verify_certificate: false
 bus:
   host: rabbitmq
 confd:
