@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -86,13 +86,17 @@ class TestEventHandler(BaseIntegrationTest):
         routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_session_created_event(session_uuid, user_uuid, user.tenant_uuid, mobile=True)
+        self.bus.send_session_created_event(
+            session_uuid, user_uuid, user.tenant_uuid, mobile=True
+        )
 
         def session_created():
             result = self._session.query(models.Session).all()
             assert_that(
                 result,
-                has_items(has_properties(uuid=session_uuid, user_uuid=user_uuid, mobile=True)),
+                has_items(
+                    has_properties(uuid=session_uuid, user_uuid=user_uuid, mobile=True)
+                ),
             )
 
         until.assert_(session_created, tries=3)
@@ -102,7 +106,9 @@ class TestEventHandler(BaseIntegrationTest):
             event,
             contains(
                 has_entries(
-                    data=has_entries(sessions=contains(has_entries(uuid=session_uuid, mobile=True)))
+                    data=has_entries(
+                        sessions=contains(has_entries(uuid=session_uuid, mobile=True))
+                    )
                 )
             ),
         )
@@ -151,12 +157,7 @@ class TestEventHandler(BaseIntegrationTest):
 
         event = event_accumulator.accumulate()
         assert_that(
-            event,
-            contains(
-                has_entries(
-                    data=has_entries(mobile=True)
-                )
-            ),
+            event, contains(has_entries(data=has_entries(mobile=True))),
         )
 
     @fixtures.db.user(uuid=USER_UUID_1)
@@ -167,13 +168,17 @@ class TestEventHandler(BaseIntegrationTest):
         routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
 
-        self.bus.send_refresh_token_deleted_event(client_id, user_uuid, user.tenant_uuid)
+        self.bus.send_refresh_token_deleted_event(
+            client_id, user_uuid, user.tenant_uuid
+        )
 
         def refresh_token_deleted():
             result = self._session.query(models.RefreshToken).all()
             assert_that(
                 result,
-                not_(has_items(has_properties(client_id=client_id, user_uuid=user_uuid))),
+                not_(
+                    has_items(has_properties(client_id=client_id, user_uuid=user_uuid))
+                ),
             )
 
         until.assert_(refresh_token_deleted, tries=3)
@@ -338,7 +343,9 @@ class TestEventHandler(BaseIntegrationTest):
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available', channel_state='up')
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
-    def test_device_state_change_inuse_when_channel_state_is_up(self, endpoint, user, line):
+    def test_device_state_change_inuse_when_channel_state_is_up(
+        self, endpoint, user, line
+    ):
         line_id = line.id
         endpoint_name = endpoint.name
         routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
@@ -364,7 +371,9 @@ class TestEventHandler(BaseIntegrationTest):
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='talking', channel_state='down')
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
-    def test_device_state_change_not_inuse_when_channel_state_is_down(self, endpoint, user, line):
+    def test_device_state_change_not_inuse_when_channel_state_is_down(
+        self, endpoint, user, line
+    ):
         line_id = line.id
         endpoint_name = endpoint.name
         routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
@@ -411,7 +420,8 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
             assert_that(
-                result, has_items(has_properties(name=endpoint_name, channel_state='up'))
+                result,
+                has_items(has_properties(name=endpoint_name, channel_state='up')),
             )
 
         until.assert_(endpoint_channel_state_changed, tries=3)
@@ -425,7 +435,8 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
             assert_that(
-                result, has_items(has_properties(name=endpoint_name, channel_state='up'))
+                result,
+                has_items(has_properties(name=endpoint_name, channel_state='up')),
             )
 
         until.assert_(endpoint_channel_state_changed, tries=3)
@@ -440,7 +451,8 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
             assert_that(
-                result, has_items(has_properties(name=endpoint_name, channel_state='down'))
+                result,
+                has_items(has_properties(name=endpoint_name, channel_state='down')),
             )
 
         until.assert_(endpoint_channel_state_changed, tries=3)
@@ -454,7 +466,8 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
             assert_that(
-                result, has_items(has_properties(name=endpoint_name, channel_state='down'))
+                result,
+                has_items(has_properties(name=endpoint_name, channel_state='down')),
             )
 
         until.assert_(endpoint_channel_state_changed, tries=3)

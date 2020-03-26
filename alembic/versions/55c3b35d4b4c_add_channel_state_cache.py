@@ -20,7 +20,7 @@ def upgrade():
             'channel_state',
             sa.String(24),
             sa.CheckConstraint("channel_state in ('up', 'down')"),
-        )
+        ),
     )
 
 
