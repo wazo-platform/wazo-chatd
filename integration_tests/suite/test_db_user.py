@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -209,20 +209,26 @@ class TestUser(BaseIntegrationTest):
         self._dao.user.add_refresh_token(user, token)
 
         self._session.expire_all()
-        assert_that(user.refresh_tokens, contains(has_properties(client_id=token_client_id)))
+        assert_that(
+            user.refresh_tokens, contains(has_properties(client_id=token_client_id))
+        )
 
         # twice with same instance
         self._dao.user.add_refresh_token(user, token)
 
         self._session.expire_all()
-        assert_that(user.refresh_tokens, contains(has_properties(client_id=token_client_id)))
+        assert_that(
+            user.refresh_tokens, contains(has_properties(client_id=token_client_id))
+        )
 
         # twice with different instances
         token = RefreshToken(client_id=token_client_id)
         self._dao.user.add_refresh_token(user, token)
 
         self._session.expire_all()
-        assert_that(user.refresh_tokens, contains(has_properties(client_id=token_client_id)))
+        assert_that(
+            user.refresh_tokens, contains(has_properties(client_id=token_client_id))
+        )
 
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.refresh_token(user_uuid=USER_UUID)

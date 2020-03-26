@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -163,10 +163,7 @@ class Endpoint(Base):
         default='unavailable',
     )
     channel_state = Column(
-        String(24),
-        CheckConstraint(
-            "channel_state in ('up', 'down')"
-        ),
+        String(24), CheckConstraint("channel_state in ('up', 'down')"),
     )
 
     line = relationship('Line', uselist=False, viewonly=True)

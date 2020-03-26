@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
@@ -47,7 +47,7 @@ _DEFAULT_CONFIG = {
         'exchange_type': 'topic',
         'exchange_headers_name': 'wazo-headers',
     },
-    'amid': {'host': 'localhost', 'port': 9491, 'verify_certificate': _CERT_FILE},
+    'amid': {'host': 'localhost', 'port': 9491, 'prefix': None, 'https': False},
     'confd': {
         'host': 'localhost',
         'port': 9486,

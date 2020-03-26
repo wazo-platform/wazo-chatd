@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -23,7 +23,9 @@ class TestUserPresenceSchema(unittest.TestCase):
         self.line_talking = Mock(id=3, state='talking')
         self.line_available = Mock(id=4, state='available')
         self.line_unavailable = Mock(id=5, state='unavailable')
-        self.user = Mock(uuid=UUID, tenant_uuid=UUID, sessions=[], lines=[], refresh_tokens=[])
+        self.user = Mock(
+            uuid=UUID, tenant_uuid=UUID, sessions=[], lines=[], refresh_tokens=[]
+        )
 
     def test_set_line_state_ringing(self):
         self.user.lines = [

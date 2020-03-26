@@ -119,8 +119,12 @@ class BusEventHandler:
                 )
                 return
 
-            logger.debug('Create refresh token "%s" for user "%s"', client_id, user_uuid)
-            refresh_token = RefreshToken(client_id=client_id, user_uuid=user_uuid, mobile=mobile)
+            logger.debug(
+                'Create refresh token "%s" for user "%s"', client_id, user_uuid
+            )
+            refresh_token = RefreshToken(
+                client_id=client_id, user_uuid=user_uuid, mobile=mobile
+            )
             self._dao.user.add_refresh_token(user, refresh_token)
             self._notifier.updated(user)
 
@@ -138,7 +142,9 @@ class BusEventHandler:
                 return
 
             refresh_token = self._dao.refresh_token.get(user_uuid, client_id)
-            logger.debug('Delete refresh token "%s" for user "%s"', client_id, user_uuid)
+            logger.debug(
+                'Delete refresh token "%s" for user "%s"', client_id, user_uuid
+            )
             self._dao.user.remove_refresh_token(user, refresh_token)
             self._notifier.updated(user)
 
@@ -182,9 +188,8 @@ class BusEventHandler:
         state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
             endpoint = self._dao.endpoint.find_or_create(endpoint_name)
-            if (
-                (state in INUSE_STATE and endpoint.channel_state == 'down')
-                or (state not in INUSE_STATE and endpoint.channel_state == 'up')
+            if (state in INUSE_STATE and endpoint.channel_state == 'down') or (
+                state not in INUSE_STATE and endpoint.channel_state == 'up'
             ):
                 logger.debug(
                     'Invalid endpoint "%s" state "%s", channel state is "%s"',

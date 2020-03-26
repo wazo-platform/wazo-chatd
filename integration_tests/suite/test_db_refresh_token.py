@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -25,23 +25,31 @@ class TestRefreshToken(BaseIntegrationTest):
 
     @fixtures.db.refresh_token()
     def test_get(self, refresh_token):
-        result = self._dao.refresh_token.get(refresh_token.user_uuid, refresh_token.client_id)
+        result = self._dao.refresh_token.get(
+            refresh_token.user_uuid, refresh_token.client_id
+        )
         assert_that(result, equal_to(refresh_token))
 
         assert_that(
-            calling(self._dao.refresh_token.get).with_args(UNKNOWN_UUID, refresh_token.client_id),
+            calling(self._dao.refresh_token.get).with_args(
+                UNKNOWN_UUID, refresh_token.client_id
+            ),
             raises(UnknownRefreshTokenException),
         )
 
         assert_that(
-            calling(self._dao.refresh_token.get).with_args(refresh_token.user_uuid, 'unknown'),
+            calling(self._dao.refresh_token.get).with_args(
+                refresh_token.user_uuid, 'unknown'
+            ),
             raises(UnknownRefreshTokenException),
         )
 
     @fixtures.db.refresh_token()
     @fixtures.db.refresh_token()
     def test_find(self, refresh_token, _):
-        result = self._dao.refresh_token.find(refresh_token.user_uuid, refresh_token.client_id)
+        result = self._dao.refresh_token.find(
+            refresh_token.user_uuid, refresh_token.client_id
+        )
         assert_that(result, equal_to(refresh_token))
 
         result = self._dao.refresh_token.find(UNKNOWN_UUID, 'not-found')

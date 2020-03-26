@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -211,9 +211,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
                     mobile=session_unchanged.mobile,
                 ),
                 has_properties(
-                    uuid=session_created_uuid,
-                    user_uuid=user_created_uuid,
-                    mobile=True,
+                    uuid=session_created_uuid, user_uuid=user_created_uuid, mobile=True,
                 ),
             ),
         )

@@ -35,7 +35,9 @@ class BusClient(bus_helper.BusClient):
             'config.user.deleted',
         )
 
-    def send_session_created_event(self, session_uuid, user_uuid, tenant_uuid, mobile=False):
+    def send_session_created_event(
+        self, session_uuid, user_uuid, tenant_uuid, mobile=False
+    ):
         self.publish(
             {
                 'data': {
@@ -62,7 +64,9 @@ class BusClient(bus_helper.BusClient):
             'auth.sessions.{}.deleted'.format(session_uuid),
         )
 
-    def send_refresh_token_created_event(self, client_id, user_uuid, tenant_uuid, mobile=False):
+    def send_refresh_token_created_event(
+        self, client_id, user_uuid, tenant_uuid, mobile=False
+    ):
         self.publish(
             {
                 'data': {
@@ -138,18 +142,12 @@ class BusClient(bus_helper.BusClient):
 
     def send_new_channel_event(self, device_name):
         self.publish(
-            {
-                'data': {'Channel': '{}-0001'.format(device_name)},
-                'name': 'Newchannel',
-            },
+            {'data': {'Channel': '{}-0001'.format(device_name)}, 'name': 'Newchannel'},
             'ami.Newchannel',
         )
 
     def send_hangup_event(self, device_name):
         self.publish(
-            {
-                'data': {'Channel': '{}-0001'.format(device_name)},
-                'name': 'Hangup',
-            },
+            {'data': {'Channel': '{}-0001'.format(device_name)}, 'name': 'Hangup'},
             'ami.Hangup',
         )

@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -296,10 +296,16 @@ class Initiator:
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                 except UnknownUserException:
-                    logger.debug('Refresh token "%s" has no valid user "%s"', client_id, user_uuid)
+                    logger.debug(
+                        'Refresh token "%s" has no valid user "%s"',
+                        client_id,
+                        user_uuid,
+                    )
                     continue
 
-                logger.debug('Create refresh token "%s" for user "%s"', client_id, user_uuid)
+                logger.debug(
+                    'Create refresh token "%s" for user "%s"', client_id, user_uuid
+                )
                 token = RefreshToken(client_id=client_id, user_uuid=user_uuid)
                 self._dao.user.add_refresh_token(user, token)
 
@@ -313,13 +319,17 @@ class Initiator:
                     logger.warning(e)
                     continue
 
-                logger.debug('Delete refresh token "%s" for user "%s"', client_id, user_uuid)
+                logger.debug(
+                    'Delete refresh token "%s" for user "%s"', client_id, user_uuid
+                )
                 self._dao.user.remove_refresh_token(user, token)
 
     def _update_refresh_tokens(self, tokens):
         with session_scope():
             for token in tokens:
-                cached_token = self._dao.refresh_token.find(token['user_uuid'], token['client_id'])
+                cached_token = self._dao.refresh_token.find(
+                    token['user_uuid'], token['client_id']
+                )
                 if cached_token and token['mobile'] != cached_token.mobile:
                     cached_token.mobile = token['mobile']
                     self._dao.refresh_token.update(cached_token)
