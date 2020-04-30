@@ -48,9 +48,9 @@ amid:
 confd:
   host: localhost
   port: 9486
+  prefix: null
+  https: false
   timeout: 90
-  https: true
-  verify_certificate: /usr/share/xivo-certs/server.crt
 
 # consul connection informations
 consul:

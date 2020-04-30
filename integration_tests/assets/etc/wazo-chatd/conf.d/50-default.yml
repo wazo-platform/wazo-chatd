@@ -8,7 +8,6 @@ bus:
   host: rabbitmq
 confd:
   host: confd
-  verify_certificate: false
 service_discovery:
   enabled: false
 
