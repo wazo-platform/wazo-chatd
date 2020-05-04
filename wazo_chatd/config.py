@@ -51,9 +51,9 @@ _DEFAULT_CONFIG = {
     'confd': {
         'host': 'localhost',
         'port': 9486,
+        'prefix': None,
+        'https': False,
         'timeout': 90,
-        'https': True,
-        'verify_certificate': _CERT_FILE,
     },
     'consul': {
         'scheme': 'http',
