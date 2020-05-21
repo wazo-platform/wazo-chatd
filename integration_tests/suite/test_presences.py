@@ -221,7 +221,7 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(state='away')
     def test_update(self, user):
         user_args = {'uuid': user.uuid, 'state': 'invisible', 'status': 'custom status'}
-        routing_key = 'chatd.users.*.presences.updated'.format(uuid=user.uuid)
+        routing_key = 'chatd.users.*.presences.updated'
         event_accumulator = self.bus.accumulator(routing_key)
 
         self.chatd.user_presences.update(user_args)

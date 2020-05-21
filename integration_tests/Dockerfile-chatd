@@ -6,5 +6,3 @@ COPY . /usr/src/wazo-chatd
 
 WORKDIR /usr/src/wazo-chatd
 RUN python setup.py develop
-
-CMD ["/usr/local/bin/wazo-chatd", "-d"]
