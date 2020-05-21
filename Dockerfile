@@ -1,4 +1,4 @@
-FROM python:3.7-buster
+FROM python:3.7-slim-buster
 
 COPY ./contribs/docker/certs /usr/share/xivo-certs
 RUN true \
