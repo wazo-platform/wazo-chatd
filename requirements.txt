@@ -17,4 +17,5 @@ python-dateutil==2.7.3  # from marshmallow, to accept more date formats
 pyyaml==3.13
 requests==2.21.0
 sqlalchemy==1.2.18
+sqlalchemy_utils==0.32.21
 stevedore==1.29.0

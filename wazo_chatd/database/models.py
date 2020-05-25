@@ -17,27 +17,16 @@ from sqlalchemy import (
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy_utils import UUIDType
 
 Base = declarative_base()
-
-UUID_LENGTH = 36
-
-
-class UUIDAsString(TypeDecorator):
-    impl = String
-
-    def process_bind_param(self, value, dialect):
-        if value is not None:
-            value = str(value)
-        return value
 
 
 class Tenant(Base):
 
     __tablename__ = 'chatd_tenant'
 
-    uuid = Column(UUIDAsString(UUID_LENGTH), primary_key=True)
+    uuid = Column(UUIDType(), primary_key=True)
 
     def __repr__(self):
         return "<Tenant(uuid='{uuid}')>".format(uuid=self.uuid)
@@ -47,9 +36,9 @@ class User(Base):
 
     __tablename__ = 'chatd_user'
 
-    uuid = Column(UUIDAsString(UUID_LENGTH), primary_key=True)
+    uuid = Column(UUIDType(), primary_key=True)
     tenant_uuid = Column(
-        UUIDAsString(UUID_LENGTH),
+        UUIDType(),
         ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
         nullable=False,
     )
@@ -88,10 +77,10 @@ class Session(Base):
 
     __tablename__ = 'chatd_session'
 
-    uuid = Column(UUIDAsString(UUID_LENGTH), primary_key=True)
+    uuid = Column(UUIDType(), primary_key=True)
     mobile = Column(Boolean, nullable=False, default=False)
     user_uuid = Column(
-        UUIDAsString(UUID_LENGTH),
+        UUIDType(),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
         nullable=False,
     )
@@ -111,7 +100,7 @@ class RefreshToken(Base):
 
     client_id = Column(Text, nullable=False, primary_key=True)
     user_uuid = Column(
-        UUIDAsString(UUID_LENGTH),
+        UUIDType(),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
         nullable=False,
         primary_key=True,
@@ -133,7 +122,7 @@ class Line(Base):
 
     id = Column(Integer, primary_key=True)
     user_uuid = Column(
-        UUIDAsString(UUID_LENGTH), ForeignKey('chatd_user.uuid', ondelete='CASCADE')
+        UUIDType(), ForeignKey('chatd_user.uuid', ondelete='CASCADE')
     )
     endpoint_name = Column(Text, ForeignKey('chatd_endpoint.name', ondelete='SET NULL'))
     media = Column(String(24), CheckConstraint("media in ('audio', 'video')"))
@@ -179,11 +168,11 @@ class Room(Base):
     __tablename__ = 'chatd_room'
 
     uuid = Column(
-        String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True
+        UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
     )
     name = Column(Text)
     tenant_uuid = Column(
-        UUIDAsString(UUID_LENGTH),
+        UUIDType(),
         ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
         nullable=False,
     )
@@ -207,13 +196,13 @@ class RoomUser(Base):
     __tablename__ = 'chatd_room_user'
 
     room_uuid = Column(
-        String(UUID_LENGTH),
+        UUIDType(),
         ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
         primary_key=True,
     )
-    uuid = Column(String(UUID_LENGTH), primary_key=True)
-    tenant_uuid = Column(String(UUID_LENGTH), primary_key=True)
-    wazo_uuid = Column(String(UUID_LENGTH), primary_key=True)
+    uuid = Column(UUIDType(), primary_key=True)
+    tenant_uuid = Column(UUIDType(), primary_key=True)
+    wazo_uuid = Column(UUIDType(), primary_key=True)
 
     def __repr__(self):
         return "<RoomUser(uuid='{}', tenant_uuid='{}', wazo_uuid='{}')>".format(
@@ -226,18 +215,18 @@ class RoomMessage(Base):
     __tablename__ = 'chatd_room_message'
 
     uuid = Column(
-        String(UUID_LENGTH), server_default=text('uuid_generate_v4()'), primary_key=True
+        UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
     )
     room_uuid = Column(
-        String(UUID_LENGTH),
+        UUIDType(),
         ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
         nullable=False,
     )
     content = Column(Text)
     alias = Column(String(256))
-    user_uuid = Column(String(UUID_LENGTH), nullable=False)
-    tenant_uuid = Column(String(UUID_LENGTH), nullable=False)
-    wazo_uuid = Column(String(UUID_LENGTH), nullable=False)
+    user_uuid = Column(UUIDType(), nullable=False)
+    tenant_uuid = Column(UUIDType(), nullable=False)
+    wazo_uuid = Column(UUIDType(), nullable=False)
     created_at = Column(DateTime(), default=datetime.datetime.utcnow, nullable=False)
 
     room = relationship('Room', viewonly=True)
