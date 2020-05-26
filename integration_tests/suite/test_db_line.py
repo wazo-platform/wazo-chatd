@@ -6,11 +6,15 @@ import uuid
 from hamcrest import (
     assert_that,
     calling,
+    contains,
     contains_inanyorder,
+    empty,
     equal_to,
     has_items,
+    has_properties,
 )
 
+from wazo_chatd.database.models import Channel
 from wazo_chatd.exceptions import UnknownLineException
 from xivo_test_helpers.hamcrest.raises import raises
 
@@ -46,6 +50,15 @@ class TestLine(BaseIntegrationTest):
         assert_that(result, equal_to(line))
 
         result = self._dao.line.find(UNKNOWN_ID)
+        assert_that(result, equal_to(None))
+
+    @fixtures.db.line()
+    @fixtures.db.line()
+    def test_find_by(self, line, _):
+        result = self._dao.line.find_by(endpoint_name=line.endpoint_name)
+        assert_that(result, equal_to(line))
+
+        result = self._dao.line.find_by(endpoint_name='unknown')
         assert_that(result, equal_to(None))
 
     @fixtures.db.line()
@@ -94,3 +107,32 @@ class TestLine(BaseIntegrationTest):
 
         self._session.expire_all()
         assert_that(line.endpoint, equal_to(None))
+
+    @fixtures.db.line()
+    def test_add_channel(self, line):
+        channel_name = 'channel-name'
+        channel = Channel(name=channel_name)
+        self._dao.line.add_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, contains(has_properties(name=channel_name)))
+
+        # twice
+        self._dao.line.add_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, contains(has_properties(name=channel_name)))
+
+    @fixtures.db.line(id=1)
+    @fixtures.db.channel(line_id=1)
+    def test_remove_channel(self, line, channel):
+        self._dao.line.remove_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, empty())
+
+        # twice
+        self._dao.line.remove_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, empty())
