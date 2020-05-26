@@ -1,6 +1,7 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from .channel import ChannelDAO
 from .endpoint import EndpointDAO
 from .line import LineDAO
 from .refresh_token import RefreshTokenDAO
@@ -13,6 +14,7 @@ from .user import UserDAO
 class DAO:
 
     _daos = {
+        'channel': ChannelDAO,
         'endpoint': EndpointDAO,
         'line': LineDAO,
         'refresh_token': RefreshTokenDAO,
