@@ -9,6 +9,7 @@ import uuid
 from functools import wraps
 
 from wazo_chatd.database.models import (
+    Channel,
     Endpoint,
     Line,
     Room,
@@ -271,6 +272,35 @@ def endpoint(**endpoint_args):
                 self._session.expunge_all()
                 self._session.query(Endpoint).filter(
                     Endpoint.name == endpoint_args['name']
+                ).delete()
+                self._session.commit()
+            return result
+
+        return wrapper
+
+    return decorator
+
+
+def channel(**channel_args):
+    def decorator(decorated):
+        @wraps(decorated)
+        def wrapper(self, *args, **kwargs):
+            channel_args.setdefault('name', _random_string())
+            channel_args.setdefault('state', 'undefined')
+
+            channel = Channel(**channel_args)
+
+            self._session.add(channel)
+            self._session.flush()
+
+            self._session.commit()
+            args = list(args) + [channel]
+            try:
+                result = decorated(self, *args, **kwargs)
+            finally:
+                self._session.expunge_all()
+                self._session.query(Channel).filter(
+                    Channel.name == channel_args['name']
                 ).delete()
                 self._session.commit()
             return result

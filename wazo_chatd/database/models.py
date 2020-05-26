@@ -105,6 +105,9 @@ class Line(Base):
     endpoint = relationship('Endpoint')
     state = association_proxy('endpoint', 'state')
 
+    channels = relationship('Channel')
+    channels_state = association_proxy('channels', 'state')
+
 
 @generic_repr
 class Endpoint(Base):

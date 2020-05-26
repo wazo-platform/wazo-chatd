@@ -3,7 +3,13 @@
 
 import uuid
 
-from hamcrest import assert_that, calling, equal_to, has_items
+from hamcrest import (
+    assert_that,
+    calling,
+    contains_inanyorder,
+    equal_to,
+    has_items,
+)
 
 from wazo_chatd.exceptions import UnknownLineException
 from xivo_test_helpers.hamcrest.raises import raises
@@ -58,6 +64,12 @@ class TestLine(BaseIntegrationTest):
     @fixtures.db.line(endpoint_name='SIP/custom-name')
     def test_state(self, endpoint, line):
         assert_that(line.state, equal_to(endpoint.state))
+
+    @fixtures.db.line(id=1)
+    @fixtures.db.channel(line_id=1, state='talking')
+    @fixtures.db.channel(line_id=1, state='holding')
+    def test_channels_state(self, line, channel_1, channel_2):
+        assert_that(line.channels_state, contains_inanyorder('talking', 'holding'))
 
     @fixtures.db.line(media='audio')
     def test_update(self, line):
