@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -12,9 +12,9 @@ from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 from .helpers.wait_strategy import NoWaitStrategy
 
-TENANT_UUID = str(uuid.uuid4())
-USER_UUID = str(uuid.uuid4())
-UNKNOWN_UUID = str(uuid.uuid4())
+TENANT_UUID = uuid.uuid4()
+USER_UUID = uuid.uuid4()
+UNKNOWN_UUID = uuid.uuid4()
 
 
 class TestSession(BaseIntegrationTest):

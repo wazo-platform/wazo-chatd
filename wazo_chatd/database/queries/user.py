@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy import text
@@ -24,7 +24,7 @@ class UserDAO:
 
     def get(self, tenant_uuids, user_uuid):
         query = self.session.query(User).filter(
-            User.tenant_uuid.in_(tenant_uuids), User.uuid == str(user_uuid)
+            User.tenant_uuid.in_(tenant_uuids), User.uuid == user_uuid
         )
 
         user = query.first()

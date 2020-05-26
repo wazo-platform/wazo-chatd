@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -61,9 +61,9 @@ class TestUserRoom(BaseIntegrationTest):
             'name': 'test-room',
             'users': [
                 {
-                    'uuid': TOKEN_USER_UUID,
-                    'tenant_uuid': TOKEN_TENANT_UUID,
-                    'wazo_uuid': WAZO_UUID,
+                    'uuid': str(TOKEN_USER_UUID),
+                    'tenant_uuid': str(TOKEN_TENANT_UUID),
+                    'wazo_uuid': str(WAZO_UUID),
                 },
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
             ],
@@ -89,7 +89,7 @@ class TestUserRoom(BaseIntegrationTest):
                 has_entries(
                     data=has_entries(room_args),
                     required_acl='events.chatd.users.{}.rooms.created'.format(
-                        TOKEN_USER_UUID
+                        str(TOKEN_USER_UUID)
                     ),
                 ),
                 has_entries(
@@ -113,14 +113,14 @@ class TestUserRoom(BaseIntegrationTest):
                 name=none(),
                 users=contains_inanyorder(
                     has_entries(
-                        uuid=TOKEN_USER_UUID,
-                        tenant_uuid=TOKEN_TENANT_UUID,
-                        wazo_uuid=WAZO_UUID,
+                        uuid=str(TOKEN_USER_UUID),
+                        tenant_uuid=str(TOKEN_TENANT_UUID),
+                        wazo_uuid=str(WAZO_UUID),
                     ),
                     has_entries(
                         uuid=room_args['users'][0]['uuid'],
-                        tenant_uuid=TOKEN_TENANT_UUID,
-                        wazo_uuid=WAZO_UUID,
+                        tenant_uuid=str(TOKEN_TENANT_UUID),
+                        wazo_uuid=str(WAZO_UUID),
                     ),
                 ),
             ),
@@ -135,9 +135,9 @@ class TestUserRoom(BaseIntegrationTest):
         room_args = {
             'users': [
                 {
-                    'uuid': TOKEN_USER_UUID,
-                    'tenant_uuid': TOKEN_TENANT_UUID,
-                    'wazo_uuid': WAZO_UUID,
+                    'uuid': str(TOKEN_USER_UUID),
+                    'tenant_uuid': str(TOKEN_TENANT_UUID),
+                    'wazo_uuid': str(WAZO_UUID),
                 },
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
@@ -148,7 +148,7 @@ class TestUserRoom(BaseIntegrationTest):
         room_args = {
             'users': [
                 # Current user is automatically added to the users list
-                # {'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID, 'wazo_uuid': WAZO_UUID},
+                # {'uuid': str(TOKEN_USER_UUID), 'tenant_uuid': str(TOKEN_TENANT_UUID), 'wazo_uuid': str(WAZO_UUID)},
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
@@ -181,14 +181,14 @@ class TestUserRoom(BaseIntegrationTest):
         room_args = {
             'users': [
                 {
-                    'uuid': TOKEN_USER_UUID,
-                    'tenant_uuid': TOKEN_TENANT_UUID,
-                    'wazo_uuid': WAZO_UUID,
+                    'uuid': str(TOKEN_USER_UUID),
+                    'tenant_uuid': str(TOKEN_TENANT_UUID),
+                    'wazo_uuid': str(WAZO_UUID),
                 },
                 {
-                    'uuid': TOKEN_USER_UUID,
-                    'tenant_uuid': TOKEN_TENANT_UUID,
-                    'wazo_uuid': WAZO_UUID,
+                    'uuid': str(TOKEN_USER_UUID),
+                    'tenant_uuid': str(TOKEN_TENANT_UUID),
+                    'wazo_uuid': str(WAZO_UUID),
                 },
             ]
         }

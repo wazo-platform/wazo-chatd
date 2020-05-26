@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -13,6 +13,7 @@ from hamcrest import (
     equal_to,
     has_properties,
     is_not,
+    instance_of,
     none,
 )
 from sqlalchemy.inspection import inspect
@@ -20,7 +21,6 @@ from sqlalchemy.inspection import inspect
 from wazo_chatd.database.models import Room, RoomMessage, RoomUser
 from wazo_chatd.exceptions import UnknownRoomException
 from xivo_test_helpers.hamcrest.raises import raises
-from xivo_test_helpers.hamcrest.uuid_ import uuid_
 
 from .helpers import fixtures
 from .helpers.base import (
@@ -31,11 +31,11 @@ from .helpers.base import (
 )
 from .helpers.wait_strategy import NoWaitStrategy
 
-USER_UUID_1 = str(uuid.uuid4())
-USER_UUID_2 = str(uuid.uuid4())
-USER_UUID_3 = str(uuid.uuid4())
+USER_UUID_1 = uuid.uuid4()
+USER_UUID_2 = uuid.uuid4()
+USER_UUID_3 = uuid.uuid4()
 
-UUID = str(uuid.uuid4())
+UUID = uuid.uuid4()
 
 
 class TestRoom(BaseIntegrationTest):
@@ -107,7 +107,7 @@ class TestRoom(BaseIntegrationTest):
         room = self._dao.room.create(room)
 
         self._session.expire_all()
-        assert_that(room, has_properties(uuid=uuid_()))
+        assert_that(room, has_properties(uuid=instance_of(uuid.UUID)))
 
     def test_create_with_users(self):
         room_user = RoomUser(uuid=USER_UUID_1, tenant_uuid=UUID, wazo_uuid=UUID)
@@ -115,7 +115,7 @@ class TestRoom(BaseIntegrationTest):
         room = self._dao.room.create(room)
 
         self._session.expire_all()
-        assert_that(room, has_properties(uuid=uuid_()))
+        assert_that(room, has_properties(uuid=instance_of(uuid.UUID)))
 
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}])
     def test_delete_cascade(self, room):
@@ -508,9 +508,9 @@ class TestRoomRelationships(BaseIntegrationTest):
         assert_that(room.messages, contains(message_2, message_1))
 
     def add_room_message(self, **kwargs):
-        kwargs.setdefault('user_uuid', str(uuid.uuid4()))
-        kwargs.setdefault('tenant_uuid', str(uuid.uuid4()))
-        kwargs.setdefault('wazo_uuid', str(uuid.uuid4()))
+        kwargs.setdefault('user_uuid', uuid.uuid4())
+        kwargs.setdefault('tenant_uuid', uuid.uuid4())
+        kwargs.setdefault('wazo_uuid', uuid.uuid4())
         message = RoomMessage(**kwargs)
         self._session.add(message)
         self._session.flush()

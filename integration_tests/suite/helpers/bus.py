@@ -7,20 +7,20 @@ from xivo_test_helpers import bus as bus_helper
 class BusClient(bus_helper.BusClient):
     def send_tenant_created_event(self, tenant_uuid):
         self.publish(
-            {'data': {'uuid': tenant_uuid}, 'name': 'auth_tenant_added'},
+            {'data': {'uuid': str(tenant_uuid)}, 'name': 'auth_tenant_added'},
             'auth.tenants.{}.created'.format(tenant_uuid),
         )
 
     def send_tenant_deleted_event(self, tenant_uuid):
         self.publish(
-            {'data': {'uuid': tenant_uuid}, 'name': 'auth_tenant_deleted'},
+            {'data': {'uuid': str(tenant_uuid)}, 'name': 'auth_tenant_deleted'},
             'auth.tenants.{}.deleted'.format(tenant_uuid),
         )
 
     def send_user_created_event(self, user_uuid, tenant_uuid):
         self.publish(
             {
-                'data': {'uuid': user_uuid, 'tenant_uuid': tenant_uuid},
+                'data': {'uuid': str(user_uuid), 'tenant_uuid': str(tenant_uuid)},
                 'name': 'user_created',
             },
             'config.user.created',
@@ -29,7 +29,7 @@ class BusClient(bus_helper.BusClient):
     def send_user_deleted_event(self, user_uuid, tenant_uuid):
         self.publish(
             {
-                'data': {'uuid': user_uuid, 'tenant_uuid': tenant_uuid},
+                'data': {'uuid': str(user_uuid), 'tenant_uuid': str(tenant_uuid)},
                 'name': 'user_deleted',
             },
             'config.user.deleted',
@@ -41,9 +41,9 @@ class BusClient(bus_helper.BusClient):
         self.publish(
             {
                 'data': {
-                    'uuid': session_uuid,
-                    'user_uuid': user_uuid,
-                    'tenant_uuid': tenant_uuid,
+                    'uuid': str(session_uuid),
+                    'user_uuid': str(user_uuid),
+                    'tenant_uuid': str(tenant_uuid),
                     'mobile': mobile,
                 },
                 'name': 'auth_session_created',
@@ -55,9 +55,9 @@ class BusClient(bus_helper.BusClient):
         self.publish(
             {
                 'data': {
-                    'uuid': session_uuid,
-                    'user_uuid': user_uuid,
-                    'tenant_uuid': tenant_uuid,
+                    'uuid': str(session_uuid),
+                    'user_uuid': str(user_uuid),
+                    'tenant_uuid': str(tenant_uuid),
                 },
                 'name': 'auth_session_deleted',
             },
@@ -71,8 +71,8 @@ class BusClient(bus_helper.BusClient):
             {
                 'data': {
                     'client_id': client_id,
-                    'user_uuid': user_uuid,
-                    'tenant_uuid': tenant_uuid,
+                    'user_uuid': str(user_uuid),
+                    'tenant_uuid': str(tenant_uuid),
                     'mobile': mobile,
                 },
                 'name': 'auth_refresh_token_created',
@@ -85,8 +85,8 @@ class BusClient(bus_helper.BusClient):
             {
                 'data': {
                     'client_id': client_id,
-                    'user_uuid': user_uuid,
-                    'tenant_uuid': tenant_uuid,
+                    'user_uuid': str(user_uuid),
+                    'tenant_uuid': str(tenant_uuid),
                 },
                 'name': 'auth_refresh_token_deleted',
             },
@@ -106,7 +106,7 @@ class BusClient(bus_helper.BusClient):
                         'endpoint_sccp': {},
                         'endpoint_custom': {},
                     },
-                    'user': {'uuid': user_uuid, 'tenant_uuid': tenant_uuid},
+                    'user': {'uuid': str(user_uuid), 'tenant_uuid': str(tenant_uuid)},
                 },
                 'name': 'user_line_associated',
             },
@@ -124,7 +124,7 @@ class BusClient(bus_helper.BusClient):
                         'endpoint_sccp': {},
                         'endpoint_custom': {},
                     },
-                    'user': {'uuid': user_uuid, 'tenant_uuid': tenant_uuid},
+                    'user': {'uuid': str(user_uuid), 'tenant_uuid': str(tenant_uuid)},
                 },
                 'name': 'user_line_dissociated',
             },

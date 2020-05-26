@@ -13,4 +13,5 @@ https://github.com/wazo-platform/xivo-test-helpers/archive/master.zip
 # for database tests
 psycopg2-binary
 sqlalchemy
+sqlalchemy_utils
 https://github.com/wazo-platform/xivo-lib-python/archive/master.zip

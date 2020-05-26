@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -14,7 +14,7 @@ from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 from .helpers.wait_strategy import NoWaitStrategy
 
-UNKNOWN_UUID = str(uuid.uuid4())
+UNKNOWN_UUID = uuid.uuid4()
 
 
 class TestTenant(BaseIntegrationTest):
@@ -24,7 +24,7 @@ class TestTenant(BaseIntegrationTest):
     wait_strategy = NoWaitStrategy()
 
     def test_find_or_create(self):
-        tenant_uuid = str(uuid.uuid4())
+        tenant_uuid = uuid.uuid4()
         created_tenant = self._dao.tenant.find_or_create(tenant_uuid)
 
         self._session.expire_all()
@@ -43,7 +43,7 @@ class TestTenant(BaseIntegrationTest):
 
         self._session.expire_all()
         assert_that(inspect(tenant).persistent)
-        assert_that(tenant, has_properties(uuid=str(tenant_uuid)))
+        assert_that(tenant, has_properties(uuid=tenant_uuid))
 
         self._dao.tenant.delete(tenant)
 

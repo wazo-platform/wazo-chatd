@@ -93,7 +93,7 @@ class Initiator:
 
     def initiate_tenants(self, tenants):
         tenants = set(tenant['uuid'] for tenant in tenants)
-        tenants_cached = set(tenant.uuid for tenant in self._dao.tenant.list_())
+        tenants_cached = set(str(tenant.uuid) for tenant in self._dao.tenant.list_())
 
         tenants_missing = tenants - tenants_cached
         with session_scope():
@@ -122,7 +122,7 @@ class Initiator:
     def _add_and_remove_users(self, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
         users_cached = set(
-            (u.uuid, u.tenant_uuid) for u in self._dao.user.list_(tenant_uuids=None)
+            (str(u.uuid), str(u.tenant_uuid)) for u in self._dao.user.list_(tenant_uuids=None)
         )
 
         users_missing = users - users_cached
@@ -153,7 +153,7 @@ class Initiator:
             for line in user['lines']
         )
         lines_cached = set(
-            (line.id, line.user_uuid, line.tenant_uuid)
+            (line.id, str(line.user_uuid), str(line.tenant_uuid))
             for line in self._dao.line.list_()
         )
 
@@ -238,7 +238,7 @@ class Initiator:
             for session in sessions
         )
         sessions_cached = set(
-            (session.uuid, session.user_uuid, session.tenant_uuid)
+            (str(session.uuid), str(session.user_uuid), str(session.tenant_uuid))
             for session in self._dao.session.list_()
         )
 
@@ -286,7 +286,7 @@ class Initiator:
             for token in tokens
         )
         tokens_cached = set(
-            (token.client_id, token.user_uuid, token.tenant_uuid)
+            (token.client_id, str(token.user_uuid), str(token.tenant_uuid))
             for token in self._dao.refresh_token.list_()
         )
 
