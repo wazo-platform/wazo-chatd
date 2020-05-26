@@ -17,21 +17,20 @@ from sqlalchemy import (
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy_utils import UUIDType
+from sqlalchemy_utils import UUIDType, generic_repr
 
 Base = declarative_base()
 
 
+@generic_repr
 class Tenant(Base):
 
     __tablename__ = 'chatd_tenant'
 
     uuid = Column(UUIDType(), primary_key=True)
 
-    def __repr__(self):
-        return "<Tenant(uuid='{uuid}')>".format(uuid=self.uuid)
 
-
+@generic_repr
 class User(Base):
 
     __tablename__ = 'chatd_user'
@@ -57,20 +56,8 @@ class User(Base):
     )
     lines = relationship('Line', cascade='all,delete-orphan', passive_deletes=False)
 
-    def __repr__(self):
-        return (
-            "<User(uuid='{uuid}', state='{state}', status='{status}',"
-            "lines='{lines}', sessions='{sessions}', refresh_tokens='{refresh_tokens}')>"
-        ).format(
-            uuid=self.uuid,
-            state=self.state,
-            status=self.status,
-            lines=self.lines,
-            sessions=self.sessions,
-            refresh_tokens=self.refresh_tokens,
-        )
 
-
+@generic_repr
 class Session(Base):
 
     __tablename__ = 'chatd_session'
@@ -84,12 +71,8 @@ class Session(Base):
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
-    def __repr__(self):
-        return "<Session(uuid='{uuid}', mobile='{mobile}')>".format(
-            uuid=self.uuid, mobile=self.mobile
-        )
 
-
+@generic_repr
 class RefreshToken(Base):
 
     __tablename__ = 'chatd_refresh_token'
@@ -106,12 +89,8 @@ class RefreshToken(Base):
     user = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
-    def __repr__(self):
-        return "<RefreshToken(client_id='{client_id}', user_uuid='{user_uuid}', mobile='{mobile}')>".format(
-            client_id=self.client_id, user_uuid=self.user_uuid, mobile=self.mobile,
-        )
 
-
+@generic_repr
 class Line(Base):
 
     __tablename__ = 'chatd_line'
@@ -126,12 +105,8 @@ class Line(Base):
     endpoint = relationship('Endpoint')
     state = association_proxy('endpoint', 'state')
 
-    def __repr__(self):
-        return "<Line(id='{id}', media='{media}', endpoint='{endpoint}')>".format(
-            id=self.id, media=self.media, endpoint=self.endpoint
-        )
 
-
+@generic_repr
 class Endpoint(Base):
 
     __tablename__ = 'chatd_endpoint'
@@ -151,12 +126,8 @@ class Endpoint(Base):
 
     line = relationship('Line', uselist=False, viewonly=True)
 
-    def __repr__(self):
-        return "<Endpoint(name='{name}', state='{state}', channel_state='{channel_state}')>".format(
-            name=self.name, state=self.state, channel_state=self.channel_state
-        )
 
-
+@generic_repr
 class Room(Base):
 
     __tablename__ = 'chatd_room'
@@ -177,12 +148,8 @@ class Room(Base):
         order_by='desc(RoomMessage.created_at)',
     )
 
-    def __repr__(self):
-        return "<Room(uuid='{uuid}', name='{name}', users='{users}', messages='{messages}')>".format(
-            uuid=self.uuid, name=self.name, users=self.users, messages=self.messages
-        )
 
-
+@generic_repr
 class RoomUser(Base):
 
     __tablename__ = 'chatd_room_user'
@@ -194,12 +161,8 @@ class RoomUser(Base):
     tenant_uuid = Column(UUIDType(), primary_key=True)
     wazo_uuid = Column(UUIDType(), primary_key=True)
 
-    def __repr__(self):
-        return "<RoomUser(uuid='{}', tenant_uuid='{}', wazo_uuid='{}')>".format(
-            self.uuid, self.tenant_uuid, self.wazo_uuid
-        )
 
-
+@generic_repr
 class RoomMessage(Base):
 
     __tablename__ = 'chatd_room_message'
@@ -218,11 +181,3 @@ class RoomMessage(Base):
     created_at = Column(DateTime(), default=datetime.datetime.utcnow, nullable=False)
 
     room = relationship('Room', viewonly=True)
-
-    def __repr__(self):
-        return "<RoomMessage(uuid='{uuid}', created_at='{created_at}' content='{content}', alias='{alias}')>".format(
-            uuid=self.uuid,
-            created_at=self.created_at,
-            content=self.content,
-            alias=self.alias,
-        )
