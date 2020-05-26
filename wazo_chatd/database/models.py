@@ -128,6 +128,27 @@ class Endpoint(Base):
 
 
 @generic_repr
+class Channel(Base):
+
+    __tablename__ = 'chatd_channel'
+
+    name = Column(Text, primary_key=True)
+    state = Column(
+        String(24),
+        CheckConstraint(
+            "state in ('undefined', 'holding', 'ringing', 'talking')"
+        ),
+        nullable=False,
+        default='undefined',
+    )
+    line_id = Column(
+        Integer, ForeignKey('chatd_line.id', ondelete='CASCADE'), nullable=False
+    )
+
+    line = relationship('Line', viewonly=True)
+
+
+@generic_repr
 class Room(Base):
 
     __tablename__ = 'chatd_room'
