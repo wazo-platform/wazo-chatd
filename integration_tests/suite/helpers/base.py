@@ -40,6 +40,20 @@ WAZO_UUID = uuid.UUID('00000000-0000-0000-0000-0000000c4a7d')
 logger = logging.getLogger(__name__)
 
 
+class ClientCreateException(Exception):
+
+    def __init__(self, client_name):
+        super().__init__(f'Could not create client {client_name}')
+
+
+class WrongClient:
+    def __init__(self, client_name):
+        self.client_name = client_name
+
+    def __getattr__(self, member):
+        raise ClientCreateException(self.client_name)
+
+
 class BaseIntegrationTest(AssetLaunchingTestCase):
 
     assets_root = os.path.abspath(
@@ -61,7 +75,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
     @classmethod
     def create_token(cls):
         cls.auth = cls.make_auth()
-        if not cls.auth:
+        if isinstance(cls.auth, WrongClient):
             return
 
         token = MockUserToken(
@@ -103,9 +117,8 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
     def make_chatd(cls, token=str(TOKEN_UUID)):
         try:
             port = cls.service_port(9304, 'chatd')
-        except NoSuchService as e:
-            logger.debug(e)
-            return
+        except NoSuchService:
+            return WrongClient('chatd')
         return ChatdClient(
             'localhost', port=port, token=token, verify_certificate=False
         )
@@ -114,36 +127,32 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
     def make_amid(cls):
         try:
             port = cls.service_port(9491, 'amid')
-        except (NoSuchService, NoSuchPort) as e:
-            logger.debug(e)
-            return
+        except (NoSuchService, NoSuchPort):
+            return WrongClient('amid')
         return AmidClient('localhost', port=port)
 
     @classmethod
     def make_auth(cls):
         try:
             port = cls.service_port(9497, 'auth')
-        except NoSuchService as e:
-            logger.debug(e)
-            return
+        except NoSuchService:
+            return WrongClient('auth')
         return AuthClient('localhost', port=port)
 
     @classmethod
     def make_confd(cls):
         try:
             port = cls.service_port(9486, 'confd')
-        except NoSuchService as e:
-            logger.debug(e)
-            return
+        except NoSuchService:
+            return WrongClient('confd')
         return ConfdClient('localhost', port=port)
 
     @classmethod
     def make_bus(cls):
         try:
             port = cls.service_port(5672, 'rabbitmq')
-        except NoSuchService as e:
-            logger.debug(e)
-            return
+        except NoSuchService:
+            return WrongClient('rabbitmq')
         return BusClient.from_connection_fields(host='localhost', port=port)
 
     @property
