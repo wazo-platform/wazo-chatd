@@ -17,9 +17,8 @@ def room(**room_args):
             room_args.setdefault('users', [])
             if not room_args['users']:
                 room_args['users'].append({'uuid': str(uuid.uuid4())})
-            elif (
-                len(room_args['users']) == 1
-                and room_args['users'][0]['uuid'] == str(TOKEN_USER_UUID)
+            elif len(room_args['users']) == 1 and room_args['users'][0]['uuid'] == str(
+                TOKEN_USER_UUID
             ):
                 room_args['users'].append({'uuid': str(uuid.uuid4())})
 

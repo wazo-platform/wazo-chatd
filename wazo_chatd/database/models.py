@@ -38,9 +38,7 @@ class User(Base):
 
     uuid = Column(UUIDType(), primary_key=True)
     tenant_uuid = Column(
-        UUIDType(),
-        ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
-        nullable=False,
+        UUIDType(), ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'), nullable=False,
     )
     state = Column(
         String(24),
@@ -80,9 +78,7 @@ class Session(Base):
     uuid = Column(UUIDType(), primary_key=True)
     mobile = Column(Boolean, nullable=False, default=False)
     user_uuid = Column(
-        UUIDType(),
-        ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
-        nullable=False,
+        UUIDType(), ForeignKey('chatd_user.uuid', ondelete='CASCADE'), nullable=False,
     )
 
     user = relationship('User', viewonly=True)
@@ -121,9 +117,7 @@ class Line(Base):
     __tablename__ = 'chatd_line'
 
     id = Column(Integer, primary_key=True)
-    user_uuid = Column(
-        UUIDType(), ForeignKey('chatd_user.uuid', ondelete='CASCADE')
-    )
+    user_uuid = Column(UUIDType(), ForeignKey('chatd_user.uuid', ondelete='CASCADE'))
     endpoint_name = Column(Text, ForeignKey('chatd_endpoint.name', ondelete='SET NULL'))
     media = Column(String(24), CheckConstraint("media in ('audio', 'video')"))
     user = relationship('User', viewonly=True)
@@ -172,9 +166,7 @@ class Room(Base):
     )
     name = Column(Text)
     tenant_uuid = Column(
-        UUIDType(),
-        ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
-        nullable=False,
+        UUIDType(), ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'), nullable=False,
     )
 
     users = relationship('RoomUser', cascade='all,delete-orphan', passive_deletes=False)
@@ -196,9 +188,7 @@ class RoomUser(Base):
     __tablename__ = 'chatd_room_user'
 
     room_uuid = Column(
-        UUIDType(),
-        ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
-        primary_key=True,
+        UUIDType(), ForeignKey('chatd_room.uuid', ondelete='CASCADE'), primary_key=True,
     )
     uuid = Column(UUIDType(), primary_key=True)
     tenant_uuid = Column(UUIDType(), primary_key=True)
@@ -218,9 +208,7 @@ class RoomMessage(Base):
         UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
     )
     room_uuid = Column(
-        UUIDType(),
-        ForeignKey('chatd_room.uuid', ondelete='CASCADE'),
-        nullable=False,
+        UUIDType(), ForeignKey('chatd_room.uuid', ondelete='CASCADE'), nullable=False,
     )
     content = Column(Text)
     alias = Column(String(256))

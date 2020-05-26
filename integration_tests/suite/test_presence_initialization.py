@@ -65,9 +65,18 @@ class TestPresenceInitialization(_BaseInitializationTest):
         # setup tenants
         tenant_created_uuid = uuid.uuid4()
         self.auth.set_tenants(
-            {'uuid': str(CHATD_TOKEN_TENANT_UUID), 'parent_uuid': str(CHATD_TOKEN_TENANT_UUID)},
-            {'uuid': str(tenant_created_uuid), 'parent_uuid': str(CHATD_TOKEN_TENANT_UUID)},
-            {'uuid': str(tenant_unchanged.uuid), 'parent_uuid': str(CHATD_TOKEN_TENANT_UUID)},
+            {
+                'uuid': str(CHATD_TOKEN_TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(tenant_created_uuid),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(tenant_unchanged.uuid),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
         )
 
         # setup users/lines

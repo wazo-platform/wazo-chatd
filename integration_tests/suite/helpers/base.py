@@ -67,7 +67,10 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         token = MockUserToken(
             str(TOKEN_UUID),
             str(TOKEN_USER_UUID),
-            metadata={'uuid': str(TOKEN_USER_UUID), 'tenant_uuid': str(TOKEN_TENANT_UUID)},
+            metadata={
+                'uuid': str(TOKEN_USER_UUID),
+                'tenant_uuid': str(TOKEN_TENANT_UUID),
+            },
         )
         cls.auth.set_token(token)
         cls.auth.set_tenants(

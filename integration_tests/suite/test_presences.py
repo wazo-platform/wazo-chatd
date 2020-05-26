@@ -92,7 +92,8 @@ class TestPresence(BaseIntegrationTest):
             presences,
             has_entries(
                 items=contains(
-                    has_entries(uuid=str(user_1.uuid)), has_entries(uuid=str(user_2.uuid))
+                    has_entries(uuid=str(user_1.uuid)),
+                    has_entries(uuid=str(user_2.uuid)),
                 ),
                 total=equal_to(2),
                 filtered=equal_to(2),
@@ -110,7 +111,8 @@ class TestPresence(BaseIntegrationTest):
             presences,
             has_entries(
                 items=contains(
-                    has_entries(uuid=str(user_1.uuid)), has_entries(uuid=str(user_2.uuid))
+                    has_entries(uuid=str(user_1.uuid)),
+                    has_entries(uuid=str(user_2.uuid)),
                 ),
                 total=equal_to(3),
                 filtered=equal_to(2),
@@ -207,7 +209,9 @@ class TestPresence(BaseIntegrationTest):
         presence = self.chatd.user_presences.get(user.uuid)
         assert_that(
             presence,
-            has_entries(uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=True,),
+            has_entries(
+                uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=True,
+            ),
         )
 
     @fixtures.db.user(uuid=USER_UUID)
@@ -215,12 +219,18 @@ class TestPresence(BaseIntegrationTest):
         presence = self.chatd.user_presences.get(str(user.uuid))
         assert_that(
             presence,
-            has_entries(uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=False,),
+            has_entries(
+                uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=False,
+            ),
         )
 
     @fixtures.db.user(state='away')
     def test_update(self, user):
-        user_args = {'uuid': str(user.uuid), 'state': 'invisible', 'status': 'custom status'}
+        user_args = {
+            'uuid': str(user.uuid),
+            'state': 'invisible',
+            'status': 'custom status',
+        }
         routing_key = 'chatd.users.*.presences.updated'
         event_accumulator = self.bus.accumulator(routing_key)
 
@@ -239,7 +249,9 @@ class TestPresence(BaseIntegrationTest):
 
     def test_update_unknown_uuid(self):
         assert_that(
-            calling(self.chatd.user_presences.update).with_args({'uuid': str(UNKNOWN_UUID)}),
+            calling(self.chatd.user_presences.update).with_args(
+                {'uuid': str(UNKNOWN_UUID)}
+            ),
             raises(
                 ChatdError,
                 has_properties(
@@ -257,7 +269,9 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.user(tenant_uuid=TOKEN_SUBTENANT_UUID, state='unavailable')
     def test_update_multi_tenant(self, user_1, user_2):
         user_args = {'uuid': str(user_2.uuid), 'state': 'available'}
-        self.chatd.user_presences.update(user_args, tenant_uuid=str(TOKEN_SUBTENANT_UUID))
+        self.chatd.user_presences.update(
+            user_args, tenant_uuid=str(TOKEN_SUBTENANT_UUID)
+        )
 
         result = self.chatd.user_presences.get(user_args['uuid'])
         assert_that(result, has_entries(user_args))

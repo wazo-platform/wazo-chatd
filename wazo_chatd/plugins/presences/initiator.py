@@ -122,7 +122,8 @@ class Initiator:
     def _add_and_remove_users(self, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
         users_cached = set(
-            (str(u.uuid), str(u.tenant_uuid)) for u in self._dao.user.list_(tenant_uuids=None)
+            (str(u.uuid), str(u.tenant_uuid))
+            for u in self._dao.user.list_(tenant_uuids=None)
         )
 
         users_missing = users - users_cached

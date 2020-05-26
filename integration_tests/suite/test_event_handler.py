@@ -107,7 +107,9 @@ class TestEventHandler(BaseIntegrationTest):
             contains(
                 has_entries(
                     data=has_entries(
-                        sessions=contains(has_entries(uuid=str(session_uuid), mobile=True))
+                        sessions=contains(
+                            has_entries(uuid=str(session_uuid), mobile=True)
+                        )
                     )
                 )
             ),

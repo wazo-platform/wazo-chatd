@@ -29,7 +29,11 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
     def test_initiate_session_when_no_user_associate(self, tenant):
         session_uuid = uuid.uuid4()
         sessions = [
-            {'uuid': str(session_uuid), 'user_uuid': str(USER_UUID), 'tenant_uuid': str(TENANT_UUID)}
+            {
+                'uuid': str(session_uuid),
+                'user_uuid': str(USER_UUID),
+                'tenant_uuid': str(TENANT_UUID),
+            }
         ]
 
         self.initiator.initiate_sessions(sessions)
@@ -41,7 +45,11 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
     def test_initiate_refresh_token_when_no_user_associate(self, tenant):
         client_id = 'my-client-id'
         refresh_tokens = [
-            {'client_id': client_id, 'user_uuid': str(USER_UUID), 'tenant_uuid': str(TENANT_UUID)}
+            {
+                'client_id': client_id,
+                'user_uuid': str(USER_UUID),
+                'tenant_uuid': str(TENANT_UUID),
+            }
         ]
 
         self.initiator.initiate_refresh_tokens(refresh_tokens)

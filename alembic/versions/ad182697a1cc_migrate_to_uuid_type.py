@@ -17,22 +17,26 @@ down_revision = 'b96789d13584'
 
 
 def upgrade():
-    with disable_user_foreign_key('chatd_refresh_token', 'user_uuid'), \
-            disable_user_foreign_key('chatd_session', 'user_uuid'), \
-            disable_user_foreign_key('chatd_line', 'user_uuid'):
+    with disable_user_foreign_key(
+        'chatd_refresh_token', 'user_uuid'
+    ), disable_user_foreign_key('chatd_session', 'user_uuid'), disable_user_foreign_key(
+        'chatd_line', 'user_uuid'
+    ):
         convert_column_to_uuid('chatd_user', 'uuid')
         convert_column_to_uuid('chatd_refresh_token', 'user_uuid')
         convert_column_to_uuid('chatd_session', 'user_uuid')
         convert_column_to_uuid('chatd_line', 'user_uuid')
 
-    with disable_tenant_foreign_key('chatd_user', 'tenant_uuid'), \
-            disable_tenant_foreign_key('chatd_room', 'tenant_uuid'):
+    with disable_tenant_foreign_key(
+        'chatd_user', 'tenant_uuid'
+    ), disable_tenant_foreign_key('chatd_room', 'tenant_uuid'):
         convert_column_to_uuid('chatd_tenant', 'uuid')
         convert_column_to_uuid('chatd_user', 'tenant_uuid')
         convert_column_to_uuid('chatd_room', 'tenant_uuid')
 
-    with disable_room_foreign_key('chatd_room_user', 'room_uuid'), \
-            disable_room_foreign_key('chatd_room_message', 'room_uuid'):
+    with disable_room_foreign_key(
+        'chatd_room_user', 'room_uuid'
+    ), disable_room_foreign_key('chatd_room_message', 'room_uuid'):
         convert_column_to_uuid('chatd_room', 'uuid')
         convert_column_to_uuid('chatd_room_user', 'room_uuid')
         convert_column_to_uuid('chatd_room_message', 'room_uuid')
@@ -81,29 +85,35 @@ def disable_foreign_key(source_table, referent_table, local_col, remote_col, **k
     yield
     op.create_foreign_key(
         constraint_name,
-        source_table, referent_table,
-        [local_col], [remote_col],
-        ondelete='CASCADE'
+        source_table,
+        referent_table,
+        [local_col],
+        [remote_col],
+        ondelete='CASCADE',
     )
 
 
 def downgrade():
-    with disable_user_foreign_key('chatd_refresh_token', 'user_uuid'), \
-            disable_user_foreign_key('chatd_session', 'user_uuid'), \
-            disable_user_foreign_key('chatd_line', 'user_uuid'):
+    with disable_user_foreign_key(
+        'chatd_refresh_token', 'user_uuid'
+    ), disable_user_foreign_key('chatd_session', 'user_uuid'), disable_user_foreign_key(
+        'chatd_line', 'user_uuid'
+    ):
         convert_column_to_string('chatd_user', 'uuid')
         convert_column_to_string('chatd_refresh_token', 'user_uuid')
         convert_column_to_string('chatd_session', 'user_uuid')
         convert_column_to_string('chatd_line', 'user_uuid')
 
-    with disable_tenant_foreign_key('chatd_user', 'tenant_uuid'), \
-            disable_tenant_foreign_key('chatd_room', 'tenant_uuid'):
+    with disable_tenant_foreign_key(
+        'chatd_user', 'tenant_uuid'
+    ), disable_tenant_foreign_key('chatd_room', 'tenant_uuid'):
         convert_column_to_string('chatd_tenant', 'uuid')
         convert_column_to_string('chatd_user', 'tenant_uuid')
         convert_column_to_string('chatd_room', 'tenant_uuid')
 
-    with disable_room_foreign_key('chatd_room_user', 'room_uuid'), \
-            disable_room_foreign_key('chatd_room_message', 'room_uuid'):
+    with disable_room_foreign_key(
+        'chatd_room_user', 'room_uuid'
+    ), disable_room_foreign_key('chatd_room_message', 'room_uuid'):
         convert_column_to_string('chatd_room', 'uuid')
         convert_column_to_string('chatd_room_user', 'room_uuid')
         convert_column_to_string('chatd_room_message', 'room_uuid')
@@ -120,7 +130,5 @@ def downgrade():
 
 def convert_column_to_string(table, column):
     op.alter_column(
-        table_name=table,
-        column_name=column,
-        type_=String(36),
+        table_name=table, column_name=column, type_=String(36),
     )
