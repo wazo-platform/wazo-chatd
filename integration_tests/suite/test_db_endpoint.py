@@ -30,6 +30,8 @@ class TestEndpoint(BaseIntegrationTest):
         assert_that(inspect(endpoint).persistent)
         assert_that(endpoint, has_properties(name=endpoint_name, state='unavailable'))
 
+        self._dao.endpoint.delete_all()
+
     def test_find_or_create(self):
         endpoint_name = 'PJSIP/name'
         created_endpoint = self._dao.endpoint.find_or_create(endpoint_name)
