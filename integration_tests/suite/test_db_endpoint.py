@@ -1,7 +1,7 @@
 # Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from hamcrest import assert_that, calling, equal_to, has_items, has_properties
+from hamcrest import assert_that, calling, equal_to, has_properties
 from sqlalchemy.inspection import inspect
 
 from wazo_chatd.database.models import Endpoint
@@ -62,12 +62,6 @@ class TestEndpoint(BaseIntegrationTest):
 
         result = self._dao.endpoint.find_by(name=UNKNOWN_NAME)
         assert_that(result, equal_to(None))
-
-    @fixtures.db.endpoint()
-    @fixtures.db.endpoint()
-    def test_list(self, endpoint_1, endpoint_2):
-        endpoints = self._dao.endpoint.list_()
-        assert_that(endpoints, has_items(endpoint_1, endpoint_2))
 
     @fixtures.db.endpoint(state='available')
     def test_update(self, endpoint):

@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy import and_, text
@@ -40,9 +40,6 @@ class EndpointDAO:
             filter_ = and_(filter_, Endpoint.name == kwargs['name'])
 
         return self.session.query(Endpoint).filter(filter_).first()
-
-    def list_(self):
-        return self.session.query(Endpoint).all()
 
     def update(self, endpoint):
         self.session.add(endpoint)
