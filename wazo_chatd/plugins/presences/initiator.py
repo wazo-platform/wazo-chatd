@@ -36,12 +36,20 @@ DEVICE_STATE_MAP = {
     'BUSY': 'unavailable',
     'INVALID': 'unavailable',
 }
+CHANNEL_STATE_MAP = {
+    'Down': 'undefined',
+    'Rsrvd': 'undefined',
+    'OffHook': 'undefined',
+    'Dialing': 'undefined',
+    'Ring': 'ringing',
+    'Ringing': 'ringing',
+    'Up': 'talking',
+    'Busy': 'talking',
+    'Dialing Offhook': 'undefined',
+    'Pre-ring': 'undefined',
+    'Unknown': 'undefined',
+}
 
-INUSE_STATE = (
-    'holding',
-    'ringing',
-    'talking',
-)
 
 
 def extract_endpoint_name(line):
