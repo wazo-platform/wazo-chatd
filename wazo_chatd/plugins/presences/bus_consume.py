@@ -194,6 +194,9 @@ class BusEventHandler:
         state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
             endpoint = self._dao.endpoint.find_or_create(endpoint_name)
+            if endpoint.state == state:
+                return
+
             endpoint.state = state
             logger.debug(
                 'Update endpoint "%s" with state "%s"', endpoint.name, endpoint.state
