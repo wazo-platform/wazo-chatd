@@ -117,9 +117,7 @@ class Endpoint(Base):
     name = Column(Text, primary_key=True)
     state = Column(
         String(24),
-        CheckConstraint(
-            "state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
-        ),
+        CheckConstraint("state in ('available', 'unavailable')"),
         nullable=False,
         default='unavailable',
     )

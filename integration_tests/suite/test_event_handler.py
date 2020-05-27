@@ -311,7 +311,7 @@ class TestEventHandler(BaseIntegrationTest):
         event = event_accumulator.accumulate()
         assert_that(event, contains(has_entries(data=has_entries(lines=empty()))))
 
-    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='unavailable')
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
     def test_device_state_changed(self, endpoint, user, line):
@@ -326,7 +326,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
             assert_that(
-                result, has_items(has_properties(name=endpoint_name, state='holding'))
+                result, has_items(has_properties(name=endpoint_name, state='available'))
             )
 
         until.assert_(endpoint_state_changed, tries=3)
@@ -337,7 +337,7 @@ class TestEventHandler(BaseIntegrationTest):
             contains(
                 has_entries(
                     data=has_entries(
-                        lines=contains(has_entries(id=line_id, state='holding'))
+                        lines=contains(has_entries(id=line_id, state='available'))
                     )
                 )
             ),
@@ -352,7 +352,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Endpoint).all()
             assert_that(
-                result, has_items(has_properties(name=endpoint_name, state='holding'))
+                result, has_items(has_properties(name=endpoint_name, state='available'))
             )
 
         until.assert_(endpoint_state_changed, tries=3)

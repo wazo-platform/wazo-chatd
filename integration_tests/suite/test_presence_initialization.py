@@ -274,8 +274,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         assert_that(
             lines,
             contains_inanyorder(
-                has_properties(name=endpoint_unchanged.name, state='talking'),
-                has_properties(name=endpoint_1_created_name, state='holding'),
+                has_properties(name=endpoint_unchanged.name, state='available'),
+                has_properties(name=endpoint_1_created_name, state='available'),
                 has_properties(name=endpoint_2_created_name, state='unavailable'),
             ),
         )

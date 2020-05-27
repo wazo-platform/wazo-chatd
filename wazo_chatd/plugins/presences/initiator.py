@@ -26,12 +26,12 @@ from wazo_chatd.exceptions import (
 logger = logging.getLogger(__name__)
 
 DEVICE_STATE_MAP = {
-    'INUSE': 'talking',
+    'INUSE': 'available',
     'UNAVAILABLE': 'unavailable',
     'NOT_INUSE': 'available',
-    'RINGING': 'ringing',
-    'ONHOLD': 'holding',
-    'RINGINUSE': 'ringing',
+    'RINGING': 'available',
+    'ONHOLD': 'available',
+    'RINGINUSE': 'available',
     'UNKNOWN': 'unavailable',
     'BUSY': 'unavailable',
     'INVALID': 'unavailable',

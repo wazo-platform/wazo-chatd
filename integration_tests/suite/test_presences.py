@@ -120,8 +120,8 @@ class TestPresence(BaseIntegrationTest):
             ),
         )
 
-    @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='talking')
-    @fixtures.db.endpoint(name=ENDPOINT_NAME_2, state='talking')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='unavailable')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME_2, state='available')
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
@@ -152,7 +152,7 @@ class TestPresence(BaseIntegrationTest):
                 ),
                 lines=contains_inanyorder(
                     has_entries(id=line_1.id, state='holding'),
-                    has_entries(id=line_2.id, state='talking'),
+                    has_entries(id=line_2.id, state='available'),
                 ),
             ),
         )
