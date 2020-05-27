@@ -41,6 +41,7 @@ class BusEventHandler:
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
         bus_consumer.on_event('Hangup', self._channel_deleted)
         bus_consumer.on_event('Newchannel', self._channel_created)
+        bus_consumer.on_event('Newstate', self._channel_updated)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
@@ -234,6 +235,21 @@ class BusEventHandler:
 
             logger.debug('Delete channel "%s"', channel_name)
             self._dao.line.remove_channel(channel.line, channel)
+
+            self._notifier.updated(channel.line.user)
+
+    def _channel_updated(self, event):
+        channel_name = event['Channel']
+        state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
+        with session_scope():
+            channel = self._dao.channel.find(channel_name)
+            if not channel:
+                logger.debug('Unknown channel "%s"', channel_name)
+                return
+
+            logger.debug('Update channel "%s" with state "%s"', channel_name, state)
+            channel.state = state
+            self._dao.channel.update(channel)
 
             self._notifier.updated(channel.line.user)
 

@@ -33,6 +33,7 @@ ROUTING_KEY_MAPPING = {
     'DeviceStateChange': 'ami.DeviceStateChange',
     'Hangup': 'ami.Hangup',
     'Newchannel': 'ami.Newchannel',
+    'Newstate': 'ami.Newstate',
 }
 
 

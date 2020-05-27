@@ -149,6 +149,15 @@ class BusClient(bus_helper.BusClient):
             'ami.Newchannel',
         )
 
+    def send_new_state_event(self, channel_name, state='undefined'):
+        self.publish(
+            {
+                'data': {'Channel': channel_name, 'ChannelStateDesc': state},
+                'name': 'Newstate'
+            },
+            'ami.Newstate',
+        )
+
     def send_hangup_event(self, channel_name):
         self.publish(
             {'data': {'Channel': channel_name}, 'name': 'Hangup'}, 'ami.Hangup',
