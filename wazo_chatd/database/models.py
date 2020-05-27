@@ -123,10 +123,6 @@ class Endpoint(Base):
         nullable=False,
         default='unavailable',
     )
-    channel_state = Column(
-        String(24), CheckConstraint("channel_state in ('up', 'down')"),
-    )
-
     line = relationship('Line', uselist=False, viewonly=True)
 
 
