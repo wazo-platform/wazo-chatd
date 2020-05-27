@@ -16,7 +16,8 @@ from wazo_chatd.database.models import (
 from .initiator import (
     CHANNEL_STATE_MAP,
     DEVICE_STATE_MAP,
-    extract_endpoint_name,
+    extract_endpoint_from_line,
+    extract_endpoint_from_channel,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,7 +161,7 @@ class BusEventHandler:
         line_id = event['line']['id']
         user_uuid = event['user']['uuid']
         tenant_uuid = event['user']['tenant_uuid']
-        endpoint_name = extract_endpoint_name(event['line'])
+        endpoint_name = extract_endpoint_from_line(event['line'])
         with session_scope():
             user = self._dao.user.get([tenant_uuid], user_uuid)
             line = self._dao.line.find(line_id)
@@ -211,7 +212,7 @@ class BusEventHandler:
     def _channel_created(self, event):
         channel_name = event['Channel']
         state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
-        endpoint_name = self._extract_endpoint_from_channel(channel_name)
+        endpoint_name = extract_endpoint_from_channel(channel_name)
         with session_scope():
             line = self._dao.line.find_by(endpoint_name=endpoint_name)
             if not line:
@@ -257,13 +258,6 @@ class BusEventHandler:
             self._dao.channel.update(channel)
 
             self._notifier.updated(channel.line.user)
-
-    def _extract_endpoint_from_channel(self, channel_name):
-        endpoint_name = '-'.join(channel_name.split('-')[:-1])
-        if not endpoint_name:
-            logger.debug('Invalid endpoint from channel "%s"', channel_name)
-            return
-        return endpoint_name
 
     def _channel_hold(self, event):
         channel_name = event['Channel']

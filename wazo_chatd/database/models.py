@@ -105,7 +105,7 @@ class Line(Base):
     endpoint = relationship('Endpoint')
     endpoint_state = association_proxy('endpoint', 'state')
 
-    channels = relationship('Channel')
+    channels = relationship('Channel', cascade='all,delete-orphan', passive_deletes=False)
     channels_state = association_proxy('channels', 'state')
 
 

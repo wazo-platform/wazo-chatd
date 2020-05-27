@@ -6,6 +6,7 @@ import logging
 from xivo.status import Status
 
 from wazo_chatd.database.models import (
+    Channel,
     Endpoint,
     Line,
     RefreshToken,
@@ -51,8 +52,15 @@ CHANNEL_STATE_MAP = {
 }
 
 
+def extract_endpoint_from_channel(channel_name):
+    endpoint_name = '-'.join(channel_name.split('-')[:-1])
+    if not endpoint_name:
+        logger.debug('Invalid endpoint from channel "%s"', channel_name)
+        return
+    return endpoint_name
 
-def extract_endpoint_name(line):
+
+def extract_endpoint_from_line(line):
     if not line['name']:
         return
 
@@ -86,17 +94,19 @@ class Initiator:
         self._amid.set_token(token)
         self._confd.set_token(token)
 
-        events = self._amid.action('DeviceStateList')
+        endpoint_events = self._amid.action('DeviceStateList')
         tenants = self._auth.tenants.list()['items']
         users = self._confd.users.list(recurse=True)['items']
         sessions = self._auth.sessions.list(recurse=True)['items']
         refresh_tokens = self._auth.refresh_tokens.list(recurse=True)['items']
+        channel_events = self._amid.action('CoreShowChannels')
 
-        self.initiate_endpoints(events)
+        self.initiate_endpoints(endpoint_events)
         self.initiate_tenants(tenants)
         self.initiate_users(users)
         self.initiate_sessions(sessions)
         self.initiate_refresh_tokens(refresh_tokens)
+        self.initiate_channels(channel_events)
         self._is_initialized = True
 
     def initiate_tenants(self, tenants):
@@ -197,7 +207,7 @@ class Initiator:
 
     def _add_missing_endpoints(self, users):
         lines = set(
-            (line['id'], extract_endpoint_name(line))
+            (line['id'], extract_endpoint_from_line(line))
             for user in users
             for line in user['lines']
         )
@@ -216,7 +226,7 @@ class Initiator:
 
     def _associate_line_endpoint(self, users):
         lines = set(
-            (line['id'], extract_endpoint_name(line))
+            (line['id'], extract_endpoint_from_line(line))
             for user in users
             for line in user['lines']
         )
@@ -361,3 +371,38 @@ class Initiator:
                     endpoint_args['state'],
                 )
                 self._dao.endpoint.create(Endpoint(**endpoint_args))
+
+    def initiate_channels(self, events):
+        with session_scope():
+            logger.debug('Delete all channels')
+            self._dao.channel.delete_all()
+            for event in events:
+                if event.get('Event') != 'CoreShowChannel':
+                    continue
+
+                channel_name = event['Channel']
+                endpoint_name = extract_endpoint_from_channel(channel_name)
+                line = self._dao.line.find_by(endpoint_name=endpoint_name)
+                if not line:
+                    logger.debug(
+                        'Unknown line with endpoint "%s" for channel "%s"',
+                        endpoint_name,
+                        channel_name,
+                    )
+                    continue
+
+                state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
+                if event['ChanVariable'].get('XIVO_ON_HOLD') == '1':
+                    state = 'holding'
+
+                channel_args = {
+                    'name': channel_name,
+                    'state': state,
+                }
+                logger.debug(
+                    'Create channel "%s" with state "%s"',
+                    channel_args['name'],
+                    channel_args['state'],
+                )
+                channel = Channel(**channel_args)
+                self._dao.line.add_channel(line, channel)
