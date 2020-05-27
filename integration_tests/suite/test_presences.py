@@ -30,6 +30,7 @@ from .helpers.base import (
 )
 
 USER_UUID = uuid.uuid4()
+LINE_ID_1 = 42
 ENDPOINT_NAME_1 = 'PJSIP/name'
 ENDPOINT_NAME_2 = 'SCCP/name'
 
@@ -119,17 +120,20 @@ class TestPresence(BaseIntegrationTest):
             ),
         )
 
-    @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='holding')
+    @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='talking')
     @fixtures.db.endpoint(name=ENDPOINT_NAME_2, state='talking')
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=True)
     @fixtures.db.session(user_uuid=USER_UUID, mobile=False)
     @fixtures.db.refresh_token(user_uuid=USER_UUID, mobile=True)
     @fixtures.db.refresh_token(user_uuid=USER_UUID, mobile=False)
-    @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_1)
+    @fixtures.db.line(id=LINE_ID_1, user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_1)
     @fixtures.db.line(user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME_2)
+    @fixtures.db.channel(line_id=LINE_ID_1, state='undefined')
+    @fixtures.db.channel(line_id=LINE_ID_1, state='holding')
     def test_get(
-        self, endpoint_1, endpoint_2, user, session_1, session_2, _, __, line_1, line_2
+        self, endpoint_1, endpoint_2, user, session_1, session_2,
+        _, __, line_1, line_2, ___, ____
     ):
         presence = self.chatd.user_presences.get(str(user.uuid))
         assert_that(

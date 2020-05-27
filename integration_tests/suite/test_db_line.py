@@ -75,8 +75,8 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.endpoint(name='SIP/custom-name')
     @fixtures.db.line(endpoint_name='SIP/custom-name')
-    def test_state(self, endpoint, line):
-        assert_that(line.state, equal_to(endpoint.state))
+    def test_endpoint_state(self, endpoint, line):
+        assert_that(line.endpoint_state, equal_to(endpoint.state))
 
     @fixtures.db.line(id=1)
     @fixtures.db.channel(line_id=1, state='talking')

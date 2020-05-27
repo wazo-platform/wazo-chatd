@@ -103,7 +103,7 @@ class Line(Base):
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
     endpoint = relationship('Endpoint')
-    state = association_proxy('endpoint', 'state')
+    endpoint_state = association_proxy('endpoint', 'state')
 
     channels = relationship('Channel')
     channels_state = association_proxy('channels', 'state')

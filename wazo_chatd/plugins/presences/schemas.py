@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import post_dump, pre_load
@@ -12,9 +12,21 @@ class LinePresenceSchema(Schema):
     id = fields.Integer(dump_only=True)
     state = fields.String(dump_only=True)
 
-    @post_dump
-    def _set_default_state(self, data):
-        data['state'] = data['state'] if data['state'] else 'unavailable'
+    @post_dump(pass_original=True)
+    def _set_state(self, data, raw_data):
+        merged_state = 'undefined'
+        for channel_state in raw_data.channels_state:
+            if channel_state == 'ringing':
+                merged_state = channel_state
+            elif channel_state == 'holding' and merged_state != 'ringing':
+                merged_state = channel_state
+            elif channel_state == 'talking' and merged_state not in ('ringing', 'holding'):
+                merged_state = channel_state
+
+        if merged_state == 'undefined':
+            merged_state = raw_data.endpoint_state or 'unavailable'
+
+        data['state'] = merged_state
         return data
 
 
