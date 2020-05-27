@@ -162,3 +162,17 @@ class BusClient(bus_helper.BusClient):
         self.publish(
             {'data': {'Channel': channel_name}, 'name': 'Hangup'}, 'ami.Hangup',
         )
+
+    def send_hold_event(self, channel_name):
+        self.publish(
+            {'data': {'Channel': channel_name}, 'name': 'Hold'}, 'ami.Hold',
+        )
+
+    def send_unhold_event(self, channel_name):
+        self.publish(
+            {
+                'data': {'Channel': channel_name, 'ChannelStateDesc': 'Up'},
+                'name': 'Unhold',
+            }, 'ami.Hold',
+
+        )

@@ -42,6 +42,8 @@ class BusEventHandler:
         bus_consumer.on_event('Hangup', self._channel_deleted)
         bus_consumer.on_event('Newchannel', self._channel_created)
         bus_consumer.on_event('Newstate', self._channel_updated)
+        bus_consumer.on_event('Hold', self._channel_hold)
+        bus_consumer.on_event('Unhold', self._channel_unhold)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
@@ -262,3 +264,32 @@ class BusEventHandler:
             logger.debug('Invalid endpoint from channel "%s"', channel_name)
             return
         return endpoint_name
+
+    def _channel_hold(self, event):
+        channel_name = event['Channel']
+        with session_scope():
+            channel = self._dao.channel.find(channel_name)
+            if not channel:
+                logger.debug('Unknown channel "%s"', channel_name)
+                return
+
+            logger.debug('Update channel "%s" with state "holding"', channel_name)
+            channel.state = 'holding'
+            self._dao.channel.update(channel)
+
+            self._notifier.updated(channel.line.user)
+
+    def _channel_unhold(self, event):
+        channel_name = event['Channel']
+        state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
+        with session_scope():
+            channel = self._dao.channel.find(channel_name)
+            if not channel:
+                logger.debug('Unknown channel "%s"', channel_name)
+                return
+
+            logger.debug('Update channel "%s" with state "%s"', channel_name, state)
+            channel.state = state
+            self._dao.channel.update(channel)
+
+            self._notifier.updated(channel.line.user)

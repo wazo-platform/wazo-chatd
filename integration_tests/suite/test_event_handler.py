@@ -455,3 +455,69 @@ class TestEventHandler(BaseIntegrationTest):
                 )
             ),
         )
+
+    @fixtures.db.endpoint(name=ENDPOINT_NAME)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(id=LINE_ID, user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
+    @fixtures.db.channel(line_id=LINE_ID, name=f'{ENDPOINT_NAME}-1234', state='talking')
+    def test_hold(self, _, user, line, channel):
+        channel_name = channel.name
+        routing_key = f'chatd.users.{user.uuid}.presences.updated'
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_hold_event(channel_name)
+
+        def channel_held():
+            self._session.expire_all()
+            result = self._session.query(models.Channel).all()
+            assert_that(
+                result,
+                has_items(has_properties(name=channel_name, state='holding')),
+            )
+
+        until.assert_(channel_held, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    data=has_entries(
+                        lines=contains(has_entries(id=LINE_ID, state='holding'))
+                    )
+                )
+            ),
+        )
+
+    @fixtures.db.endpoint(name=ENDPOINT_NAME)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.line(id=LINE_ID, user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
+    @fixtures.db.channel(line_id=LINE_ID, name=f'{ENDPOINT_NAME}-1234', state='holding')
+    def test_unhold(self, _, user, line, channel):
+        channel_name = channel.name
+        routing_key = f'chatd.users.{user.uuid}.presences.updated'
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        self.bus.send_unhold_event(channel_name)
+
+        def channel_unheld():
+            self._session.expire_all()
+            result = self._session.query(models.Channel).all()
+            assert_that(
+                result,
+                has_items(has_properties(name=channel_name, state='talking')),
+            )
+
+        until.assert_(channel_unheld, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    data=has_entries(
+                        lines=contains(has_entries(id=LINE_ID, state='talking'))
+                    )
+                )
+            ),
+        )
