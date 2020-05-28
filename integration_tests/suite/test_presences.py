@@ -56,7 +56,6 @@ class TestPresence(APIIntegrationTest):
                         do_not_disturb=False,
                         mobile=False,
                         connected=False,
-                        sessions=empty(),
                         lines=empty(),
                     ),
                     has_entries(
@@ -69,7 +68,6 @@ class TestPresence(APIIntegrationTest):
                         do_not_disturb=False,
                         mobile=False,
                         connected=False,
-                        sessions=empty(),
                         lines=empty(),
                     ),
                 ),
@@ -173,10 +171,6 @@ class TestPresence(APIIntegrationTest):
                 do_not_disturb=False,
                 mobile=True,
                 connected=True,
-                sessions=contains_inanyorder(
-                    has_entries(uuid=str(session_1.uuid), mobile=True),
-                    has_entries(uuid=str(session_2.uuid), mobile=False),
-                ),
                 lines=contains_inanyorder(
                     has_entries(id=line_1.id, state='holding'),
                     has_entries(id=line_2.id, state='available'),
@@ -227,10 +221,6 @@ class TestPresence(APIIntegrationTest):
                 tenant_uuid=str(user.tenant_uuid),
                 mobile=True,
                 connected=True,
-                sessions=contains_inanyorder(
-                    has_entries(uuid=str(session_1.uuid), mobile=False),
-                    has_entries(uuid=str(session_2.uuid), mobile=True),
-                ),
             ),
         )
 
