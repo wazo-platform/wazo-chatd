@@ -4,6 +4,8 @@
 import random
 import uuid
 
+import pytest
+
 from hamcrest import (
     assert_that,
     calling,
@@ -20,7 +22,11 @@ from wazo_chatd.database import models
 
 from .helpers import fixtures
 from .helpers.wait_strategy import PresenceInitOkWaitStrategy
-from .helpers.base import BaseIntegrationTest, CHATD_TOKEN_TENANT_UUID
+from .helpers.base import (
+    APIIntegrationTest,
+    InitAssetLaunchingTestCase,
+    CHATD_TOKEN_TENANT_UUID,
+)
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID_1 = uuid.uuid4()
@@ -30,13 +36,8 @@ LINE_ID_2 = 42
 ENDPOINT_NAME = 'CUSTOM/name'
 
 
-class _BaseInitializationTest(BaseIntegrationTest):
-
-    asset = 'initialization'
-    wait_strategy = PresenceInitOkWaitStrategy()
-
-
-class TestPresenceInitialization(_BaseInitializationTest):
+@pytest.mark.usefixtures('initialization')
+class TestPresenceInitialization(APIIntegrationTest):
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.tenant()
@@ -200,8 +201,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         )
 
         # start initialization
-        self.restart_service('chatd')
-        self.chatd = self.make_chatd()
+        InitAssetLaunchingTestCase.restart_service('chatd')
+        self.chatd = InitAssetLaunchingTestCase.make_chatd()
         PresenceInitOkWaitStrategy().wait(self)
 
         self._session.expire_all()
@@ -317,11 +318,12 @@ class TestPresenceInitialization(_BaseInitializationTest):
         )
 
 
-class TestInitializationNotBlockOnHTTPError(_BaseInitializationTest):
+@pytest.mark.usefixtures('initialization')
+class TestPresenceInitializationErrors(APIIntegrationTest):
     def test_server_initialization_do_not_block_on_http_error(self):
-        self.stop_service('chatd')
-        self.stop_service('amid')
-        self.start_service('chatd')
+        InitAssetLaunchingTestCase.stop_service('chatd')
+        InitAssetLaunchingTestCase.stop_service('amid')
+        InitAssetLaunchingTestCase.start_service('chatd')
         self.reset_clients()
 
         def server_wait():
@@ -338,17 +340,15 @@ class TestInitializationNotBlockOnHTTPError(_BaseInitializationTest):
 
         until.assert_(server_wait, tries=5)
 
-        self.start_service('amid')
+        InitAssetLaunchingTestCase.start_service('amid')
         self.reset_clients()
 
         PresenceInitOkWaitStrategy().wait(self)
 
-
-class TestInitializationNotBlockOnDatabaseError(_BaseInitializationTest):
     def test_server_initialization_do_not_block_on_database_error(self):
-        self.stop_service('chatd')
-        self.stop_service('postgres')
-        self.start_service('chatd')
+        InitAssetLaunchingTestCase.stop_service('chatd')
+        InitAssetLaunchingTestCase.stop_service('postgres')
+        InitAssetLaunchingTestCase.start_service('chatd')
         self.reset_clients()
 
         def server_wait():
@@ -365,19 +365,17 @@ class TestInitializationNotBlockOnDatabaseError(_BaseInitializationTest):
 
         until.assert_(server_wait, tries=5)
 
-        self.start_service('postgres')
+        InitAssetLaunchingTestCase.start_service('postgres')
         self.reset_clients()
 
         PresenceInitOkWaitStrategy().wait(self)
 
-
-class TestPresenceFail(_BaseInitializationTest):
     @fixtures.db.user()
     def test_api_return_503(self, user):
         user_args = {'uuid': str(user.uuid), 'state': 'available'}
-        self.stop_service('chatd')
-        self.stop_service('amid')
-        self.start_service('chatd')
+        InitAssetLaunchingTestCase.stop_service('chatd')
+        InitAssetLaunchingTestCase.stop_service('amid')
+        InitAssetLaunchingTestCase.start_service('chatd')
         self.reset_clients()
 
         assert_that(
@@ -401,7 +399,7 @@ class TestPresenceFail(_BaseInitializationTest):
             ),
         )
 
-        self.start_service('amid')
+        InitAssetLaunchingTestCase.start_service('amid')
         self.reset_clients()
         PresenceInitOkWaitStrategy().wait(self)
         self.chatd.user_presences.list()

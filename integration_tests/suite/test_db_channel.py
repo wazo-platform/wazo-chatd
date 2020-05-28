@@ -1,22 +1,19 @@
 # Copyright 2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import pytest
+
 from hamcrest import assert_that, equal_to
 from sqlalchemy.inspection import inspect
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest
 
 UNKNOWN_NAME = 'unknown'
 
 
-class TestChannel(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@pytest.mark.usefixtures('database')
+class TestChannel(DBIntegrationTest):
     @fixtures.db.channel()
     @fixtures.db.channel()
     def test_find(self, channel, _):

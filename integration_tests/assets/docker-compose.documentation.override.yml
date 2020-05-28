@@ -1,9 +1,0 @@
-version: '3.7'
-services:
-  sync:
-    depends_on:
-      - auth
-      - chatd
-      - postgres
-    environment:
-      TARGETS: "auth:9497 chatd:9304 postgres:5432"

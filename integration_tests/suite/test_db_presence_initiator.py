@@ -3,12 +3,13 @@
 
 import uuid
 
+import pytest
+
 from mock import Mock
 from hamcrest import assert_that, equal_to, has_properties
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest
 from wazo_chatd.plugins.presences.initiator import Initiator
 
 TENANT_UUID = uuid.uuid4()
@@ -17,12 +18,8 @@ LINE_ID = 42
 ENDPOINT_NAME = 'PJSIP/12345'
 
 
-class TestDBPresenceInitiator(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@pytest.mark.usefixtures('database')
+class TestDBPresenceInitiator(DBIntegrationTest):
     def setUp(self):
         super().setUp()
         self.initiator = Initiator(self._dao, Mock, Mock, Mock)

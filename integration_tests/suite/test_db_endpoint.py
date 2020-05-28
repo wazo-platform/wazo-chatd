@@ -1,6 +1,8 @@
 # Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import pytest
+
 from hamcrest import assert_that, calling, equal_to, has_properties
 from sqlalchemy.inspection import inspect
 
@@ -9,17 +11,13 @@ from wazo_chatd.exceptions import UnknownEndpointException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest
 
 UNKNOWN_NAME = 'unknown'
 
 
-class TestEndpoint(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
+@pytest.mark.usefixtures('database')
+class TestEndpoint(DBIntegrationTest):
 
     def test_create(self):
         endpoint_name = 'PJSIP/name'

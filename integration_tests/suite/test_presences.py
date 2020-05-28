@@ -3,6 +3,8 @@
 
 import uuid
 
+import pytest
+
 from hamcrest import (
     assert_that,
     calling,
@@ -23,7 +25,7 @@ from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
 from .helpers.base import (
-    BaseIntegrationTest,
+    APIIntegrationTest,
     TOKEN_SUBTENANT_UUID,
     TOKEN_TENANT_UUID,
     UNKNOWN_UUID,
@@ -35,10 +37,8 @@ ENDPOINT_NAME_1 = 'PJSIP/name'
 ENDPOINT_NAME_2 = 'SCCP/name'
 
 
-class TestPresence(BaseIntegrationTest):
-
-    asset = 'base'
-
+@pytest.mark.usefixtures('base')
+class TestPresence(APIIntegrationTest):
     @fixtures.db.user()
     @fixtures.db.user()
     def test_list(self, user_1, user_2):

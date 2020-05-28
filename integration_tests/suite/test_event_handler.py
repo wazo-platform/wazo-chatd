@@ -4,6 +4,8 @@
 import random
 import uuid
 
+import pytest
+
 from hamcrest import (
     assert_that,
     contains,
@@ -17,17 +19,15 @@ from xivo_test_helpers import until
 
 from wazo_chatd.database import models
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
+from .helpers.base import APIIntegrationTest
 
 USER_UUID_1 = uuid.uuid4()
 LINE_ID = 42
 ENDPOINT_NAME = 'PJSIP/name'
 
 
-class TestEventHandler(BaseIntegrationTest):
-
-    asset = 'base'
-
+@pytest.mark.usefixtures('base')
+class TestEventHandler(APIIntegrationTest):
     def test_tenant_created(self):
         tenant_uuid = uuid.uuid4()
         self.bus.send_tenant_created_event(tenant_uuid)

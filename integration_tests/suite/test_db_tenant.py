@@ -3,6 +3,8 @@
 
 import uuid
 
+import pytest
+
 from hamcrest import assert_that, calling, equal_to, has_properties, has_items
 from sqlalchemy.inspection import inspect
 
@@ -11,18 +13,13 @@ from wazo_chatd.exceptions import UnknownTenantException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest
 
 UNKNOWN_UUID = uuid.uuid4()
 
 
-class TestTenant(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@pytest.mark.usefixtures('database')
+class TestTenant(DBIntegrationTest):
     def test_find_or_create(self):
         tenant_uuid = uuid.uuid4()
         created_tenant = self._dao.tenant.find_or_create(tenant_uuid)

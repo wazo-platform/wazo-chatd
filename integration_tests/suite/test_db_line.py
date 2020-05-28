@@ -3,6 +3,8 @@
 
 import uuid
 
+import pytest
+
 from hamcrest import (
     assert_that,
     calling,
@@ -19,20 +21,15 @@ from wazo_chatd.exceptions import UnknownLineException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID = uuid.uuid4()
 UNKNOWN_ID = 0
 
 
-class TestLine(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@pytest.mark.usefixtures('database')
+class TestLine(DBIntegrationTest):
     @fixtures.db.line()
     def test_get(self, line):
         result = self._dao.line.get(line.id)

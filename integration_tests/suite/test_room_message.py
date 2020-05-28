@@ -3,6 +3,8 @@
 
 import uuid
 
+import pytest
+
 from datetime import datetime
 from hamcrest import (
     assert_that,
@@ -23,7 +25,7 @@ from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
 from .helpers.base import (
-    BaseIntegrationTest,
+    APIIntegrationTest,
     WAZO_UUID,
     TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
@@ -32,10 +34,8 @@ from .helpers.base import (
 UNKNOWN_UUID = str(uuid.uuid4())
 
 
-class TestUserRoom(BaseIntegrationTest):
-
-    asset = 'base'
-
+@pytest.mark.usefixtures('base')
+class TestUserRoom(APIIntegrationTest):
     @fixtures.http.room()
     def test_list(self, room):
         message_args = {'content': 'message content'}
@@ -192,10 +192,8 @@ class TestUserRoom(BaseIntegrationTest):
         )
 
 
-class TestUserMessage(BaseIntegrationTest):
-
-    asset = 'base'
-
+@pytest.mark.usefixtures('base')
+class TestUserMessage(APIIntegrationTest):
     def test_list(self):
         assert_that(
             calling(self.chatd.rooms.search_messages_from_user),

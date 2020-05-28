@@ -4,6 +4,8 @@
 import datetime
 import uuid
 
+import pytest
+
 from hamcrest import (
     assert_that,
     calling,
@@ -24,12 +26,11 @@ from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
 from .helpers.base import (
-    BaseIntegrationTest,
+    DBIntegrationTest,
     UNKNOWN_UUID,
     TOKEN_TENANT_UUID as TENANT_1,
     TOKEN_SUBTENANT_UUID as TENANT_2,
 )
-from .helpers.wait_strategy import NoWaitStrategy
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
@@ -38,12 +39,8 @@ USER_UUID_3 = uuid.uuid4()
 UUID = uuid.uuid4()
 
 
-class TestRoom(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@pytest.mark.usefixtures('database')
+class TestRoom(DBIntegrationTest):
     @fixtures.db.room(tenant_uuid=TENANT_1)
     @fixtures.db.room(tenant_uuid=TENANT_2)
     def test_get(self, room_1, room_2):
@@ -437,12 +434,8 @@ class TestRoom(BaseIntegrationTest):
         assert_that(count, equal_to(1))
 
 
-class TestRoomRelationships(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@pytest.mark.usefixtures('database')
+class TestRoomRelationships(DBIntegrationTest):
     @fixtures.db.room()
     def test_users_create(self, room):
         room_user = RoomUser(uuid=USER_UUID_1, tenant_uuid=UUID, wazo_uuid=UUID)
@@ -517,12 +510,8 @@ class TestRoomRelationships(BaseIntegrationTest):
         return message
 
 
-class TestRoomMessageRelationships(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@pytest.mark.usefixtures('database')
+class TestRoomMessageRelationships(DBIntegrationTest):
     @fixtures.db.room(messages=[{'content': 'msg1'}])
     def test_room_get(self, room):
         message = room.messages[0]
