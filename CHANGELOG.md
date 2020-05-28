@@ -1,5 +1,11 @@
 # Changelog
 
+## 21.02
+
+* New read only parameters have been added to the user presence resource:
+
+  * `connected`
+
 ## 20.11
 
 * New read only parameters have been added to the user presence resource:

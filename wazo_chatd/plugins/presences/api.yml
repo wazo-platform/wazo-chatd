@@ -142,6 +142,10 @@ definitions:
 
           * The user has a mobile refresh token
           * The user has a mobile session
+      connected:
+        type: boolean
+        readOnly: true
+        description: If the user has active connections.
     required:
       - state
 
