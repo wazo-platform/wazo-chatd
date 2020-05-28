@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -20,7 +20,7 @@ VERSION = 1.0
 
 logger = logging.getLogger(__name__)
 app = Flask('wazo-chatd')
-api = Api(app, prefix='/{}'.format(VERSION))
+api = Api(app, prefix=f'/{VERSION}')
 
 
 def teardown_appcontext(exception):

@@ -219,7 +219,7 @@ class TestListRequestSchema(unittest.TestCase):
     def test_get_user_uuid_multiple(self):
         uuid_1 = str(uuid.uuid4())
         uuid_2 = str(uuid.uuid4())
-        user_uuid = '{},{}'.format(uuid_1, uuid_2)
+        user_uuid = f'{uuid_1},{uuid_2}'
         self.request_args.get.return_value = user_uuid
         self.request_args.__getitem__.return_value = user_uuid
 

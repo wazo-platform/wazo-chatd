@@ -124,8 +124,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         )
 
         # setup endpoints
-        endpoint_1_created_name = 'PJSIP/{}'.format(line_1_created_name)
-        endpoint_2_created_name = 'SCCP/{}'.format(line_2_created_name)
+        endpoint_1_created_name = f'PJSIP/{line_1_created_name}'
+        endpoint_2_created_name = f'SCCP/{line_2_created_name}'
         self.amid.set_devicestatelist(
             {
                 "Event": "DeviceStateChange",

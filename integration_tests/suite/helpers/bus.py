@@ -8,13 +8,13 @@ class BusClient(bus_helper.BusClient):
     def send_tenant_created_event(self, tenant_uuid):
         self.publish(
             {'data': {'uuid': str(tenant_uuid)}, 'name': 'auth_tenant_added'},
-            'auth.tenants.{}.created'.format(tenant_uuid),
+            f'auth.tenants.{tenant_uuid}.created',
         )
 
     def send_tenant_deleted_event(self, tenant_uuid):
         self.publish(
             {'data': {'uuid': str(tenant_uuid)}, 'name': 'auth_tenant_deleted'},
-            'auth.tenants.{}.deleted'.format(tenant_uuid),
+            f'auth.tenants.{tenant_uuid}.deleted',
         )
 
     def send_user_created_event(self, user_uuid, tenant_uuid):
@@ -48,7 +48,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_session_created',
             },
-            'auth.sessions.{}.created'.format(session_uuid),
+            f'auth.sessions.{session_uuid}.created',
         )
 
     def send_session_deleted_event(self, session_uuid, user_uuid, tenant_uuid):
@@ -61,7 +61,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_session_deleted',
             },
-            'auth.sessions.{}.deleted'.format(session_uuid),
+            f'auth.sessions.{session_uuid}.deleted',
         )
 
     def send_refresh_token_created_event(
@@ -77,7 +77,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_refresh_token_created',
             },
-            'auth.users.{}.tokens.{}.created'.format(user_uuid, client_id),
+            f'auth.users.{user_uuid}.tokens.{client_id}.created',
         )
 
     def send_refresh_token_deleted_event(self, client_id, user_uuid, tenant_uuid):
@@ -90,7 +90,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_refresh_token_deleted',
             },
-            'auth.users.{}.tokens.{}.deleted'.format(user_uuid, client_id),
+            f'auth.users.{user_uuid}.tokens.{client_id}.deleted',
         )
 
     def send_user_line_associated_event(
@@ -110,7 +110,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'user_line_associated',
             },
-            'config.users.{}.lines.{}.updated'.format(user_uuid, line_id),
+            f'config.users.{user_uuid}.lines.{line_id}.updated',
         )
 
     def send_line_dissociated_event(self, line_id, user_uuid, tenant_uuid):
@@ -128,7 +128,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'user_line_dissociated',
             },
-            'config.users.{}.lines.{}.deleted'.format(user_uuid, line_id),
+            f'config.users.{user_uuid}.lines.{line_id}.deleted',
         )
 
     def send_device_state_changed_event(self, device_name, device_state):
