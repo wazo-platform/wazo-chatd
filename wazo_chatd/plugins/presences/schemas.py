@@ -29,11 +29,6 @@ class LinePresenceSchema(Schema):
         return data
 
 
-class SessionPresenceSchema(Schema):
-    uuid = fields.UUID(dump_only=True)
-    mobile = fields.Boolean(dump_only=True)
-
-
 class UserPresenceSchema(Schema):
     uuid = fields.UUID(dump_only=True)
     tenant_uuid = fields.UUID(dump_only=True)
@@ -48,7 +43,6 @@ class UserPresenceSchema(Schema):
     do_not_disturb = fields.Boolean(dump_only=True)
     connected = fields.Boolean(dump_only=True)
 
-    sessions = fields.Nested('SessionPresenceSchema', many=True, dump_only=True)
     lines = fields.Nested('LinePresenceSchema', many=True, dump_only=True)
 
     @post_dump

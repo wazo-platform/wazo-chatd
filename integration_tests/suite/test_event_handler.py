@@ -101,18 +101,7 @@ class TestEventHandler(APIIntegrationTest):
         until.assert_(session_created, tries=3)
 
         event = event_accumulator.accumulate()
-        assert_that(
-            event,
-            contains(
-                has_entries(
-                    data=has_entries(
-                        sessions=contains(
-                            has_entries(uuid=str(session_uuid), mobile=True)
-                        )
-                    )
-                )
-            ),
-        )
+        assert_that(event, contains(has_entries(data=has_entries(connected=True))))
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_1)
@@ -134,7 +123,7 @@ class TestEventHandler(APIIntegrationTest):
         until.assert_(session_deleted, tries=3)
 
         event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(sessions=empty()))))
+        assert_that(event, contains(has_entries(data=has_entries(connected=False))))
 
     @fixtures.db.user()
     def test_refresh_token_created(self, user):

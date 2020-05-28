@@ -123,12 +123,6 @@ definitions:
           - progressing
           - talking
           - unavailable
-      sessions:
-        type: array
-        description: '**Deprecated** Please use `connected`'
-        readOnly: true
-        items:
-          $ref: '#/definitions/Session'
       lines:
         type: array
         readOnly: true
@@ -150,16 +144,6 @@ definitions:
         description: If the user has active connections.
     required:
       - state
-
-  Session:
-    properties:
-      uuid:
-        type: string
-        readOnly: True
-      mobile:
-        type: boolean
-        description: Indicate if it is a mobile session or not
-        readOnly: True
 
   Line:
     properties:

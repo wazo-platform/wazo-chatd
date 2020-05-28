@@ -1,5 +1,9 @@
 # Changelog
 
+## 21.08
+
+* The deprecated `sessions` parameter from user presence resource has been removed
+
 ## 21.02
 
 * New read only parameters have been added to the user presence resource:
