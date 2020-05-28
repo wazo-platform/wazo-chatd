@@ -245,7 +245,8 @@ class TestEventHandler(BaseIntegrationTest):
                 result,
                 has_items(
                     has_properties(
-                        endpoint_name=f'PJSIP/{line_name}', endpoint_state=endpoint_state
+                        endpoint_name=f'PJSIP/{line_name}',
+                        endpoint_state=endpoint_state,
                     )
                 ),
             )
@@ -372,8 +373,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                has_items(has_properties(name=channel_name, state='ringing')),
+                result, has_items(has_properties(name=channel_name, state='ringing')),
             )
 
         until.assert_(channel_created, tries=3)
@@ -405,8 +405,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                not_(has_items(has_properties(name=channel_name))),
+                result, not_(has_items(has_properties(name=channel_name))),
             )
 
         until.assert_(channel_deleted, tries=3)
@@ -438,8 +437,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                has_items(has_properties(name=channel_name, state='talking')),
+                result, has_items(has_properties(name=channel_name, state='talking')),
             )
 
         until.assert_(channel_updated, tries=3)
@@ -471,8 +469,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                has_items(has_properties(name=channel_name, state='holding')),
+                result, has_items(has_properties(name=channel_name, state='holding')),
             )
 
         until.assert_(channel_held, tries=3)
@@ -504,8 +501,7 @@ class TestEventHandler(BaseIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                has_items(has_properties(name=channel_name, state='talking')),
+                result, has_items(has_properties(name=channel_name, state='talking')),
             )
 
         until.assert_(channel_unheld, tries=3)

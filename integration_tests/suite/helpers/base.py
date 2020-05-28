@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 
 class ClientCreateException(Exception):
-
     def __init__(self, client_name):
         super().__init__(f'Could not create client {client_name}')
 

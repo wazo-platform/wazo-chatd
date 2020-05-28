@@ -224,9 +224,7 @@ class BusEventHandler:
                 return
 
             channel = Channel(name=channel_name, state=state)
-            logger.debug(
-                'Create channel "%s" for line "%s"', channel.name, line.id
-            )
+            logger.debug('Create channel "%s" for line "%s"', channel.name, line.id)
             self._dao.line.add_channel(line, channel)
 
             self._notifier.updated(channel.line.user)

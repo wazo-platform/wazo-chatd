@@ -18,11 +18,21 @@ class TestUserPresenceSchema(unittest.TestCase):
     schema = UserPresenceSchema
 
     def setUp(self):
-        self.line_ringing = Mock(id=1, channels_state=['ringing'], endpoint_state='available')
-        self.line_holding = Mock(id=2, channels_state=['holding'], endpoint_state='available')
-        self.line_talking = Mock(id=3, channels_state=['talking'], endpoint_state='available')
-        self.line_available = Mock(id=4, channels_state=['undefined'], endpoint_state='available')
-        self.line_unavailable = Mock(id=5, channels_state=['undefined'], endpoint_state='unavailable')
+        self.line_ringing = Mock(
+            id=1, channels_state=['ringing'], endpoint_state='available'
+        )
+        self.line_holding = Mock(
+            id=2, channels_state=['holding'], endpoint_state='available'
+        )
+        self.line_talking = Mock(
+            id=3, channels_state=['talking'], endpoint_state='available'
+        )
+        self.line_available = Mock(
+            id=4, channels_state=['undefined'], endpoint_state='available'
+        )
+        self.line_unavailable = Mock(
+            id=5, channels_state=['undefined'], endpoint_state='unavailable'
+        )
         self.user = Mock(
             uuid=UUID, tenant_uuid=UUID, sessions=[], lines=[], refresh_tokens=[]
         )

@@ -105,7 +105,9 @@ class Line(Base):
     endpoint = relationship('Endpoint')
     endpoint_state = association_proxy('endpoint', 'state')
 
-    channels = relationship('Channel', cascade='all,delete-orphan', passive_deletes=False)
+    channels = relationship(
+        'Channel', cascade='all,delete-orphan', passive_deletes=False
+    )
     channels_state = association_proxy('channels', 'state')
 
 
@@ -132,9 +134,7 @@ class Channel(Base):
     name = Column(Text, primary_key=True)
     state = Column(
         String(24),
-        CheckConstraint(
-            "state in ('undefined', 'holding', 'ringing', 'talking')"
-        ),
+        CheckConstraint("state in ('undefined', 'holding', 'ringing', 'talking')"),
         nullable=False,
         default='undefined',
     )

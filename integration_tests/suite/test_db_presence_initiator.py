@@ -67,7 +67,7 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
                 'Event': 'CoreShowChannel',
                 'Channel': channel.name,
                 'ChannelStateDesc': 'Up',
-                'ChanVariable': {'XIVO_ON_HOLD': '1'}
+                'ChanVariable': {'XIVO_ON_HOLD': '1'},
             }
         ]
 
@@ -85,7 +85,7 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
                 'Event': 'CoreShowChannel',
                 'Channel': channel.name,
                 'ChannelStateDesc': 'Up',
-                'ChanVariable': {'XIVO_ON_HOLD': ''}
+                'ChanVariable': {'XIVO_ON_HOLD': ''},
             }
         ]
 

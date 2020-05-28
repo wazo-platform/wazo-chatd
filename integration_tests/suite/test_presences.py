@@ -132,8 +132,18 @@ class TestPresence(BaseIntegrationTest):
     @fixtures.db.channel(line_id=LINE_ID_1, state='undefined')
     @fixtures.db.channel(line_id=LINE_ID_1, state='holding')
     def test_get(
-        self, endpoint_1, endpoint_2, user, session_1, session_2,
-        _, __, line_1, line_2, ___, ____
+        self,
+        endpoint_1,
+        endpoint_2,
+        user,
+        session_1,
+        session_2,
+        _,
+        __,
+        line_1,
+        line_2,
+        ___,
+        ____,
     ):
         presence = self.chatd.user_presences.get(str(user.uuid))
         assert_that(

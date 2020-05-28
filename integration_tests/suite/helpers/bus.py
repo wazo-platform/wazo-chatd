@@ -144,7 +144,7 @@ class BusClient(bus_helper.BusClient):
         self.publish(
             {
                 'data': {'Channel': channel_name, 'ChannelStateDesc': 'Ring'},
-                'name': 'Newchannel'
+                'name': 'Newchannel',
             },
             'ami.Newchannel',
         )
@@ -153,7 +153,7 @@ class BusClient(bus_helper.BusClient):
         self.publish(
             {
                 'data': {'Channel': channel_name, 'ChannelStateDesc': state},
-                'name': 'Newstate'
+                'name': 'Newstate',
             },
             'ami.Newstate',
         )
@@ -173,6 +173,6 @@ class BusClient(bus_helper.BusClient):
             {
                 'data': {'Channel': channel_name, 'ChannelStateDesc': 'Up'},
                 'name': 'Unhold',
-            }, 'ami.Hold',
-
+            },
+            'ami.Hold',
         )

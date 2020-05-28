@@ -21,7 +21,9 @@ def upgrade():
 
 
 def downgrade():
-    _update_state_constraint(['available', 'unavailable', 'holding', 'ringing', 'talking'])
+    _update_state_constraint(
+        ['available', 'unavailable', 'holding', 'ringing', 'talking']
+    )
 
 
 def _update_state_constraint(new_constraint):

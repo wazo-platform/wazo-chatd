@@ -20,7 +20,10 @@ class LinePresenceSchema(Schema):
                 merged_state = channel_state
             elif channel_state == 'holding' and merged_state != 'ringing':
                 merged_state = channel_state
-            elif channel_state == 'talking' and merged_state not in ('ringing', 'holding'):
+            elif channel_state == 'talking' and merged_state not in (
+                'ringing',
+                'holding',
+            ):
                 merged_state = channel_state
 
         if merged_state == 'undefined':
