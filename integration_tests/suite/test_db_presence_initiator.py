@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -11,10 +11,8 @@ from .helpers.base import BaseIntegrationTest
 from .helpers.wait_strategy import NoWaitStrategy
 from wazo_chatd.plugins.presences.initiator import Initiator
 
-TENANT_UUID = str(uuid.uuid4())
-USER_UUID = str(uuid.uuid4())
-UNKNOWN_UUID = str(uuid.uuid4())
-RANDOM_UUID = str(uuid.uuid4())
+TENANT_UUID = uuid.uuid4()
+USER_UUID = uuid.uuid4()
 
 
 class TestDBPresenceInitiator(BaseIntegrationTest):
@@ -29,9 +27,13 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
 
     @fixtures.db.tenant(uuid=TENANT_UUID)
     def test_initiate_session_when_no_user_associate(self, tenant):
-        session_uuid = str(uuid.uuid4())
+        session_uuid = uuid.uuid4()
         sessions = [
-            {'uuid': session_uuid, 'user_uuid': USER_UUID, 'tenant_uuid': TENANT_UUID}
+            {
+                'uuid': str(session_uuid),
+                'user_uuid': str(USER_UUID),
+                'tenant_uuid': str(TENANT_UUID),
+            }
         ]
 
         self.initiator.initiate_sessions(sessions)
@@ -43,7 +45,11 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
     def test_initiate_refresh_token_when_no_user_associate(self, tenant):
         client_id = 'my-client-id'
         refresh_tokens = [
-            {'client_id': client_id, 'user_uuid': USER_UUID, 'tenant_uuid': TENANT_UUID}
+            {
+                'client_id': client_id,
+                'user_uuid': str(USER_UUID),
+                'tenant_uuid': str(TENANT_UUID),
+            }
         ]
 
         self.initiator.initiate_refresh_tokens(refresh_tokens)

@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -29,8 +29,6 @@ from .helpers.base import (
     TOKEN_USER_UUID,
 )
 
-UUID = str(uuid.uuid4())
-UUID_2 = str(uuid.uuid4())
 UNKNOWN_UUID = str(uuid.uuid4())
 
 
@@ -123,9 +121,9 @@ class TestUserRoom(BaseIntegrationTest):
                 uuid=uuid_(),
                 content=message_args['content'],
                 alias=message_args['alias'],
-                user_uuid=TOKEN_USER_UUID,
-                tenant_uuid=TOKEN_TENANT_UUID,
-                wazo_uuid=WAZO_UUID,
+                user_uuid=str(TOKEN_USER_UUID),
+                tenant_uuid=str(TOKEN_TENANT_UUID),
+                wazo_uuid=str(WAZO_UUID),
                 created_at=is_not(none()),
                 room=has_entries(uuid=room['uuid']),
             ),
@@ -143,9 +141,9 @@ class TestUserRoom(BaseIntegrationTest):
                 uuid=uuid_(),
                 content=message_args['content'],
                 alias=none(),
-                user_uuid=TOKEN_USER_UUID,
-                tenant_uuid=TOKEN_TENANT_UUID,
-                wazo_uuid=WAZO_UUID,
+                user_uuid=str(TOKEN_USER_UUID),
+                tenant_uuid=str(TOKEN_TENANT_UUID),
+                wazo_uuid=str(WAZO_UUID),
                 created_at=is_not(none()),
                 room=has_entries(uuid=room['uuid']),
             ),

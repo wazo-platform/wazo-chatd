@@ -22,9 +22,9 @@ from .helpers import fixtures
 from .helpers.wait_strategy import PresenceInitOkWaitStrategy
 from .helpers.base import BaseIntegrationTest, CHATD_TOKEN_TENANT_UUID
 
-TENANT_UUID = str(uuid.uuid4())
-USER_UUID_1 = str(uuid.uuid4())
-USER_UUID_2 = str(uuid.uuid4())
+TENANT_UUID = uuid.uuid4()
+USER_UUID_1 = uuid.uuid4()
+USER_UUID_2 = uuid.uuid4()
 ENDPOINT_NAME = 'CUSTOM/name'
 
 
@@ -63,15 +63,24 @@ class TestPresenceInitialization(_BaseInitializationTest):
         line_unchanged,
     ):
         # setup tenants
-        tenant_created_uuid = str(uuid.uuid4())
+        tenant_created_uuid = uuid.uuid4()
         self.auth.set_tenants(
-            {'uuid': CHATD_TOKEN_TENANT_UUID, 'parent_uuid': CHATD_TOKEN_TENANT_UUID},
-            {'uuid': tenant_created_uuid, 'parent_uuid': CHATD_TOKEN_TENANT_UUID},
-            {'uuid': tenant_unchanged.uuid, 'parent_uuid': CHATD_TOKEN_TENANT_UUID},
+            {
+                'uuid': str(CHATD_TOKEN_TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(tenant_created_uuid),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(tenant_unchanged.uuid),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
         )
 
         # setup users/lines
-        user_created_uuid = str(uuid.uuid4())
+        user_created_uuid = uuid.uuid4()
         line_1_created_name = 'created_1'
         line_2_created_name = 'created_2'
         line_1_created_id = random.randint(1, 1000000)
@@ -79,8 +88,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         line_bugged_id = random.randint(1, 1000000)
         self.confd.set_users(
             {
-                'uuid': user_created_uuid,
-                'tenant_uuid': tenant_created_uuid,
+                'uuid': str(user_created_uuid),
+                'tenant_uuid': str(tenant_created_uuid),
                 'lines': [
                     {
                         'id': line_1_created_id,
@@ -96,8 +105,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
                 ],
             },
             {
-                'uuid': user_unchanged.uuid,
-                'tenant_uuid': user_unchanged.tenant_uuid,
+                'uuid': str(user_unchanged.uuid),
+                'tenant_uuid': str(user_unchanged.tenant_uuid),
                 'lines': [
                     {
                         'id': line_unchanged.id,
@@ -131,18 +140,18 @@ class TestPresenceInitialization(_BaseInitializationTest):
         )
 
         # setup sessions
-        session_created_uuid = str(uuid.uuid4())
+        session_created_uuid = uuid.uuid4()
         self.auth.set_sessions(
             {
-                'uuid': session_created_uuid,
-                'user_uuid': user_created_uuid,
-                'tenant_uuid': tenant_created_uuid,
+                'uuid': str(session_created_uuid),
+                'user_uuid': str(user_created_uuid),
+                'tenant_uuid': str(tenant_created_uuid),
                 'mobile': True,
             },
             {
-                'uuid': session_unchanged.uuid,
-                'user_uuid': session_unchanged.user_uuid,
-                'tenant_uuid': session_unchanged.tenant_uuid,
+                'uuid': str(session_unchanged.uuid),
+                'user_uuid': str(session_unchanged.user_uuid),
+                'tenant_uuid': str(session_unchanged.tenant_uuid),
                 'mobile': session_unchanged.mobile,
             },
         )
@@ -152,14 +161,14 @@ class TestPresenceInitialization(_BaseInitializationTest):
         self.auth.set_refresh_tokens(
             {
                 'client_id': refresh_token_created_client_id,
-                'user_uuid': user_created_uuid,
-                'tenant_uuid': tenant_created_uuid,
+                'user_uuid': str(user_created_uuid),
+                'tenant_uuid': str(tenant_created_uuid),
                 'mobile': True,
             },
             {
                 'client_id': 'unchanged',
-                'user_uuid': refresh_token_unchanged.user_uuid,
-                'tenant_uuid': refresh_token_unchanged.tenant_uuid,
+                'user_uuid': str(refresh_token_unchanged.user_uuid),
+                'tenant_uuid': str(refresh_token_unchanged.tenant_uuid),
                 'mobile': refresh_token_unchanged.mobile,
             },
         )
@@ -329,7 +338,7 @@ class TestInitializationNotBlockOnDatabaseError(_BaseInitializationTest):
 class TestPresenceFail(_BaseInitializationTest):
     @fixtures.db.user()
     def test_api_return_503(self, user):
-        user_args = {'uuid': user.uuid, 'state': 'available'}
+        user_args = {'uuid': str(user.uuid), 'state': 'available'}
         self.stop_service('chatd')
         self.stop_service('amid')
         self.start_service('chatd')

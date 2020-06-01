@@ -31,7 +31,7 @@ from .helpers.base import (
 )
 from .helpers.wait_strategy import NoWaitStrategy
 
-USER_UUID = str(uuid.uuid4())
+USER_UUID = uuid.uuid4()
 
 
 class TestUser(BaseIntegrationTest):
@@ -57,7 +57,7 @@ class TestUser(BaseIntegrationTest):
         assert_that(
             user,
             has_properties(
-                uuid=str(user_uuid),
+                uuid=user_uuid,
                 tenant_uuid=TENANT_1,
                 state='available',
                 status='description of available state',
@@ -168,7 +168,7 @@ class TestUser(BaseIntegrationTest):
 
     @fixtures.db.user()
     def test_add_session(self, user):
-        session_uuid = str(uuid.uuid4())
+        session_uuid = uuid.uuid4()
         session = Session(uuid=session_uuid)
         self._dao.user.add_session(user, session)
 

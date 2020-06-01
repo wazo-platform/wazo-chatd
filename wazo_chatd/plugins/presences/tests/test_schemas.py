@@ -10,7 +10,7 @@ from hamcrest import assert_that, contains, empty, has_entries
 
 from ..schemas import UserPresenceSchema, LinePresenceSchema, ListRequestSchema
 
-UUID = str(uuid.uuid4())
+UUID = uuid.uuid4()
 
 
 class TestUserPresenceSchema(unittest.TestCase):

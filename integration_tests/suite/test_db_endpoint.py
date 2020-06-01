@@ -1,7 +1,5 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
-
-import uuid
 
 from hamcrest import assert_that, calling, equal_to, has_items, has_properties
 from sqlalchemy.inspection import inspect
@@ -14,8 +12,6 @@ from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 from .helpers.wait_strategy import NoWaitStrategy
 
-TENANT_UUID = str(uuid.uuid4())
-USER_UUID = str(uuid.uuid4())
 UNKNOWN_NAME = 'unknown'
 
 
@@ -42,10 +38,10 @@ class TestEndpoint(BaseIntegrationTest):
         assert_that(inspect(created_endpoint).persistent)
         assert_that(created_endpoint, has_properties(name=endpoint_name))
 
-        found_endpoint = self._dao.tenant.find_or_create(created_endpoint.name)
-        assert_that(found_endpoint, has_properties(uuid=created_endpoint.name))
+        found_endpoint = self._dao.endpoint.find_or_create(created_endpoint.name)
+        assert_that(found_endpoint, has_properties(name=created_endpoint.name))
 
-        self._dao.tenant.delete(found_endpoint)
+        self._dao.endpoint.delete_all()
 
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name='name')

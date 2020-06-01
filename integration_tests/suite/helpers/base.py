@@ -1,8 +1,9 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import os
+import uuid
 
 from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries import DAO
@@ -21,18 +22,20 @@ from .bus import BusClient
 from .confd import ConfdClient
 from .wait_strategy import EverythingOkWaitStrategy
 
+logging.getLogger('amqp').setLevel(logging.INFO)
+
 DB_URI = 'postgresql://wazo-chatd:Secr7t@localhost:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
-CHATD_TOKEN_TENANT_UUID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1'
+CHATD_TOKEN_TENANT_UUID = uuid.UUID('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1')
 
-TOKEN_UUID = '00000000-0000-0000-0000-000000000101'
-TOKEN_TENANT_UUID = '00000000-0000-0000-0000-000000000201'
-TOKEN_SUBTENANT_UUID = '00000000-0000-0000-0000-000000000202'
-TOKEN_USER_UUID = '00000000-0000-0000-0000-000000000301'
+TOKEN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000101')
+TOKEN_TENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000201')
+TOKEN_SUBTENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000202')
+TOKEN_USER_UUID = uuid.UUID('00000000-0000-0000-0000-000000000301')
 
-UNKNOWN_UUID = '00000000-0000-0000-0000-000000000000'
-WAZO_UUID = '00000000-0000-0000-0000-0000000c4a7d'
+UNKNOWN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000000')
+WAZO_UUID = uuid.UUID('00000000-0000-0000-0000-0000000c4a7d')
 
 logger = logging.getLogger(__name__)
 
@@ -62,26 +65,29 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
             return
 
         token = MockUserToken(
-            TOKEN_UUID,
-            TOKEN_USER_UUID,
-            metadata={'uuid': TOKEN_USER_UUID, 'tenant_uuid': TOKEN_TENANT_UUID},
+            str(TOKEN_UUID),
+            str(TOKEN_USER_UUID),
+            metadata={
+                'uuid': str(TOKEN_USER_UUID),
+                'tenant_uuid': str(TOKEN_TENANT_UUID),
+            },
         )
         cls.auth.set_token(token)
         cls.auth.set_tenants(
             {
-                'uuid': CHATD_TOKEN_TENANT_UUID,
+                'uuid': str(CHATD_TOKEN_TENANT_UUID),
                 'name': 'chatd-token',
-                'parent_uuid': CHATD_TOKEN_TENANT_UUID,
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
             },
             {
-                'uuid': TOKEN_TENANT_UUID,
+                'uuid': str(TOKEN_TENANT_UUID),
                 'name': 'name1',
-                'parent_uuid': TOKEN_TENANT_UUID,
+                'parent_uuid': str(TOKEN_TENANT_UUID),
             },
             {
-                'uuid': TOKEN_SUBTENANT_UUID,
+                'uuid': str(TOKEN_SUBTENANT_UUID),
                 'name': 'name2',
-                'parent_uuid': TOKEN_TENANT_UUID,
+                'parent_uuid': str(TOKEN_TENANT_UUID),
             },
         )
 
@@ -94,7 +100,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         cls.bus = cls.make_bus()
 
     @classmethod
-    def make_chatd(cls, token=TOKEN_UUID):
+    def make_chatd(cls, token=str(TOKEN_UUID)):
         try:
             port = cls.service_port(9304, 'chatd')
         except NoSuchService as e:

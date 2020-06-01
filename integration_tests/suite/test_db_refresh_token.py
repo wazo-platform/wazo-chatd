@@ -12,9 +12,9 @@ from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 from .helpers.wait_strategy import NoWaitStrategy
 
-TENANT_UUID = str(uuid.uuid4())
-USER_UUID = str(uuid.uuid4())
-UNKNOWN_UUID = str(uuid.uuid4())
+TENANT_UUID = uuid.uuid4()
+USER_UUID = uuid.uuid4()
+UNKNOWN_UUID = uuid.uuid4()
 
 
 class TestRefreshToken(BaseIntegrationTest):

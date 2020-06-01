@@ -19,7 +19,7 @@ from wazo_chatd.database import models
 from .helpers import fixtures
 from .helpers.base import BaseIntegrationTest
 
-USER_UUID_1 = str(uuid.uuid4())
+USER_UUID_1 = uuid.uuid4()
 ENDPOINT_NAME = 'PJSIP/name'
 
 
@@ -28,7 +28,7 @@ class TestEventHandler(BaseIntegrationTest):
     asset = 'base'
 
     def test_tenant_created(self):
-        tenant_uuid = str(uuid.uuid4())
+        tenant_uuid = uuid.uuid4()
         self.bus.send_tenant_created_event(tenant_uuid)
 
         def tenant_created():
@@ -49,8 +49,8 @@ class TestEventHandler(BaseIntegrationTest):
         until.assert_(tenant_deleted, tries=3)
 
     def test_user_created(self):
-        user_uuid = str(uuid.uuid4())
-        tenant_uuid = str(uuid.uuid4())
+        user_uuid = uuid.uuid4()
+        tenant_uuid = uuid.uuid4()
         self.bus.send_user_created_event(user_uuid, tenant_uuid)
 
         def user_created():
@@ -81,7 +81,7 @@ class TestEventHandler(BaseIntegrationTest):
 
     @fixtures.db.user()
     def test_session_created(self, user):
-        session_uuid = str(uuid.uuid4())
+        session_uuid = uuid.uuid4()
         user_uuid = user.uuid
         routing_key = 'chatd.users.{uuid}.presences.updated'.format(uuid=user.uuid)
         event_accumulator = self.bus.accumulator(routing_key)
@@ -107,7 +107,9 @@ class TestEventHandler(BaseIntegrationTest):
             contains(
                 has_entries(
                     data=has_entries(
-                        sessions=contains(has_entries(uuid=session_uuid, mobile=True))
+                        sessions=contains(
+                            has_entries(uuid=str(session_uuid), mobile=True)
+                        )
                     )
                 )
             ),

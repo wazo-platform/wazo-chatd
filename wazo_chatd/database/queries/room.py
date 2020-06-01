@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
@@ -25,7 +25,7 @@ class RoomDAO:
 
     def get(self, tenant_uuids, room_uuid):
         query = self.session.query(Room).filter(
-            Room.tenant_uuid.in_(tenant_uuids), Room.uuid == str(room_uuid)
+            Room.tenant_uuid.in_(tenant_uuids), Room.uuid == room_uuid
         )
         room = query.first()
         if not room:
@@ -42,7 +42,7 @@ class RoomDAO:
         query = self.session.query(Room)
 
         if user_uuid:
-            query = query.join(RoomUser).filter(RoomUser.uuid == str(user_uuid))
+            query = query.join(RoomUser).filter(RoomUser.uuid == user_uuid)
 
         if tenant_uuids is None:
             return query
