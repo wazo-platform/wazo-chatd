@@ -149,6 +149,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
 
         # setup channels
         channel_created_name = f'{endpoint_1_created_name}-1234'
+        channel_unchanged_name = channel_unchanged.name
         self.amid.set_coreshowchannels(
             {
                 "Event": "CoreShowChannel",
@@ -310,7 +311,7 @@ class TestPresenceInitialization(_BaseInitializationTest):
         assert_that(
             lines,
             contains_inanyorder(
-                has_properties(name=channel_unchanged.name, state='talking'),
+                has_properties(name=channel_unchanged_name, state='talking'),
                 has_properties(name=channel_created_name, state='holding'),
             ),
         )
