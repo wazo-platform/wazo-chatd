@@ -390,7 +390,7 @@ class TestEventHandler(BaseIntegrationTest):
             ),
         )
 
-    @fixtures.db.endpoint(name=ENDPOINT_NAME)
+    @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.line(id=LINE_ID, user_uuid=USER_UUID_1, endpoint_name=ENDPOINT_NAME)
     @fixtures.db.channel(line_id=LINE_ID, name=f'{ENDPOINT_NAME}-1234')
@@ -416,7 +416,7 @@ class TestEventHandler(BaseIntegrationTest):
             contains(
                 has_entries(
                     data=has_entries(
-                        lines=contains(has_entries(id=LINE_ID, state='unavailable'))
+                        lines=contains(has_entries(id=LINE_ID, state='available'))
                     )
                 )
             ),
