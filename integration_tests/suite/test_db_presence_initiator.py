@@ -95,7 +95,7 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
         assert_that(result, has_properties(name=channel.name, state='talking'))
 
     def test_initiate_channels_when_no_line_associate(self):
-        channel_name = 'PJSIP/unknonw-channel'
+        channel_name = 'PJSIP/unknown-channel'
         events = [
             {
                 'Event': 'CoreShowChannel',
