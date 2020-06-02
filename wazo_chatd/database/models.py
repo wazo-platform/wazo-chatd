@@ -103,7 +103,12 @@ class Line(Base):
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
     endpoint = relationship('Endpoint')
-    state = association_proxy('endpoint', 'state')
+    endpoint_state = association_proxy('endpoint', 'state')
+
+    channels = relationship(
+        'Channel', cascade='all,delete-orphan', passive_deletes=False
+    )
+    channels_state = association_proxy('channels', 'state')
 
 
 @generic_repr
@@ -114,17 +119,30 @@ class Endpoint(Base):
     name = Column(Text, primary_key=True)
     state = Column(
         String(24),
-        CheckConstraint(
-            "state in ('available', 'unavailable', 'holding', 'ringing', 'talking')"
-        ),
+        CheckConstraint("state in ('available', 'unavailable')"),
         nullable=False,
         default='unavailable',
     )
-    channel_state = Column(
-        String(24), CheckConstraint("channel_state in ('up', 'down')"),
+    line = relationship('Line', uselist=False, viewonly=True)
+
+
+@generic_repr
+class Channel(Base):
+
+    __tablename__ = 'chatd_channel'
+
+    name = Column(Text, primary_key=True)
+    state = Column(
+        String(24),
+        CheckConstraint("state in ('undefined', 'holding', 'ringing', 'talking')"),
+        nullable=False,
+        default='undefined',
+    )
+    line_id = Column(
+        Integer, ForeignKey('chatd_line.id', ondelete='CASCADE'), nullable=False
     )
 
-    line = relationship('Line', uselist=False, viewonly=True)
+    line = relationship('Line', viewonly=True)
 
 
 @generic_repr

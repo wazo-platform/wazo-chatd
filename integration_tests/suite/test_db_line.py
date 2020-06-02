@@ -3,8 +3,18 @@
 
 import uuid
 
-from hamcrest import assert_that, calling, equal_to, has_items
+from hamcrest import (
+    assert_that,
+    calling,
+    contains,
+    contains_inanyorder,
+    empty,
+    equal_to,
+    has_items,
+    has_properties,
+)
 
+from wazo_chatd.database.models import Channel
 from wazo_chatd.exceptions import UnknownLineException
 from xivo_test_helpers.hamcrest.raises import raises
 
@@ -44,6 +54,15 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.line()
     @fixtures.db.line()
+    def test_find_by(self, line, _):
+        result = self._dao.line.find_by(endpoint_name=line.endpoint_name)
+        assert_that(result, equal_to(line))
+
+        result = self._dao.line.find_by(endpoint_name='unknown')
+        assert_that(result, equal_to(None))
+
+    @fixtures.db.line()
+    @fixtures.db.line()
     def test_list(self, line_1, line_2):
         lines = self._dao.line.list_()
         assert_that(lines, has_items(line_1, line_2))
@@ -56,8 +75,14 @@ class TestLine(BaseIntegrationTest):
 
     @fixtures.db.endpoint(name='SIP/custom-name')
     @fixtures.db.line(endpoint_name='SIP/custom-name')
-    def test_state(self, endpoint, line):
-        assert_that(line.state, equal_to(endpoint.state))
+    def test_endpoint_state(self, endpoint, line):
+        assert_that(line.endpoint_state, equal_to(endpoint.state))
+
+    @fixtures.db.line(id=1)
+    @fixtures.db.channel(line_id=1, state='talking')
+    @fixtures.db.channel(line_id=1, state='holding')
+    def test_channels_state(self, line, channel_1, channel_2):
+        assert_that(line.channels_state, contains_inanyorder('talking', 'holding'))
 
     @fixtures.db.line(media='audio')
     def test_update(self, line):
@@ -82,3 +107,32 @@ class TestLine(BaseIntegrationTest):
 
         self._session.expire_all()
         assert_that(line.endpoint, equal_to(None))
+
+    @fixtures.db.line()
+    def test_add_channel(self, line):
+        channel_name = 'channel-name'
+        channel = Channel(name=channel_name)
+        self._dao.line.add_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, contains(has_properties(name=channel_name)))
+
+        # twice
+        self._dao.line.add_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, contains(has_properties(name=channel_name)))
+
+    @fixtures.db.line(id=1)
+    @fixtures.db.channel(line_id=1)
+    def test_remove_channel(self, line, channel):
+        self._dao.line.remove_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, empty())
+
+        # twice
+        self._dao.line.remove_channel(line, channel)
+
+        self._session.expire_all()
+        assert_that(line.channels, empty())

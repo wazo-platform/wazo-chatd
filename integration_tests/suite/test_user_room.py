@@ -88,13 +88,11 @@ class TestUserRoom(BaseIntegrationTest):
             contains_inanyorder(
                 has_entries(
                     data=has_entries(room_args),
-                    required_acl='events.chatd.users.{}.rooms.created'.format(
-                        str(TOKEN_USER_UUID)
-                    ),
+                    required_acl=f'events.chatd.users.{TOKEN_USER_UUID}.rooms.created',
                 ),
                 has_entries(
                     data=has_entries(room_args),
-                    required_acl='events.chatd.users.{}.rooms.created'.format(UUID),
+                    required_acl=f'events.chatd.users.{UUID}.rooms.created',
                 ),
             ),
         )

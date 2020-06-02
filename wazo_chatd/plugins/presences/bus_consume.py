@@ -6,13 +6,19 @@ import logging
 from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
+    Channel,
     Line,
     RefreshToken,
     Session,
     Tenant,
     User,
 )
-from .initiator import DEVICE_STATE_MAP, INUSE_STATE, extract_endpoint_name
+from .initiator import (
+    CHANNEL_STATE_MAP,
+    DEVICE_STATE_MAP,
+    extract_endpoint_from_line,
+    extract_endpoint_from_channel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +42,9 @@ class BusEventHandler:
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
         bus_consumer.on_event('Hangup', self._channel_deleted)
         bus_consumer.on_event('Newchannel', self._channel_created)
+        bus_consumer.on_event('Newstate', self._channel_updated)
+        bus_consumer.on_event('Hold', self._channel_hold)
+        bus_consumer.on_event('Unhold', self._channel_unhold)
 
     def _user_created(self, event):
         user_uuid = event['uuid']
@@ -152,7 +161,7 @@ class BusEventHandler:
         line_id = event['line']['id']
         user_uuid = event['user']['uuid']
         tenant_uuid = event['user']['tenant_uuid']
-        endpoint_name = extract_endpoint_name(event['line'])
+        endpoint_name = extract_endpoint_from_line(event['line'])
         with session_scope():
             user = self._dao.user.get([tenant_uuid], user_uuid)
             line = self._dao.line.find(line_id)
@@ -188,64 +197,91 @@ class BusEventHandler:
         state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
             endpoint = self._dao.endpoint.find_or_create(endpoint_name)
-            if (state in INUSE_STATE and endpoint.channel_state == 'down') or (
-                state not in INUSE_STATE and endpoint.channel_state == 'up'
-            ):
-                logger.debug(
-                    'Invalid endpoint "%s" state "%s", channel state is "%s"',
-                    endpoint_name,
-                    state,
-                    endpoint.channel_state,
-                )
+            if endpoint.state == state:
                 return
+
             endpoint.state = state
             logger.debug(
                 'Update endpoint "%s" with state "%s"', endpoint.name, endpoint.state
             )
             self._dao.endpoint.update(endpoint)
+
             if endpoint.line:
                 self._notifier.updated(endpoint.line.user)
 
     def _channel_created(self, event):
-        endpoint_name = self._extract_endpoint_from_channel(event['Channel'])
-        if not endpoint_name:
-            return
-
+        channel_name = event['Channel']
+        state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
+        endpoint_name = extract_endpoint_from_channel(channel_name)
         with session_scope():
-            endpoint = self._dao.endpoint.find_or_create(endpoint_name)
-            endpoint.channel_state = 'up'
-            logger.debug(
-                'Update endpoint "%s" with state "%s" and channel state "%s"',
-                endpoint.name,
-                endpoint.state,
-                endpoint.channel_state,
-            )
-            self._dao.endpoint.update(endpoint)
+            line = self._dao.line.find_by(endpoint_name=endpoint_name)
+            if not line:
+                logger.debug(
+                    'Unknown line with endpoint "%s" for channel "%s"',
+                    endpoint_name,
+                    channel_name,
+                )
+                return
+
+            channel = Channel(name=channel_name, state=state)
+            logger.debug('Create channel "%s" for line "%s"', channel.name, line.id)
+            self._dao.line.add_channel(line, channel)
+
+            self._notifier.updated(channel.line.user)
 
     def _channel_deleted(self, event):
-        endpoint_name = self._extract_endpoint_from_channel(event['Channel'])
-        if not endpoint_name:
-            return
-
+        channel_name = event['Channel']
         with session_scope():
-            endpoint = self._dao.endpoint.find_or_create(endpoint_name)
-            old_endpoint_state = endpoint.state
-            endpoint.channel_state = 'down'
-            if endpoint.state in INUSE_STATE:
-                endpoint.state = 'available'
-            logger.debug(
-                'Update endpoint "%s" with state "%s" and channel state "%s"',
-                endpoint.name,
-                endpoint.state,
-                endpoint.channel_state,
-            )
-            self._dao.endpoint.update(endpoint)
-            if endpoint.line and old_endpoint_state != endpoint.state:
-                self._notifier.updated(endpoint.line.user)
+            channel = self._dao.channel.find(channel_name)
+            if not channel:
+                logger.debug('Unknown channel "%s"', channel_name)
+                return
 
-    def _extract_endpoint_from_channel(self, channel_name):
-        endpoint_name = '-'.join(channel_name.split('-')[:-1])
-        if not endpoint_name:
-            logger.debug('Invalid endpoint from channel "%s"', channel_name)
-            return
-        return endpoint_name
+            logger.debug('Delete channel "%s"', channel_name)
+            self._dao.line.remove_channel(channel.line, channel)
+
+            self._notifier.updated(channel.line.user)
+
+    def _channel_updated(self, event):
+        channel_name = event['Channel']
+        state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
+        with session_scope():
+            channel = self._dao.channel.find(channel_name)
+            if not channel:
+                logger.debug('Unknown channel "%s"', channel_name)
+                return
+
+            logger.debug('Update channel "%s" with state "%s"', channel_name, state)
+            channel.state = state
+            self._dao.channel.update(channel)
+
+            self._notifier.updated(channel.line.user)
+
+    def _channel_hold(self, event):
+        channel_name = event['Channel']
+        with session_scope():
+            channel = self._dao.channel.find(channel_name)
+            if not channel:
+                logger.debug('Unknown channel "%s"', channel_name)
+                return
+
+            logger.debug('Update channel "%s" with state "holding"', channel_name)
+            channel.state = 'holding'
+            self._dao.channel.update(channel)
+
+            self._notifier.updated(channel.line.user)
+
+    def _channel_unhold(self, event):
+        channel_name = event['Channel']
+        state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
+        with session_scope():
+            channel = self._dao.channel.find(channel_name)
+            if not channel:
+                logger.debug('Unknown channel "%s"', channel_name)
+                return
+
+            logger.debug('Update channel "%s" with state "%s"', channel_name, state)
+            channel.state = state
+            self._dao.channel.update(channel)
+
+            self._notifier.updated(channel.line.user)

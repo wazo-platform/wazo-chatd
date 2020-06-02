@@ -8,13 +8,13 @@ class BusClient(bus_helper.BusClient):
     def send_tenant_created_event(self, tenant_uuid):
         self.publish(
             {'data': {'uuid': str(tenant_uuid)}, 'name': 'auth_tenant_added'},
-            'auth.tenants.{}.created'.format(tenant_uuid),
+            f'auth.tenants.{tenant_uuid}.created',
         )
 
     def send_tenant_deleted_event(self, tenant_uuid):
         self.publish(
             {'data': {'uuid': str(tenant_uuid)}, 'name': 'auth_tenant_deleted'},
-            'auth.tenants.{}.deleted'.format(tenant_uuid),
+            f'auth.tenants.{tenant_uuid}.deleted',
         )
 
     def send_user_created_event(self, user_uuid, tenant_uuid):
@@ -48,7 +48,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_session_created',
             },
-            'auth.sessions.{}.created'.format(session_uuid),
+            f'auth.sessions.{session_uuid}.created',
         )
 
     def send_session_deleted_event(self, session_uuid, user_uuid, tenant_uuid):
@@ -61,7 +61,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_session_deleted',
             },
-            'auth.sessions.{}.deleted'.format(session_uuid),
+            f'auth.sessions.{session_uuid}.deleted',
         )
 
     def send_refresh_token_created_event(
@@ -77,7 +77,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_refresh_token_created',
             },
-            'auth.users.{}.tokens.{}.created'.format(user_uuid, client_id),
+            f'auth.users.{user_uuid}.tokens.{client_id}.created',
         )
 
     def send_refresh_token_deleted_event(self, client_id, user_uuid, tenant_uuid):
@@ -90,7 +90,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'auth_refresh_token_deleted',
             },
-            'auth.users.{}.tokens.{}.deleted'.format(user_uuid, client_id),
+            f'auth.users.{user_uuid}.tokens.{client_id}.deleted',
         )
 
     def send_user_line_associated_event(
@@ -110,7 +110,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'user_line_associated',
             },
-            'config.users.{}.lines.{}.updated'.format(user_uuid, line_id),
+            f'config.users.{user_uuid}.lines.{line_id}.updated',
         )
 
     def send_line_dissociated_event(self, line_id, user_uuid, tenant_uuid):
@@ -128,7 +128,7 @@ class BusClient(bus_helper.BusClient):
                 },
                 'name': 'user_line_dissociated',
             },
-            'config.users.{}.lines.{}.deleted'.format(user_uuid, line_id),
+            f'config.users.{user_uuid}.lines.{line_id}.deleted',
         )
 
     def send_device_state_changed_event(self, device_name, device_state):
@@ -140,14 +140,39 @@ class BusClient(bus_helper.BusClient):
             'ami.DeviceStateChange',
         )
 
-    def send_new_channel_event(self, device_name):
+    def send_new_channel_event(self, channel_name):
         self.publish(
-            {'data': {'Channel': '{}-0001'.format(device_name)}, 'name': 'Newchannel'},
+            {
+                'data': {'Channel': channel_name, 'ChannelStateDesc': 'Ring'},
+                'name': 'Newchannel',
+            },
             'ami.Newchannel',
         )
 
-    def send_hangup_event(self, device_name):
+    def send_new_state_event(self, channel_name, state='undefined'):
         self.publish(
-            {'data': {'Channel': '{}-0001'.format(device_name)}, 'name': 'Hangup'},
-            'ami.Hangup',
+            {
+                'data': {'Channel': channel_name, 'ChannelStateDesc': state},
+                'name': 'Newstate',
+            },
+            'ami.Newstate',
+        )
+
+    def send_hangup_event(self, channel_name):
+        self.publish(
+            {'data': {'Channel': channel_name}, 'name': 'Hangup'}, 'ami.Hangup',
+        )
+
+    def send_hold_event(self, channel_name):
+        self.publish(
+            {'data': {'Channel': channel_name}, 'name': 'Hold'}, 'ami.Hold',
+        )
+
+    def send_unhold_event(self, channel_name):
+        self.publish(
+            {
+                'data': {'Channel': channel_name, 'ChannelStateDesc': 'Up'},
+                'name': 'Unhold',
+            },
+            'ami.Hold',
         )

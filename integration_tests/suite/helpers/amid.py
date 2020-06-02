@@ -15,6 +15,11 @@ class AmidClient:
         )
 
     def set_devicestatelist(self, *events):
-        url = self.url('_set_response')
-        body = {'response': 'action', 'content': {'DeviceStateList': events}}
+        url = self.url('_set_response_action')
+        body = {'response': 'DeviceStateList', 'content': events}
+        requests.post(url, json=body)
+
+    def set_coreshowchannels(self, *events):
+        url = self.url('_set_response_action')
+        body = {'response': 'CoreShowChannels', 'content': events}
         requests.post(url, json=body)

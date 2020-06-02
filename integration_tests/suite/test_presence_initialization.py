@@ -25,6 +25,8 @@ from .helpers.base import BaseIntegrationTest, CHATD_TOKEN_TENANT_UUID
 TENANT_UUID = uuid.uuid4()
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
+LINE_ID_1 = 6
+LINE_ID_2 = 42
 ENDPOINT_NAME = 'CUSTOM/name'
 
 
@@ -45,8 +47,12 @@ class TestPresenceInitialization(_BaseInitializationTest):
     @fixtures.db.session(user_uuid=USER_UUID_2)
     @fixtures.db.refresh_token(client_id='deleted', user_uuid=USER_UUID_1)
     @fixtures.db.refresh_token(client_id='unchanged', user_uuid=USER_UUID_2)
-    @fixtures.db.line(user_uuid=USER_UUID_1)
-    @fixtures.db.line(user_uuid=USER_UUID_2, endpoint_name=ENDPOINT_NAME)
+    @fixtures.db.line(id=LINE_ID_1, user_uuid=USER_UUID_1)
+    @fixtures.db.line(id=LINE_ID_2, user_uuid=USER_UUID_2, endpoint_name=ENDPOINT_NAME)
+    @fixtures.db.channel(line_id=LINE_ID_1)
+    @fixtures.db.channel(
+        line_id=LINE_ID_2, state='talking', name=f'{ENDPOINT_NAME}-0001'
+    )
     def test_initialization(
         self,
         endpoint_deleted,
@@ -61,6 +67,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         refresh_token_unchanged,
         line_deleted,
         line_unchanged,
+        channel_deleted,
+        channel_unchanged,
     ):
         # setup tenants
         tenant_created_uuid = uuid.uuid4()
@@ -118,8 +126,8 @@ class TestPresenceInitialization(_BaseInitializationTest):
         )
 
         # setup endpoints
-        endpoint_1_created_name = 'PJSIP/{}'.format(line_1_created_name)
-        endpoint_2_created_name = 'SCCP/{}'.format(line_2_created_name)
+        endpoint_1_created_name = f'PJSIP/{line_1_created_name}'
+        endpoint_2_created_name = f'SCCP/{line_2_created_name}'
         self.amid.set_devicestatelist(
             {
                 "Event": "DeviceStateChange",
@@ -136,6 +144,24 @@ class TestPresenceInitialization(_BaseInitializationTest):
                 "Event": "DeviceStateChange",
                 "Device": endpoint_unchanged.name,
                 "State": "INUSE",
+            },
+        )
+
+        # setup channels
+        channel_created_name = f'{endpoint_1_created_name}-1234'
+        channel_unchanged_name = channel_unchanged.name
+        self.amid.set_coreshowchannels(
+            {
+                "Event": "CoreShowChannel",
+                "Channel": channel_created_name,
+                "ChannelStateDesc": "Ringing",
+                "ChanVariable": {"XIVO_ON_HOLD": "1"},
+            },
+            {
+                "Event": "CoreShowChannel",
+                "Channel": channel_unchanged.name,
+                "ChannelStateDesc": "Up",
+                "ChanVariable": {"XIVO_ON_HOLD": ""},
             },
         )
 
@@ -274,9 +300,19 @@ class TestPresenceInitialization(_BaseInitializationTest):
         assert_that(
             lines,
             contains_inanyorder(
-                has_properties(name=endpoint_unchanged.name, state='talking'),
-                has_properties(name=endpoint_1_created_name, state='holding'),
+                has_properties(name=endpoint_unchanged.name, state='available'),
+                has_properties(name=endpoint_1_created_name, state='available'),
                 has_properties(name=endpoint_2_created_name, state='unavailable'),
+            ),
+        )
+
+        # test channels
+        lines = self._session.query(models.Channel).all()
+        assert_that(
+            lines,
+            contains_inanyorder(
+                has_properties(name=channel_unchanged_name, state='talking'),
+                has_properties(name=channel_created_name, state='holding'),
             ),
         )
 

@@ -18,11 +18,21 @@ class TestUserPresenceSchema(unittest.TestCase):
     schema = UserPresenceSchema
 
     def setUp(self):
-        self.line_ringing = Mock(id=1, state='ringing')
-        self.line_holding = Mock(id=2, state='holding')
-        self.line_talking = Mock(id=3, state='talking')
-        self.line_available = Mock(id=4, state='available')
-        self.line_unavailable = Mock(id=5, state='unavailable')
+        self.line_ringing = Mock(
+            id=1, channels_state=['ringing'], endpoint_state='available'
+        )
+        self.line_holding = Mock(
+            id=2, channels_state=['holding'], endpoint_state='available'
+        )
+        self.line_talking = Mock(
+            id=3, channels_state=['talking'], endpoint_state='available'
+        )
+        self.line_available = Mock(
+            id=4, channels_state=['undefined'], endpoint_state='available'
+        )
+        self.line_unavailable = Mock(
+            id=5, channels_state=['undefined'], endpoint_state='unavailable'
+        )
         self.user = Mock(
             uuid=UUID, tenant_uuid=UUID, sessions=[], lines=[], refresh_tokens=[]
         )
@@ -147,16 +157,54 @@ class TestLinePresenceSchema(unittest.TestCase):
     schema = LinePresenceSchema
 
     def setUp(self):
-        self.line = Mock(id=1)
+        self.line = Mock(id=42, channels_state=[], endpoint_state=None)
 
-    def test_set_default_state(self):
-        self.line.state = 'ringing'
+    def test_set_state_ringing(self):
+        self.line.channels_state = [
+            'undefined',
+            'talking',
+            'holding',
+            'ringing',
+            'holding',
+            'talking',
+            'undefined',
+        ]
 
         result = self.schema().dump(self.line)
         assert_that(result, has_entries(state='ringing'))
 
-    def test_set_default_state_when_none(self):
-        self.line.state = None
+    def test_set_state_holding(self):
+        self.line.channels_state = [
+            'undefined',
+            'talking',
+            'holding',
+            'talking',
+            'undefined',
+        ]
+
+        result = self.schema().dump(self.line)
+        assert_that(result, has_entries(state='holding'))
+
+    def test_set_state_talking(self):
+        self.line.channels_state = [
+            'undefined',
+            'talking',
+            'undefined',
+        ]
+
+        result = self.schema().dump(self.line)
+        assert_that(result, has_entries(state='talking'))
+
+    def test_set_state_to_endpoint_state(self):
+        self.line.endpoint_state = 'available'
+        self.line.channels_state = ['undefined']
+
+        result = self.schema().dump(self.line)
+        assert_that(result, has_entries(state='available'))
+
+    def test_set_state_default_to_unavalaible(self):
+        self.line.endpoint_state = None
+        self.line.channels_state = []
 
         result = self.schema().dump(self.line)
         assert_that(result, has_entries(state='unavailable'))
@@ -181,7 +229,7 @@ class TestListRequestSchema(unittest.TestCase):
     def test_get_user_uuid_multiple(self):
         uuid_1 = str(uuid.uuid4())
         uuid_2 = str(uuid.uuid4())
-        user_uuid = '{},{}'.format(uuid_1, uuid_2)
+        user_uuid = f'{uuid_1},{uuid_2}'
         self.request_args.get.return_value = user_uuid
         self.request_args.__getitem__.return_value = user_uuid
 

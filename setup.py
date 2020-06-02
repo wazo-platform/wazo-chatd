@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from setuptools import setup
@@ -17,8 +17,8 @@ setup(
     package_data={'wazo_chatd.plugins': ['*/api.yml']},
     entry_points={
         'console_scripts': [
-            '{}=wazo_chatd.main:main'.format(NAME),
-            '{}-init-db=wazo_chatd.init_db:main'.format(NAME),
+            f'{NAME}=wazo_chatd.main:main',
+            f'{NAME}-init-db=wazo_chatd.init_db:main',
         ],
         'wazo_chatd.plugins': [
             'api = wazo_chatd.plugins.api.plugin:Plugin',

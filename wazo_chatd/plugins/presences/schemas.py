@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import post_dump, pre_load
@@ -12,9 +12,18 @@ class LinePresenceSchema(Schema):
     id = fields.Integer(dump_only=True)
     state = fields.String(dump_only=True)
 
-    @post_dump
-    def _set_default_state(self, data):
-        data['state'] = data['state'] if data['state'] else 'unavailable'
+    @post_dump(pass_original=True)
+    def _set_state(self, data, raw_data):
+        if 'ringing' in raw_data.channels_state:
+            merged_state = 'ringing'
+        elif 'holding' in raw_data.channels_state:
+            merged_state = 'holding'
+        elif 'talking' in raw_data.channels_state:
+            merged_state = 'talking'
+        else:
+            merged_state = raw_data.endpoint_state or 'unavailable'
+
+        data['state'] = merged_state
         return data
 
 
@@ -40,22 +49,18 @@ class UserPresenceSchema(Schema):
 
     @post_dump
     def _set_line_state(self, user):
-        merged_state = 'unavailable'
-        for line in user['lines']:
+        line_states = [line['state'] for line in user['lines']]
 
-            state = line['state']
-            if state == 'ringing':
-                merged_state = state
-            elif state == 'holding' and merged_state != 'ringing':
-                merged_state = state
-            elif state == 'talking' and merged_state not in ('ringing', 'holding'):
-                merged_state = state
-            elif state == 'available' and merged_state not in (
-                'ringing',
-                'holding',
-                'talking',
-            ):
-                merged_state = state
+        if 'ringing' in line_states:
+            merged_state = 'ringing'
+        elif 'holding' in line_states:
+            merged_state = 'holding'
+        elif 'talking' in line_states:
+            merged_state = 'talking'
+        elif 'available' in line_states:
+            merged_state = 'available'
+        else:
+            merged_state = 'unavailable'
 
         user['line_state'] = merged_state
         return user
