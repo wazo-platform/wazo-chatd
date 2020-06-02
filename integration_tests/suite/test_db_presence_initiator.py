@@ -14,6 +14,7 @@ from wazo_chatd.plugins.presences.initiator import Initiator
 TENANT_UUID = uuid.uuid4()
 USER_UUID = uuid.uuid4()
 LINE_ID = 42
+ENDPOINT_NAME = 'PJSIP/12345'
 
 
 class TestDBPresenceInitiator(BaseIntegrationTest):
@@ -59,9 +60,12 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
         assert_that(result, equal_to(None))
 
     @fixtures.db.user(uuid=USER_UUID)
-    @fixtures.db.line(id=LINE_ID, user_uuid=USER_UUID)
-    @fixtures.db.channel(line_id=LINE_ID)
-    def test_initiate_channels_when_channel_is_hold(self, user, line, channel):
+    @fixtures.db.endpoint(name=ENDPOINT_NAME)
+    @fixtures.db.line(id=LINE_ID, user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME)
+    @fixtures.db.channel(name=f'{ENDPOINT_NAME}-abcd', line_id=LINE_ID)
+    def test_initiate_channels_when_channel_is_hold(
+        self, user, endpoint, line, channel
+    ):
         events = [
             {
                 'Event': 'CoreShowChannel',
@@ -77,9 +81,12 @@ class TestDBPresenceInitiator(BaseIntegrationTest):
         assert_that(result, has_properties(name=channel.name, state='holding'))
 
     @fixtures.db.user(uuid=USER_UUID)
-    @fixtures.db.line(id=LINE_ID, user_uuid=USER_UUID)
-    @fixtures.db.channel(line_id=LINE_ID)
-    def test_initiate_channels_when_channel_is_unhold(self, user, line, channel):
+    @fixtures.db.endpoint(name=ENDPOINT_NAME)
+    @fixtures.db.line(id=LINE_ID, user_uuid=USER_UUID, endpoint_name=ENDPOINT_NAME)
+    @fixtures.db.channel(name=f'{ENDPOINT_NAME}-abcd', line_id=LINE_ID)
+    def test_initiate_channels_when_channel_is_unhold(
+        self, user, endpoint, line, channel
+    ):
         events = [
             {
                 'Event': 'CoreShowChannel',
