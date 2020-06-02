@@ -50,7 +50,9 @@ class TestPresenceInitialization(_BaseInitializationTest):
     @fixtures.db.line(id=LINE_ID_1, user_uuid=USER_UUID_1)
     @fixtures.db.line(id=LINE_ID_2, user_uuid=USER_UUID_2, endpoint_name=ENDPOINT_NAME)
     @fixtures.db.channel(line_id=LINE_ID_1)
-    @fixtures.db.channel(line_id=LINE_ID_2, state='talking')
+    @fixtures.db.channel(
+        line_id=LINE_ID_2, state='talking', name=f'{ENDPOINT_NAME}-0001'
+    )
     def test_initialization(
         self,
         endpoint_deleted,
