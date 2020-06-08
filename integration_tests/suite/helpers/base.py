@@ -22,9 +22,6 @@ from .bus import BusClient
 from .confd import ConfdClient
 from .wait_strategy import EverythingOkWaitStrategy
 
-logging.getLogger('amqp').setLevel(logging.INFO)
-logging.getLogger('stevedore.extension').setLevel(logging.INFO)
-
 DB_URI = 'postgresql://wazo-chatd:Secr7t@localhost:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
