@@ -15,13 +15,10 @@ pid_file: /run/wazo-chatd/wazo-chatd.pid
 rest_api:
 
   # Listening address
-  listen: 0.0.0.0
+  listen: 127.0.0.1
 
   # Listening port
   port: 9304
-
-  certificate: /usr/share/xivo-certs/server.crt
-  private_key: /usr/share/xivo-certs/server.key
 
   #CORS configuration. See Flask-CORS documentation for other values.
   cors:

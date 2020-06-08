@@ -1,5 +1,9 @@
 # Changelog
 
+## 20.09
+
+* Deprecate SSL configuration
+
 ## 19.10
 
 * New query parameter has been added to the `GET /1.0/users/me/rooms/messages` endpoint:

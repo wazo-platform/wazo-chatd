@@ -8,8 +8,7 @@ from xivo.chain_map import ChainMap
 from xivo.config_helper import read_config_file_hierarchy, parse_config_file
 from xivo.xivo_logging import get_log_level_by_name
 
-_CERT_FILE = '/usr/share/xivo-certs/server.crt'
-_DEFAULT_HTTPS_PORT = 9304
+_DEFAULT_HTTP_PORT = 9304
 _PID_DIR = '/run/wazo-chatd'
 
 _DEFAULT_CONFIG = {
@@ -21,10 +20,10 @@ _DEFAULT_CONFIG = {
     'pid_file': os.path.join(_PID_DIR, 'wazo-chatd.pid'),
     'user': 'wazo-chatd',
     'rest_api': {
-        'listen': '0.0.0.0',
-        'port': _DEFAULT_HTTPS_PORT,
-        'certificate': _CERT_FILE,
-        'private_key': '/usr/share/xivo-certs/server.key',
+        'listen': '127.0.0.1',
+        'port': _DEFAULT_HTTP_PORT,
+        'certificate': None,
+        'private_key': None,
         'cors': {
             'enabled': True,
             'allow_headers': ['Content-Type', 'X-Auth-Token', 'Wazo-Tenant'],
@@ -59,7 +58,7 @@ _DEFAULT_CONFIG = {
     'service_discovery': {
         'advertise_address': 'auto',
         'advertise_address_interface': 'eth0',
-        'advertise_port': _DEFAULT_HTTPS_PORT,
+        'advertise_port': _DEFAULT_HTTP_PORT,
         'enabled': True,
         'ttl_interval': 30,
         'refresh_interval': 27,
