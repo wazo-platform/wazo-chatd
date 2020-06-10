@@ -55,12 +55,7 @@ _DEFAULT_CONFIG = {
         'https': False,
         'timeout': 90,
     },
-    'consul': {
-        'scheme': 'http',
-        'host': 'localhost',
-        'port': 8500,
-        'verify': '/usr/share/xivo-certs/server.crt',
-    },
+    'consul': {'scheme': 'http', 'host': 'localhost', 'port': 8500},
     'service_discovery': {
         'advertise_address': 'auto',
         'advertise_address_interface': 'eth0',
