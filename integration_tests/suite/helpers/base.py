@@ -117,7 +117,7 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         except NoSuchService:
             return WrongClient('chatd')
         return ChatdClient(
-            'localhost', port=port, token=token, verify_certificate=False
+            'localhost', port=port, prefix=None, https=False, token=token,
         )
 
     @classmethod

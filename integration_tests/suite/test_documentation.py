@@ -23,6 +23,6 @@ class TestDocumentation(BaseIntegrationTest):
 
     def test_documentation_errors(self):
         port = self.service_port(9304, 'chatd')
-        api_url = f'https://localhost:{port}/1.0/api/api.yml'
-        api = requests.get(api_url, verify=False)
+        api_url = f'http://localhost:{port}/1.0/api/api.yml'
+        api = requests.get(api_url)
         validate_v2_spec(yaml.safe_load(api.text))

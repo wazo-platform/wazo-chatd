@@ -72,6 +72,9 @@ class CoreRestApi:
         wsgi_app = wsgi.WSGIPathInfoDispatcher({'/': app})
         self.server = wsgi.WSGIServer(bind_addr=bind_addr, wsgi_app=wsgi_app)
         if self.config['certificate'] and self.config['private_key']:
+            logger.warning(
+                'Using service SSL configuration is deprecated. Please use NGINX instead.'
+            )
             self.server.ssl_adapter = http_helpers.ssl_adapter(
                 self.config['certificate'], self.config['private_key']
             )
