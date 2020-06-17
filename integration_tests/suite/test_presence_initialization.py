@@ -28,6 +28,7 @@ USER_UUID_2 = uuid.uuid4()
 LINE_ID_1 = 6
 LINE_ID_2 = 42
 ENDPOINT_NAME = 'CUSTOM/name'
+FAKE_UUID_STR = str(uuid.uuid4())
 
 
 class _BaseInitializationTest(BaseIntegrationTest):
@@ -102,14 +103,18 @@ class TestPresenceInitialization(_BaseInitializationTest):
                     {
                         'id': line_1_created_id,
                         'name': line_1_created_name,
-                        'endpoint_sip': {'id': 1},
+                        'endpoint_sip': {'uuid': FAKE_UUID_STR},
                     },
                     {
                         'id': line_2_created_id,
                         'name': line_2_created_name,
                         'endpoint_sccp': {'id': 1},
                     },
-                    {'id': line_bugged_id, 'name': None, 'endpoint_sip': {'id': 1}},
+                    {
+                        'id': line_bugged_id,
+                        'name': None,
+                        'endpoint_sip': {'uuid': FAKE_UUID_STR}
+                    },
                 ],
             },
             {

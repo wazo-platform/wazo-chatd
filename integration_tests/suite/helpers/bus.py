@@ -1,7 +1,11 @@
 # Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import uuid
+
 from xivo_test_helpers import bus as bus_helper
+
+FAKE_UUID = str(uuid.uuid4())
 
 
 class BusClient(bus_helper.BusClient):
@@ -102,7 +106,7 @@ class BusClient(bus_helper.BusClient):
                     'line': {
                         'id': line_id,
                         'name': line_name,
-                        'endpoint_sip': {'id': 1},
+                        'endpoint_sip': {'uuid': FAKE_UUID},
                         'endpoint_sccp': {},
                         'endpoint_custom': {},
                     },
@@ -120,7 +124,7 @@ class BusClient(bus_helper.BusClient):
                     'line': {
                         'id': line_id,
                         'name': None,
-                        'endpoint_sip': {'id': 1},
+                        'endpoint_sip': {'uuid': FAKE_UUID},
                         'endpoint_sccp': {},
                         'endpoint_custom': {},
                     },
