@@ -21,7 +21,11 @@ from xivo_test_helpers.asset_launching_test_case import (
 from .amid import AmidClient
 from .bus import BusClient
 from .confd import ConfdClient
-from .wait_strategy import EverythingOkWaitStrategy, NoWaitStrategy, PresenceInitOkWaitStrategy
+from .wait_strategy import (
+    EverythingOkWaitStrategy,
+    NoWaitStrategy,
+    PresenceInitOkWaitStrategy,
+)
 
 DB_URI = 'postgresql://wazo-chatd:Secr7t@localhost:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'

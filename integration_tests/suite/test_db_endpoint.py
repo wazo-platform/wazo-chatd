@@ -18,7 +18,6 @@ UNKNOWN_NAME = 'unknown'
 
 @pytest.mark.usefixtures('database')
 class TestEndpoint(DBIntegrationTest):
-
     def test_create(self):
         endpoint_name = 'PJSIP/name'
         endpoint = Endpoint(name=endpoint_name)
