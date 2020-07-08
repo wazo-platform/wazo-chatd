@@ -33,3 +33,4 @@ Building the docker image:
 ```sh
 docker build -t wazopbx/wazo-chatd .
 ```
+
