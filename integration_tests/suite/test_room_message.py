@@ -3,8 +3,6 @@
 
 import uuid
 
-import pytest
-
 from datetime import datetime
 from hamcrest import (
     assert_that,
@@ -29,12 +27,13 @@ from .helpers.base import (
     WAZO_UUID,
     TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
+    use_asset,
 )
 
 UNKNOWN_UUID = str(uuid.uuid4())
 
 
-@pytest.mark.usefixtures('base')
+@use_asset('base')
 class TestUserRoom(APIIntegrationTest):
     @fixtures.http.room()
     def test_list(self, room):
@@ -192,7 +191,7 @@ class TestUserRoom(APIIntegrationTest):
         )
 
 
-@pytest.mark.usefixtures('base')
+@use_asset('base')
 class TestUserMessage(APIIntegrationTest):
     def test_list(self):
         assert_that(

@@ -5,8 +5,6 @@ import datetime
 import random
 import uuid
 
-import pytest
-
 from hamcrest import (
     assert_that,
     calling,
@@ -30,12 +28,13 @@ from .helpers.base import (
     UNKNOWN_UUID,
     TOKEN_TENANT_UUID as TENANT_1,
     TOKEN_SUBTENANT_UUID as TENANT_2,
+    use_asset,
 )
 
 USER_UUID = uuid.uuid4()
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestUser(DBIntegrationTest):
     def test_create(self):
         user_uuid = uuid.uuid4()

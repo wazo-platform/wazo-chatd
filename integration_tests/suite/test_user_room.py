@@ -3,8 +3,6 @@
 
 import uuid
 
-import pytest
-
 from hamcrest import (
     assert_that,
     calling,
@@ -27,13 +25,14 @@ from .helpers.base import (
     TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
     WAZO_UUID,
+    use_asset,
 )
 
 UUID = str(uuid.uuid4())
 UUID_2 = str(uuid.uuid4())
 
 
-@pytest.mark.usefixtures('base')
+@use_asset('base')
 class TestUserRoom(APIIntegrationTest):
     @fixtures.http.room()
     @fixtures.http.room()

@@ -3,13 +3,11 @@
 
 import uuid
 
-import pytest
-
 from mock import Mock
 from hamcrest import assert_that, equal_to, has_properties
 
 from .helpers import fixtures
-from .helpers.base import DBIntegrationTest
+from .helpers.base import DBIntegrationTest, use_asset
 from wazo_chatd.plugins.presences.initiator import Initiator
 
 TENANT_UUID = uuid.uuid4()
@@ -18,7 +16,7 @@ LINE_ID = 42
 ENDPOINT_NAME = 'PJSIP/12345'
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestDBPresenceInitiator(DBIntegrationTest):
     def setUp(self):
         super().setUp()

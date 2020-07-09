@@ -3,8 +3,6 @@
 
 import uuid
 
-import pytest
-
 from hamcrest import (
     assert_that,
     calling,
@@ -29,6 +27,7 @@ from .helpers.base import (
     TOKEN_SUBTENANT_UUID,
     TOKEN_TENANT_UUID,
     UNKNOWN_UUID,
+    use_asset,
 )
 
 USER_UUID = uuid.uuid4()
@@ -37,7 +36,7 @@ ENDPOINT_NAME_1 = 'PJSIP/name'
 ENDPOINT_NAME_2 = 'SCCP/name'
 
 
-@pytest.mark.usefixtures('base')
+@use_asset('base')
 class TestPresence(APIIntegrationTest):
     @fixtures.db.user()
     @fixtures.db.user()

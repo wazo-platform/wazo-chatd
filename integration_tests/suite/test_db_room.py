@@ -4,8 +4,6 @@
 import datetime
 import uuid
 
-import pytest
-
 from hamcrest import (
     assert_that,
     calling,
@@ -30,6 +28,7 @@ from .helpers.base import (
     UNKNOWN_UUID,
     TOKEN_TENANT_UUID as TENANT_1,
     TOKEN_SUBTENANT_UUID as TENANT_2,
+    use_asset,
 )
 
 USER_UUID_1 = uuid.uuid4()
@@ -39,7 +38,7 @@ USER_UUID_3 = uuid.uuid4()
 UUID = uuid.uuid4()
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestRoom(DBIntegrationTest):
     @fixtures.db.room(tenant_uuid=TENANT_1)
     @fixtures.db.room(tenant_uuid=TENANT_2)
@@ -434,7 +433,7 @@ class TestRoom(DBIntegrationTest):
         assert_that(count, equal_to(1))
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestRoomRelationships(DBIntegrationTest):
     @fixtures.db.room()
     def test_users_create(self, room):
@@ -510,7 +509,7 @@ class TestRoomRelationships(DBIntegrationTest):
         return message
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestRoomMessageRelationships(DBIntegrationTest):
     @fixtures.db.room(messages=[{'content': 'msg1'}])
     def test_room_get(self, room):

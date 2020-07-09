@@ -4,8 +4,6 @@
 import random
 import uuid
 
-import pytest
-
 from hamcrest import (
     assert_that,
     calling,
@@ -26,6 +24,7 @@ from .helpers.base import (
     APIIntegrationTest,
     InitAssetLaunchingTestCase,
     CHATD_TOKEN_TENANT_UUID,
+    use_asset,
 )
 
 TENANT_UUID = uuid.uuid4()
@@ -36,7 +35,7 @@ LINE_ID_2 = 42
 ENDPOINT_NAME = 'CUSTOM/name'
 
 
-@pytest.mark.usefixtures('initialization')
+@use_asset('initialization')
 class TestPresenceInitialization(APIIntegrationTest):
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
@@ -318,7 +317,7 @@ class TestPresenceInitialization(APIIntegrationTest):
         )
 
 
-@pytest.mark.usefixtures('initialization')
+@use_asset('initialization')
 class TestPresenceInitializationErrors(APIIntegrationTest):
     def test_server_initialization_do_not_block_on_http_error(self):
         InitAssetLaunchingTestCase.stop_service('chatd')

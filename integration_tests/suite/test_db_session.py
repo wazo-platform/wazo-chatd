@@ -3,22 +3,20 @@
 
 import uuid
 
-import pytest
-
 from hamcrest import assert_that, calling, equal_to, has_items
 
 from wazo_chatd.exceptions import UnknownSessionException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import DBIntegrationTest
+from .helpers.base import DBIntegrationTest, use_asset
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID = uuid.uuid4()
 UNKNOWN_UUID = uuid.uuid4()
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestSession(DBIntegrationTest):
     @fixtures.db.session()
     def test_get(self, session):

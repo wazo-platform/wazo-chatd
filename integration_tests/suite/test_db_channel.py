@@ -1,18 +1,16 @@
 # Copyright 2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import pytest
-
 from hamcrest import assert_that, equal_to
 from sqlalchemy.inspection import inspect
 
 from .helpers import fixtures
-from .helpers.base import DBIntegrationTest
+from .helpers.base import DBIntegrationTest, use_asset
 
 UNKNOWN_NAME = 'unknown'
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestChannel(DBIntegrationTest):
     @fixtures.db.channel()
     @fixtures.db.channel()

@@ -1,6 +1,7 @@
 # Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import pytest
 import logging
 import os
 import unittest
@@ -41,6 +42,8 @@ UNKNOWN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000000')
 WAZO_UUID = uuid.UUID('00000000-0000-0000-0000-0000000c4a7d')
 
 logger = logging.getLogger(__name__)
+
+use_asset = pytest.mark.usefixtures
 
 
 class ClientCreateException(Exception):

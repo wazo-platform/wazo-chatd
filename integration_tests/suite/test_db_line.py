@@ -3,8 +3,6 @@
 
 import uuid
 
-import pytest
-
 from hamcrest import (
     assert_that,
     calling,
@@ -21,14 +19,14 @@ from wazo_chatd.exceptions import UnknownLineException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import DBIntegrationTest
+from .helpers.base import DBIntegrationTest, use_asset
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID = uuid.uuid4()
 UNKNOWN_ID = 0
 
 
-@pytest.mark.usefixtures('database')
+@use_asset('database')
 class TestLine(DBIntegrationTest):
     @fixtures.db.line()
     def test_get(self, line):
