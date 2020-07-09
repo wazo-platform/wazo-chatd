@@ -1,16 +1,14 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from hamcrest import assert_that, has_entries
 from xivo_test_helpers import until
 
-from .helpers.base import BaseIntegrationTest
+from .helpers.base import APIIntegrationTest, use_asset
 
 
-class TestStatusAllOK(BaseIntegrationTest):
-
-    asset = 'base'
-
+@use_asset('base')
+class TestStatusAllOK(APIIntegrationTest):
     def test_when_status_then_status_ok(self):
         def status_ok():
             result = self.chatd.status.get()

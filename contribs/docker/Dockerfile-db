@@ -9,7 +9,7 @@ RUN true \
     && python3 setup.py install \
     && pg_start \
     && wazo-chatd-init-db --user postgres --pg_db_uri postgresql:///postgres --chatd_db_uri postgresql:///wazo-chatd --db wazo-chatd --owner wazo-chatd --password Secr7t \
-    && (cd /usr/src/wazo-chatd && /usr/bin/python3 -m alembic.config -c alembic.ini upgrade head) \
+    && (cd /usr/src/wazo-chatd && python3 -m alembic.config -c alembic.ini upgrade head) \
     && pg_stop \
     && true
 USER postgres

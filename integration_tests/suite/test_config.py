@@ -1,15 +1,13 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from hamcrest import assert_that, has_key
 
-from .helpers.base import BaseIntegrationTest
+from .helpers.base import APIIntegrationTest, use_asset
 
 
-class TestConfig(BaseIntegrationTest):
-
-    asset = 'base'
-
+@use_asset('base')
+class TestConfig(APIIntegrationTest):
     def test_config(self):
         result = self.chatd.config.get()
 

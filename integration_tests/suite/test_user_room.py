@@ -21,20 +21,19 @@ from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
 from .helpers.base import (
-    BaseIntegrationTest,
+    APIIntegrationTest,
     TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
     WAZO_UUID,
+    use_asset,
 )
 
 UUID = str(uuid.uuid4())
 UUID_2 = str(uuid.uuid4())
 
 
-class TestUserRoom(BaseIntegrationTest):
-
-    asset = 'base'
-
+@use_asset('base')
+class TestUserRoom(APIIntegrationTest):
     @fixtures.http.room()
     @fixtures.http.room()
     @fixtures.db.room()

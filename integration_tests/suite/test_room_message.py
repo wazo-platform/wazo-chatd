@@ -23,19 +23,18 @@ from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
 from .helpers.base import (
-    BaseIntegrationTest,
+    APIIntegrationTest,
     WAZO_UUID,
     TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
+    use_asset,
 )
 
 UNKNOWN_UUID = str(uuid.uuid4())
 
 
-class TestUserRoom(BaseIntegrationTest):
-
-    asset = 'base'
-
+@use_asset('base')
+class TestUserRoom(APIIntegrationTest):
     @fixtures.http.room()
     def test_list(self, room):
         message_args = {'content': 'message content'}
@@ -192,10 +191,8 @@ class TestUserRoom(BaseIntegrationTest):
         )
 
 
-class TestUserMessage(BaseIntegrationTest):
-
-    asset = 'base'
-
+@use_asset('base')
+class TestUserMessage(APIIntegrationTest):
     def test_list(self):
         assert_that(
             calling(self.chatd.rooms.search_messages_from_user),

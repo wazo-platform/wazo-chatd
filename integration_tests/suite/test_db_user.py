@@ -24,22 +24,18 @@ from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
 from .helpers.base import (
-    BaseIntegrationTest,
+    DBIntegrationTest,
     UNKNOWN_UUID,
     TOKEN_TENANT_UUID as TENANT_1,
     TOKEN_SUBTENANT_UUID as TENANT_2,
+    use_asset,
 )
-from .helpers.wait_strategy import NoWaitStrategy
 
 USER_UUID = uuid.uuid4()
 
 
-class TestUser(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@use_asset('database')
+class TestUser(DBIntegrationTest):
     def test_create(self):
         user_uuid = uuid.uuid4()
         last_activity = datetime.datetime.now()

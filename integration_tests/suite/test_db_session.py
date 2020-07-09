@@ -9,20 +9,15 @@ from wazo_chatd.exceptions import UnknownSessionException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest, use_asset
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID = uuid.uuid4()
 UNKNOWN_UUID = uuid.uuid4()
 
 
-class TestSession(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@use_asset('database')
+class TestSession(DBIntegrationTest):
     @fixtures.db.session()
     def test_get(self, session):
         result = self._dao.session.get(session.uuid)

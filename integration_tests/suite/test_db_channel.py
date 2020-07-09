@@ -5,18 +5,13 @@ from hamcrest import assert_that, equal_to
 from sqlalchemy.inspection import inspect
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest, use_asset
 
 UNKNOWN_NAME = 'unknown'
 
 
-class TestChannel(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@use_asset('database')
+class TestChannel(DBIntegrationTest):
     @fixtures.db.channel()
     @fixtures.db.channel()
     def test_find(self, channel, _):

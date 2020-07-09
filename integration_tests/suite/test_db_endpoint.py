@@ -9,18 +9,13 @@ from wazo_chatd.exceptions import UnknownEndpointException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest, use_asset
 
 UNKNOWN_NAME = 'unknown'
 
 
-class TestEndpoint(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@use_asset('database')
+class TestEndpoint(DBIntegrationTest):
     def test_create(self):
         endpoint_name = 'PJSIP/name'
         endpoint = Endpoint(name=endpoint_name)

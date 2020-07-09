@@ -1,8 +1,10 @@
 # Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import pytest
 import logging
 import os
+import unittest
 import uuid
 
 from wazo_chatd_client import Client as ChatdClient
@@ -20,7 +22,11 @@ from xivo_test_helpers.asset_launching_test_case import (
 from .amid import AmidClient
 from .bus import BusClient
 from .confd import ConfdClient
-from .wait_strategy import EverythingOkWaitStrategy
+from .wait_strategy import (
+    EverythingOkWaitStrategy,
+    NoWaitStrategy,
+    PresenceInitOkWaitStrategy,
+)
 
 DB_URI = 'postgresql://wazo-chatd:Secr7t@localhost:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
@@ -37,6 +43,8 @@ WAZO_UUID = uuid.UUID('00000000-0000-0000-0000-0000000c4a7d')
 
 logger = logging.getLogger(__name__)
 
+use_asset = pytest.mark.usefixtures
+
 
 class ClientCreateException(Exception):
     def __init__(self, client_name):
@@ -51,27 +59,22 @@ class WrongClient:
         raise ClientCreateException(self.client_name)
 
 
-class BaseIntegrationTest(AssetLaunchingTestCase):
+class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
 
     assets_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), '..', '..', 'assets')
     )
-    service = 'chatd'
-    wait_strategy = EverythingOkWaitStrategy()
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        init_db(DB_URI.format(port=cls.service_port(5432, 'postgres')), echo=DB_ECHO)
-        cls._Session = Session
-
+        cls.chatd = cls.make_chatd()
+        cls.auth = cls.make_auth()
         cls.create_token()
-        cls.reset_clients()
         cls.wait_strategy.wait(cls)
 
     @classmethod
     def create_token(cls):
-        cls.auth = cls.make_auth()
         if isinstance(cls.auth, WrongClient):
             return
 
@@ -103,12 +106,14 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
         )
 
     @classmethod
-    def reset_clients(cls):
-        cls.amid = cls.make_amid()
-        cls.chatd = cls.make_chatd()
-        cls.auth = cls.make_auth()
-        cls.confd = cls.make_confd()
-        cls.bus = cls.make_bus()
+    def make_db_session(cls):
+        try:
+            port = cls.service_port(5432, 'postgres')
+        except (NoSuchService, NoSuchPort):
+            return WrongClient('postgres')
+
+        init_db(DB_URI.format(port=port), echo=DB_ECHO)
+        return Session
 
     @classmethod
     def make_chatd(cls, token=str(TOKEN_UUID)):
@@ -152,6 +157,30 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
             return WrongClient('rabbitmq')
         return BusClient.from_connection_fields(host='localhost', port=port)
 
+
+class APIAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
+    asset = 'base'
+    service = 'chatd'
+    wait_strategy = EverythingOkWaitStrategy()
+
+
+class InitAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
+    asset = 'initialization'
+    service = 'chatd'
+    wait_strategy = PresenceInitOkWaitStrategy()
+
+
+class DBAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
+    asset = 'database'
+    service = 'postgresql'
+    wait_strategy = NoWaitStrategy()
+
+
+class _BaseIntegrationTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._Session = DBAssetLaunchingTestCase.make_db_session()
+
     @property
     def _session(self):
         return get_dao_session()
@@ -166,3 +195,22 @@ class BaseIntegrationTest(AssetLaunchingTestCase):
     def tearDown(self):
         self._Session.rollback()
         self._Session.remove()
+
+
+class DBIntegrationTest(_BaseIntegrationTest):
+    pass
+
+
+class APIIntegrationTest(_BaseIntegrationTest):
+    @classmethod
+    def setUpClass(cls):
+        cls.reset_clients()
+
+    @classmethod
+    def reset_clients(cls):
+        cls._Session = APIAssetLaunchingTestCase.make_db_session()
+        cls.amid = APIAssetLaunchingTestCase.make_amid()
+        cls.chatd = APIAssetLaunchingTestCase.make_chatd()
+        cls.auth = APIAssetLaunchingTestCase.make_auth()
+        cls.confd = APIAssetLaunchingTestCase.make_confd()
+        cls.bus = APIAssetLaunchingTestCase.make_bus()

@@ -9,20 +9,15 @@ from wazo_chatd.exceptions import UnknownRefreshTokenException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import BaseIntegrationTest
-from .helpers.wait_strategy import NoWaitStrategy
+from .helpers.base import DBIntegrationTest, use_asset
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID = uuid.uuid4()
 UNKNOWN_UUID = uuid.uuid4()
 
 
-class TestRefreshToken(BaseIntegrationTest):
-
-    asset = 'database'
-    service = 'postgresql'
-    wait_strategy = NoWaitStrategy()
-
+@use_asset('database')
+class TestRefreshToken(DBIntegrationTest):
     @fixtures.db.refresh_token()
     def test_get(self, refresh_token):
         result = self._dao.refresh_token.get(
