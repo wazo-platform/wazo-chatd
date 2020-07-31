@@ -1,12 +1,14 @@
 [Unit]
 Description=wazo-chatd daemon
 After=network.target
-Before=monit.service
+StartLimitBurst=15
+StartLimitIntervalSec=150
 
 [Service]
 Environment=PYTHONUNBUFFERED=TRUE
-ExecStartPre=/usr/bin/install -o wazo-chatd -g wazo-chatd -d /run/wazo-chatd
 ExecStart=/usr/bin/wazo-chatd
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
