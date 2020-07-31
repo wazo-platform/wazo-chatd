@@ -97,6 +97,10 @@ definitions:
       status:
         type: string
         description: An extended description of the user presence.
+      do_not_disturb:
+        type: boolean
+        description: The "do not disturb" status of the user.
+        readOnly: true
       last_activity:
         type: string
         description: The date time in UTC of the user's last activity. The value is updated when the user changes his state explicitly. The value is NULL for new user.

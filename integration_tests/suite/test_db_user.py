@@ -45,6 +45,7 @@ class TestUser(DBIntegrationTest):
             state='available',
             status='description of available state',
             last_activity=last_activity,
+            do_not_disturb=True,
         )
         user = self._dao.user.create(user)
 
@@ -58,6 +59,7 @@ class TestUser(DBIntegrationTest):
                 state='available',
                 status='description of available state',
                 last_activity=last_activity,
+                do_not_disturb=True,
             ),
         )
 
@@ -145,10 +147,12 @@ class TestUser(DBIntegrationTest):
         user_state = 'invisible'
         user_status = 'other status'
         user_last_activity = datetime.datetime.now()
+        user_do_not_disturb = True
 
         user.state = user_state
         user.status = user_status
         user.last_activity = user_last_activity
+        user.do_not_disturb = user_do_not_disturb
         self._dao.user.update(user)
 
         self._session.expire_all()
@@ -159,6 +163,7 @@ class TestUser(DBIntegrationTest):
                 state=user_state,
                 status=user_status,
                 last_activity=user_last_activity,
+                do_not_disturb=user_do_not_disturb,
             ),
         )
 

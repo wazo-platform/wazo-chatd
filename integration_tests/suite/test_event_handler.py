@@ -515,3 +515,30 @@ class TestEventHandler(APIIntegrationTest):
                 )
             ),
         )
+
+    @fixtures.db.user()
+    def test_do_not_disturb(self, user):
+        routing_key = f'chatd.users.{user.uuid}.presences.updated'
+        event_accumulator = self.bus.accumulator(routing_key)
+        user_uuid = str(user.uuid)
+
+        self.bus.send_dnd_event(user_uuid, user.tenant_uuid, True)
+
+        def dnd_updated():
+            self._session.expire_all()
+            result = self._session.query(models.User).all()
+            assert_that(
+                result, has_items(has_properties(uuid=user.uuid, do_not_disturb=True))
+            )
+
+        until.assert_(dnd_updated, tries=3)
+
+        event = event_accumulator.accumulate()
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    data=has_entries(uuid=user_uuid, do_not_disturb=True)
+                )
+            )
+        )
