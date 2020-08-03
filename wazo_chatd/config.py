@@ -2,14 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
-import os
 
 from xivo.chain_map import ChainMap
 from xivo.config_helper import read_config_file_hierarchy, parse_config_file
 from xivo.xivo_logging import get_log_level_by_name
 
 _DEFAULT_HTTP_PORT = 9304
-_PID_DIR = '/run/wazo-chatd'
 
 _DEFAULT_CONFIG = {
     'config_file': '/etc/wazo-chatd/config.yml',
@@ -17,7 +15,6 @@ _DEFAULT_CONFIG = {
     'extra_config_files': '/etc/wazo-chatd/conf.d',
     'log_file': '/var/log/wazo-chatd.log',
     'log_level': 'info',
-    'pid_file': os.path.join(_PID_DIR, 'wazo-chatd.pid'),
     'user': 'wazo-chatd',
     'rest_api': {
         'listen': '127.0.0.1',
