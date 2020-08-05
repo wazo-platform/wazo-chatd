@@ -53,6 +53,7 @@ class TestPresence(APIIntegrationTest):
                         status=user_1.status,
                         last_activity=none(),
                         line_state='unavailable',
+                        do_not_disturb=False,
                         mobile=False,
                         sessions=empty(),
                         lines=empty(),
@@ -64,6 +65,7 @@ class TestPresence(APIIntegrationTest):
                         status=user_2.status,
                         last_activity=none(),
                         line_state='unavailable',
+                        do_not_disturb=False,
                         mobile=False,
                         sessions=empty(),
                         lines=empty(),
@@ -154,6 +156,7 @@ class TestPresence(APIIntegrationTest):
                 status=user.status,
                 last_activity=none(),
                 line_state='holding',
+                do_not_disturb=False,
                 mobile=True,
                 sessions=contains_inanyorder(
                     has_entries(uuid=str(session_1.uuid), mobile=True),

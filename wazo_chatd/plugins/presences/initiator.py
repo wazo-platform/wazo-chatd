@@ -136,6 +136,7 @@ class Initiator:
         self._add_and_remove_lines(users)
         self._add_missing_endpoints(users)  # disconnected SCCP endpoints are missing
         self._associate_line_endpoint(users)
+        self._update_services_users(users)
 
     def _add_and_remove_users(self, users):
         users = set((user['uuid'], user['tenant_uuid']) for user in users)
@@ -246,6 +247,25 @@ class Initiator:
                     'Associate line "%s" with endpoint "%s"', line.id, endpoint.name
                 )
                 self._dao.line.associate_endpoint(line, endpoint)
+
+    def _update_services_users(self, users):
+        with session_scope() as session:
+            for confd_user in users:
+                try:
+                    user = self._dao.user.get(
+                        [confd_user['tenant_uuid']], confd_user['uuid']
+                    )
+                except UnknownUserException as e:
+                    logger.warning(e)
+                    continue
+                do_not_disturb_status = confd_user['services']['dnd']['enabled']
+                logger.debug(
+                    'Updating user "%s" DND status to "%s"',
+                    user.uuid,
+                    do_not_disturb_status,
+                )
+                user.do_not_disturb = do_not_disturb_status
+                session.flush()
 
     def initiate_sessions(self, sessions):
         self._add_and_remove_sessions(sessions)

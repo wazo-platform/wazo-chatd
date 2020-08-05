@@ -42,7 +42,12 @@ class TestPresenceInitialization(APIIntegrationTest):
     @fixtures.db.tenant()
     @fixtures.db.tenant(uuid=TENANT_UUID)
     @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_UUID)
-    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_UUID, state='available')
+    @fixtures.db.user(
+        uuid=USER_UUID_2,
+        tenant_uuid=TENANT_UUID,
+        state='available',
+        do_not_disturb=False,
+    )
     @fixtures.db.session(user_uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_2)
     @fixtures.db.refresh_token(client_id='deleted', user_uuid=USER_UUID_1)
@@ -111,6 +116,7 @@ class TestPresenceInitialization(APIIntegrationTest):
                     },
                     {'id': line_bugged_id, 'name': None, 'endpoint_sip': {'id': 1}},
                 ],
+                'services': {'dnd': {'enabled': True}},
             },
             {
                 'uuid': str(user_unchanged.uuid),
@@ -122,6 +128,7 @@ class TestPresenceInitialization(APIIntegrationTest):
                         'endpoint_custom': {'id': 1},
                     }
                 ],
+                'services': {'dnd': {'enabled': False}},
             },
         )
 
@@ -226,11 +233,13 @@ class TestPresenceInitialization(APIIntegrationTest):
                     uuid=user_unchanged.uuid,
                     tenant_uuid=tenant_unchanged.uuid,
                     state='available',
+                    do_not_disturb=False,
                 ),
                 has_properties(
                     uuid=user_created_uuid,
                     tenant_uuid=tenant_created_uuid,
                     state='unavailable',
+                    do_not_disturb=True,
                 ),
             ),
         )

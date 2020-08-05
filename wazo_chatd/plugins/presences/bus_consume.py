@@ -39,6 +39,7 @@ class BusEventHandler:
         bus_consumer.on_event('auth_refresh_token_deleted', self._refresh_token_deleted)
         bus_consumer.on_event('user_line_associated', self._user_line_associated)
         bus_consumer.on_event('user_line_dissociated', self._user_line_dissociated)
+        bus_consumer.on_event('users_services_dnd_updated', self._user_dnd_updated)
         bus_consumer.on_event('DeviceStateChange', self._device_state_change)
         bus_consumer.on_event('Hangup', self._channel_deleted)
         bus_consumer.on_event('Newchannel', self._channel_created)
@@ -190,6 +191,17 @@ class BusEventHandler:
             line = self._dao.line.get(line_id)
             logger.debug('Delete line "%s"', line_id)
             self._dao.user.remove_line(user, line)
+            self._notifier.updated(user)
+
+    def _user_dnd_updated(self, event):
+        user_uuid = event['user_uuid']
+        tenant_uuid = event['tenant_uuid']
+        enabled = event['enabled']
+        with session_scope():
+            user = self._dao.user.get([tenant_uuid], user_uuid)
+            logger.debug('Updating DND status of user "%s" to "%s"', user_uuid, enabled)
+            user.do_not_disturb = enabled
+            self._dao.user.update(user)
             self._notifier.updated(user)
 
     def _device_state_change(self, event):

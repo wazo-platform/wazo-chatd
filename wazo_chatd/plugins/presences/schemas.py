@@ -43,6 +43,7 @@ class UserPresenceSchema(Schema):
     last_activity = fields.DateTime(dump_only=True)
     line_state = fields.String(dump_only=True)
     mobile = fields.Boolean(dump_only=True)
+    do_not_disturb = fields.Boolean(dump_only=True)
 
     sessions = fields.Nested('SessionPresenceSchema', many=True, dump_only=True)
     lines = fields.Nested('LinePresenceSchema', many=True, dump_only=True)

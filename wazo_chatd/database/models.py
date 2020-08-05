@@ -45,6 +45,7 @@ class User(Base):
         nullable=False,
     )
     status = Column(Text())
+    do_not_disturb = Column(Boolean(), nullable=False, server_default='false')
     last_activity = Column(DateTime())
 
     tenant = relationship('Tenant')

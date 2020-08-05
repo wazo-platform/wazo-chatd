@@ -176,3 +176,16 @@ class BusClient(bus_helper.BusClient):
             },
             'ami.Hold',
         )
+
+    def send_dnd_event(self, user_uuid, tenant_uuid, status):
+        self.publish(
+            {
+                'data': {
+                    'user_uuid': user_uuid,
+                    'tenant_uuid': tenant_uuid,
+                    'enabled': status,
+                },
+                'name': 'users_services_dnd_updated',
+            },
+            f'config.users.{user_uuid}.services.dnd.updated',
+        )
