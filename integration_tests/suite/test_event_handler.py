@@ -516,7 +516,7 @@ class TestEventHandler(APIIntegrationTest):
             ),
         )
 
-    @fixtures.db.user()
+    @fixtures.db.user(do_not_disturb=False)
     def test_do_not_disturb(self, user):
         routing_key = f'chatd.users.{user.uuid}.presences.updated'
         event_accumulator = self.bus.accumulator(routing_key)
@@ -537,8 +537,6 @@ class TestEventHandler(APIIntegrationTest):
         assert_that(
             event,
             contains(
-                has_entries(
-                    data=has_entries(uuid=user_uuid, do_not_disturb=True)
-                )
-            )
+                has_entries(data=has_entries(uuid=user_uuid, do_not_disturb=True))
+            ),
         )
