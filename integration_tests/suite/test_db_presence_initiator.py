@@ -110,3 +110,19 @@ class TestDBPresenceInitiator(DBIntegrationTest):
 
         result = self._dao.channel.find(channel_name)
         assert_that(result, equal_to(None))
+
+    @fixtures.db.tenant(uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID, tenant_uuid=TENANT_UUID, do_not_disturb=False)
+    def test_initiate_user_services(self, _, user):
+        confd_users = [
+            {
+                'uuid': USER_UUID,
+                'tenant_uuid': TENANT_UUID,
+                'services': {'dnd': {'enabled': True}},
+            },
+        ]
+
+        self.initiator._update_services_users(confd_users)
+
+        result = self._dao.user.get([TENANT_UUID], USER_UUID)
+        assert_that(result, has_properties(do_not_disturb=True))

@@ -111,6 +111,7 @@ class TestPresenceInitialization(APIIntegrationTest):
                     },
                     {'id': line_bugged_id, 'name': None, 'endpoint_sip': {'id': 1}},
                 ],
+                'services': {'dnd': {'enabled': True}},
             },
             {
                 'uuid': str(user_unchanged.uuid),
@@ -122,6 +123,7 @@ class TestPresenceInitialization(APIIntegrationTest):
                         'endpoint_custom': {'id': 1},
                     }
                 ],
+                'services': {'dnd': {'enabled': False}},
             },
         )
 
@@ -226,11 +228,13 @@ class TestPresenceInitialization(APIIntegrationTest):
                     uuid=user_unchanged.uuid,
                     tenant_uuid=tenant_unchanged.uuid,
                     state='available',
+                    do_not_disturb=False,
                 ),
                 has_properties(
                     uuid=user_created_uuid,
                     tenant_uuid=tenant_created_uuid,
                     state='unavailable',
+                    do_not_disturb=True,
                 ),
             ),
         )
