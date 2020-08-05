@@ -42,7 +42,12 @@ class TestPresenceInitialization(APIIntegrationTest):
     @fixtures.db.tenant()
     @fixtures.db.tenant(uuid=TENANT_UUID)
     @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_UUID)
-    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_UUID, state='available')
+    @fixtures.db.user(
+        uuid=USER_UUID_2,
+        tenant_uuid=TENANT_UUID,
+        state='available',
+        do_not_disturb=False,
+    )
     @fixtures.db.session(user_uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_2)
     @fixtures.db.refresh_token(client_id='deleted', user_uuid=USER_UUID_1)
