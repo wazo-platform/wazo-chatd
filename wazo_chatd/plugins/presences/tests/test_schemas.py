@@ -5,8 +5,16 @@ import uuid
 import unittest
 
 from mock import MagicMock, Mock
+from marshmallow.exceptions import ValidationError
 
-from hamcrest import assert_that, contains, empty, has_entries
+from hamcrest import (
+    assert_that,
+    calling,
+    contains,
+    empty,
+    has_entries,
+    raises,
+)
 
 from ..schemas import UserPresenceSchema, LinePresenceSchema, ListRequestSchema
 
@@ -219,16 +227,16 @@ class TestListRequestSchema(unittest.TestCase):
         self.request_args.to_dict.return_value = {}
 
     def test_get_user_uuid(self):
-        uuid_1 = str(uuid.uuid4())
-        self.request_args.get.return_value = uuid_1
-        self.request_args.__getitem__.return_value = uuid_1
+        uuid_1 = uuid.uuid4()
+        self.request_args.get.return_value = str(uuid_1)
+        self.request_args.__getitem__.return_value = str(uuid_1)
 
         result = self.schema().load(self.request_args)
         assert_that(result, has_entries(uuids=contains(uuid_1)))
 
     def test_get_user_uuid_multiple(self):
-        uuid_1 = str(uuid.uuid4())
-        uuid_2 = str(uuid.uuid4())
+        uuid_1 = uuid.uuid4()
+        uuid_2 = uuid.uuid4()
         user_uuid = f'{uuid_1},{uuid_2}'
         self.request_args.get.return_value = user_uuid
         self.request_args.__getitem__.return_value = user_uuid
@@ -241,3 +249,14 @@ class TestListRequestSchema(unittest.TestCase):
 
         result = self.schema().load(self.request_args)
         assert_that(result, has_entries(uuids=empty()))
+
+    def test_get_user_uuid_with_wrong_ending(self):
+        uuid_1 = uuid.uuid4()
+        user_uuid = f'{uuid_1},'
+        self.request_args.get.return_value = user_uuid
+        self.request_args.__getitem__.return_value = user_uuid
+
+        assert_that(
+            calling(self.schema().load).with_args(self.request_args),
+            raises(ValidationError),
+        )
