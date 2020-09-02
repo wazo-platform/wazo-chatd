@@ -1,5 +1,11 @@
 # Changelog
 
+## 20.11
+
+* New read only parameters have been added to the user presence resource:
+
+  * `do_not_disturb`
+
 ## 20.09
 
 * Deprecate SSL configuration

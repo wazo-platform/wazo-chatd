@@ -255,7 +255,9 @@ class TestPresenceInitialization(APIIntegrationTest):
                     mobile=session_unchanged.mobile,
                 ),
                 has_properties(
-                    uuid=session_created_uuid, user_uuid=user_created_uuid, mobile=True,
+                    uuid=session_created_uuid,
+                    user_uuid=user_created_uuid,
+                    mobile=True,
                 ),
             ),
         )
