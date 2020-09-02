@@ -158,7 +158,8 @@ class TestEventHandler(APIIntegrationTest):
 
         event = event_accumulator.accumulate()
         assert_that(
-            event, contains(has_entries(data=has_entries(mobile=True))),
+            event,
+            contains(has_entries(data=has_entries(mobile=True))),
         )
 
     @fixtures.db.user(uuid=USER_UUID_1)
@@ -371,7 +372,8 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result, has_items(has_properties(name=channel_name, state='ringing')),
+                result,
+                has_items(has_properties(name=channel_name, state='ringing')),
             )
 
         until.assert_(channel_created, tries=3)
@@ -403,7 +405,8 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result, not_(has_items(has_properties(name=channel_name))),
+                result,
+                not_(has_items(has_properties(name=channel_name))),
             )
 
         until.assert_(channel_deleted, tries=3)
@@ -435,7 +438,8 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result, has_items(has_properties(name=channel_name, state='talking')),
+                result,
+                has_items(has_properties(name=channel_name, state='talking')),
             )
 
         until.assert_(channel_updated, tries=3)
@@ -467,7 +471,8 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result, has_items(has_properties(name=channel_name, state='holding')),
+                result,
+                has_items(has_properties(name=channel_name, state='holding')),
             )
 
         until.assert_(channel_held, tries=3)
@@ -499,7 +504,8 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result, has_items(has_properties(name=channel_name, state='talking')),
+                result,
+                has_items(has_properties(name=channel_name, state='talking')),
             )
 
         until.assert_(channel_unheld, tries=3)

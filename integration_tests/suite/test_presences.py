@@ -226,7 +226,9 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presence,
             has_entries(
-                uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=True,
+                uuid=str(user.uuid),
+                tenant_uuid=str(user.tenant_uuid),
+                mobile=True,
             ),
         )
 
@@ -236,7 +238,9 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presence,
             has_entries(
-                uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=False,
+                uuid=str(user.uuid),
+                tenant_uuid=str(user.tenant_uuid),
+                mobile=False,
             ),
         )
 

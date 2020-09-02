@@ -130,5 +130,7 @@ def downgrade():
 
 def convert_column_to_string(table, column):
     op.alter_column(
-        table_name=table, column_name=column, type_=String(36),
+        table_name=table,
+        column_name=column,
+        type_=String(36),
     )
