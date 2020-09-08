@@ -16,7 +16,7 @@ class UnknownUsersException(APIException):
         msg = 'No such users: {}'.format(
             ', '.join(map(lambda uuid: f'"{uuid}"', user_uuids))
         )
-        details = {'uuids': user_uuids}
+        details = {'uuids': [str(uuid) for uuid in user_uuids]}
         super().__init__(404, msg, 'unknown-users', details, 'users')
 
 
