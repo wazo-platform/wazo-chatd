@@ -11,15 +11,6 @@ class UnknownUserException(APIException):
         super().__init__(404, msg, 'unknown-user', details, 'users')
 
 
-class UnknownUsersException(APIException):
-    def __init__(self, user_uuids):
-        msg = 'No such users: {}'.format(
-            ', '.join(map(lambda uuid: f'"{uuid}"', user_uuids))
-        )
-        details = {'uuids': [str(uuid) for uuid in user_uuids]}
-        super().__init__(404, msg, 'unknown-users', details, 'users')
-
-
 class UnknownTenantException(APIException):
     def __init__(self, tenant_uuid):
         msg = f'No such tenant: "{tenant_uuid}"'

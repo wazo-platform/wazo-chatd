@@ -121,22 +121,15 @@ class TestPresence(APIIntegrationTest):
             ),
         )
 
-    def test_list_unknown_user_uuids(self):
-        # NOTE(fblackburn): list should not return error on unknown users
+    @fixtures.db.user()
+    def test_list_unknown_user_uuids(self, user_1):
+        presences = self.chatd.user_presences.list(user_uuids=[str(UNKNOWN_UUID)])
         assert_that(
-            calling(self.chatd.user_presences.list).with_args(
-                user_uuids=[str(UNKNOWN_UUID)]
-            ),
-            raises(
-                ChatdError,
-                has_properties(
-                    status_code=404,
-                    error_id='unknown-users',
-                    resource='users',
-                    details=is_not(none()),
-                    message=is_not(none()),
-                    timestamp=is_not(none()),
-                ),
+            presences,
+            has_entries(
+                items=empty(),
+                total=equal_to(1),
+                filtered=equal_to(0),
             ),
         )
 

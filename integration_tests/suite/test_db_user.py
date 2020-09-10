@@ -19,7 +19,7 @@ from hamcrest import (
 from sqlalchemy.inspection import inspect
 
 from wazo_chatd.database.models import User, Session, Line, RefreshToken
-from wazo_chatd.exceptions import UnknownUserException, UnknownUsersException
+from wazo_chatd.exceptions import UnknownUserException
 from xivo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
@@ -116,21 +116,8 @@ class TestUser(DBIntegrationTest):
         result = self._dao.user.list_(tenant_uuids=None, uuids=[])
         assert_that(result, has_items(user_1, user_2, user_3))
 
-        assert_that(
-            calling(self._dao.user.list_).with_args(
-                tenant_uuids=None, uuids=[UNKNOWN_UUID]
-            ),
-            raises(
-                UnknownUsersException,
-                has_properties(
-                    status_code=404,
-                    id_='unknown-users',
-                    resource='users',
-                    details=is_not(none()),
-                    message=is_not(none()),
-                ),
-            ),
-        )
+        result = self._dao.user.list_(tenant_uuids=None, uuids=[UNKNOWN_UUID])
+        assert_that(result, empty())
 
     @fixtures.db.user(tenant_uuid=TENANT_1)
     @fixtures.db.user(tenant_uuid=TENANT_2)
