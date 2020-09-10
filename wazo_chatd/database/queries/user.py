@@ -3,7 +3,7 @@
 
 from sqlalchemy import text
 
-from ...exceptions import UnknownUserException, UnknownUsersException
+from ...exceptions import UnknownUserException
 from ..helpers import get_dao_session
 from ..models import User
 
@@ -33,17 +33,12 @@ class UserDAO:
         return user
 
     def list_(self, tenant_uuids, uuids=None, **filter_parameters):
-        users = self._get_users_query(
-            tenant_uuids, uuids=uuids, **filter_parameters
-        ).all()
-
-        if uuids:
-            found_uuids = set([user.uuid for user in users])
-            given_uuids = set(uuids)
-            if len(found_uuids) != len(given_uuids):
-                raise UnknownUsersException(list(given_uuids - found_uuids))
-
-        return users
+        query = self._get_users_query(
+            tenant_uuids,
+            uuids=uuids,
+            **filter_parameters,
+        )
+        return query.all()
 
     def count(self, tenant_uuids, **filter_parameters):
         return self._get_users_query(tenant_uuids, **filter_parameters).count()
