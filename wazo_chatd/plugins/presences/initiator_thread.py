@@ -48,7 +48,7 @@ class InitiatorThread(object):
         logger.debug('Starting presence initialization')
         try:
             self._initiator.initiate()
-        except (requests.ConnectionError, requests.HTTPError, SQLAlchemyError) as e:
+        except (requests.RequestException, SQLAlchemyError) as e:
             self._retry_time = next(self._retry_time_failed)
             logger.warning(
                 'Error to fetch data for initialization (%s). Retrying in %s seconds...',
