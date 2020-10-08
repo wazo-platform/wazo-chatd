@@ -8,7 +8,7 @@ A micro service to manage message and presence for a [Wazo](http://wazo.communit
 
 ## Docker
 
-The official docker image for this service is `wazopbx/wazo-chatd`.
+The official docker image for this service is `wazoplatform/wazo-chatd`.
 
 
 ### Getting the image
@@ -16,14 +16,14 @@ The official docker image for this service is `wazopbx/wazo-chatd`.
 To download the latest image from the docker hub
 
 ```sh
-docker pull wazopbx/wazo-chatd
+docker pull wazoplatform/wazo-chatd
 ```
 
 
 ### Running wazo-chatd
 
 ```sh
-docker run wazopbx/wazo-chatd
+docker run wazoplatform/wazo-chatd
 ```
 
 ### Building the image
@@ -31,5 +31,5 @@ docker run wazopbx/wazo-chatd
 Building the docker image:
 
 ```sh
-docker build -t wazopbx/wazo-chatd .
+docker build -t wazoplatform/wazo-chatd .
 ```
