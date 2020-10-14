@@ -82,9 +82,13 @@ definitions:
   Presence:
     title: Presence
     properties:
-      user_uuid:
+      uuid:
         type: string
         description: The UUID of the user
+        readOnly: true
+      tenant_uuid:
+        type: string
+        description: The UUID of the tenant of the user
         readOnly: true
       state:
         type: string
