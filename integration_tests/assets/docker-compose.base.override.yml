@@ -6,5 +6,9 @@ services:
       - chatd
       - postgres
       - rabbitmq
+      - pull-test
     environment:
       TARGETS: "chatd:9304 auth:9497 postgres:5432 rabbitmq:5672"
+
+  pull-test:
+    image: wazoplatform/pull-test

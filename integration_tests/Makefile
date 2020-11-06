@@ -4,6 +4,7 @@ test:
 	pytest -x
 
 egg-info:
+	docker pull wazoplatform/pull-test
 	cd .. && python setup.py egg_info
 
 chatd:
