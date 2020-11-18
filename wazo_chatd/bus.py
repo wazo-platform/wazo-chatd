@@ -13,7 +13,7 @@ from kombu.mixins import ConsumerMixin
 from xivo.status import Status
 from xivo.pubsub import Pubsub
 
-from xivo_bus import Marshaler, Publisher as _Publisher
+from xivo_bus import Marshaler, FailFastPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -135,4 +135,4 @@ class Publisher:
             bus_connection, exchange=bus_exchange, auto_declare=True
         )
         bus_marshaler = Marshaler(self._uuid)
-        _Publisher(bus_producer, bus_marshaler).publish(event, headers=headers)
+        FailFastPublisher(bus_producer, bus_marshaler).publish(event, headers=headers)
