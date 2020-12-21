@@ -5,7 +5,6 @@ from sqlalchemy.sql.functions import ReturnTypeFromArgs
 from sqlalchemy import text
 
 from ...exceptions import UnknownRoomException
-from ..helpers import get_dao_session
 from ..models import Room, RoomUser, RoomMessage
 
 
@@ -14,9 +13,12 @@ class unaccent(ReturnTypeFromArgs):
 
 
 class RoomDAO:
+    def __init__(self, session):
+        self._session = session
+
     @property
     def session(self):
-        return get_dao_session()
+        return self._session()
 
     def create(self, room):
         self.session.add(room)

@@ -9,7 +9,7 @@ import uuid
 
 from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries import DAO
-from wazo_chatd.database.helpers import init_db, get_dao_session, Session
+from wazo_chatd.database.helpers import init_db, Session
 
 from xivo_test_helpers.auth import MockUserToken
 from xivo_test_helpers.auth import AuthClient
@@ -187,7 +187,7 @@ class _BaseIntegrationTest(unittest.TestCase):
 
     @property
     def _session(self):
-        return get_dao_session()
+        return self._Session()
 
     def setUp(self):
         super().setUp()

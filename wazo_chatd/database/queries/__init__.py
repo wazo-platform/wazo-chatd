@@ -10,6 +10,8 @@ from .session import SessionDAO
 from .tenant import TenantDAO
 from .user import UserDAO
 
+from ..helpers import Session
+
 
 class DAO:
 
@@ -26,4 +28,4 @@ class DAO:
 
     def __init__(self):
         for name, dao in self._daos.items():
-            setattr(self, name, dao())
+            setattr(self, name, dao(Session))

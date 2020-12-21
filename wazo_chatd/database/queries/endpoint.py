@@ -4,14 +4,16 @@
 from sqlalchemy import and_, text
 
 from ...exceptions import UnknownEndpointException
-from ..helpers import get_dao_session
 from ..models import Endpoint
 
 
 class EndpointDAO:
+    def __init__(self, session):
+        self._session = session
+
     @property
     def session(self):
-        return get_dao_session()
+        return self._session()
 
     def create(self, endpoint):
         self.session.add(endpoint)

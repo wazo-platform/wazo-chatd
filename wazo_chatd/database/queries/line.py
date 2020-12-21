@@ -4,14 +4,16 @@
 from sqlalchemy import and_, text
 
 from ...exceptions import UnknownLineException
-from ..helpers import get_dao_session
 from ..models import Line
 
 
 class LineDAO:
+    def __init__(self, session):
+        self._session = session
+
     @property
     def session(self):
-        return get_dao_session()
+        return self._session()
 
     def get(self, line_id):
         line = self._find_by(id=line_id)
