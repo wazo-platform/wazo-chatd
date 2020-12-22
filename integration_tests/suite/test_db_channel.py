@@ -33,6 +33,9 @@ class TestChannel(DBIntegrationTest):
     @fixtures.db.channel()
     @fixtures.db.channel()
     def test_delete_all(self, channel_1, channel_2):
+        self._session.refresh(channel_1)
+        self._session.refresh(channel_2)
+
         self._dao.channel.delete_all()
 
         assert_that(inspect(channel_1).deleted)

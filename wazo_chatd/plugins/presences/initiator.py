@@ -108,6 +108,7 @@ class Initiator:
         self.initiate_refresh_tokens(refresh_tokens)
         self.initiate_channels(channel_events)
         self._is_initialized = True
+        logger.debug('Initialized completed')
 
     def initiate_tenants(self, tenants):
         tenants = set(tenant['uuid'] for tenant in tenants)

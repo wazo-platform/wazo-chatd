@@ -72,6 +72,8 @@ class TestEndpoint(DBIntegrationTest):
     @fixtures.db.endpoint()
     @fixtures.db.endpoint()
     def test_delete_all(self, endpoint_1, endpoint_2):
+        self._session.refresh(endpoint_1)
+        self._session.refresh(endpoint_2)
         self._dao.endpoint.delete_all()
 
         assert_that(inspect(endpoint_1).deleted)

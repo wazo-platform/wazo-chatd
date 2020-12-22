@@ -3,14 +3,16 @@
 
 from sqlalchemy import and_, text
 
-from ..helpers import get_dao_session
 from ..models import Channel
 
 
 class ChannelDAO:
+    def __init__(self, session):
+        self._session = session
+
     @property
     def session(self):
-        return get_dao_session()
+        return self._session()
 
     def find(self, name):
         return self._find_by(name=name)
