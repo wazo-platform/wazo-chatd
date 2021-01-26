@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -373,7 +373,7 @@ class TestEventHandler(APIIntegrationTest):
             result = self._session.query(models.Channel).all()
             assert_that(
                 result,
-                has_items(has_properties(name=channel_name, state='ringing')),
+                has_items(has_properties(name=channel_name, state='talking')),
             )
 
         until.assert_(channel_created, tries=3)
@@ -384,7 +384,7 @@ class TestEventHandler(APIIntegrationTest):
             contains(
                 has_entries(
                     data=has_entries(
-                        lines=contains(has_entries(id=line_id, state='ringing'))
+                        lines=contains(has_entries(id=line_id, state='talking'))
                     )
                 )
             ),
