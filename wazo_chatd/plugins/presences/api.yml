@@ -124,6 +124,7 @@ definitions:
           - unavailable
       sessions:
         type: array
+        description: '**Deprecated** Please use `connected`'
         readOnly: true
         items:
           $ref: '#/definitions/Session'
@@ -142,6 +143,10 @@ definitions:
 
           * The user has a mobile refresh token
           * The user has a mobile session
+      connected:
+        type: boolean
+        readOnly: true
+        description: If the user has active connections.
     required:
       - state
 

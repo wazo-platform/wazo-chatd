@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -55,6 +55,7 @@ class TestPresence(APIIntegrationTest):
                         line_state='unavailable',
                         do_not_disturb=False,
                         mobile=False,
+                        connected=False,
                         sessions=empty(),
                         lines=empty(),
                     ),
@@ -67,6 +68,7 @@ class TestPresence(APIIntegrationTest):
                         line_state='unavailable',
                         do_not_disturb=False,
                         mobile=False,
+                        connected=False,
                         sessions=empty(),
                         lines=empty(),
                     ),
@@ -170,6 +172,7 @@ class TestPresence(APIIntegrationTest):
                 line_state='holding',
                 do_not_disturb=False,
                 mobile=True,
+                connected=True,
                 sessions=contains_inanyorder(
                     has_entries(uuid=str(session_1.uuid), mobile=True),
                     has_entries(uuid=str(session_2.uuid), mobile=False),
@@ -223,6 +226,7 @@ class TestPresence(APIIntegrationTest):
                 uuid=str(user.uuid),
                 tenant_uuid=str(user.tenant_uuid),
                 mobile=True,
+                connected=True,
                 sessions=contains_inanyorder(
                     has_entries(uuid=str(session_1.uuid), mobile=False),
                     has_entries(uuid=str(session_2.uuid), mobile=True),

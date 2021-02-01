@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import post_dump, pre_load
@@ -44,6 +44,7 @@ class UserPresenceSchema(Schema):
     line_state = fields.String(dump_only=True)
     mobile = fields.Boolean(dump_only=True)
     do_not_disturb = fields.Boolean(dump_only=True)
+    connected = fields.Boolean(dump_only=True)
 
     sessions = fields.Nested('SessionPresenceSchema', many=True, dump_only=True)
     lines = fields.Nested('LinePresenceSchema', many=True, dump_only=True)
@@ -79,6 +80,11 @@ class UserPresenceSchema(Schema):
                 return user
 
         user['mobile'] = False
+        return user
+
+    @post_dump(pass_original=True)
+    def _set_connected(self, user, raw_user):
+        user['connected'] = True if raw_user.sessions else False
         return user
 
 
