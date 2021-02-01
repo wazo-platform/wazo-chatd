@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -42,7 +42,7 @@ CHANNEL_STATE_MAP = {
     'Rsrvd': 'undefined',
     'OffHook': 'undefined',
     'Dialing': 'undefined',
-    'Ring': 'ringing',
+    'Ring': 'talking',
     'Ringing': 'ringing',
     'Up': 'talking',
     'Busy': 'talking',
