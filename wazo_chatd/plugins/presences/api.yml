@@ -124,6 +124,7 @@ definitions:
           - unavailable
       sessions:
         type: array
+        description: '**Deprecated** Please use `connected`'
         readOnly: true
         items:
           $ref: '#/definitions/Session'

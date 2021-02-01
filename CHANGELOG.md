@@ -6,6 +6,10 @@
 
   * `connected`
 
+* The following presence parameter has been deprecated:
+
+  * `sessions`
+
 ## 20.11
 
 * New read only parameters have been added to the user presence resource:
