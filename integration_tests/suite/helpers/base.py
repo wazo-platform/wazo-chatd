@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pytest
@@ -28,7 +28,7 @@ from .wait_strategy import (
     PresenceInitOkWaitStrategy,
 )
 
-DB_URI = 'postgresql://wazo-chatd:Secr7t@localhost:{port}'
+DB_URI = 'postgresql://wazo-chatd:Secr7t@127.0.0.1:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
 CHATD_TOKEN_TENANT_UUID = uuid.UUID('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1')
@@ -122,7 +122,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
         except NoSuchService:
             return WrongClient('chatd')
         return ChatdClient(
-            'localhost',
+            '127.0.0.1',
             port=port,
             prefix=None,
             https=False,
@@ -135,7 +135,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
             port = cls.service_port(9491, 'amid')
         except (NoSuchService, NoSuchPort):
             return WrongClient('amid')
-        return AmidClient('localhost', port=port)
+        return AmidClient('127.0.0.1', port=port)
 
     @classmethod
     def make_auth(cls):
@@ -143,7 +143,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
             port = cls.service_port(9497, 'auth')
         except NoSuchService:
             return WrongClient('auth')
-        return AuthClient('localhost', port=port)
+        return AuthClient('127.0.0.1', port=port)
 
     @classmethod
     def make_confd(cls):
@@ -151,7 +151,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
             port = cls.service_port(9486, 'confd')
         except NoSuchService:
             return WrongClient('confd')
-        return ConfdClient('localhost', port=port)
+        return ConfdClient('127.0.0.1', port=port)
 
     @classmethod
     def make_bus(cls):
@@ -159,7 +159,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
             port = cls.service_port(5672, 'rabbitmq')
         except NoSuchService:
             return WrongClient('rabbitmq')
-        return BusClient.from_connection_fields(host='localhost', port=port)
+        return BusClient.from_connection_fields(host='127.0.0.1', port=port)
 
 
 class APIAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
