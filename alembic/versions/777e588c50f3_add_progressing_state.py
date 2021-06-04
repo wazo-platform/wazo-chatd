@@ -22,9 +22,9 @@ def downgrade():
 
 
 def _update_line_state_constraint(new_constraint):
-    op.drop_constraint('chatd_line_state_check', 'chatd_line')
+    op.drop_constraint('chatd_channel_state_check', 'chatd_channel')
     op.create_check_constraint(
-        'chatd_line_state_check',
-        'chatd_line',
+        'chatd_channel_state_check',
+        'chatd_channel',
         sa.sql.column('state').in_(new_constraint),
     )
