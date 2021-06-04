@@ -112,10 +112,9 @@ definitions:
       line_state:
         type: string
         description:
-          # TODO: Add 'progressing' to the order
           "The current state of the most prioritize state line.
            The prioritization of each state is the following:
-           ringing > holding > talking > available > unavailable"
+           ringing > progressing > holding > talking > available > unavailable"
         readOnly: True
         enum:
           - available
