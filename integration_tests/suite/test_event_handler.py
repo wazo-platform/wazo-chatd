@@ -373,7 +373,7 @@ class TestEventHandler(APIIntegrationTest):
             result = self._session.query(models.Channel).all()
             assert_that(
                 result,
-                has_items(has_properties(name=channel_name, state='talking')),
+                has_items(has_properties(name=channel_name, state='progressing')),
             )
 
         until.assert_(channel_created, tries=3)
@@ -384,7 +384,7 @@ class TestEventHandler(APIIntegrationTest):
             contains(
                 has_entries(
                     data=has_entries(
-                        lines=contains(has_entries(id=line_id, state='talking'))
+                        lines=contains(has_entries(id=line_id, state='progressing'))
                     )
                 )
             ),
