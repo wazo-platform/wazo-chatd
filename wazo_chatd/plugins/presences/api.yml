@@ -120,6 +120,7 @@ definitions:
           - available
           - holding
           - ringing
+          - progressing
           - talking
           - unavailable
       sessions:
@@ -173,5 +174,6 @@ definitions:
           - available
           - holding
           - ringing
+          - progressing
           - talking
           - unavailable
