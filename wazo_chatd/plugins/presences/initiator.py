@@ -42,7 +42,7 @@ CHANNEL_STATE_MAP = {
     'Rsrvd': 'undefined',
     'OffHook': 'undefined',
     'Dialing': 'undefined',
-    'Ring': 'talking',
+    'Ring': 'progressing',
     'Ringing': 'ringing',
     'Up': 'talking',
     'Busy': 'talking',

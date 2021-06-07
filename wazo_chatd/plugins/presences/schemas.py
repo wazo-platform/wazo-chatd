@@ -16,6 +16,8 @@ class LinePresenceSchema(Schema):
     def _set_state(self, data, raw_data):
         if 'ringing' in raw_data.channels_state:
             merged_state = 'ringing'
+        elif 'progressing' in raw_data.channels_state:
+            merged_state = 'progressing'
         elif 'holding' in raw_data.channels_state:
             merged_state = 'holding'
         elif 'talking' in raw_data.channels_state:
@@ -55,6 +57,8 @@ class UserPresenceSchema(Schema):
 
         if 'ringing' in line_states:
             merged_state = 'ringing'
+        elif 'progressing' in line_states:
+            merged_state = 'progressing'
         elif 'holding' in line_states:
             merged_state = 'holding'
         elif 'talking' in line_states:

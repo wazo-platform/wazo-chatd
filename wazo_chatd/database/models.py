@@ -139,7 +139,9 @@ class Channel(Base):
     name = Column(Text, primary_key=True)
     state = Column(
         String(24),
-        CheckConstraint("state in ('undefined', 'holding', 'ringing', 'talking')"),
+        CheckConstraint(
+            "state in ('undefined', 'holding', 'ringing', 'talking', 'progressing')"
+        ),
         nullable=False,
         default='undefined',
     )
