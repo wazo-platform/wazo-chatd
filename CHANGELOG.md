@@ -3,6 +3,9 @@
 ## 21.08
 
 * The deprecated `sessions` parameter from user presence resource has been removed
+* The `/user/<uuid>/presence` API and events now include the following values:
+
+  * `line_state: progressing`
 
 ## 21.02
 
