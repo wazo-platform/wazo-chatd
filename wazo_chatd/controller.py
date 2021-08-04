@@ -62,9 +62,10 @@ class Controller:
         signal.signal(signal.SIGTERM, partial(_sigterm_handler, self))
 
         with self.thread_manager:
-            with bus.consumer_thread(self.bus_consumer):
-                with ServiceCatalogRegistration(*self._service_discovery_args):
-                    self.rest_api.run()
+            with self.token_renewer:
+                with bus.consumer_thread(self.bus_consumer):
+                    with ServiceCatalogRegistration(*self._service_discovery_args):
+                        self.rest_api.run()
 
     def stop(self, reason):
         logger.warning('Stopping wazo-chatd: %s', reason)
