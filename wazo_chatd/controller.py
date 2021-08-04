@@ -5,14 +5,16 @@ import logging
 import signal
 
 from functools import partial
+from wazo_auth_client import Client as AuthClient
 from xivo import plugin_helpers
 from xivo.consul_helpers import ServiceCatalogRegistration
 from xivo.status import StatusAggregator
+from xivo.token_renewer import TokenRenewer
 
-from . import bus
+from . import auth, bus
 from .database.helpers import init_db
 from .database.queries import DAO
-from .http_server import api, CoreRestApi
+from .http_server import api, app, CoreRestApi
 from .thread_manager import ThreadManager
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,12 @@ class Controller:
         self.bus_consumer = bus.Consumer(config)
         self.bus_publisher = bus.Publisher(config)
         self.thread_manager = ThreadManager()
+        auth_client = AuthClient(**config['auth'])
+        self.token_renewer = TokenRenewer(auth_client)
+        if not app.config['auth'].get('master_tenant_uuid'):
+            self.token_renewer.subscribe_to_next_token_details_change(
+                auth.init_master_tenant
+            )
         plugin_helpers.load(
             namespace='wazo_chatd.plugins',
             names=config['enabled_plugins'],
