@@ -32,6 +32,7 @@ DB_URI = 'postgresql://wazo-chatd:Secr7t@127.0.0.1:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
 CHATD_TOKEN_TENANT_UUID = uuid.UUID('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1')
+CHATD_TOKEN_UUID = 'valid-token-multitenant'
 
 TOKEN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000101')
 TOKEN_TENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000201')
