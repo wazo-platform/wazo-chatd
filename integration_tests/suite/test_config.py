@@ -18,6 +18,9 @@ from wazo_chatd_client.exceptions import ChatdError
 
 @use_asset('base')
 class TestConfig(APIIntegrationTest):
+    def tearDown(self):
+        self.reset_auth()
+
     def test_config(self):
         chatd_client = APIAssetLaunchingTestCase.make_chatd(CHATD_TOKEN_UUID)
         result = chatd_client.config.get()
