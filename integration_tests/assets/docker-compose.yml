@@ -12,7 +12,6 @@ services:
     volumes:
       - ../..:/usr/src/wazo-chatd:ro
       - ./etc/wazo-chatd/conf.d/50-default.yml:/etc/wazo-chatd/conf.d/50-default.yml:ro
-      - ./key-file.yml:/tmp/key-file.yml:ro
       # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/opt/venv/lib/python3.7/site-packages/xivo'
       # - '${LOCAL_GIT_REPOS}/xivo-bus/xivo_bus:/opt/venv/lib/python3.7/site-packages/xivo_bus'
       # - '${LOCAL_GIT_REPOS}/wazo-auth-client/wazo_auth_client:/opt/venv/lib/python3.7/site-packages/wazo_auth_client'

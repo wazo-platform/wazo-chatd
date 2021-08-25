@@ -11,8 +11,11 @@ from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries import DAO
 from wazo_chatd.database.helpers import init_db, Session
 
-from xivo_test_helpers.auth import MockUserToken
-from xivo_test_helpers.auth import AuthClient
+from xivo_test_helpers.auth import (
+    AuthClient,
+    MockCredentials,
+    MockUserToken,
+)
 from xivo_test_helpers.asset_launching_test_case import (
     AssetLaunchingTestCase,
     NoSuchPort,
@@ -31,13 +34,12 @@ from .wait_strategy import (
 DB_URI = 'postgresql://wazo-chatd:Secr7t@127.0.0.1:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
-CHATD_TOKEN_TENANT_UUID = uuid.UUID('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1')
-CHATD_TOKEN_UUID = 'valid-token-multitenant'
-
 TOKEN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000101')
 TOKEN_TENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000201')
 TOKEN_SUBTENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000202')
 TOKEN_USER_UUID = uuid.UUID('00000000-0000-0000-0000-000000000301')
+
+CHATD_TOKEN_TENANT_UUID = TOKEN_TENANT_UUID
 
 UNKNOWN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000000')
 WAZO_UUID = uuid.UUID('00000000-0000-0000-0000-0000000c4a7d')
@@ -91,12 +93,9 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
             },
         )
         auth_client.set_token(token)
+        credential = MockCredentials('chatd-service', 'chatd-password')
+        auth_client.set_valid_credentials(credential, str(TOKEN_UUID))
         auth_client.set_tenants(
-            {
-                'uuid': str(CHATD_TOKEN_TENANT_UUID),
-                'name': 'chatd-token',
-                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
-            },
             {
                 'uuid': str(TOKEN_TENANT_UUID),
                 'name': 'name1',

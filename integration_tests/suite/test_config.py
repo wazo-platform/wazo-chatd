@@ -10,7 +10,7 @@ from .helpers.base import (
     APIIntegrationTest,
     use_asset,
     APIAssetLaunchingTestCase,
-    CHATD_TOKEN_UUID,
+    TOKEN_SUBTENANT_UUID,
 )
 
 from wazo_chatd_client.exceptions import ChatdError
@@ -22,12 +22,11 @@ class TestConfig(APIIntegrationTest):
         self.reset_auth()
 
     def test_config(self):
-        chatd_client = APIAssetLaunchingTestCase.make_chatd(CHATD_TOKEN_UUID)
-        result = chatd_client.config.get()
+        result = self.chatd.config.get()
         assert_that(result, has_key('rest_api'))
 
     def test_restrict_only_master_tenant(self):
-        chatd_client = APIAssetLaunchingTestCase.make_chatd()
+        chatd_client = APIAssetLaunchingTestCase.make_chatd(str(TOKEN_SUBTENANT_UUID))
         assert_that(
             calling(chatd_client.config.get),
             raises(ChatdError, has_properties('status_code', 401)),
