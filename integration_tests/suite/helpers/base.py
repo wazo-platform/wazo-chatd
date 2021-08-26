@@ -123,7 +123,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
     def make_chatd(cls, token=str(TOKEN_UUID)):
         try:
             port = cls.service_port(9304, 'chatd')
-        except NoSuchService:
+        except (NoSuchService, NoSuchPort):
             return WrongClient('chatd')
         return ChatdClient(
             '127.0.0.1',
@@ -145,7 +145,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
     def make_auth(cls):
         try:
             port = cls.service_port(9497, 'auth')
-        except NoSuchService:
+        except (NoSuchService, NoSuchPort):
             return WrongClient('auth')
         return AuthClient('127.0.0.1', port=port)
 
