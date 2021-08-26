@@ -71,10 +71,14 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.chatd = cls.make_chatd()
-        cls.auth = cls.make_auth()
+        cls.reset_clients()
         cls.create_token()
         cls.wait_strategy.wait(cls)
+
+    @classmethod
+    def reset_clients(cls):
+        cls.chatd = cls.make_chatd()
+        cls.auth = cls.make_auth()
 
     @classmethod
     def create_token(cls):

@@ -33,7 +33,8 @@ class TestConfig(APIIntegrationTest):
         APIAssetLaunchingTestCase.stop_service('chatd')
         APIAssetLaunchingTestCase.stop_service('auth')
         APIAssetLaunchingTestCase.start_service('chatd')
-        self.reset_client()
+        APIAssetLaunchingTestCase.reset_clients()
+        self.reset_clients()
 
         def _returns_503():
             try:
@@ -46,7 +47,9 @@ class TestConfig(APIIntegrationTest):
         until.assert_(_returns_503, tries=10)
 
         APIAssetLaunchingTestCase.start_service('auth')
-        self.reset_client()
+        APIAssetLaunchingTestCase.reset_clients()
+        APIAssetLaunchingTestCase.create_token()
+        self.reset_clients()
 
         def _not_return_503():
             try:
