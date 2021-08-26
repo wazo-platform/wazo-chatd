@@ -18,9 +18,6 @@ from wazo_chatd_client.exceptions import ChatdError
 
 @use_asset('base')
 class TestConfig(APIIntegrationTest):
-    def tearDown(self):
-        self.reset_auth()
-
     def test_config(self):
         result = self.chatd.config.get()
         assert_that(result, has_key('rest_api'))
@@ -36,12 +33,11 @@ class TestConfig(APIIntegrationTest):
         APIAssetLaunchingTestCase.stop_service('chatd')
         APIAssetLaunchingTestCase.stop_service('auth')
         APIAssetLaunchingTestCase.start_service('chatd')
-
-        chatd_client = APIAssetLaunchingTestCase.make_chatd(CHATD_TOKEN_UUID)
+        self.reset_client()
 
         def _returns_503():
             try:
-                chatd_client.config.get()
+                self.chatd.config.get()
             except ChatdError as e:
                 assert e.status_code == 503
             except requests.RequestException as e:
@@ -50,10 +46,11 @@ class TestConfig(APIIntegrationTest):
         until.assert_(_returns_503, tries=10)
 
         APIAssetLaunchingTestCase.start_service('auth')
+        self.reset_client()
 
         def _not_return_503():
             try:
-                response = chatd_client.config.get()
+                response = self.chatd.config.get()
                 assert_that(response, has_key('debug'))
             except Exception as e:
                 raise AssertionError(e)

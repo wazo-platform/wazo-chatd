@@ -77,11 +77,8 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
         cls.wait_strategy.wait(cls)
 
     @classmethod
-    def create_token(cls, auth_client=None):
-        if not auth_client:
-            auth_client = cls.auth
-
-        if isinstance(auth_client, WrongClient):
+    def create_token(cls):
+        if isinstance(cls.auth, WrongClient):
             return
 
         token = MockUserToken(
@@ -92,10 +89,10 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
                 'tenant_uuid': str(TOKEN_TENANT_UUID),
             },
         )
-        auth_client.set_token(token)
+        cls.auth.set_token(token)
         credential = MockCredentials('chatd-service', 'chatd-password')
-        auth_client.set_valid_credentials(credential, str(TOKEN_UUID))
-        auth_client.set_tenants(
+        cls.auth.set_valid_credentials(credential, str(TOKEN_UUID))
+        cls.auth.set_tenants(
             {
                 'uuid': str(TOKEN_TENANT_UUID),
                 'name': 'name1',
@@ -221,8 +218,3 @@ class APIIntegrationTest(_BaseIntegrationTest):
         cls.auth = APIAssetLaunchingTestCase.make_auth()
         cls.confd = APIAssetLaunchingTestCase.make_confd()
         cls.bus = APIAssetLaunchingTestCase.make_bus()
-
-    @classmethod
-    def reset_auth(cls):
-        cls.auth = APIAssetLaunchingTestCase.make_auth()
-        APIAssetLaunchingTestCase.create_token(auth_client=cls.auth)
