@@ -30,10 +30,9 @@ class TestConfig(APIIntegrationTest):
         )
 
     def test_restrict_on_with_slow_wazo_auth(self):
-        APIAssetLaunchingTestCase.stop_service('chatd')
-        APIAssetLaunchingTestCase.stop_service('auth')
-        APIAssetLaunchingTestCase.start_service('chatd')
-        APIAssetLaunchingTestCase.reset_clients()
+        APIAssetLaunchingTestCase.stop_chatd_service()
+        APIAssetLaunchingTestCase.stop_auth_service()
+        APIAssetLaunchingTestCase.start_chatd_service()
         self.reset_clients()
 
         def _returns_503():
@@ -46,9 +45,7 @@ class TestConfig(APIIntegrationTest):
 
         until.assert_(_returns_503, tries=10)
 
-        APIAssetLaunchingTestCase.start_service('auth')
-        APIAssetLaunchingTestCase.reset_clients()
-        APIAssetLaunchingTestCase.create_token()
+        APIAssetLaunchingTestCase.start_auth_service()
         self.reset_clients()
 
         def _not_return_503():
