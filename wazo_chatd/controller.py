@@ -1,18 +1,20 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import signal
 
 from functools import partial
+from wazo_auth_client import Client as AuthClient
 from xivo import plugin_helpers
 from xivo.consul_helpers import ServiceCatalogRegistration
 from xivo.status import StatusAggregator
+from xivo.token_renewer import TokenRenewer
 
-from . import bus
+from . import auth, bus
 from .database.helpers import init_db
 from .database.queries import DAO
-from .http_server import api, CoreRestApi
+from .http_server import api, app, CoreRestApi
 from .thread_manager import ThreadManager
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,12 @@ class Controller:
         self.bus_consumer = bus.Consumer(config)
         self.bus_publisher = bus.Publisher(config)
         self.thread_manager = ThreadManager()
+        auth_client = AuthClient(**config['auth'])
+        self.token_renewer = TokenRenewer(auth_client)
+        if not app.config['auth'].get('master_tenant_uuid'):
+            self.token_renewer.subscribe_to_next_token_details_change(
+                auth.init_master_tenant
+            )
         plugin_helpers.load(
             namespace='wazo_chatd.plugins',
             names=config['enabled_plugins'],
@@ -54,9 +62,10 @@ class Controller:
         signal.signal(signal.SIGTERM, partial(_sigterm_handler, self))
 
         with self.thread_manager:
-            with bus.consumer_thread(self.bus_consumer):
-                with ServiceCatalogRegistration(*self._service_discovery_args):
-                    self.rest_api.run()
+            with self.token_renewer:
+                with bus.consumer_thread(self.bus_consumer):
+                    with ServiceCatalogRegistration(*self._service_discovery_args):
+                        self.rest_api.run()
 
     def stop(self, reason):
         logger.warning('Stopping wazo-chatd: %s', reason)

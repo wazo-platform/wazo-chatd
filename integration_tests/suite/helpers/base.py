@@ -32,6 +32,7 @@ DB_URI = 'postgresql://wazo-chatd:Secr7t@127.0.0.1:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
 CHATD_TOKEN_TENANT_UUID = uuid.UUID('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1')
+CHATD_TOKEN_UUID = 'valid-token-multitenant'
 
 TOKEN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000101')
 TOKEN_TENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000201')
@@ -74,8 +75,11 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
         cls.wait_strategy.wait(cls)
 
     @classmethod
-    def create_token(cls):
-        if isinstance(cls.auth, WrongClient):
+    def create_token(cls, auth_client=None):
+        if not auth_client:
+            auth_client = cls.auth
+
+        if isinstance(auth_client, WrongClient):
             return
 
         token = MockUserToken(
@@ -86,8 +90,8 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
                 'tenant_uuid': str(TOKEN_TENANT_UUID),
             },
         )
-        cls.auth.set_token(token)
-        cls.auth.set_tenants(
+        auth_client.set_token(token)
+        auth_client.set_tenants(
             {
                 'uuid': str(CHATD_TOKEN_TENANT_UUID),
                 'name': 'chatd-token',
@@ -218,3 +222,8 @@ class APIIntegrationTest(_BaseIntegrationTest):
         cls.auth = APIAssetLaunchingTestCase.make_auth()
         cls.confd = APIAssetLaunchingTestCase.make_confd()
         cls.bus = APIAssetLaunchingTestCase.make_bus()
+
+    @classmethod
+    def reset_auth(cls):
+        cls.auth = APIAssetLaunchingTestCase.make_auth()
+        APIAssetLaunchingTestCase.create_token(auth_client=cls.auth)
