@@ -4,7 +4,8 @@ rest_api:
 db_uri: postgresql://wazo-chatd:Secr7t@postgres/wazo-chatd
 auth:
   host: auth
-  key_file: /tmp/key-file.yml
+  username: chatd-service
+  password: chatd-password
 amid:
   host: amid
 bus:
