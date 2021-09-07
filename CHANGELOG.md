@@ -2,7 +2,7 @@
 
 ## 21.12
 
-* New read only parameters have been added to the status resource:
+* New read only parameters have been added to the `/status` API:
 
   * `master_tenant`
 
