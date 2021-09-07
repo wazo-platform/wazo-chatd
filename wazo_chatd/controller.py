@@ -59,6 +59,7 @@ class Controller:
     def run(self):
         logger.info('wazo-chatd starting...')
         self.status_aggregator.add_provider(self.bus_consumer.provide_status)
+        self.status_aggregator.add_provider(auth.provide_status)
         signal.signal(signal.SIGTERM, partial(_sigterm_handler, self))
 
         with self.thread_manager:

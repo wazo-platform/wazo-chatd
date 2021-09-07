@@ -3,6 +3,7 @@
 
 from xivo.auth_verifier import required_acl, required_tenant
 from xivo.rest_api_helpers import APIException
+from xivo.status import Status
 
 from werkzeug.local import LocalProxy as Proxy
 
@@ -22,6 +23,12 @@ def required_master_tenant():
 def init_master_tenant(token):
     tenant_uuid = token['metadata']['tenant_uuid']
     app.config['auth']['master_tenant_uuid'] = tenant_uuid
+
+
+def provide_status(status):
+    status['master_tenant']['status'] = (
+        Status.ok if app.config['auth']['master_tenant_uuid'] else Status.fail
+    )
 
 
 def get_master_tenant_uuid():

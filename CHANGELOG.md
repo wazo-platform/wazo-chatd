@@ -1,5 +1,11 @@
 # Changelog
 
+## 21.12
+
+* New read only parameters have been added to the status resource:
+
+  * `master_tenant`
+
 ## 21.08
 
 * The deprecated `sessions` parameter from user presence resource has been removed
