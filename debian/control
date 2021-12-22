@@ -30,8 +30,8 @@ Depends: ${python3:Depends},
          wazo-amid-client-python3,
          wazo-auth-client-python3,
          wazo-confd-client-python3,
+         wazo-dbms,
          xivo-bus-python3,
-         xivo-dbms (>= 19.07~20190429.122922.25c3757.deb9),
          xivo-lib-python-python3
 Description: Chant and presence daemon for Wazo Engine
  Wazo is a system based on a powerful IPBX, to bring an easy to
