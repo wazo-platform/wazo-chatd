@@ -3,8 +3,8 @@
 
 import requests
 from hamcrest import assert_that, has_key, calling, has_properties
-from xivo_test_helpers import until
-from xivo_test_helpers.hamcrest.raises import raises
+from wazo_test_helpers import until
+from wazo_test_helpers.hamcrest.raises import raises
 
 from .helpers.base import (
     APIIntegrationTest,

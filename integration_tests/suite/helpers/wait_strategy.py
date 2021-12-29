@@ -5,7 +5,7 @@ import requests
 
 from hamcrest import assert_that, has_entries
 
-from xivo_test_helpers import until
+from wazo_test_helpers import until
 
 
 class WaitStrategy:
