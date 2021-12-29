@@ -13,7 +13,7 @@ from hamcrest import (
     has_items,
     not_,
 )
-from xivo_test_helpers import until
+from wazo_test_helpers import until
 
 from wazo_chatd.database import models
 from .helpers import fixtures

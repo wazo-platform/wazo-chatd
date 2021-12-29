@@ -11,12 +11,12 @@ from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries import DAO
 from wazo_chatd.database.helpers import init_db, Session
 
-from xivo_test_helpers.auth import (
+from wazo_test_helpers.auth import (
     AuthClient,
     MockCredentials,
     MockUserToken,
 )
-from xivo_test_helpers.asset_launching_test_case import (
+from wazo_test_helpers.asset_launching_test_case import (
     AssetLaunchingTestCase,
     NoSuchPort,
     NoSuchService,
