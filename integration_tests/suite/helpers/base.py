@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pytest
@@ -16,6 +16,7 @@ from wazo_test_helpers.auth import (
     MockCredentials,
     MockUserToken,
 )
+from wazo_test_helpers import until
 from wazo_test_helpers.asset_launching_test_case import (
     AssetLaunchingTestCase,
     NoSuchPort,
@@ -80,6 +81,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
     def start_auth_service(cls):
         cls.start_service('auth')
         cls.auth = cls.make_auth()
+        until.true(cls.auth.is_up, tries=5)
         cls.create_token()
 
     @classmethod

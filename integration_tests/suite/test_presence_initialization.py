@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -19,7 +19,10 @@ from wazo_chatd_client.exceptions import ChatdError
 from wazo_chatd.database import models
 
 from .helpers import fixtures
-from .helpers.wait_strategy import PresenceInitOkWaitStrategy
+from .helpers.wait_strategy import (
+    PresenceInitOkWaitStrategy,
+    RestApiOkWaitStrategy,
+)
 from .helpers.base import (
     APIIntegrationTest,
     InitAssetLaunchingTestCase,
@@ -340,6 +343,7 @@ class TestPresenceInitializationErrors(APIIntegrationTest):
         InitAssetLaunchingTestCase.stop_service('amid')
         InitAssetLaunchingTestCase.start_service('chatd')
         self.reset_clients()
+        RestApiOkWaitStrategy().wait(self)
 
         def server_wait():
             status = self.chatd.status.get()
@@ -365,6 +369,7 @@ class TestPresenceInitializationErrors(APIIntegrationTest):
         InitAssetLaunchingTestCase.stop_service('postgres')
         InitAssetLaunchingTestCase.start_service('chatd')
         self.reset_clients()
+        RestApiOkWaitStrategy().wait(self)
 
         def server_wait():
             status = self.chatd.status.get()
@@ -392,6 +397,7 @@ class TestPresenceInitializationErrors(APIIntegrationTest):
         InitAssetLaunchingTestCase.stop_service('amid')
         InitAssetLaunchingTestCase.start_service('chatd')
         self.reset_clients()
+        RestApiOkWaitStrategy().wait(self)
 
         assert_that(
             calling(self.chatd.user_presences.list),
