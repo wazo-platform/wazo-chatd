@@ -35,7 +35,7 @@ class UserRoomListResource(AuthResource):
             self._add_current_user(room_args, token.user_uuid)
 
         try:
-            Length(equal=2)(room_args['users'])
+            Length(min=2,max=100)(room_args['users'])
         except ValidationError as error:
             raise ValidationError({'users': error.messages})
 

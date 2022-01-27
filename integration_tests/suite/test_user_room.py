@@ -97,6 +97,54 @@ class TestUserRoom(APIIntegrationTest):
         )
 
         self._delete_room(room)
+    
+    def test_create_group(self):
+        room_args = {
+            'name': 'test-room-group',
+            'users': [
+                {
+                    'uuid': str(TOKEN_USER_UUID),
+                    'tenant_uuid': str(TOKEN_TENANT_UUID),
+                    'wazo_uuid': str(WAZO_UUID),
+                },
+                {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
+                {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
+            ],
+        }
+        routing_key = 'chatd.users.*.rooms.created'
+        event_accumulator = self.bus.accumulator(routing_key)
+
+        room = self.chatd.rooms.create_from_user(room_args)
+
+        assert_that(
+            room,
+            has_entries(
+                uuid=uuid_(),
+                name=room_args['name'],
+                users=contains_inanyorder(*room_args['users']),
+            ),
+        )
+
+        event = event_accumulator.accumulate()
+        assert_that(
+            event,
+            contains_inanyorder(
+                has_entries(
+                    data=has_entries(room_args),
+                    required_acl=f'events.chatd.users.{TOKEN_USER_UUID}.rooms.created',
+                ),
+                has_entries(
+                    data=has_entries(room_args),
+                    required_acl=f'events.chatd.users.{UUID}.rooms.created',
+                ),
+                has_entries(
+                    data=has_entries(room_args),
+                    required_acl=f'events.chatd.users.{UUID_2}.rooms.created',
+                ),
+            ),
+        )
+
+        self._delete_room(room)
 
     def test_create_minimal_parameters(self):
         room_args = {'users': [{'uuid': UUID}]}
@@ -140,6 +188,10 @@ class TestUserRoom(APIIntegrationTest):
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
         }
+        for i in range(3, 101):
+            room_args['users'].append({'uuid': str(uuid.uuid4()), 'tenant_uuid': str(uuid.uuid4()), 'wazo_uuid': str(uuid.uuid4())})
+
+
         self._assert_create_raise_400_users_error(room_args)
 
         room_args = {
@@ -150,6 +202,10 @@ class TestUserRoom(APIIntegrationTest):
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
         }
+        for i in range(3, 101):
+            room_args['users'].append({'uuid': str(uuid.uuid4()), 'tenant_uuid': str(uuid.uuid4()), 'wazo_uuid': str(uuid.uuid4())})
+
+
         self._assert_create_raise_400_users_error(room_args)
 
         room_args = {'users': []}
@@ -167,7 +223,7 @@ class TestUserRoom(APIIntegrationTest):
                     status_code=400,
                     details=has_entries(
                         users=has_entries(
-                            constraint_id='length', constraint={'equal': 2}
+                            constraint_id='length', constraint={'min': 2, 'max': 100}
                         )
                     ),
                 ),
