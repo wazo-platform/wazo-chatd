@@ -188,7 +188,7 @@ class TestUserRoom(APIIntegrationTest):
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
         }
-        for i in range(3, 101):
+        for _ in range(3, 101):
             room_args['users'].append({'uuid': str(uuid.uuid4()), 'tenant_uuid': str(uuid.uuid4()), 'wazo_uuid': str(uuid.uuid4())})
 
 
@@ -202,7 +202,7 @@ class TestUserRoom(APIIntegrationTest):
                 {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
             ]
         }
-        for i in range(3, 101):
+        for _ in range(3, 101):
             room_args['users'].append({'uuid': str(uuid.uuid4()), 'tenant_uuid': str(uuid.uuid4()), 'wazo_uuid': str(uuid.uuid4())})
 
 
