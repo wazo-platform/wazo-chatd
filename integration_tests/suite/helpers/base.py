@@ -35,6 +35,8 @@ from .wait_strategy import (
 DB_URI = 'postgresql://wazo-chatd:Secr7t@127.0.0.1:{port}'
 DB_ECHO = os.getenv('DB_ECHO', '').lower() == 'true'
 
+START_TIMEOUT = int(os.environ.get('INTEGRATION_TEST_TIMEOUT', '30'))
+
 TOKEN_UUID = uuid.UUID('00000000-0000-0000-0000-000000000101')
 TOKEN_TENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000201')
 TOKEN_SUBTENANT_UUID = uuid.UUID('00000000-0000-0000-0000-000000000202')
