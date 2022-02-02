@@ -1,5 +1,6 @@
 # Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+import os
 
 import requests
 from hamcrest import assert_that, has_key, calling, has_properties
@@ -14,6 +15,8 @@ from .helpers.base import (
 )
 
 from wazo_chatd_client.exceptions import ChatdError
+
+AUTH_TRIES = int(os.environ.get('INTEGRATION_TEST_SLOW_WAZO_AUTH_TRIES', '10'))
 
 
 @use_asset('base')
@@ -43,7 +46,7 @@ class TestConfig(APIIntegrationTest):
             except requests.RequestException as e:
                 raise AssertionError(e)
 
-        until.assert_(_returns_503, tries=10)
+        until.assert_(_returns_503, tries=AUTH_TRIES)
 
         APIAssetLaunchingTestCase.start_auth_service()
         self.reset_clients()
@@ -55,4 +58,4 @@ class TestConfig(APIIntegrationTest):
             except Exception as e:
                 raise AssertionError(e)
 
-        until.assert_(_not_return_503, tries=10)
+        until.assert_(_not_return_503, tries=AUTH_TRIES)
