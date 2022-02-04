@@ -11,7 +11,6 @@ from hamcrest import (
     has_entries,
     has_properties,
     none,
-    has_entry,
 )
 
 from wazo_test_helpers.hamcrest.raises import raises
@@ -91,14 +90,14 @@ class TestUserRoom(APIIntegrationTest):
                         data=has_entries(room_args),
                         required_acl=f'events.chatd.users.{TOKEN_USER_UUID}.rooms.created',
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 ),
                 has_entries(
                     message=has_entries(
                         data=has_entries(room_args),
                         required_acl=f'events.chatd.users.{UUID}.rooms.created',
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 ),
             ),
         )

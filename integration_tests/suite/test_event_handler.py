@@ -12,7 +12,6 @@ from hamcrest import (
     has_properties,
     has_items,
     not_,
-    has_entry,
 )
 from wazo_test_helpers import until
 
@@ -107,7 +106,7 @@ class TestEventHandler(APIIntegrationTest):
             contains(
                 has_entries(
                     message=has_entries(data=has_entries(connected=True)),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -137,7 +136,7 @@ class TestEventHandler(APIIntegrationTest):
             contains(
                 has_entries(
                     message=has_entries(data=has_entries(connected=False)),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -168,7 +167,7 @@ class TestEventHandler(APIIntegrationTest):
             contains(
                 has_entries(
                     message=has_entries(data=has_entries(mobile=True)),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -202,7 +201,7 @@ class TestEventHandler(APIIntegrationTest):
             contains(
                 has_entries(
                     message=has_entries(data=has_entries(mobile=False)),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -244,7 +243,7 @@ class TestEventHandler(APIIntegrationTest):
                             lines=contains(has_entries(id=line_id, state='unavailable'))
                         )
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -336,7 +335,7 @@ class TestEventHandler(APIIntegrationTest):
             contains(
                 has_entries(
                     message=has_entries(data=has_entries(lines=empty())),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -371,7 +370,7 @@ class TestEventHandler(APIIntegrationTest):
                             lines=contains(has_entries(id=line_id, state='available'))
                         )
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -421,7 +420,7 @@ class TestEventHandler(APIIntegrationTest):
                             lines=contains(has_entries(id=line_id, state='progressing'))
                         )
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -454,7 +453,7 @@ class TestEventHandler(APIIntegrationTest):
                             lines=contains(has_entries(id=LINE_ID, state='available'))
                         )
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -489,7 +488,7 @@ class TestEventHandler(APIIntegrationTest):
                             lines=contains(has_entries(id=LINE_ID, state='talking'))
                         )
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -524,7 +523,7 @@ class TestEventHandler(APIIntegrationTest):
                             lines=contains(has_entries(id=LINE_ID, state='holding'))
                         )
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -559,7 +558,7 @@ class TestEventHandler(APIIntegrationTest):
                             lines=contains(has_entries(id=LINE_ID, state='talking'))
                         )
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -589,7 +588,7 @@ class TestEventHandler(APIIntegrationTest):
                     message=has_entries(
                         data=has_entries(uuid=user_uuid, do_not_disturb=True)
                     ),
-                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
