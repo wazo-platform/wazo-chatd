@@ -157,7 +157,6 @@ class TestUserRoom(APIIntegrationTest):
         message = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
 
         event = event_accumulator.accumulate(with_headers=True)
-        print(event)
         required_acl_fmt = (
             'events.chatd.users.{user_uuid}.rooms.{room_uuid}.messages.created'
         )
