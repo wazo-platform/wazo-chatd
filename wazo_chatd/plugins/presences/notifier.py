@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from xivo_bus.resources.chatd.events import PresenceUpdatedEvent
@@ -11,6 +11,8 @@ class PresenceNotifier:
         self._bus = bus
 
     def updated(self, user):
+        headers = {}
         user_json = UserPresenceSchema().dump(user)
         event = PresenceUpdatedEvent(user_json)
-        self._bus.publish(event)
+        headers['tenant_uuid'] = user_json['tenant_uuid']
+        self._bus.publish(event, headers=headers)

@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -126,11 +126,7 @@ class TestPresence(APIIntegrationTest):
         presences = self.chatd.user_presences.list(user_uuids=[str(UNKNOWN_UUID)])
         assert_that(
             presences,
-            has_entries(
-                items=empty(),
-                total=equal_to(1),
-                filtered=equal_to(0),
-            ),
+            has_entries(items=empty(), total=equal_to(1), filtered=equal_to(0)),
         )
 
     @fixtures.db.endpoint(name=ENDPOINT_NAME_1, state='unavailable')
@@ -232,9 +228,7 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presence,
             has_entries(
-                uuid=str(user.uuid),
-                tenant_uuid=str(user.tenant_uuid),
-                mobile=True,
+                uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=True
             ),
         )
 
@@ -244,9 +238,7 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presence,
             has_entries(
-                uuid=str(user.uuid),
-                tenant_uuid=str(user.tenant_uuid),
-                mobile=False,
+                uuid=str(user.uuid), tenant_uuid=str(user.tenant_uuid), mobile=False
             ),
         )
 
@@ -265,11 +257,16 @@ class TestPresence(APIIntegrationTest):
         presence = self.chatd.user_presences.get(user_args['uuid'])
         assert_that(presence, has_entries(last_activity=not_(none()), **user_args))
 
-        event = event_accumulator.accumulate()
+        events = event_accumulator.accumulate(with_headers=True)
         assert_that(
-            event,
+            events,
             contains(
-                has_entries(data=has_entries(last_activity=not_(none()), **user_args))
+                has_entries(
+                    message=has_entries(
+                        data=has_entries(last_activity=not_(none()), **user_args)
+                    ),
+                    headers=has_entries(tenant_uuid=str(user.tenant_uuid)),
+                )
             ),
         )
 
