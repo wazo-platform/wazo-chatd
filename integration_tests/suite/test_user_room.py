@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -11,6 +11,7 @@ from hamcrest import (
     has_entries,
     has_properties,
     none,
+    has_entry,
 )
 
 from wazo_test_helpers.hamcrest.raises import raises
@@ -81,17 +82,23 @@ class TestUserRoom(APIIntegrationTest):
             ),
         )
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains_inanyorder(
                 has_entries(
-                    data=has_entries(room_args),
-                    required_acl=f'events.chatd.users.{TOKEN_USER_UUID}.rooms.created',
+                    message=has_entries(
+                        data=has_entries(room_args),
+                        required_acl=f'events.chatd.users.{TOKEN_USER_UUID}.rooms.created',
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 ),
                 has_entries(
-                    data=has_entries(room_args),
-                    required_acl=f'events.chatd.users.{UUID}.rooms.created',
+                    message=has_entries(
+                        data=has_entries(room_args),
+                        required_acl=f'events.chatd.users.{UUID}.rooms.created',
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 ),
             ),
         )

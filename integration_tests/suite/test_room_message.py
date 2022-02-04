@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -14,6 +14,7 @@ from hamcrest import (
     has_properties,
     none,
     is_not,
+    has_entry,
 )
 
 from wazo_test_helpers.hamcrest.raises import raises
@@ -156,7 +157,8 @@ class TestUserRoom(APIIntegrationTest):
 
         message = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
+        print(event)
         required_acl_fmt = (
             'events.chatd.users.{user_uuid}.rooms.{room_uuid}.messages.created'
         )
@@ -166,16 +168,22 @@ class TestUserRoom(APIIntegrationTest):
             event,
             contains_inanyorder(
                 has_entries(
-                    data=has_entries(**message),
-                    required_acl=required_acl_fmt.format(
-                        user_uuid=user_uuid_1, room_uuid=room['uuid']
+                    message=has_entries(
+                        data=has_entries(**message),
+                        required_acl=required_acl_fmt.format(
+                            user_uuid=user_uuid_1, room_uuid=room['uuid']
+                        ),
                     ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 ),
                 has_entries(
-                    data=has_entries(**message),
-                    required_acl=required_acl_fmt.format(
-                        user_uuid=user_uuid_2, room_uuid=room['uuid']
+                    message=has_entries(
+                        data=has_entries(**message),
+                        required_acl=required_acl_fmt.format(
+                            user_uuid=user_uuid_2, room_uuid=room['uuid']
+                        ),
                     ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 ),
             ),
         )

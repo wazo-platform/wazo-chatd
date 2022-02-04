@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -12,12 +12,13 @@ from hamcrest import (
     has_properties,
     has_items,
     not_,
+    has_entry,
 )
 from wazo_test_helpers import until
 
 from wazo_chatd.database import models
 from .helpers import fixtures
-from .helpers.base import APIIntegrationTest, use_asset
+from .helpers.base import TOKEN_TENANT_UUID, APIIntegrationTest, use_asset
 
 USER_UUID_1 = uuid.uuid4()
 LINE_ID = 42
@@ -100,8 +101,16 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(session_created, tries=3)
 
-        event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(connected=True))))
+        event = event_accumulator.accumulate(with_headers=True)
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    message=has_entries(data=has_entries(connected=True)),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                )
+            ),
+        )
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.session(user_uuid=USER_UUID_1)
@@ -122,8 +131,16 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(session_deleted, tries=3)
 
-        event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(connected=False))))
+        event = event_accumulator.accumulate(with_headers=True)
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    message=has_entries(data=has_entries(connected=False)),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                )
+            ),
+        )
 
     @fixtures.db.user()
     def test_refresh_token_created(self, user):
@@ -145,10 +162,15 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(refresh_token_created, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(has_entries(data=has_entries(mobile=True))),
+            contains(
+                has_entries(
+                    message=has_entries(data=has_entries(mobile=True)),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                )
+            ),
         )
 
     @fixtures.db.user(uuid=USER_UUID_1)
@@ -174,8 +196,16 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(refresh_token_deleted, tries=3)
 
-        event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(mobile=False))))
+        event = event_accumulator.accumulate(with_headers=True)
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    message=has_entries(data=has_entries(mobile=False)),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                )
+            ),
+        )
 
     @fixtures.db.user()
     def test_user_line_associated(self, user):
@@ -204,14 +234,17 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(user_line_associated, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
                 has_entries(
-                    data=has_entries(
-                        lines=contains(has_entries(id=line_id, state='unavailable'))
-                    )
+                    message=has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=line_id, state='unavailable'))
+                        )
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -297,8 +330,16 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(user_line_dissociated, tries=3)
 
-        event = event_accumulator.accumulate()
-        assert_that(event, contains(has_entries(data=has_entries(lines=empty()))))
+        event = event_accumulator.accumulate(with_headers=True)
+        assert_that(
+            event,
+            contains(
+                has_entries(
+                    message=has_entries(data=has_entries(lines=empty())),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                )
+            ),
+        )
 
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='unavailable')
     @fixtures.db.user(uuid=USER_UUID_1)
@@ -320,14 +361,17 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(endpoint_state_changed, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
                 has_entries(
-                    data=has_entries(
-                        lines=contains(has_entries(id=line_id, state='available'))
-                    )
+                    message=has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=line_id, state='available'))
+                        )
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -367,14 +411,17 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(channel_created, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
                 has_entries(
-                    data=has_entries(
-                        lines=contains(has_entries(id=line_id, state='progressing'))
-                    )
+                    message=has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=line_id, state='progressing'))
+                        )
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -393,21 +440,21 @@ class TestEventHandler(APIIntegrationTest):
         def channel_deleted():
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
-            assert_that(
-                result,
-                not_(has_items(has_properties(name=channel_name))),
-            )
+            assert_that(result, not_(has_items(has_properties(name=channel_name))))
 
         until.assert_(channel_deleted, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
                 has_entries(
-                    data=has_entries(
-                        lines=contains(has_entries(id=LINE_ID, state='available'))
-                    )
+                    message=has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=LINE_ID, state='available'))
+                        )
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -427,20 +474,22 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                has_items(has_properties(name=channel_name, state='talking')),
+                result, has_items(has_properties(name=channel_name, state='talking'))
             )
 
         until.assert_(channel_updated, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
                 has_entries(
-                    data=has_entries(
-                        lines=contains(has_entries(id=LINE_ID, state='talking'))
-                    )
+                    message=has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=LINE_ID, state='talking'))
+                        )
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -460,20 +509,22 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                has_items(has_properties(name=channel_name, state='holding')),
+                result, has_items(has_properties(name=channel_name, state='holding'))
             )
 
         until.assert_(channel_held, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
                 has_entries(
-                    data=has_entries(
-                        lines=contains(has_entries(id=LINE_ID, state='holding'))
-                    )
+                    message=has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=LINE_ID, state='holding'))
+                        )
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -493,20 +544,22 @@ class TestEventHandler(APIIntegrationTest):
             self._session.expire_all()
             result = self._session.query(models.Channel).all()
             assert_that(
-                result,
-                has_items(has_properties(name=channel_name, state='talking')),
+                result, has_items(has_properties(name=channel_name, state='talking'))
             )
 
         until.assert_(channel_unheld, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
                 has_entries(
-                    data=has_entries(
-                        lines=contains(has_entries(id=LINE_ID, state='talking'))
-                    )
+                    message=has_entries(
+                        data=has_entries(
+                            lines=contains(has_entries(id=LINE_ID, state='talking'))
+                        )
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
                 )
             ),
         )
@@ -528,10 +581,15 @@ class TestEventHandler(APIIntegrationTest):
 
         until.assert_(dnd_updated, tries=3)
 
-        event = event_accumulator.accumulate()
+        event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
             contains(
-                has_entries(data=has_entries(uuid=user_uuid, do_not_disturb=True))
+                has_entries(
+                    message=has_entries(
+                        data=has_entries(uuid=user_uuid, do_not_disturb=True)
+                    ),
+                    headers=has_entry('tenant_uuid', str(TOKEN_TENANT_UUID)),
+                )
             ),
         )
