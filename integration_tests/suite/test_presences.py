@@ -15,7 +15,6 @@ from hamcrest import (
     is_not,
     none,
     not_,
-    has_key,
 )
 
 from wazo_test_helpers.hamcrest.raises import raises
@@ -266,7 +265,7 @@ class TestPresence(APIIntegrationTest):
                     message=has_entries(
                         data=has_entries(last_activity=not_(none()), **user_args)
                     ),
-                    headers=has_key('tenant_uuid'),
+                    headers=has_entries(tenant_uuid=str(user.tenant_uuid)),
                 )
             ),
         )
