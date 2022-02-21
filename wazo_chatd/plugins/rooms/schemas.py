@@ -51,6 +51,6 @@ class MessageListRequestSchema(_ListSchema):
     distinct = fields.String(validate=validate.OneOf(['room_uuid']))
 
     @validates_schema
-    def search_or_distinct(self, data):
+    def search_or_distinct(self, data, **kwargs):
         if not data.get('search') and not data.get('distinct'):
             raise ValidationError('Missing search or distinct')
