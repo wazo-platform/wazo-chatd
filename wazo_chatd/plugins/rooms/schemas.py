@@ -1,7 +1,7 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import EXCLUDE, validates_schema
+from marshmallow import validates_schema
 from xivo.mallow import fields, validate
 from xivo.mallow_helpers import Schema, ListSchema as _ListSchema, ValidationError
 
@@ -18,7 +18,7 @@ class RoomSchema(Schema):
 
     name = fields.String(allow_none=True)
 
-    users = fields.Nested('RoomUserSchema', many=True, missing=[], unknown=EXCLUDE)
+    users = fields.Nested('RoomUserSchema', many=True, missing=[])
 
 
 class MessageSchema(Schema):
