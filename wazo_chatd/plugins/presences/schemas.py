@@ -13,7 +13,7 @@ class LinePresenceSchema(Schema):
     state = fields.String(dump_only=True)
 
     @post_dump(pass_original=True)
-    def _set_state(self, data, raw_data):
+    def _set_state(self, data, raw_data, **kwargs):
         if 'ringing' in raw_data.channels_state:
             merged_state = 'ringing'
         elif 'progressing' in raw_data.channels_state:
@@ -46,7 +46,7 @@ class UserPresenceSchema(Schema):
     lines = fields.Nested('LinePresenceSchema', many=True, dump_only=True)
 
     @post_dump
-    def _set_line_state(self, user):
+    def _set_line_state(self, user, **kwargs):
         line_states = [line['state'] for line in user['lines']]
 
         if 'ringing' in line_states:
@@ -66,7 +66,7 @@ class UserPresenceSchema(Schema):
         return user
 
     @post_dump(pass_original=True)
-    def _set_mobile(self, user, raw_user):
+    def _set_mobile(self, user, raw_user, **kwargs):
         for token in raw_user.refresh_tokens:
             if token.mobile is True:
                 user['mobile'] = True
@@ -81,7 +81,7 @@ class UserPresenceSchema(Schema):
         return user
 
     @post_dump(pass_original=True)
-    def _set_connected(self, user, raw_user):
+    def _set_connected(self, user, raw_user, **kwargs):
         user['connected'] = True if raw_user.sessions else False
         return user
 
@@ -92,7 +92,7 @@ class ListRequestSchema(Schema):
     user_uuid = fields.List(fields.UUID(), missing=[], attribute='uuids')
 
     @pre_load
-    def convert_user_uuid_to_list(self, data):
+    def convert_user_uuid_to_list(self, data, **kwargs):
         result = data.to_dict()
         if data.get('user_uuid'):
             result['user_uuid'] = data['user_uuid'].split(',')

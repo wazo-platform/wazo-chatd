@@ -11,7 +11,7 @@ flask-restful==0.3.7
 flask==1.0.2
 itsdangerous==0.24  # from flask
 kombu==4.6.11
-marshmallow==3.0.0b14
+marshmallow==3.10.0
 psycopg2==2.7.7
 python-consul==0.7.1
 python-dateutil==2.7.3  # from marshmallow, to accept more date formats
