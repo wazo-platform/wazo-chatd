@@ -53,6 +53,8 @@ class Controller:
                 'bus_publisher': self.bus_publisher,
                 'status_aggregator': self.status_aggregator,
                 'thread_manager': self.thread_manager,
+                'token_changed_subscribe': self.token_renewer.subscribe_to_token_change,
+                'next_token_changed_subscribe': self.token_renewer.subscribe_to_next_token_change,
             },
         )
 
