@@ -85,7 +85,7 @@ class BusClient(bus_helper.BusClient):
                 'name': 'auth_session_created',
                 'tenant_uuid': str(tenant_uuid),
             },
-            routing_key='config.user.deleted',
+            routing_key=f'auth.sessions.{session_uuid}.created',
         )
 
     def send_session_deleted_event(self, session_uuid, user_uuid, tenant_uuid):
