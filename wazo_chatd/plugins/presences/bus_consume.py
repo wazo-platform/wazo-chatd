@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -29,23 +29,28 @@ class BusEventHandler:
         self._notifier = notifier
 
     def subscribe(self, bus_consumer):
-        bus_consumer.on_event('auth_tenant_added', self._tenant_created)
-        bus_consumer.on_event('auth_tenant_deleted', self._tenant_deleted)
-        bus_consumer.on_event('user_created', self._user_created)
-        bus_consumer.on_event('user_deleted', self._user_deleted)
-        bus_consumer.on_event('auth_session_created', self._session_created)
-        bus_consumer.on_event('auth_session_deleted', self._session_deleted)
-        bus_consumer.on_event('auth_refresh_token_created', self._refresh_token_created)
-        bus_consumer.on_event('auth_refresh_token_deleted', self._refresh_token_deleted)
-        bus_consumer.on_event('user_line_associated', self._user_line_associated)
-        bus_consumer.on_event('user_line_dissociated', self._user_line_dissociated)
-        bus_consumer.on_event('users_services_dnd_updated', self._user_dnd_updated)
-        bus_consumer.on_event('DeviceStateChange', self._device_state_change)
-        bus_consumer.on_event('Hangup', self._channel_deleted)
-        bus_consumer.on_event('Newchannel', self._channel_created)
-        bus_consumer.on_event('Newstate', self._channel_updated)
-        bus_consumer.on_event('Hold', self._channel_hold)
-        bus_consumer.on_event('Unhold', self._channel_unhold)
+        events = [
+            ('auth_tenant_added', self._tenant_created),
+            ('auth_tenant_deleted', self._tenant_deleted),
+            ('user_created', self._user_created),
+            ('user_deleted', self._user_deleted),
+            ('auth_session_created', self._session_created),
+            ('auth_session_deleted', self._session_deleted),
+            ('auth_refresh_token_created', self._refresh_token_created),
+            ('auth_refresh_token_deleted', self._refresh_token_deleted),
+            ('user_line_associated', self._user_line_associated),
+            ('user_line_dissociated', self._user_line_dissociated),
+            ('users_services_dnd_updated', self._user_dnd_updated),
+            ('DeviceStateChange', self._device_state_change),
+            ('Hangup', self._channel_deleted),
+            ('Newchannel', self._channel_created),
+            ('Newstate', self._channel_updated),
+            ('Hold', self._channel_hold),
+            ('Unhold', self._channel_unhold),
+        ]
+
+        for event, handler in events:
+            bus_consumer.subscribe(event, handler)
 
     def _user_created(self, event):
         user_uuid = event['uuid']

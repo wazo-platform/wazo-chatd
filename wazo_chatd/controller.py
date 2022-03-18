@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -11,7 +11,10 @@ from xivo.consul_helpers import ServiceCatalogRegistration
 from xivo.status import StatusAggregator
 from xivo.token_renewer import TokenRenewer
 
-from . import auth, bus
+from xivo_bus.publisher import BusPublisher
+from .bus import BusConsumer
+
+from . import auth
 from .database.helpers import init_db
 from .database.queries import DAO
 from .http_server import api, app, CoreRestApi
@@ -33,8 +36,10 @@ class Controller:
         ]
         self.status_aggregator = StatusAggregator()
         self.rest_api = CoreRestApi(config)
-        self.bus_consumer = bus.Consumer(config)
-        self.bus_publisher = bus.Publisher(config)
+        self.bus_consumer = BusConsumer(name='chatd.consumer', **config['bus'])
+        self.bus_publisher = BusPublisher(
+            name='chatd.publisher', service_uuid=config['uuid'], **config['bus']
+        )
         self.thread_manager = ThreadManager()
         auth_client = AuthClient(**config['auth'])
         self.token_renewer = TokenRenewer(auth_client)
@@ -66,7 +71,7 @@ class Controller:
 
         with self.thread_manager:
             with self.token_renewer:
-                with bus.consumer_thread(self.bus_consumer):
+                with self.bus_consumer:
                     with ServiceCatalogRegistration(*self._service_discovery_args):
                         self.rest_api.run()
 

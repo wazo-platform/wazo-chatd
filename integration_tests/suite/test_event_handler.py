@@ -72,7 +72,12 @@ class TestEventHandler(APIIntegrationTest):
             assert_that(
                 result,
                 not_(
-                    has_items(has_properties(uuid=user_uuid, tenant_uuid=tenant_uuid))
+                    has_items(
+                        has_properties(
+                            uuid=str(user_uuid),
+                            tenant_uuid=str(tenant_uuid),
+                        )
+                    )
                 ),
             )
 
