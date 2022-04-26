@@ -1,7 +1,7 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -48,7 +48,7 @@ class User(Base):
     )
     status = Column(Text())
     do_not_disturb = Column(Boolean(), nullable=False, server_default='false')
-    last_activity = Column(DateTime())
+    last_activity = Column(DateTime(timezone=True))
 
     tenant = relationship('Tenant')
     sessions = relationship(
@@ -209,6 +209,11 @@ class RoomMessage(Base):
     user_uuid = Column(UUIDType(), nullable=False)
     tenant_uuid = Column(UUIDType(), nullable=False)
     wazo_uuid = Column(UUIDType(), nullable=False)
-    created_at = Column(DateTime(), default=datetime.datetime.utcnow, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=text("(now() at time zone 'utc')"),
+        nullable=False,
+    )
 
     room = relationship('Room', viewonly=True)

@@ -51,7 +51,7 @@ def run_migrations_offline():
     script output.
 
     """
-    url = URI or get_url() or config.get_main_option("sqlalchemy.url")
+    url = URI or config.get_main_option("sqlalchemy.url") or get_url()
     context.configure(url=url, version_table=VERSION_TABLE)
 
     with context.begin_transaction():
@@ -65,7 +65,7 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-    url = URI or get_url() or config.get_main_option("sqlalchemy.url")
+    url = URI or config.get_main_option("sqlalchemy.url") or get_url()
     engine = create_engine(url)
 
     connection = engine.connect()
