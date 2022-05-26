@@ -1,9 +1,9 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
 
-from mock import Mock
+from unittest.mock import Mock
 from hamcrest import assert_that, equal_to, has_properties
 
 from .helpers import fixtures

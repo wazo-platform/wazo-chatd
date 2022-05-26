@@ -1,4 +1,3 @@
-mock
 kombu
 openapi-spec-validator
 pyhamcrest
