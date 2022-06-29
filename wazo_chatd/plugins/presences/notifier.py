@@ -11,8 +11,6 @@ class PresenceNotifier:
         self._bus = bus
 
     def updated(self, user):
-        headers = {}
-        user_json = UserPresenceSchema().dump(user)
-        event = PresenceUpdatedEvent(user_json)
-        headers['tenant_uuid'] = user_json['tenant_uuid']
-        self._bus.publish(event, headers=headers)
+        payload = UserPresenceSchema().dump(user)
+        event = PresenceUpdatedEvent(payload, user.tenant_uuid, user.uuid)
+        self._bus.publish(event)
