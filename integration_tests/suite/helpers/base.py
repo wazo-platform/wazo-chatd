@@ -80,26 +80,6 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
         cls.wait_strategy.wait(cls)
 
     @classmethod
-    def start_auth_service(cls):
-        cls.start_service('auth')
-        cls.auth = cls.make_auth()
-        until.true(cls.auth.is_up, tries=5)
-        cls.create_token()
-
-    @classmethod
-    def stop_auth_service(cls):
-        cls.stop_service('auth')
-
-    @classmethod
-    def start_chatd_service(cls):
-        cls.start_service('chatd')
-        cls.chatd = cls.make_chatd()
-
-    @classmethod
-    def stop_chatd_service(cls):
-        cls.stop_service('chatd')
-
-    @classmethod
     def create_token(cls):
         if isinstance(cls.auth, WrongClient):
             return
@@ -186,6 +166,31 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
         bus.downstream_exchange_declare('wazo-headers', 'headers')
         return bus
 
+    @classmethod
+    def start_auth_service(cls):
+        cls.start_service('auth')
+        cls.auth = cls.make_auth()
+        until.true(cls.auth.is_up, tries=5)
+        cls.create_token()
+
+    @classmethod
+    def stop_auth_service(cls):
+        cls.stop_service('auth')
+
+    @classmethod
+    def start_chatd_service(cls):
+        cls.start_service('chatd')
+        cls.chatd = cls.make_chatd()
+
+    @classmethod
+    def stop_chatd_service(cls):
+        cls.stop_service('chatd')
+
+    @classmethod
+    def restart_chatd_service(cls):
+        cls.restart_service('chatd')
+        cls.chatd = cls.make_chatd()
+
 
 class APIAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'base'
@@ -208,11 +213,61 @@ class DBAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
 class _BaseIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._Session = DBAssetLaunchingTestCase.make_db_session()
+        cls._Session = cls.asset_cls.make_db_session()
 
     @property
     def _session(self):
         return self._Session()
+
+    @classmethod
+    def reset_clients(cls):
+        cls._Session = cls.asset_cls.make_db_session()
+        cls.amid = cls.asset_cls.make_amid()
+        cls.chatd = cls.asset_cls.make_chatd()
+        cls.auth = cls.asset_cls.make_auth()
+        cls.confd = cls.asset_cls.make_confd()
+        cls.bus = cls.asset_cls.make_bus()
+
+    @classmethod
+    def start_auth_service(cls):
+        cls.asset_cls.start_auth_service()
+        cls.auth = cls.asset_cls.make_auth()
+
+    @classmethod
+    def stop_auth_service(cls):
+        cls.asset_cls.stop_auth_service()
+
+    @classmethod
+    def start_chatd_service(cls):
+        cls.asset_cls.start_chatd_service()
+        cls.chatd = cls.asset_cls.make_chatd()
+
+    @classmethod
+    def stop_chatd_service(cls):
+        cls.asset_cls.stop_chatd_service()
+
+    @classmethod
+    def restart_chatd_service(cls):
+        cls.asset_cls.restart_chatd_service()
+        cls.chatd = cls.asset_cls.make_chatd()
+
+    @classmethod
+    def start_amid_service(cls):
+        cls.asset_cls.start_service('amid')
+        cls.amid = cls.asset_cls.make_amid()
+
+    @classmethod
+    def stop_amid_service(cls):
+        cls.asset_cls.stop_service('amid')
+
+    @classmethod
+    def start_postgres_service(cls):
+        cls.asset_cls.start_service('postgres')
+        cls._Session = cls.asset_cls.make_db_session()
+
+    @classmethod
+    def stop_postgres_service(cls):
+        cls.asset_cls.stop_service('postgres')
 
     def setUp(self):
         super().setUp()
@@ -227,19 +282,20 @@ class _BaseIntegrationTest(unittest.TestCase):
 
 
 class DBIntegrationTest(_BaseIntegrationTest):
-    pass
+    asset_cls = DBAssetLaunchingTestCase
 
 
 class APIIntegrationTest(_BaseIntegrationTest):
+    asset_cls = APIAssetLaunchingTestCase
+
     @classmethod
     def setUpClass(cls):
         cls.reset_clients()
 
+
+class InitIntegrationTest(_BaseIntegrationTest):
+    asset_cls = InitAssetLaunchingTestCase
+
     @classmethod
-    def reset_clients(cls):
-        cls._Session = APIAssetLaunchingTestCase.make_db_session()
-        cls.amid = APIAssetLaunchingTestCase.make_amid()
-        cls.chatd = APIAssetLaunchingTestCase.make_chatd()
-        cls.auth = APIAssetLaunchingTestCase.make_auth()
-        cls.confd = APIAssetLaunchingTestCase.make_confd()
-        cls.bus = APIAssetLaunchingTestCase.make_bus()
+    def setUpClass(cls):
+        cls.reset_clients()

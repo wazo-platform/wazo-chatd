@@ -9,7 +9,6 @@ from wazo_test_helpers.hamcrest.raises import raises
 from .helpers.base import (
     APIIntegrationTest,
     use_asset,
-    APIAssetLaunchingTestCase,
     TOKEN_SUBTENANT_UUID,
     START_TIMEOUT,
 )
@@ -24,17 +23,16 @@ class TestConfig(APIIntegrationTest):
         assert_that(result, has_key('rest_api'))
 
     def test_restrict_only_master_tenant(self):
-        chatd_client = APIAssetLaunchingTestCase.make_chatd(str(TOKEN_SUBTENANT_UUID))
+        chatd_client = self.asset_cls.make_chatd(str(TOKEN_SUBTENANT_UUID))
         assert_that(
             calling(chatd_client.config.get),
             raises(ChatdError, has_properties('status_code', 401)),
         )
 
     def test_restrict_on_with_slow_wazo_auth(self):
-        APIAssetLaunchingTestCase.stop_chatd_service()
-        APIAssetLaunchingTestCase.stop_auth_service()
-        APIAssetLaunchingTestCase.start_chatd_service()
-        self.reset_clients()
+        self.stop_chatd_service()
+        self.stop_auth_service()
+        self.start_chatd_service()
 
         def _returns_503():
             try:
@@ -46,8 +44,7 @@ class TestConfig(APIIntegrationTest):
 
         until.assert_(_returns_503, timeout=START_TIMEOUT)
 
-        APIAssetLaunchingTestCase.start_auth_service()
-        self.reset_clients()
+        self.start_auth_service()
 
         def _not_return_503():
             try:

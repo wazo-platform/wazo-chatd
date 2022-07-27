@@ -24,8 +24,7 @@ from .helpers.wait_strategy import (
     RestApiOkWaitStrategy,
 )
 from .helpers.base import (
-    APIIntegrationTest,
-    InitAssetLaunchingTestCase,
+    InitIntegrationTest,
     CHATD_TOKEN_TENANT_UUID,
     use_asset,
 )
@@ -40,7 +39,7 @@ FAKE_UUID_STR = str(uuid.uuid4())
 
 
 @use_asset('initialization')
-class TestPresenceInitialization(APIIntegrationTest):
+class TestPresenceInitialization(InitIntegrationTest):
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.tenant()
@@ -215,8 +214,7 @@ class TestPresenceInitialization(APIIntegrationTest):
         )
 
         # start initialization
-        InitAssetLaunchingTestCase.restart_service('chatd')
-        self.chatd = InitAssetLaunchingTestCase.make_chatd()
+        self.restart_chatd_service()
         PresenceInitOkWaitStrategy().wait(self)
 
         self._session.expire_all()
@@ -337,12 +335,11 @@ class TestPresenceInitialization(APIIntegrationTest):
 
 
 @use_asset('initialization')
-class TestPresenceInitializationErrors(APIIntegrationTest):
+class TestPresenceInitializationErrors(InitIntegrationTest):
     def test_server_initialization_do_not_block_on_http_error(self):
-        InitAssetLaunchingTestCase.stop_service('chatd')
-        InitAssetLaunchingTestCase.stop_service('amid')
-        InitAssetLaunchingTestCase.start_service('chatd')
-        self.reset_clients()
+        self.stop_chatd_service()
+        self.stop_amid_service()
+        self.start_chatd_service()
         RestApiOkWaitStrategy().wait(self)
 
         def server_wait():
@@ -359,15 +356,14 @@ class TestPresenceInitializationErrors(APIIntegrationTest):
 
         until.assert_(server_wait, tries=5)
 
-        InitAssetLaunchingTestCase.start_service('amid')
-        self.reset_clients()
+        self.start_amid_service()
 
         PresenceInitOkWaitStrategy().wait(self)
 
     def test_server_initialization_do_not_block_on_database_error(self):
-        InitAssetLaunchingTestCase.stop_service('chatd')
-        InitAssetLaunchingTestCase.stop_service('postgres')
-        InitAssetLaunchingTestCase.start_service('chatd')
+        self.stop_chatd_service()
+        self.stop_postgres_service()
+        self.start_chatd_service()
         self.reset_clients()
         RestApiOkWaitStrategy().wait(self)
 
@@ -385,18 +381,16 @@ class TestPresenceInitializationErrors(APIIntegrationTest):
 
         until.assert_(server_wait, tries=5)
 
-        InitAssetLaunchingTestCase.start_service('postgres')
-        self.reset_clients()
+        self.start_postgres_service()
 
         PresenceInitOkWaitStrategy().wait(self)
 
     @fixtures.db.user()
     def test_api_return_503(self, user):
         user_args = {'uuid': str(user.uuid), 'state': 'available'}
-        InitAssetLaunchingTestCase.stop_service('chatd')
-        InitAssetLaunchingTestCase.stop_service('amid')
-        InitAssetLaunchingTestCase.start_service('chatd')
-        self.reset_clients()
+        self.stop_chatd_service()
+        self.stop_amid_service()
+        self.start_chatd_service()
         RestApiOkWaitStrategy().wait(self)
 
         assert_that(
@@ -420,7 +414,6 @@ class TestPresenceInitializationErrors(APIIntegrationTest):
             ),
         )
 
-        InitAssetLaunchingTestCase.start_service('amid')
-        self.reset_clients()
+        self.start_amid_service()
         PresenceInitOkWaitStrategy().wait(self)
         self.chatd.user_presences.list()
