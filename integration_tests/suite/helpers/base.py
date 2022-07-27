@@ -208,7 +208,7 @@ class DBAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
 class _BaseIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._Session = DBAssetLaunchingTestCase.make_db_session()
+        cls._Session = cls.asset_cls.make_db_session()
 
     @property
     def _session(self):
@@ -225,21 +225,31 @@ class _BaseIntegrationTest(unittest.TestCase):
         self._Session.rollback()
         self._Session.remove()
 
+    @classmethod
+    def reset_clients(cls):
+        cls._Session = cls.asset_cls.make_db_session()
+        cls.amid = cls.asset_cls.make_amid()
+        cls.chatd = cls.asset_cls.make_chatd()
+        cls.auth = cls.asset_cls.make_auth()
+        cls.confd = cls.asset_cls.make_confd()
+        cls.bus = cls.asset_cls.make_bus()
+
 
 class DBIntegrationTest(_BaseIntegrationTest):
-    pass
+    asset_cls = DBAssetLaunchingTestCase
 
 
 class APIIntegrationTest(_BaseIntegrationTest):
+    asset_cls = APIAssetLaunchingTestCase
+
     @classmethod
     def setUpClass(cls):
         cls.reset_clients()
 
+
+class InitIntegrationTest(_BaseIntegrationTest):
+    asset_cls = InitAssetLaunchingTestCase
+
     @classmethod
-    def reset_clients(cls):
-        cls._Session = APIAssetLaunchingTestCase.make_db_session()
-        cls.amid = APIAssetLaunchingTestCase.make_amid()
-        cls.chatd = APIAssetLaunchingTestCase.make_chatd()
-        cls.auth = APIAssetLaunchingTestCase.make_auth()
-        cls.confd = APIAssetLaunchingTestCase.make_confd()
-        cls.bus = APIAssetLaunchingTestCase.make_bus()
+    def setUpClass(cls):
+        cls.reset_clients()

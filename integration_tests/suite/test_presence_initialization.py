@@ -24,7 +24,7 @@ from .helpers.wait_strategy import (
     RestApiOkWaitStrategy,
 )
 from .helpers.base import (
-    APIIntegrationTest,
+    InitIntegrationTest,
     InitAssetLaunchingTestCase,
     CHATD_TOKEN_TENANT_UUID,
     use_asset,
@@ -40,7 +40,7 @@ FAKE_UUID_STR = str(uuid.uuid4())
 
 
 @use_asset('initialization')
-class TestPresenceInitialization(APIIntegrationTest):
+class TestPresenceInitialization(InitIntegrationTest):
     @fixtures.db.endpoint()
     @fixtures.db.endpoint(name=ENDPOINT_NAME, state='available')
     @fixtures.db.tenant()
@@ -337,7 +337,7 @@ class TestPresenceInitialization(APIIntegrationTest):
 
 
 @use_asset('initialization')
-class TestPresenceInitializationErrors(APIIntegrationTest):
+class TestPresenceInitializationErrors(InitIntegrationTest):
     def test_server_initialization_do_not_block_on_http_error(self):
         InitAssetLaunchingTestCase.stop_service('chatd')
         InitAssetLaunchingTestCase.stop_service('amid')
