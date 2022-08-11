@@ -87,8 +87,12 @@ class TestEventHandler(APIIntegrationTest):
     def test_session_created(self, user):
         session_uuid = uuid.uuid4()
         user_uuid = user.uuid
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_session_created_event(
             session_uuid, user_uuid, user.tenant_uuid, mobile=True
@@ -121,8 +125,12 @@ class TestEventHandler(APIIntegrationTest):
     def test_session_deleted(self, user, session):
         session_uuid = session.uuid
         user_uuid = user.uuid
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_session_deleted_event(session_uuid, user_uuid, user.tenant_uuid)
 
@@ -150,8 +158,12 @@ class TestEventHandler(APIIntegrationTest):
     def test_refresh_token_created(self, user):
         client_id = 'my-client-id'
         user_uuid = user.uuid
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_refresh_token_created_event(
             client_id, user_uuid, user.tenant_uuid, mobile=True
@@ -182,8 +194,12 @@ class TestEventHandler(APIIntegrationTest):
     def test_refresh_token_deleted(self, user, token):
         client_id = token.client_id
         user_uuid = user.uuid
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_refresh_token_deleted_event(
             client_id, user_uuid, user.tenant_uuid
@@ -216,8 +232,12 @@ class TestEventHandler(APIIntegrationTest):
         line_id = random.randint(1, 1000000)
         line_name = 'created-line'
         user_uuid = user.uuid
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_user_line_associated_event(
             line_id, user_uuid, user.tenant_uuid, line_name
@@ -321,8 +341,12 @@ class TestEventHandler(APIIntegrationTest):
     def test_user_line_dissociated(self, user, line):
         line_id = line.id
         user_uuid = user.uuid
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_line_dissociated_event(line_id, user_uuid, user.tenant_uuid)
 
@@ -351,8 +375,12 @@ class TestEventHandler(APIIntegrationTest):
     def test_device_state_changed(self, endpoint, user, line):
         line_id = line.id
         endpoint_name = endpoint.name
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_device_state_changed_event(endpoint_name, 'ONHOLD')
 
@@ -400,8 +428,12 @@ class TestEventHandler(APIIntegrationTest):
     def test_new_channel(self, _, user, line):
         line_id = line.id
         channel_name = f'{line.endpoint_name}-1234'
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_new_channel_event(channel_name)
 
@@ -436,8 +468,12 @@ class TestEventHandler(APIIntegrationTest):
     @fixtures.db.channel(line_id=LINE_ID, name=f'{ENDPOINT_NAME}-1234')
     def test_hangup(self, _, user, line, channel):
         channel_name = channel.name
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_hangup_event(channel_name)
 
@@ -469,8 +505,12 @@ class TestEventHandler(APIIntegrationTest):
     @fixtures.db.channel(line_id=LINE_ID, name=f'{ENDPOINT_NAME}-1234', state='holding')
     def test_new_state(self, _, user, line, channel):
         channel_name = channel.name
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_new_state_event(channel_name, state='Up')
 
@@ -504,8 +544,12 @@ class TestEventHandler(APIIntegrationTest):
     @fixtures.db.channel(line_id=LINE_ID, name=f'{ENDPOINT_NAME}-1234', state='talking')
     def test_hold(self, _, user, line, channel):
         channel_name = channel.name
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_hold_event(channel_name)
 
@@ -539,8 +583,12 @@ class TestEventHandler(APIIntegrationTest):
     @fixtures.db.channel(line_id=LINE_ID, name=f'{ENDPOINT_NAME}-1234', state='holding')
     def test_unhold(self, _, user, line, channel):
         channel_name = channel.name
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.bus.send_unhold_event(channel_name)
 
@@ -570,8 +618,12 @@ class TestEventHandler(APIIntegrationTest):
 
     @fixtures.db.user(do_not_disturb=False)
     def test_do_not_disturb(self, user):
-        routing_key = f'chatd.users.{user.uuid}.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
         user_uuid = str(user.uuid)
 
         self.bus.send_dnd_event(user_uuid, user.tenant_uuid, True)
