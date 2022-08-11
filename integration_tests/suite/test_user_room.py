@@ -67,8 +67,11 @@ class TestUserRoom(APIIntegrationTest):
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
             ],
         }
-        routing_key = 'chatd.users.*.rooms.created'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_user_room_created',
+            }
+        )
 
         room = self.chatd.rooms.create_from_user(room_args)
 
