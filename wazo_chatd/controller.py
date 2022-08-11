@@ -36,9 +36,9 @@ class Controller:
         ]
         self.status_aggregator = StatusAggregator()
         self.rest_api = CoreRestApi(config)
-        self.bus_consumer = BusConsumer(name='chatd.consumer', **config['bus'])
+        self.bus_consumer = BusConsumer(name='wazo-chatd', **config['bus'])
         self.bus_publisher = BusPublisher(
-            name='chatd.publisher', service_uuid=config['uuid'], **config['bus']
+            name='wazo-chatd', service_uuid=config['uuid'], **config['bus']
         )
         self.thread_manager = ThreadManager()
         auth_client = AuthClient(**config['auth'])
