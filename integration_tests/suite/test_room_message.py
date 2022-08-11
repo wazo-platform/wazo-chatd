@@ -151,8 +151,12 @@ class TestUserRoom(APIIntegrationTest):
     @fixtures.http.room()
     def test_create_events(self, room):
         message_args = {'content': 'Message content', 'alias': 'Alias'}
-        routing_key = 'chatd.users.*.rooms.*.messages.created'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_user_room_message_created',
+                'room_uuid': room['uuid'],
+            }
+        )
 
         message = self.chatd.rooms.create_message_from_user(room['uuid'], message_args)
 
