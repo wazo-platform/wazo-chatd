@@ -5,7 +5,7 @@ import logging
 import requests
 import yaml
 
-from openapi_spec_validator import validate_v2_spec
+from openapi_spec_validator import validate_spec, openapi_v2_spec_validator
 from .helpers.base import APIIntegrationTest, use_asset
 
 requests.packages.urllib3.disable_warnings()
@@ -20,4 +20,4 @@ class TestDocumentation(APIIntegrationTest):
         port = self.asset_cls.service_port(9304, 'chatd')
         api_url = f'http://127.0.0.1:{port}/1.0/api/api.yml'
         api = requests.get(api_url)
-        validate_v2_spec(yaml.safe_load(api.text))
+        validate_spec(yaml.safe_load(api.text), validator=openapi_v2_spec_validator)
