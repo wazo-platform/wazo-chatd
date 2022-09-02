@@ -7,4 +7,6 @@ from xivo_bus.consumer import BusConsumer as BaseConsumer
 
 class BusConsumer(BaseConsumer):
     def provide_status(self, status):
-        status['bus_consumer']['status'] = Status.ok if self.is_running else Status.fail
+        status['bus_consumer']['status'] = (
+            Status.ok if self.consumer_connected() else Status.fail
+        )
