@@ -249,8 +249,12 @@ class TestPresence(APIIntegrationTest):
             'state': 'invisible',
             'status': 'custom status',
         }
-        routing_key = 'chatd.users.*.presences.updated'
-        event_accumulator = self.bus.accumulator(routing_key)
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_presence_updated',
+                f'user_uuid:{user.uuid}': True,
+            }
+        )
 
         self.chatd.user_presences.update(user_args)
 
