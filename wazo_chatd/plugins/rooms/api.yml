@@ -209,11 +209,6 @@ definitions:
         readOnly: true
       room:
         $ref: '#/definitions/RoomRelationBase'
-      message:
-        type: string
-
-    required:
-      - message
 
   Messages:
     title: UserItems
