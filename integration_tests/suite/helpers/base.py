@@ -272,8 +272,18 @@ class _BaseIntegrationTest(unittest.TestCase):
         cls.asset_cls.start_service('postgres')
         cls._Session = cls.asset_cls.make_db_session()
 
+        def db_is_up():
+            try:
+                cls._Session.execute('SELECT 1')
+            except Exception:
+                return False
+            return True
+
+        until.true(db_is_up, tries=60)
+
     @classmethod
     def stop_postgres_service(cls):
+        cls._Session.remove()
         cls.asset_cls.stop_service('postgres')
 
     def setUp(self):
