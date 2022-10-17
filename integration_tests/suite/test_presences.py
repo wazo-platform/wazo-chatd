@@ -250,10 +250,7 @@ class TestPresence(APIIntegrationTest):
             'status': 'custom status',
         }
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.chatd.user_presences.update(user_args)
