@@ -88,10 +88,7 @@ class TestEventHandler(APIIntegrationTest):
         session_uuid = uuid.uuid4()
         user_uuid = user.uuid
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_session_created_event(
@@ -126,10 +123,7 @@ class TestEventHandler(APIIntegrationTest):
         session_uuid = session.uuid
         user_uuid = user.uuid
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_session_deleted_event(session_uuid, user_uuid, user.tenant_uuid)
@@ -159,10 +153,7 @@ class TestEventHandler(APIIntegrationTest):
         client_id = 'my-client-id'
         user_uuid = user.uuid
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_refresh_token_created_event(
@@ -195,10 +186,7 @@ class TestEventHandler(APIIntegrationTest):
         client_id = token.client_id
         user_uuid = user.uuid
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_refresh_token_deleted_event(
@@ -233,10 +221,7 @@ class TestEventHandler(APIIntegrationTest):
         line_name = 'created-line'
         user_uuid = user.uuid
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_user_line_associated_event(
@@ -342,10 +327,7 @@ class TestEventHandler(APIIntegrationTest):
         line_id = line.id
         user_uuid = user.uuid
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_line_dissociated_event(line_id, user_uuid, user.tenant_uuid)
@@ -376,10 +358,7 @@ class TestEventHandler(APIIntegrationTest):
         line_id = line.id
         endpoint_name = endpoint.name
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_device_state_changed_event(endpoint_name, 'ONHOLD')
@@ -429,10 +408,7 @@ class TestEventHandler(APIIntegrationTest):
         line_id = line.id
         channel_name = f'{line.endpoint_name}-1234'
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_new_channel_event(channel_name)
@@ -469,10 +445,7 @@ class TestEventHandler(APIIntegrationTest):
     def test_hangup(self, _, user, line, channel):
         channel_name = channel.name
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_hangup_event(channel_name)
@@ -506,10 +479,7 @@ class TestEventHandler(APIIntegrationTest):
     def test_new_state(self, _, user, line, channel):
         channel_name = channel.name
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_new_state_event(channel_name, state='Up')
@@ -545,10 +515,7 @@ class TestEventHandler(APIIntegrationTest):
     def test_hold(self, _, user, line, channel):
         channel_name = channel.name
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_hold_event(channel_name)
@@ -584,10 +551,7 @@ class TestEventHandler(APIIntegrationTest):
     def test_unhold(self, _, user, line, channel):
         channel_name = channel.name
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
 
         self.bus.send_unhold_event(channel_name)
@@ -619,10 +583,7 @@ class TestEventHandler(APIIntegrationTest):
     @fixtures.db.user(do_not_disturb=False)
     def test_do_not_disturb(self, user):
         event_accumulator = self.bus.accumulator(
-            headers={
-                'name': 'chatd_presence_updated',
-                f'user_uuid:{user.uuid}': True,
-            }
+            headers={'name': 'chatd_presence_updated', 'user_uuid:*': True}
         )
         user_uuid = str(user.uuid)
 
