@@ -7,7 +7,6 @@ import os
 import unittest
 import uuid
 
-from kombu import Exchange
 from wazo_chatd_client import Client as ChatdClient
 from wazo_chatd.database.queries import DAO
 from wazo_chatd.database.helpers import init_db, Session
@@ -160,7 +159,6 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
 
     @classmethod
     def make_bus(cls):
-        upstream = Exchange('xivo', 'topic')
         try:
             port = cls.service_port(5672, 'rabbitmq')
         except NoSuchService:
@@ -171,7 +169,6 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
             exchange_name='wazo-headers',
             exchange_type='headers',
         )
-        bus.downstream_exchange_declare('wazo-headers', 'headers', upstream)
         return bus
 
     @classmethod
