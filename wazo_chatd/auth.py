@@ -1,4 +1,4 @@
-# Copyright 2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2021-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from xivo.auth_verifier import required_acl, required_tenant
@@ -27,7 +27,7 @@ def init_master_tenant(token):
 
 def provide_status(status):
     status['master_tenant']['status'] = (
-        Status.ok if app.config['auth']['master_tenant_uuid'] else Status.fail
+        Status.ok if app.config['auth'].get('master_tenant_uuid') else Status.fail
     )
 
 
