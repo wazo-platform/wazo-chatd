@@ -4,9 +4,10 @@
 from xivo_bus.resources.chatd.events import (
     UserRoomCreatedEvent,
     UserRoomMessageCreatedEvent,
+    UserRoomActivityEvent,
 )
 
-from .schemas import RoomSchema, MessageSchema
+from .schemas import RoomSchema, MessageSchema, ActivityRequestSchema
 
 
 class RoomNotifier:
@@ -25,4 +26,10 @@ class RoomNotifier:
             event = UserRoomMessageCreatedEvent(
                 message_json, room.uuid, room.tenant_uuid, user.uuid
             )
+            self._bus.publish(event)
+
+    def set_activity(self, room, activity):
+        activity_json = ActivityRequestSchema().dump(activity)
+        for user in room.users:
+            event = UserRoomActivityEvent(activity_json, room.uuid, room.tenant_uuid, user.uuid)
             self._bus.publish(event)

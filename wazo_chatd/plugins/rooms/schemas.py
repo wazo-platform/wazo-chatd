@@ -3,6 +3,7 @@
 
 from marshmallow import validates_schema
 from xivo.mallow import fields, validate
+from xivo.mallow.validate import OneOf
 from xivo.mallow_helpers import Schema, ListSchema as _ListSchema, ValidationError
 
 
@@ -54,3 +55,9 @@ class MessageListRequestSchema(_ListSchema):
     def search_or_distinct(self, data, **kwargs):
         if not data.get('search') and not data.get('distinct'):
             raise ValidationError('Missing search or distinct')
+
+
+class ActivityRequestSchema(Schema):
+    type = fields.String(
+        required=True, validate=OneOf(['start_typing', 'stop_typing'])
+    )

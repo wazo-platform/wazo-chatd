@@ -105,6 +105,32 @@ paths:
         '404':
           $ref: '#/responses/NotFoundError'
 
+  /users/me/rooms/{room_uuid}/activities:
+    post:
+      operationId: create_room_activities
+      summary: Create room activities
+      description: '**Required ACL:** `chatd.users.me.rooms.{room_uuid}.activities.create`'
+      tags:
+      - rooms
+      - activities
+      parameters:
+      - $ref: '#/parameters/room_uuid'
+      - name: body
+        in: body
+        description: activity to create
+        required: true
+        schema:
+          $ref: '#/definitions/Activities'
+      responses:
+        '201':
+          description: Activity created
+          schema:
+            $ref: '#/definitions/Activities'
+        '400':
+          $ref: '#/responses/InvalidRequest'
+        '404':
+          $ref: '#/responses/NotFoundError'
+
 parameters:
   room_uuid:
     name: room_uuid
@@ -210,6 +236,9 @@ definitions:
       room:
         $ref: '#/definitions/RoomRelationBase'
 
+    required:
+      - message
+
   Messages:
     title: UserItems
     properties:
@@ -221,3 +250,12 @@ definitions:
         type: integer
       total:
         type: integer
+
+  Activities:
+    title: Activities
+    properties:
+      type:
+        type: string
+        enum:
+          - start_typing
+          - stop_typing
