@@ -222,6 +222,11 @@ class _BaseIntegrationTest(unittest.TestCase):
     def setUpClass(cls):
         cls._Session = cls.asset_cls.make_db_session()
 
+    @classmethod
+    def tearDownClass(cls):
+        cls._Session.get_bind().dispose()
+        cls._Session.remove()
+
     @property
     def _session(self):
         return self._Session()
@@ -296,7 +301,6 @@ class _BaseIntegrationTest(unittest.TestCase):
 
     def tearDown(self):
         self._Session.rollback()
-        self._Session.remove()
 
 
 class DBIntegrationTest(_BaseIntegrationTest):
