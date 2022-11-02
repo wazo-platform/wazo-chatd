@@ -17,6 +17,7 @@ from .schemas import (
     MessageListRequestSchema,
     MessageSchema,
     RoomSchema,
+    ActivityRequestSchema
 )
 
 
@@ -64,7 +65,8 @@ class UserRoomListResource(AuthResource):
     def get(self):
         filter_parameters = {'user_uuid': token.user_uuid}
         rooms = self._service.list_([token.tenant_uuid], **filter_parameters)
-        filtered = total = self._service.count([token.tenant_uuid], **filter_parameters)
+        filtered = total = self._service.count(
+            [token.tenant_uuid], **filter_parameters)
         return {
             'items': RoomSchema().dump(rooms, many=True),
             'filtered': filtered,
@@ -85,7 +87,8 @@ class UserMessageListResource(AuthResource):
         filtered = self._service.count_user_messages(
             token.tenant_uuid, token.user_uuid, **filter_parameters
         )
-        total = self._service.count_user_messages(token.tenant_uuid, token.user_uuid)
+        total = self._service.count_user_messages(
+            token.tenant_uuid, token.user_uuid)
         return {
             'items': MessageSchema().dump(messages, many=True),
             'filtered': filtered,
@@ -120,3 +123,15 @@ class UserRoomMessageListResource(AuthResource):
             'filtered': filtered,
             'total': total,
         }
+
+
+class UserRoomActivityResource(AuthResource):
+    def __init__(self, service):
+        self._service = service
+
+    @required_acl('chatd.users.me.rooms.{room_uuid}.activities.create')
+    def post(self, room_uuid):
+        room = self._service.get([token.tenant_uuid], room_uuid)
+        activity = ActivityRequestSchema().load(request.get_json())
+        self._service.set_activity(room, activity)
+        return ActivityRequestSchema().dump(activity), 201

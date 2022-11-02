@@ -190,6 +190,49 @@ class TestUserRoom(APIIntegrationTest):
             ),
         )
 
+    @fixtures.http.room()
+    def test_create_activity(self, room):
+        activity_args = {'type': 'start_typing'}
+        event_accumulator = self.bus.accumulator(
+            headers={
+                'name': 'chatd_user_room_activity_created',
+                'room_uuid': room['uuid'],
+            }
+        )
+
+        activity = self.chatd.rooms.set_activity_from_user(room['uuid'], activity_args)
+
+        event = event_accumulator.accumulate(with_headers=True)
+        required_acl_fmt = (
+            'events.chatd.users.{user_uuid}.rooms.{room_uuid}.activities.created'
+        )
+
+        user_uuid_1 = room['users'][0]['uuid']
+        user_uuid_2 = room['users'][1]['uuid']
+        assert_that(
+            event,
+            contains_inanyorder(
+                has_entries(
+                    message=has_entries(
+                        data=has_entries(activity),
+                        required_acl=required_acl_fmt.format(
+                            user_uuid=user_uuid_1, room_uuid=room['uuid']
+                        ),
+                    ),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
+                ),
+                has_entries(
+                    message=has_entries(
+                        data=has_entries(activity),
+                        required_acl=required_acl_fmt.format(
+                            user_uuid=user_uuid_2, room_uuid=room['uuid']
+                        ),
+                    ),
+                    headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
+                ),
+            ),
+        )
+
     def test_create_in_unknown_room(self):
         assert_that(
             calling(self.chatd.rooms.create_message_from_user).with_args(

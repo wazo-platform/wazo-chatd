@@ -5,6 +5,7 @@ from .http import (
     UserRoomListResource,
     UserMessageListResource,
     UserRoomMessageListResource,
+    UserRoomActivityResource,
 )
 from .notifier import RoomNotifier
 from .services import RoomService
@@ -31,5 +32,10 @@ class Plugin:
         api.add_resource(
             UserRoomMessageListResource,
             '/users/me/rooms/<uuid:room_uuid>/messages',
+            resource_class_args=[service],
+        )
+        api.add_resource(
+            UserRoomActivityResource,
+            '/users/me/rooms/<uuid:room_uuid>/activities',
             resource_class_args=[service],
         )

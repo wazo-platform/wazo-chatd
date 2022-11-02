@@ -64,3 +64,6 @@ class RoomService:
         return self._dao.room.count_latest_user_messages(
             tenant_uuid, user_uuid, **filter_parameters
         )
+
+    def set_activity(self, room, activity):
+        self._notifier.set_activity(room, activity)
