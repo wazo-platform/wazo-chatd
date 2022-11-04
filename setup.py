@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from setuptools import setup
@@ -26,6 +26,7 @@ setup(
             'presences = wazo_chatd.plugins.presences.plugin:Plugin',
             'rooms = wazo_chatd.plugins.rooms.plugin:Plugin',
             'status = wazo_chatd.plugins.status.plugin:Plugin',
+            'teams = wazo_chatd.plugins.teams.plugin:Plugin',
         ],
     },
 )

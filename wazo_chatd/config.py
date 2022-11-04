@@ -71,6 +71,7 @@ _DEFAULT_CONFIG = {
         'presences': True,
         'rooms': True,
         'status': True,
+        'teams': True,
     },
     'initialization': {'enabled': True},
 }
