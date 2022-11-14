@@ -1,0 +1,22 @@
+paths:
+  /users/{user_uuid}/teams/presence:
+    post:
+      summary: Receive presence information from Microsoft Teams
+      consumes:
+        - application/x-www-form-urlencoded
+      parameters:
+        - $ref: '#/parameters/UserUUID'
+      tags:
+        - microsoft
+        - teams
+      responses:
+        200:
+          description: Microsoft Teams presence information has been received
+parameters:
+  UserUUID:
+    name: user_uuid
+    in: path
+    description: user's unique identifier
+    required: true
+    type: string
+    format: uuid
