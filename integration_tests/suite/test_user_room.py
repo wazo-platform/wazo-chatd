@@ -7,6 +7,7 @@ from hamcrest import (
     assert_that,
     calling,
     contains_inanyorder,
+    empty,
     equal_to,
     has_entries,
     has_properties,
@@ -31,6 +32,9 @@ from .helpers.base import (
 UUID = str(uuid.uuid4())
 UUID_2 = str(uuid.uuid4())
 
+USER_1 = {'uuid': str(uuid.uuid4())}
+USER_2 = {'uuid': str(uuid.uuid4())}
+
 
 @use_asset('base')
 class TestUserRoom(APIIntegrationTest):
@@ -52,6 +56,42 @@ class TestUserRoom(APIIntegrationTest):
                 ),
                 total=equal_to(2),
                 filtered=equal_to(2),
+            ),
+        )
+
+    @fixtures.http.room(users=[USER_1])
+    @fixtures.http.room(users=[USER_2])
+    def test_list_by_user_uuid(self, room_1, _):
+        user_uuids = [USER_1['uuid']]
+        rooms = self.chatd.rooms.list_from_user(user_uuids=user_uuids)
+        assert_that(
+            rooms,
+            has_entries(
+                items=contains_inanyorder(has_entries(uuid=room_1['uuid'])),
+                total=equal_to(1),
+                filtered=equal_to(1),
+            ),
+        )
+
+        user_uuids = [str(TOKEN_USER_UUID), USER_1['uuid']]
+        rooms = self.chatd.rooms.list_from_user(user_uuids=user_uuids)
+        assert_that(
+            rooms,
+            has_entries(
+                items=contains_inanyorder(has_entries(uuid=room_1['uuid'])),
+                total=equal_to(1),
+                filtered=equal_to(1),
+            ),
+        )
+
+        user_uuids = [str(TOKEN_USER_UUID), USER_1['uuid'], USER_2['uuid']]
+        rooms = self.chatd.rooms.list_from_user(user_uuids=user_uuids)
+        assert_that(
+            rooms,
+            has_entries(
+                items=empty(),
+                total=equal_to(0),
+                filtered=equal_to(0),
             ),
         )
 

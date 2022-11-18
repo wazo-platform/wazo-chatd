@@ -134,3 +134,11 @@ parameters:
     in: query
     type: integer
     description: Number of items to skip over in the list. Useful for pagination.
+  user_uuid_query:
+    required: false
+    name: user_uuid
+    in: query
+    type: array
+    items:
+      type: string
+    description: Filter by user_uuid. Many uuid can be specified. Each uuid MUST be separated by a comma (,).

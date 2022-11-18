@@ -1,5 +1,9 @@
 # Changelog
 
+## 22.16
+
+* New query parameter `user_uuid` has been added to the `GET /1.0/users/me/rooms`.
+
 ## 22.07
 
 * The following fields now include a timezone indication:

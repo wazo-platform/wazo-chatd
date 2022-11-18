@@ -1,7 +1,7 @@
 # Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import validates_schema
+from marshmallow import validates_schema, pre_load
 from xivo.mallow import fields, validate
 from xivo.mallow_helpers import Schema, ListSchema as _ListSchema, ValidationError
 
@@ -54,3 +54,14 @@ class MessageListRequestSchema(_ListSchema):
     def search_or_distinct(self, data, **kwargs):
         if not data.get('search') and not data.get('distinct'):
             raise ValidationError('Missing search or distinct')
+
+
+class RoomListRequestSchema(Schema):
+    user_uuid = fields.List(fields.UUID(), missing=[], attribute='user_uuids')
+
+    @pre_load
+    def convert_user_uuid_to_list(self, data, **kwargs):
+        result = data.to_dict()
+        if data.get('user_uuid'):
+            result['user_uuid'] = set(data['user_uuid'].split(','))
+        return result

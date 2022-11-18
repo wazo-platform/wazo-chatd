@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -77,10 +77,16 @@ class TestRoom(DBIntegrationTest):
 
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_2}])
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_3}])
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_2}, {'uuid': USER_UUID_3}])  # fmt: skip
     @fixtures.db.room(users=[{'uuid': USER_UUID_2}, {'uuid': USER_UUID_3}])
-    def test_list_by_user_uuid(self, room_1, room_2, _):
-        result = self._dao.room.list_([room_1.tenant_uuid], user_uuid=USER_UUID_1)
-        assert_that(result, contains_inanyorder(room_1, room_2))
+    def test_list_by_user_uuids(self, room_1, room_2, room_3, _):
+        user_uuids = [USER_UUID_1]
+        result = self._dao.room.list_([room_1.tenant_uuid], user_uuids=user_uuids)
+        assert_that(result, contains_inanyorder(room_1, room_2, room_3))
+
+        user_uuids = [USER_UUID_1, USER_UUID_3]
+        result = self._dao.room.list_([room_1.tenant_uuid], user_uuids=user_uuids)
+        assert_that(result, contains_inanyorder(room_2, room_3))
 
     @fixtures.db.room(tenant_uuid=TENANT_1)
     @fixtures.db.room(tenant_uuid=TENANT_2)
@@ -93,9 +99,15 @@ class TestRoom(DBIntegrationTest):
 
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_2}])
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_3}])
+    @fixtures.db.room(users=[{'uuid': USER_UUID_1}, {'uuid': USER_UUID_2}, {'uuid': USER_UUID_3}])  # fmt: skip
     @fixtures.db.room(users=[{'uuid': USER_UUID_2}, {'uuid': USER_UUID_3}])
-    def test_count_by_user_uuid(self, room_1, room_2, _):
-        result = self._dao.room.count([room_1.tenant_uuid], user_uuid=USER_UUID_1)
+    def test_count_by_user_uuids(self, room_1, *_):
+        user_uuids = [USER_UUID_1]
+        result = self._dao.room.count([room_1.tenant_uuid], user_uuids=user_uuids)
+        assert_that(result, equal_to(3))
+
+        user_uuids = [USER_UUID_1, USER_UUID_3]
+        result = self._dao.room.count([room_1.tenant_uuid], user_uuids=user_uuids)
         assert_that(result, equal_to(2))
 
     def test_create(self):

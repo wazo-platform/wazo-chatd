@@ -1,8 +1,8 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
-from sqlalchemy import text
+from sqlalchemy import text, func, distinct
 
 from ...exceptions import UnknownRoomException
 from ..models import Room, RoomUser, RoomMessage
@@ -40,11 +40,16 @@ class RoomDAO:
     def count(self, tenant_uuids, **filter_parameters):
         return self._list_query(tenant_uuids, **filter_parameters).count()
 
-    def _list_query(self, tenant_uuids=None, user_uuid=None):
+    def _list_query(self, tenant_uuids=None, user_uuids=None):
         query = self.session.query(Room)
 
-        if user_uuid:
-            query = query.join(RoomUser).filter(RoomUser.uuid == user_uuid)
+        if user_uuids:
+            sub_query = (
+                self.session.query(RoomUser.room_uuid)
+                .group_by(RoomUser.room_uuid)
+                .having(func.array_agg(distinct(RoomUser.uuid)).contains(user_uuids))
+            ).subquery()
+            query = query.filter(Room.uuid.in_(sub_query))
 
         if tenant_uuids is None:
             return query
