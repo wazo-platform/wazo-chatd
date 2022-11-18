@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import post_dump, pre_load
@@ -95,5 +95,5 @@ class ListRequestSchema(Schema):
     def convert_user_uuid_to_list(self, data, **kwargs):
         result = data.to_dict()
         if data.get('user_uuid'):
-            result['user_uuid'] = data['user_uuid'].split(',')
+            result['user_uuid'] = set(data['user_uuid'].split(','))
         return result
