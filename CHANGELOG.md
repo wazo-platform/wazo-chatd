@@ -5,12 +5,12 @@
 * The following fields now include a timezone indication:
 
   * `created_at` for the following endpoints:
-    * `GET /users​/me​/rooms​/messages`
-    * `GET ​/users​/me​/rooms​/{room_uuid}​/messages`
-    * `POST ​/users​/me​/rooms​/{room_uuid}​/messages`
+    * `GET /users/me/rooms/messages`
+    * `GET /users/me/rooms/{room_uuid}/messages`
+    * `POST /users/me/rooms/{room_uuid}/messages`
   * `last_activity` for the following endpoints:
-    * `GET ​/users​/presences`
-    * `GET ​/users​/{user_uuid}​/presences`
+    * `GET /users/presences`
+    * `GET /users/{user_uuid}/presences`
 
 ## 21.12
 
