@@ -2,7 +2,7 @@
 
 ## 22.16
 
-* New query parameter `user_uuid` has been added to the `GET /1.0/users/me/rooms`.
+* New query parameter `user_uuid` has been added to the `GET /1.0/users/me/rooms` endpoint.
 
 ## 22.07
 
