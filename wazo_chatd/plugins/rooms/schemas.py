@@ -1,9 +1,9 @@
 # Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import validates_schema, pre_load
+from marshmallow import pre_load, validates_schema
 from xivo.mallow import fields, validate
-from xivo.mallow_helpers import Schema, ListSchema as _ListSchema, ValidationError
+from xivo.mallow_helpers import ListSchema as _ListSchema, Schema, ValidationError
 
 
 class RoomUserSchema(Schema):

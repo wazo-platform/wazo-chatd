@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
-from sqlalchemy import text, func, distinct
+from sqlalchemy import distinct, func, text
 
 from ...exceptions import UnknownRoomException
 from ..models import Room, RoomUser, RoomMessage
