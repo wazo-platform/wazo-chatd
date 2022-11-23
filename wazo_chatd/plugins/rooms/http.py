@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import ValidationError
@@ -16,6 +16,7 @@ from .schemas import (
     ListRequestSchema,
     MessageListRequestSchema,
     MessageSchema,
+    RoomListRequestSchema,
     RoomSchema,
 )
 
@@ -62,7 +63,9 @@ class UserRoomListResource(AuthResource):
 
     @required_acl('chatd.users.me.rooms.read')
     def get(self):
-        filter_parameters = {'user_uuid': token.user_uuid}
+        filter_parameters = RoomListRequestSchema().load(request.args)
+        if token.user_uuid not in filter_parameters['user_uuids']:
+            filter_parameters['user_uuids'].append(token.user_uuid)
         rooms = self._service.list_([token.tenant_uuid], **filter_parameters)
         filtered = total = self._service.count([token.tenant_uuid], **filter_parameters)
         return {

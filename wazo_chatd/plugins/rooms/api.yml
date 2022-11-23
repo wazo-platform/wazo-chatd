@@ -26,6 +26,8 @@ paths:
       description: '**Required ACL:** `chatd.users.me.rooms.read`'
       tags:
       - rooms
+      parameters:
+      - $ref: '#/parameters/user_uuid_query'
       responses:
         '200':
           description: Room
