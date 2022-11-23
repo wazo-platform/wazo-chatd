@@ -6,10 +6,11 @@ paths:
       description: |
         **Required ACL:** `chatd.users.me.rooms.create`
 
-        **Warning**: **>=22.16**: If room with same participants exists, it will
-        be returned instead of creating new one. In this case, no other
+        **Warning**: **>=22.16**: If a room with the same participants exists,
+        it will be returned instead of creating new one. In this case, no other
         parameter will be taken into account and the return code will be 201.
-        This behavior will disappear in future and 409 will be raised.
+        This behaviour will disappear in the future and a 409 error will be
+        raised.
       tags:
       - rooms
       parameters:
