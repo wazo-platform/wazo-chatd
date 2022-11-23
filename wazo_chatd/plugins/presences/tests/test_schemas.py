@@ -11,6 +11,7 @@ from hamcrest import (
     assert_that,
     calling,
     contains,
+    contains_inanyorder,
     empty,
     has_entries,
     raises,
@@ -242,7 +243,7 @@ class TestListRequestSchema(unittest.TestCase):
         self.request_args.__getitem__.return_value = user_uuid
 
         result = self.schema().load(self.request_args)
-        assert_that(result, has_entries(uuids=contains(uuid_1, uuid_2)))
+        assert_that(result, has_entries(uuids=contains_inanyorder(uuid_1, uuid_2)))
 
     def test_get_user_uuid_empty(self):
         self.request_args.get.return_value = ''
