@@ -141,4 +141,4 @@ parameters:
     type: array
     items:
       type: string
-    description: Filter by user_uuid. Many uuid can be specified. Each uuid MUST be separated by a comma (,).
+    description: Filter by user_uuid. Many uuid can be specified. A logical AND is used for filtering. Each uuid MUST be separated by a comma (,).
