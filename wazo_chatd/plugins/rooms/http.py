@@ -41,10 +41,16 @@ class UserRoomListResource(AuthResource):
             raise ValidationError({'users': error.messages})
 
         room_args['tenant_uuid'] = token.tenant_uuid
-        room_args['users'] = [RoomUser(**user) for user in room_args['users']]
-        room = Room(**room_args)
 
-        room = self._service.create(room)
+        user_uuids = [str(user['uuid']) for user in room_args['users']]
+        rooms = self._service.list_([room_args['tenant_uuid']], user_uuids=user_uuids)
+        if rooms:
+            room = rooms[0]
+        else:
+            room_args['users'] = [RoomUser(**user) for user in room_args['users']]
+            room = Room(**room_args)
+            room = self._service.create(room)
+
         return RoomSchema().dump(room), 201
 
     def _current_user_is_in_room(self, current_user_uuid, room_args):

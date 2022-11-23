@@ -173,6 +173,23 @@ class TestUserRoom(APIIntegrationTest):
         )
         self._delete_room(room)
 
+    @fixtures.http.room(name='old')
+    def test_create_when_already_exists(self, existing_room):
+        room_args = {
+            'name': 'ignored',
+            'users': existing_room['users'],
+        }
+        room = self.chatd.rooms.create_from_user(room_args)
+
+        assert_that(
+            room,
+            has_entries(
+                uuid=existing_room['uuid'],
+                name=existing_room['name'],
+                users=existing_room['users'],
+            ),
+        )
+
     def _delete_room(self, room):
         self._session.query(Room).filter(Room.uuid == room['uuid']).delete()
         self._session.commit()
