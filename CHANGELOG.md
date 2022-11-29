@@ -1,5 +1,9 @@
 # Changelog
 
+## XX.XX
+
+* `POST /users/me/rooms` now returns 409 if room with same participants exists
+
 ## 22.16
 
 * New query parameter `user_uuid` has been added to the `GET /1.0/users/me/rooms` endpoint.

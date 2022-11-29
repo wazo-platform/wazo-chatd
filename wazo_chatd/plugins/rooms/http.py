@@ -11,7 +11,7 @@ from xivo.tenant_flask_helpers import token
 from wazo_chatd.http import AuthResource
 from wazo_chatd.database.models import Room, RoomUser, RoomMessage
 
-from .exceptions import DuplicateUserException
+from .exceptions import DuplicateUserException, RoomAlreadyExists
 from .schemas import (
     ListRequestSchema,
     MessageListRequestSchema,
@@ -45,11 +45,11 @@ class UserRoomListResource(AuthResource):
         user_uuids = [str(user['uuid']) for user in room_args['users']]
         rooms = self._service.list_([room_args['tenant_uuid']], user_uuids=user_uuids)
         if rooms:
-            room = rooms[0]
-        else:
-            room_args['users'] = [RoomUser(**user) for user in room_args['users']]
-            room = Room(**room_args)
-            room = self._service.create(room)
+            raise RoomAlreadyExists(uuid=rooms[0].uuid, users=user_uuids)
+
+        room_args['users'] = [RoomUser(**user) for user in room_args['users']]
+        room = Room(**room_args)
+        room = self._service.create(room)
 
         return RoomSchema().dump(room), 201
 

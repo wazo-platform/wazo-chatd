@@ -3,14 +3,7 @@ paths:
     post:
       operationId: create_room
       summary: Create room
-      description: |
-        **Required ACL:** `chatd.users.me.rooms.create`
-
-        **Warning**: **>=22.16**: If a room with the same participants exists,
-        it will be returned instead of creating new one. In this case, no other
-        parameter will be taken into account and the return code will be 201.
-        This behaviour will disappear in the future and a 409 error will be
-        raised.
+      description: '**Required ACL:** `chatd.users.me.rooms.create`'
       tags:
       - rooms
       parameters:
@@ -27,6 +20,8 @@ paths:
             $ref: '#/definitions/Room'
         '400':
           $ref: '#/responses/InvalidRequest'
+        '409':
+          $ref: '#/responses/RoomAlreadyExists'
     get:
       operationId: get_room
       summary: Get room
@@ -129,8 +124,13 @@ parameters:
     description: 'The date and time from which to retrieve messages.
       Example: 2019-06-12T10:00:00.000+00:00'
 
-definitions:
+responses:
+  RoomAlreadyExists:
+    description: Room already exists for the given users
+    schema:
+      $ref: '#/definitions/Error'
 
+definitions:
   Room:
     title: Room
     allOf:
