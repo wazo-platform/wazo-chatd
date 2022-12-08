@@ -12,8 +12,6 @@ bus:
   host: rabbitmq
 confd:
   host: confd
-service_discovery:
-  enabled: false
 
 initialization:
   enabled: False
