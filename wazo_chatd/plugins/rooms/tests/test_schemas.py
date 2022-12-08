@@ -1,12 +1,26 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import uuid
 import unittest
 
-from hamcrest import assert_that, calling, has_entries, not_, raises
+from unittest.mock import MagicMock
+
+from hamcrest import (
+    assert_that,
+    calling,
+    has_entries,
+    has_length,
+    not_,
+    raises,
+)
 from xivo.mallow_helpers import ValidationError
 
-from ..schemas import ListRequestSchema, MessageListRequestSchema
+from ..schemas import (
+    ListRequestSchema,
+    MessageListRequestSchema,
+    RoomListRequestSchema,
+)
 
 
 class TestListRequestSchema(unittest.TestCase):
@@ -35,3 +49,21 @@ class TestMessageListRequestSchema(unittest.TestCase):
             calling(self.schema().load).with_args({'search': 'ok'}),
             not_(raises(ValidationError, pattern='search or distinct')),
         )
+
+
+class TestRoomListRequestSchema(unittest.TestCase):
+
+    schema = RoomListRequestSchema
+
+    # WAZO-2953: non-regression
+    def test_missing_value_is_not_reused(self):
+        args_dict = MagicMock(return_value={})
+        args_dict.__getitem__.side_effect = {}.__getitem__
+        args = MagicMock(to_dict=args_dict)
+        args.get.return_value = {}
+
+        result = self.schema().load(args)
+        result['user_uuids'].append(uuid.uuid4())
+
+        result = self.schema().load(args)
+        assert_that(result['user_uuids'], has_length(0))

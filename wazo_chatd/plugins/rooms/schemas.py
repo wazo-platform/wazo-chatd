@@ -57,7 +57,7 @@ class MessageListRequestSchema(_ListSchema):
 
 
 class RoomListRequestSchema(Schema):
-    user_uuid = fields.List(fields.UUID(), missing=[], attribute='user_uuids')
+    user_uuid = fields.List(fields.UUID(), missing=list, attribute='user_uuids')
 
     @pre_load
     def convert_user_uuid_to_list(self, data, **kwargs):
