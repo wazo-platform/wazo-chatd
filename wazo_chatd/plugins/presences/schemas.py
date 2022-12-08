@@ -89,7 +89,7 @@ class UserPresenceSchema(Schema):
 class ListRequestSchema(Schema):
 
     recurse = fields.Boolean(missing=False)
-    user_uuid = fields.List(fields.UUID(), missing=[], attribute='uuids')
+    user_uuid = fields.List(fields.UUID(), missing=list, attribute='uuids')
 
     @pre_load
     def convert_user_uuid_to_list(self, data, **kwargs):

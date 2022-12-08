@@ -18,7 +18,7 @@ class RoomSchema(Schema):
 
     name = fields.String(allow_none=True)
 
-    users = fields.Nested('RoomUserSchema', many=True, missing=[])
+    users = fields.Nested('RoomUserSchema', many=True, missing=list)
 
 
 class MessageSchema(Schema):
