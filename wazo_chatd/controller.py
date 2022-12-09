@@ -14,6 +14,7 @@ from xivo.token_renewer import TokenRenewer
 from .bus import BusConsumer, BusPublisher
 
 from . import auth
+from .asyncio_ import CoreAsyncio
 from .database.helpers import init_db
 from .database.queries import DAO
 from .http_server import api, app, CoreRestApi
@@ -35,6 +36,7 @@ class Controller:
         ]
         self.status_aggregator = StatusAggregator()
         self.rest_api = CoreRestApi(config)
+        self.aio = CoreAsyncio()
         self.bus_consumer = BusConsumer.from_config(config['bus'])
         self.bus_publisher = BusPublisher.from_config(config['uuid'], config['bus'])
         self.thread_manager = ThreadManager()
@@ -49,6 +51,7 @@ class Controller:
             names=config['enabled_plugins'],
             dependencies={
                 'api': api,
+                'aio': self.aio,
                 'config': config,
                 'dao': DAO(),
                 'bus_consumer': self.bus_consumer,
@@ -69,8 +72,9 @@ class Controller:
         with self.thread_manager:
             with self.token_renewer:
                 with self.bus_consumer:
-                    with ServiceCatalogRegistration(*self._service_discovery_args):
-                        self.rest_api.run()
+                    with self.aio:
+                        with ServiceCatalogRegistration(*self._service_discovery_args):
+                            self.rest_api.run()
 
     def stop(self, reason):
         logger.warning('Stopping wazo-chatd: %s', reason)
