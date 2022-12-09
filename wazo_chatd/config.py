@@ -74,6 +74,9 @@ _DEFAULT_CONFIG = {
         'teams': True,
     },
     'initialization': {'enabled': True},
+    'teams': {
+        'graphql_url': 'https://graph.microsoft.com/v1.0'
+    }
 }
 
 

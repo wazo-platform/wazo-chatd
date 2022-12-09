@@ -8,7 +8,6 @@ paths:
         - $ref: '#/parameters/UserUUID'
       tags:
         - microsoft
-        - teams
       responses:
         200:
           description: Microsoft Teams presence information has been received

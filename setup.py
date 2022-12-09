@@ -26,7 +26,7 @@ setup(
             'presences = wazo_chatd.plugins.presences.plugin:Plugin',
             'rooms = wazo_chatd.plugins.rooms.plugin:Plugin',
             'status = wazo_chatd.plugins.status.plugin:Plugin',
-            'teams = wazo_chatd.plugins.teams.plugin:Plugin',
+            'teams_presence = wazo_chatd.plugins.teams_presence.plugin:Plugin',
         ],
     },
 )
