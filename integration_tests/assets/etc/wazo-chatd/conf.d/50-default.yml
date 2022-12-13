@@ -15,9 +15,3 @@ confd:
 
 initialization:
   enabled: False
-
-enabled_plugins:
-  teams_presence: true
-
-teams_presence:
-  microsoft_graph_url: 'http://microsoft:9991'
