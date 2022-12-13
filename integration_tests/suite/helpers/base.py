@@ -27,6 +27,7 @@ from wazo_test_helpers.asset_launching_test_case import (
 from .amid import AmidClient
 from .bus import BusClient
 from .confd import ConfdClient
+from .microsoft import MicrosoftGraphClient
 from .wait_strategy import (
     EverythingOkWaitStrategy,
     NoWaitStrategy,
@@ -205,6 +206,20 @@ class APIAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     wait_strategy = EverythingOkWaitStrategy()
 
 
+class TeamsAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
+    asset = 'teams'
+    service = 'chatd'
+    wait_strategy = EverythingOkWaitStrategy()
+
+    @classmethod
+    def make_microsoft(cls):
+        try:
+            port = cls.service_port(9991, 'microsoft')
+        except (NoSuchService, NoSuchPort):
+            return WrongClient('amid')
+        return MicrosoftGraphClient('127.0.0.1', port=port)
+
+
 class InitAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'initialization'
     service = 'chatd'
@@ -321,3 +336,16 @@ class InitIntegrationTest(_BaseIntegrationTest):
     @classmethod
     def setUpClass(cls):
         cls.reset_clients()
+
+
+class TeamsIntegrationTest(_BaseIntegrationTest):
+    asset_cls = TeamsAssetLaunchingTestCase
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reset_clients()
+
+    @classmethod
+    def reset_clients(cls):
+        super().reset_clients()
+        cls.microsoft = cls.asset_cls.make_microsoft()

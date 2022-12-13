@@ -1,4 +1,4 @@
-# Copyright 2020 Wazo Authors  (see the AUTHORS file)
+# Copyright 2020-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pytest
@@ -39,3 +39,12 @@ def database():
         yield
     finally:
         asset.DBAssetLaunchingTestCase.tearDownClass()
+
+
+@pytest.fixture(scope='session')
+def teams():
+    asset.TeamsAssetLaunchingTestCase.setUpClass()
+    try:
+        yield
+    finally:
+        asset.TeamsAssetLaunchingTestCase.tearDownClass()
