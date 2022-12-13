@@ -71,12 +71,10 @@ _DEFAULT_CONFIG = {
         'presences': True,
         'rooms': True,
         'status': True,
-        'teams': True,
+        'teams_presence': False,
     },
     'initialization': {'enabled': True},
-    'teams': {
-        'graphql_url': 'https://graph.microsoft.com/v1.0'
-    }
+    'teams_presence': {'microsoft_graph_url': 'https://graph.microsoft.com/v1.0'},
 }
 
 
