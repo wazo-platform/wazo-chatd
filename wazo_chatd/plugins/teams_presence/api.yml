@@ -1,21 +1,20 @@
 paths:
   /users/{user_uuid}/teams/presence:
     post:
+      operationId: update_teams_presence
       summary: Receive presence information from Microsoft Teams
       consumes:
         - application/x-www-form-urlencoded
       parameters:
-        - $ref: '#/parameters/UserUUID'
+        - $ref: '#/parameters/user_uuid'
       tags:
         - microsoft
       responses:
-        200:
+        '200':
           description: Microsoft Teams presence information has been received
-parameters:
-  UserUUID:
-    name: user_uuid
-    in: path
-    description: user's unique identifier
-    required: true
-    type: string
-    format: uuid
+          schema:
+            $ref: '#/responses/ResourceUpdated'
+        '404':
+          description: The resource requested was not found on the server
+          schema:
+            $ref: '#/responses/NotFoundError'
