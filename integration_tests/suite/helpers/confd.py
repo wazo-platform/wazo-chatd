@@ -3,6 +3,8 @@
 
 import requests
 
+from uuid import uuid4
+
 
 class ConfdClient:
     def __init__(self, host, port):
@@ -24,8 +26,11 @@ class ConfdClient:
 
     def set_ingresses(self, *mock_uris):
         url = self.url('_set_response')
+        resource_uuid = str(uuid4())
         body = {
             'response': 'ingresses',
-            'content': {uri: {'uri': uri} for uri in mock_uris},
+            'content': {
+                resource_uuid: {'uri': uri, 'uuid': resource_uuid} for uri in mock_uris
+            },
         }
         requests.post(url, json=body)

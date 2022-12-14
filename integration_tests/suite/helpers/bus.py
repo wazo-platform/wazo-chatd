@@ -311,7 +311,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_user_external_auth_added',
                 'tenant_uuid': str(tenant_uuid),
-                # f'user_uuid:{user_uuid}': True,
+                f'user_uuid:{user_uuid}': True,
             },
         )
 
@@ -327,6 +327,6 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_user_external_auth_deleted',
                 'tenant_uuid': str(tenant_uuid),
-                # f'user_uuid:{user_uuid}': True,
+                f'user_uuid:{user_uuid}': True,
             },
         )
