@@ -57,8 +57,10 @@ class TeamsService:
         url = self.config['teams_presence']['microsoft_graph_url']
         try:
             user_config = await self._fetch_configuration(user_uuid)
-        except (ValueError, HTTPError):
-            logger.error('unable to fetch configuration for user `%s`', user_uuid)
+        except (ValueError, HTTPError) as exc:
+            logger.error(
+                'unable to fetch configuration for user `%s` (%s)', user_uuid, exc
+            )
             return
 
         synchronizer = SubscriptionRenewer(url, user_config, self.notifier)
@@ -151,6 +153,10 @@ class TeamsService:
             fetch(self.auth.external.get, 'microsoft', user_uuid, tenant_uuid),
             fetch(self.confd.ingress_http.list, tenant_uuid=tenant_uuid),
         )
+
+        if not domains['items']:
+            raise ValueError('no domain configured for this tenant')
+
         domains = [domain['uri'] for domain in domains['items'] if 'uri' in domain]
         return {
             'domain': domains[-1],
