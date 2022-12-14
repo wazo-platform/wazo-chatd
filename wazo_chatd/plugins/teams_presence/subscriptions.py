@@ -89,7 +89,9 @@ class SubscriptionRenewer:
     def _build_notification_url(self) -> str:
         user_uuid = self._config['user_uuid']
         domain = self._config['domain']
-        return f'https://{domain}/api/chatd/1.0/users/{user_uuid}/teams/presence'
+        if '://' not in domain:
+            domain = f'https://{domain}'
+        return f'{domain}/api/chatd/1.0/users/{user_uuid}/teams/presence'
 
     async def _create_subscription(self, *, expiry=DEFAULT_EXPIRATION):
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expiry)
