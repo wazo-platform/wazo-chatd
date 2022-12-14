@@ -40,7 +40,7 @@ class BusEventHandler:
         try:
             await self.service.create_subscription(user_uuid)
         except Exception:
-            logger.exception('an exception occured!')
+            logger.exception('an exception occured while creating subscription')
 
     async def on_external_auth_deleted(self, payload):
         user_uuid, auth_name = payload.values()
@@ -51,7 +51,7 @@ class BusEventHandler:
         try:
             await self.service.delete_subscription(user_uuid)
         except Exception:
-            logger.exception('an exception occured!')
+            logger.exception('an exception occured while deleting a subscription')
 
     def subscribe(self):
         events = (

@@ -137,10 +137,7 @@ class TeamsService:
         )
 
         for user in results['items']:
-            try:
-                await self.create_subscription(user['uuid'])
-            except Exception:
-                logger.exception('hello')
+            await self.create_subscription(user['uuid'])
 
     async def _fetch_configuration(self, user_uuid) -> Dict:
         fetch = self.aio.execute
