@@ -1,5 +1,10 @@
 # Changelog
 
+## 22.17
+
+* New endpoint:
+  * `POST /1.0/users/{user_uuid}/teams/presence`
+
 ## 22.16
 
 * New query parameter `user_uuid` has been added to the `GET /1.0/users/me/rooms` endpoint.

@@ -298,3 +298,35 @@ class BusClient(bus_helper.BusClient):
             },
             routing_key=f'config.users.{user_uuid}.services.dnd.updated',
         )
+
+    def send_external_auth_added_event(self, tenant_uuid, user_uuid, external_auth):
+        self.publish(
+            {
+                'data': {
+                    'user_uuid': str(user_uuid),
+                    'external_auth': external_auth,
+                },
+                'name': 'auth_user_external_auth_added',
+            },
+            headers={
+                'name': 'auth_user_external_auth_added',
+                'tenant_uuid': str(tenant_uuid),
+                f'user_uuid:{user_uuid}': True,
+            },
+        )
+
+    def send_external_auth_deleted_event(self, tenant_uuid, user_uuid, external_auth):
+        self.publish(
+            {
+                'data': {
+                    'user_uuid': str(user_uuid),
+                    'external_auth': external_auth,
+                },
+                'name': 'auth_user_external_auth_deleted',
+            },
+            headers={
+                'name': 'auth_user_external_auth_deleted',
+                'tenant_uuid': str(tenant_uuid),
+                f'user_uuid:{user_uuid}': True,
+            },
+        )

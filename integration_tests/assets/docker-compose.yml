@@ -46,3 +46,11 @@ services:
     volumes:
       - type: tmpfs
         target: /var/lib/rabbitmq
+
+  microsoft:
+    image: microsoft-graphql-mock
+    ports:
+      - 9991
+    volumes:
+      - ./microsoft_graphql:/usr/local/share/microsoft
+    command: python3 -u /usr/local/share/microsoft/mock_microsoft.py 9991

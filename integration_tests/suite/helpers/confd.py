@@ -1,7 +1,9 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
+
+from uuid import uuid4
 
 
 class ConfdClient:
@@ -19,5 +21,16 @@ class ConfdClient:
         body = {
             'response': 'users',
             'content': {user['uuid']: user for user in mock_users},
+        }
+        requests.post(url, json=body)
+
+    def set_ingresses(self, *mock_uris):
+        url = self.url('_set_response')
+        resource_uuid = str(uuid4())
+        body = {
+            'response': 'ingresses',
+            'content': {
+                resource_uuid: {'uri': uri, 'uuid': resource_uuid} for uri in mock_uris
+            },
         }
         requests.post(url, json=body)

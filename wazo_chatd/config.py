@@ -71,8 +71,10 @@ _DEFAULT_CONFIG = {
         'presences': True,
         'rooms': True,
         'status': True,
+        'teams_presence': False,
     },
     'initialization': {'enabled': True},
+    'teams_presence': {'microsoft_graph_url': 'https://graph.microsoft.com/v1.0'},
 }
 
 

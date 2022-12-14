@@ -1,10 +1,13 @@
-test-setup: egg-info chatd chatd-test db
+test-setup: egg-info microsoft-mock chatd chatd-test db
 
 test:
 	pytest -x
 
 egg-info:
 	cd .. && python setup.py egg_info
+
+microsoft-mock:
+	docker build --no-cache -t microsoft-graphql-mock -f docker/Dockerfile-microsoft-mock ..
 
 chatd:
 	docker build -t wazoplatform/wazo-chatd ..

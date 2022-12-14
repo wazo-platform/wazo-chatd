@@ -1,0 +1,16 @@
+version: '3.7'
+services:
+  sync:
+    depends_on:
+      - auth
+      - chatd
+      - confd
+      - postgres
+      - rabbitmq
+      - microsoft
+    environment:
+      TARGETS: "chatd:9304 auth:9497 confd:9486 postgres:5432 rabbitmq:5672 microsoft:9991"
+
+  chatd:
+    volumes:
+      - ./etc/wazo-chatd/conf.d/60-microsoft-teams.yml:/etc/wazo-chatd/conf.d/50-microsoft-teams.yml:ro
