@@ -51,7 +51,9 @@ class TeamsService:
         self.dao = dao
         self.notifier = notifier
         self.presence_service = presence_service
+
         self._synchronizers: Dict[str, SubscriptionRenewer] = {}
+        self._db_lock = asyncio.locks.Lock(loop=aio.loop)
 
     async def create_subscription(self, user_uuid: str):
         url = self.config['teams_presence']['microsoft_graph_url']
@@ -141,13 +143,15 @@ class TeamsService:
             'found %d connected users, managing subscriptions...', len(results['items'])
         )
 
-        for user in results['items']:
-            await self.create_subscription(user['uuid'])
+        asyncio.gather(
+            *[self.create_subscription(user['uuid']) for user in results['items']]
+        )
 
     async def _fetch_configuration(self, user_uuid) -> Dict:
-        fetch = self.aio.execute
+        fetch = self._retry_fetch
 
-        users = self.dao.user.list_(None, uuids=[user_uuid])
+        async with self._db_lock:
+            users = self.dao.user.list_(None, uuids=[user_uuid])
         if not users:
             raise ValueError(f'unable to retrieve user `{user_uuid}`')
         tenant_uuid = str(users[0].tenant_uuid)
@@ -168,6 +172,18 @@ class TeamsService:
             'token': token['access_token'],
             'user_uuid': user_uuid,
         }
+
+    async def _retry_fetch(self, fun, *args, **kwargs):
+        fetch = self.aio.execute
+        retries = 3
+
+        for _ in range(retries + 1):
+            try:
+                return await fetch(fun, *args, **kwargs)
+            except HTTPError as exc:
+                await asyncio.sleep(1)
+                last_exc = exc
+        raise last_exc
 
     async def _update_confd_dnd(self, user_uuid, state):
         result = await self.aio.execute(self.confd.users(user_uuid).get_service, 'dnd')
