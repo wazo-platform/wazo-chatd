@@ -79,12 +79,11 @@ class SubscriptionRenewer:
         now = datetime.now(timezone.utc)
         return int((self._expiration - now).total_seconds())
 
-    async def start(self):
+    def start(self):
         self._task = asyncio.create_task(self._run())
 
-    async def stop(self):
+    def stop(self):
         self._task.cancel()
-        await self._task
 
     def _build_notification_url(self) -> str:
         user_uuid = self._config['user_uuid']
@@ -108,21 +107,25 @@ class SubscriptionRenewer:
         response = await self._http.create('subscriptions', json=payload)
         if response.status_code == 409:
             try:
-                await self._find_subscription()
+                subscription = await self._find_subscription()
             except (HTTPError, ValueError):
                 raise
-
-        if response.status_code == 400:
+            else:
+                action = 'found'
+        elif response.status_code == 400:
             logger.error(
                 'failed to create subscription (teams was unable to communicate with the stack)'
             )
-        response.raise_for_status()
+        else:
+            response.raise_for_status()
+            subscription = response.json()
+            action = 'created'
 
-        subscription = response.json()
         self._id = subscription['id']
         self._expiration = iso8601.parse_date(subscription['expirationDateTime'])
         logger.debug(
-            'created subscription `%s` (expires in %d second(s))',
+            '%s subscription `%s` (expires in %d second(s))',
+            action,
             self._id,
             self.remaining_time(),
         )
@@ -137,7 +140,7 @@ class SubscriptionRenewer:
     async def _find_subscription(self):
         user_uuid = self._config['user_uuid']
         user_id = self._config['microsoft']['user_id']
-        expected_resource = f'/communication/presences/{user_id}'
+        expected_resource = f'/communications/presences/{user_id}'
 
         response = await self._http.read('subscriptions')
         response.raise_for_status()
@@ -147,18 +150,8 @@ class SubscriptionRenewer:
                 subscription['resource'] == expected_resource
                 and subscription['changeType'] == 'updated'
             ):
-                self._id = subscription['id']
-                self._expiration = iso8601.parse_date(
-                    subscription['expirationDateTime']
-                )
-                logger.debug(
-                    'found subscription `%s` (expires in %d second(s)))',
-                    self._id,
-                    self.remaining_time(),
-                )
-                return
-        logger.debug('no compatible subscription found for user `%s`', user_uuid)
-        raise ValueError()
+                return subscription
+        raise ValueError(f'no compatible subsription found for user `{user_uuid}`')
 
     async def _renew_subscription(self, *, expiry=DEFAULT_EXPIRATION):
         if not self._id:
@@ -184,8 +177,10 @@ class SubscriptionRenewer:
 
         try:
             await self._create_subscription(expiry=expiry)
-        except (ValueError, HTTPError):
-            logger.error('unable to create a subscription for user `%s`', user_uuid)
+        except (ValueError, HTTPError) as exc:
+            logger.error(
+                'unable to create a subscription for user `%s`: %s', user_uuid, exc
+            )
             return
         else:
             logger.debug('subscription renewer started for user `%s`', user_uuid)
@@ -197,11 +192,18 @@ class SubscriptionRenewer:
                 if duration > 0:
                     await asyncio.sleep(duration)
                 await self._renew_subscription(expiry=expiry)
-            except HTTPError:
-                logger.error('failed to renew subscription for user `%s`', user_uuid)
+            except HTTPError as exc:
+                logger.error(
+                    'failed to renew subscription for user `%s`: %s', user_uuid, exc
+                )
                 break
             except asyncio.CancelledError:
                 break
-        await self._delete_subscription()
+        try:
+            await self._delete_subscription()
+        except HTTPError as exc:
+            logger.debug(
+                'failed to delete subscription for user `%s`: %s', user_uuid, exc
+            )
         logger.debug('subscription renewer stopped for user `%s`', user_uuid)
         await self._notifier.unsubscribed(tenant_uuid, user_uuid)

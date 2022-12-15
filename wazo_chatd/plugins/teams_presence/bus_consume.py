@@ -37,6 +37,7 @@ class BusEventHandler:
         if auth_name != 'microsoft':
             return
 
+        logger.debug('connecting user `%s`', user_uuid)
         try:
             await self.service.create_subscription(user_uuid)
         except Exception:
@@ -48,6 +49,7 @@ class BusEventHandler:
         if auth_name != 'microsoft':
             return
 
+        logger.debug('disconnecting user `%s`', user_uuid)
         try:
             await self.service.delete_subscription(user_uuid)
         except Exception:
