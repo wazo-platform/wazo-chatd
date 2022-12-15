@@ -137,7 +137,7 @@ class SubscriptionRenewer:
     async def _find_subscription(self):
         user_uuid = self._config['user_uuid']
         user_id = self._config['microsoft']['user_id']
-        expected_resource = f'/communication/presences/{user_id}'
+        expected_resource = f'/communications/presences/{user_id}'
 
         response = await self._http.read('subscriptions')
         response.raise_for_status()
