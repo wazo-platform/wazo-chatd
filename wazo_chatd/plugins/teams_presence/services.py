@@ -113,13 +113,8 @@ class TeamsService:
 
     def _decode_jwt(self, token):
         payload = token.split('.')[1]
-        remaining = len(payload) % 4
-        if remaining == 2:
-            payload = ''.join([payload, '=='])
-        elif remaining == 1:
-            payload = ''.join([payload, '='])
 
-        decoded = json.loads(urlsafe_b64decode(payload))
+        decoded = json.loads(urlsafe_b64decode(payload + '==='))
         return {
             'tenant_id': decoded['tid'],
             'app_id': decoded['appid'],
