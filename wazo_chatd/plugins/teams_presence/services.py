@@ -63,17 +63,20 @@ class TeamsService:
             )
             return
 
-        synchronizer = SubscriptionRenewer(url, user_config, self.notifier)
-        await synchronizer.start()
+        if user_uuid in self._synchronizers:
+            raise ValueError(f'user `{user_uuid}` is already being synchronized')
 
-        self._synchronizers[user_uuid] = synchronizer
+        self._synchronizers[user_uuid] = synchronizer = SubscriptionRenewer(
+            url, user_config, self.notifier
+        )
+        synchronizer.start()
 
     async def delete_subscription(self, user_uuid: str):
         synchronizer = self._synchronizers.pop(user_uuid, None)
         if not synchronizer:
             return
 
-        await synchronizer.stop()
+        synchronizer.stop()
 
     def initialize(self):
         self.aio.schedule_coroutine(self._initialize())

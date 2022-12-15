@@ -79,12 +79,11 @@ class SubscriptionRenewer:
         now = datetime.now(timezone.utc)
         return int((self._expiration - now).total_seconds())
 
-    async def start(self):
+    def start(self):
         self._task = asyncio.create_task(self._run())
 
-    async def stop(self):
+    def stop(self):
         self._task.cancel()
-        await self._task
 
     def _build_notification_url(self) -> str:
         user_uuid = self._config['user_uuid']
