@@ -69,7 +69,7 @@ class TeamsService:
             raise ValueError(f'user `{user_uuid}` is already being synchronized')
 
         self._synchronizers[user_uuid] = synchronizer = SubscriptionRenewer(
-            url, user_config, self.notifier
+            self.auth, url, user_config, self.notifier
         )
         synchronizer.start()
 
