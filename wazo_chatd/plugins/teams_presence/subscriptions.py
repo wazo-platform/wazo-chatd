@@ -10,6 +10,8 @@ from functools import partial
 from requests.exceptions import HTTPError
 from typing import Dict
 
+from wazo_auth_client import Client as AuthClient
+
 from .log import make_logger
 from .notifier import TeamsNotifier
 
@@ -21,53 +23,78 @@ DEFAULT_LEEWAY = 600  # 10 mins
 
 
 class _HTTPHelper:
-    def __init__(self, base_url: str, headers: Dict[str, str] = None):
-        self.base_url = base_url
-        self.headers = headers
+    def __init__(self, auth_client: AuthClient, base_url: str, config: Dict[str, str]):
+        self._auth = auth_client
+        self._base_url = base_url
+        self._config = config
+        self._token = config['token']
 
-    @classmethod
-    async def execute(cls, method, *args, **kwargs):
+    def _headers(self):
+        return {
+            'Authorization': f'Bearer {self._token}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        }
+
+    async def _refresh_token(self):
         loop = asyncio.get_running_loop()
+        user_uuid = self._config['user_uuid']
+        tenant_uuid = self._config['tenant_uuid']
+        fn = partial(self._auth.external.get, 'microsoft', user_uuid, tenant_uuid)
+        try:
+            data = await loop.run_in_executor(None, fn)
+        except HTTPError as exc:
+            logger.error(
+                'failed to refresh user\'s `%s` Microsoft token: %s', user_uuid, exc
+            )
+        else:
+            logger.debug('renewed Microsoft access token for user `%s`', user_uuid)
+            self._token = data['access_token']
+
+    async def _dispatch(self, method, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        kwargs.update(headers=self._headers())
         fn = partial(method, *args, **kwargs)
         return await loop.run_in_executor(None, fn)
 
-    def make_url(self, *path):
-        return '/'.join([self.base_url, *path])
+    async def _execute_with_retry(self, method, *args, **kwargs):
+        response = await self._dispatch(method, *args, **kwargs)
+        if response.status_code == 401:
+            await self._refresh_token()
+            return await self._dispatch(method, *args, **kwargs)
+        return response
+
+    def _make_url(self, *path):
+        return '/'.join([self._base_url, *path])
 
     async def create(self, *path: str, json: Dict = None):
-        url = self.make_url(*path)
-        return await self.execute(requests.post, url, json=json, headers=self.headers)
+        url = self._make_url(*path)
+        return await self._execute_with_retry(requests.post, url, json=json)
 
     async def delete(self, *path: str, json: Dict = None):
-        url = self.make_url(*path)
-        return await self.execute(requests.delete, url, json=json, headers=self.headers)
+        url = self._make_url(*path)
+        return await self._execute_with_retry(requests.delete, url, json=json)
 
     async def read(self, *path: str):
-        url = self.make_url(*path)
-        return await self.execute(requests.get, url, headers=self.headers)
+        url = self._make_url(*path)
+        return await self._execute_with_retry(requests.get, url)
 
     async def update(self, *path: str, json: Dict = None):
-        url = self.make_url(*path)
-        return await self.execute(requests.patch, url, json=json, headers=self.headers)
+        url = self._make_url(*path)
+        return await self._execute_with_retry(requests.patch, url, json=json)
 
 
 class SubscriptionRenewer:
-    def __init__(self, base_url: str, config: Dict, notifier: TeamsNotifier):
+    def __init__(
+        self, auth: AuthClient, base_url: str, config: Dict, notifier: TeamsNotifier
+    ):
         self._config: Dict[str, str] = config
         self._expiration = 0
         self._id = None
         self._notifier = notifier
         self._task: asyncio.Task = None
         self._token: str = config['token']
-        self._http = _HTTPHelper(base_url, self.headers)
-
-    @property
-    def headers(self) -> Dict[str, str]:
-        return {
-            'Authorization': f'Bearer {self._token}',
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-        }
+        self._http = _HTTPHelper(auth, base_url, config)
 
     @property
     def tenant_uuid(self):
