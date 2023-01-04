@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -95,9 +95,9 @@ class TestUserRoom(APIIntegrationTest):
             ),
         )
 
-    def _create_rooms(self, name, add_third_user):
+    def test_create(self):
         room_args = {
-            'name': name,
+            'name': 'test-room',
             'users': [
                 {
                     'uuid': str(TOKEN_USER_UUID),
@@ -107,13 +107,8 @@ class TestUserRoom(APIIntegrationTest):
                 {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
             ],
         }
-        if add_third_user:
-            room_args['users'].append(
-                {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2}
-            )
-
-        routing_key = 'chatd.users.*.rooms.created'
-        event_accumulator = self.bus.accumulator(routing_key)
+        headers = {'name': 'chatd_user_room_created'}
+        event_accumulator = self.bus.accumulator(headers=headers)
 
         room = self.chatd.rooms.create_from_user(room_args)
 
@@ -146,58 +141,49 @@ class TestUserRoom(APIIntegrationTest):
                 ),
             ),
         )
-        required_acl_fmt = 'events.chatd.users.{user_uuid}.rooms.created'
-        event = event_accumulator.accumulate()
-        if add_third_user:
-            assert_that(
-                event,
-                contains_inanyorder(
-                    has_entries(
-                        data=has_entries(room_args),
-                        required_acl=required_acl_fmt.format(
-                            user_uuid=TOKEN_USER_UUID,
-                        ),
-                    ),
-                    has_entries(
-                        data=has_entries(room_args),
-                        required_acl=required_acl_fmt.format(
-                            user_uuid=UUID,
-                        ),
-                    ),
-                    has_entries(
-                        data=has_entries(room_args),
-                        required_acl=required_acl_fmt.format(
-                            user_uuid=UUID_2,
-                        ),
-                    ),
-                ),
-            )
-        else:
-            assert_that(
-                event,
-                contains_inanyorder(
-                    has_entries(
-                        data=has_entries(room_args),
-                        required_acl=required_acl_fmt.format(
-                            user_uuid=TOKEN_USER_UUID,
-                        ),
-                    ),
-                    has_entries(
-                        data=has_entries(room_args),
-                        required_acl=required_acl_fmt.format(
-                            user_uuid=UUID,
-                        ),
-                    ),
-                ),
-            )
-
         self._delete_room(room)
 
-    def test_create(self):
-        self._create_rooms('test-room', False)
+    def test_create_with_many_users(self):
+        room_args = {
+            'name': 'test-group-room',
+            'users': [
+                {
+                    'uuid': str(TOKEN_USER_UUID),
+                    'tenant_uuid': str(TOKEN_TENANT_UUID),
+                    'wazo_uuid': str(WAZO_UUID),
+                },
+                {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
+                {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
+            ],
+        }
+        headers = {'name': 'chatd_user_room_created'}
+        event_accumulator = self.bus.accumulator(headers=headers)
 
-    def test_create_group(self):
-        self._create_rooms('test-room-group', True)
+        room = self.chatd.rooms.create_from_user(room_args)
+
+        assert_that(
+            room,
+            has_entries(
+                uuid=uuid_(),
+                name=room_args['name'],
+                users=contains_inanyorder(*room_args['users']),
+            ),
+        )
+
+        event = event_accumulator.accumulate(with_headers=True)
+        expected_entries = [
+            has_entries(
+                message=has_entries(
+                    data=has_entries(room_args),
+                    required_acl=f'events.chatd.users.{uuid}.rooms.created',
+                ),
+                headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
+            )
+            for uuid in (TOKEN_USER_UUID, UUID, UUID_2)
+        ]
+        assert_that(event, contains_inanyorder(*expected_entries))
+
+        self._delete_room(room)
 
     def test_create_minimal_parameters(self):
         room_args = {'users': [{'uuid': UUID}]}
@@ -247,19 +233,21 @@ class TestUserRoom(APIIntegrationTest):
         self._session.commit()
 
     def test_create_with_wrong_users_number(self):
+        # 100 + current user = 101
         room_args = {
             'users': [
-                # Current user is automatically added to the users list
-                # {
-                #   'uuid': str(TOKEN_USER_UUID),
-                #   'tenant_uuid': str(TOKEN_TENANT_UUID),
-                #   'wazo_uuid': str(WAZO_UUID),
-                # },
-                {'uuid': UUID, 'tenant_uuid': UUID, 'wazo_uuid': UUID},
-                {'uuid': UUID_2, 'tenant_uuid': UUID_2, 'wazo_uuid': UUID_2},
+                {
+                    'uuid': str(TOKEN_USER_UUID),
+                    'tenant_uuid': str(TOKEN_TENANT_UUID),
+                    'wazo_uuid': str(WAZO_UUID),
+                },
             ]
+            + self._generate_users(100)
         }
-        self._add_user_range(room_args)
+        self._assert_create_raise_400_users_error(room_args)
+
+        # 100 without current user = 101
+        room_args = {'users': self._generate_users(100)}
         self._assert_create_raise_400_users_error(room_args)
 
         room_args = {'users': []}
@@ -268,17 +256,15 @@ class TestUserRoom(APIIntegrationTest):
         room_args = {}
         self._assert_create_raise_400_users_error(room_args)
 
-    def _add_user_range(self, room_args):
-        for _ in range(3, 101):
-            room_args['users'].append(
-                {
-                    'uuid': str(uuid.uuid4()),
-                    'tenant_uuid': str(uuid.uuid4()),
-                    'wazo_uuid': str(uuid.uuid4()),
-                }
-            )
-
-        return room_args
+    def _generate_users(self, number):
+        return [
+            {
+                'uuid': str(uuid.uuid4()),
+                'tenant_uuid': str(uuid.uuid4()),
+                'wazo_uuid': str(uuid.uuid4()),
+            }
+            for _ in range(number)
+        ]
 
     def _assert_create_raise_400_users_error(self, room):
         assert_that(
