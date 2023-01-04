@@ -141,7 +141,7 @@ definitions:
             description: The name of the room
           users:
             type: array
-            description: Only one user can be added for now
+            maxItems: 100
             items:
               $ref: '#/definitions/RoomUser'
         required:

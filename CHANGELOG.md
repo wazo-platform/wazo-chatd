@@ -1,5 +1,9 @@
 # Changelog
 
+## 23.01
+
+* Room can now have up to 100 users
+
 ## 22.17
 
 * New endpoint:
