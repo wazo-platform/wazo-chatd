@@ -34,6 +34,7 @@ UUID_2 = str(uuid.uuid4())
 
 USER_1 = {'uuid': str(uuid.uuid4())}
 USER_2 = {'uuid': str(uuid.uuid4())}
+USER_3 = {'uuid': str(uuid.uuid4())}
 
 
 @use_asset('base')
@@ -61,15 +62,19 @@ class TestUserRoom(APIIntegrationTest):
 
     @fixtures.http.room(users=[USER_1])
     @fixtures.http.room(users=[USER_2])
-    def test_list_by_user_uuid(self, room_1, _):
+    @fixtures.http.room(users=[USER_1, USER_2])
+    def test_list_by_user_uuid(self, room_1, room_2, room_3):
         user_uuids = [USER_1['uuid']]
         rooms = self.chatd.rooms.list_from_user(user_uuids=user_uuids)
         assert_that(
             rooms,
             has_entries(
-                items=contains_inanyorder(has_entries(uuid=room_1['uuid'])),
-                total=equal_to(1),
-                filtered=equal_to(1),
+                items=contains_inanyorder(
+                    has_entries(uuid=room_1['uuid']),
+                    has_entries(uuid=room_3['uuid']),
+                ),
+                total=equal_to(2),
+                filtered=equal_to(2),
             ),
         )
 
@@ -78,13 +83,29 @@ class TestUserRoom(APIIntegrationTest):
         assert_that(
             rooms,
             has_entries(
-                items=contains_inanyorder(has_entries(uuid=room_1['uuid'])),
+                items=contains_inanyorder(
+                    has_entries(uuid=room_1['uuid']),
+                    has_entries(uuid=room_3['uuid']),
+                ),
+                total=equal_to(2),
+                filtered=equal_to(2),
+            ),
+        )
+
+        user_uuids = [str(TOKEN_USER_UUID), USER_1['uuid'], USER_2['uuid']]
+        rooms = self.chatd.rooms.list_from_user(user_uuids=user_uuids)
+        assert_that(
+            rooms,
+            has_entries(
+                items=contains_inanyorder(
+                    has_entries(uuid=room_3['uuid']),
+                ),
                 total=equal_to(1),
                 filtered=equal_to(1),
             ),
         )
 
-        user_uuids = [str(TOKEN_USER_UUID), USER_1['uuid'], USER_2['uuid']]
+        user_uuids = [str(TOKEN_USER_UUID), USER_1['uuid'], USER_3['uuid']]
         rooms = self.chatd.rooms.list_from_user(user_uuids=user_uuids)
         assert_that(
             rooms,
