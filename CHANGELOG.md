@@ -4,6 +4,12 @@
 
 * Room can now have up to 100 users
 
+* Changes to the following bus configuration keys:
+
+  * key `exchange_name` now defaults to `wazo-headers`
+  * key `exchange_type` was removed
+  * key `subscribe` was removed
+
 ## 22.17
 
 * New endpoint:
