@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -24,7 +24,6 @@ from ..schemas import (
 
 
 class TestListRequestSchema(unittest.TestCase):
-
     schema = ListRequestSchema
 
     def test_load_direction_missing(self):
@@ -37,7 +36,6 @@ class TestListRequestSchema(unittest.TestCase):
 
 
 class TestMessageListRequestSchema(unittest.TestCase):
-
     schema = MessageListRequestSchema
 
     def test_search_or_distinct_missing(self):
@@ -52,7 +50,6 @@ class TestMessageListRequestSchema(unittest.TestCase):
 
 
 class TestRoomListRequestSchema(unittest.TestCase):
-
     schema = RoomListRequestSchema
 
     # WAZO-2953: non-regression
