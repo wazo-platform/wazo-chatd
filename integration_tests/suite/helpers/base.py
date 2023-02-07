@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pytest
@@ -67,7 +67,6 @@ class WrongClient:
 
 
 class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
-
     assets_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), '..', '..', 'assets')
     )

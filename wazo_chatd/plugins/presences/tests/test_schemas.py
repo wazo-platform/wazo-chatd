@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -23,7 +23,6 @@ UUID = uuid.uuid4()
 
 
 class TestUserPresenceSchema(unittest.TestCase):
-
     schema = UserPresenceSchema
 
     def setUp(self):
@@ -162,7 +161,6 @@ class TestUserPresenceSchema(unittest.TestCase):
 
 
 class TestLinePresenceSchema(unittest.TestCase):
-
     schema = LinePresenceSchema
 
     def setUp(self):
@@ -220,7 +218,6 @@ class TestLinePresenceSchema(unittest.TestCase):
 
 
 class TestListRequestSchema(unittest.TestCase):
-
     schema = ListRequestSchema
 
     def setUp(self):

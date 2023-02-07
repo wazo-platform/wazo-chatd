@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from datetime import datetime, timezone
@@ -24,7 +24,6 @@ Base = declarative_base()
 
 @generic_repr
 class Tenant(Base):
-
     __tablename__ = 'chatd_tenant'
 
     uuid = Column(UUIDType(), primary_key=True)
@@ -32,7 +31,6 @@ class Tenant(Base):
 
 @generic_repr
 class User(Base):
-
     __tablename__ = 'chatd_user'
 
     uuid = Column(UUIDType(), primary_key=True)
@@ -62,7 +60,6 @@ class User(Base):
 
 @generic_repr
 class Session(Base):
-
     __tablename__ = 'chatd_session'
 
     uuid = Column(UUIDType(), primary_key=True)
@@ -79,7 +76,6 @@ class Session(Base):
 
 @generic_repr
 class RefreshToken(Base):
-
     __tablename__ = 'chatd_refresh_token'
 
     client_id = Column(Text, nullable=False, primary_key=True)
@@ -97,7 +93,6 @@ class RefreshToken(Base):
 
 @generic_repr
 class Line(Base):
-
     __tablename__ = 'chatd_line'
 
     id = Column(Integer, primary_key=True)
@@ -118,7 +113,6 @@ class Line(Base):
 
 @generic_repr
 class Endpoint(Base):
-
     __tablename__ = 'chatd_endpoint'
 
     name = Column(Text, primary_key=True)
@@ -133,7 +127,6 @@ class Endpoint(Base):
 
 @generic_repr
 class Channel(Base):
-
     __tablename__ = 'chatd_channel'
 
     name = Column(Text, primary_key=True)
@@ -154,7 +147,6 @@ class Channel(Base):
 
 @generic_repr
 class Room(Base):
-
     __tablename__ = 'chatd_room'
 
     uuid = Column(
@@ -178,7 +170,6 @@ class Room(Base):
 
 @generic_repr
 class RoomUser(Base):
-
     __tablename__ = 'chatd_room_user'
 
     room_uuid = Column(
@@ -193,7 +184,6 @@ class RoomUser(Base):
 
 @generic_repr
 class RoomMessage(Base):
-
     __tablename__ = 'chatd_room_message'
 
     uuid = Column(
