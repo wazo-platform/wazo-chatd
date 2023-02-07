@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
-from sqlalchemy import distinct, func, text
+from sqlalchemy import distinct, text
 from sqlalchemy.dialects import postgresql
 
 from ...exceptions import UnknownRoomException
@@ -48,7 +48,9 @@ class RoomDAO:
             sub_query = (
                 self.session.query(RoomUser.room_uuid)
                 .group_by(RoomUser.room_uuid)
-                .having(postgresql.array_agg(distinct(RoomUser.uuid)).contains(user_uuids))
+                .having(
+                    postgresql.array_agg(distinct(RoomUser.uuid)).contains(user_uuids)
+                )
             ).subquery()
             query = query.filter(Room.uuid.in_(sub_query))
 
