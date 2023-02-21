@@ -1,8 +1,9 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import signal
+import threading
 
 from functools import partial
 from wazo_auth_client import Client as AuthClient
@@ -42,6 +43,7 @@ class Controller:
         self.thread_manager = ThreadManager()
         auth_client = AuthClient(**config['auth'])
         self.token_renewer = TokenRenewer(auth_client)
+        self._stopping_thread = None
         if not app.config['auth'].get('master_tenant_uuid'):
             self.token_renewer.subscribe_to_next_token_details_change(
                 auth.init_master_tenant
@@ -67,19 +69,25 @@ class Controller:
         logger.info('wazo-chatd starting...')
         self.status_aggregator.add_provider(self.bus_consumer.provide_status)
         self.status_aggregator.add_provider(auth.provide_status)
-        signal.signal(signal.SIGTERM, partial(_sigterm_handler, self))
+        signal.signal(signal.SIGTERM, partial(_signal_handler, self))
+        signal.signal(signal.SIGINT, partial(_signal_handler, self))
 
-        with self.thread_manager:
-            with self.token_renewer:
-                with self.bus_consumer:
-                    with self.aio:
-                        with ServiceCatalogRegistration(*self._service_discovery_args):
-                            self.rest_api.run()
+        try:
+            with self.thread_manager:
+                with self.token_renewer:
+                    with self.bus_consumer:
+                        with self.aio:
+                            with ServiceCatalogRegistration(*self._service_discovery_args):
+                                self.rest_api.run()
+        finally:
+            if self._stopping_thread:
+                self._stopping_thread.join()
 
     def stop(self, reason):
         logger.warning('Stopping wazo-chatd: %s', reason)
-        self.rest_api.stop()
+        self._stopping_thread = threading.Thread(target=self.rest_api.stop, name=reason)
+        self._stopping_thread.start()
 
 
-def _sigterm_handler(controller, signum, frame):
-    controller.stop(reason='SIGTERM')
+def _signal_handler(controller, signum, frame):
+    controller.stop(reason=signal.Signals(signum).name)
