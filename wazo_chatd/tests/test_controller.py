@@ -1,18 +1,14 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
-
+import signal
 from unittest import TestCase
 from unittest.mock import Mock
 
-from ..controller import _sigterm_handler
+from ..controller import _signal_handler
 
 
-class Testclassname(TestCase):
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_sigterm_handler(self):
-        _sigterm_handler(Mock(), Mock(), Mock())
+class TestController(TestCase):
+    def test_sigterm_handler(self) -> None:
+        mock_controller = Mock()
+        _signal_handler(mock_controller, signal.SIGTERM, Mock())
+        mock_controller.stop.assert_called_once_with(reason="SIGTERM")
