@@ -77,7 +77,9 @@ class Controller:
                 with self.token_renewer:
                     with self.bus_consumer:
                         with self.aio:
-                            with ServiceCatalogRegistration(*self._service_discovery_args):
+                            with ServiceCatalogRegistration(
+                                *self._service_discovery_args
+                            ):
                                 self.rest_api.run()
         finally:
             if self._stopping_thread:
