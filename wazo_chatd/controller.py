@@ -72,18 +72,18 @@ class Controller:
         signal.signal(signal.SIGTERM, partial(_signal_handler, self))
         signal.signal(signal.SIGINT, partial(_signal_handler, self))
 
-        try:
-            with self.thread_manager:
-                with self.token_renewer:
-                    with self.bus_consumer:
-                        with self.aio:
-                            with ServiceCatalogRegistration(
-                                *self._service_discovery_args
-                            ):
+        with self.thread_manager:
+            with self.token_renewer:
+                with self.bus_consumer:
+                    with self.aio:
+                        with ServiceCatalogRegistration(*self._service_discovery_args):
+                            try:
                                 self.rest_api.run()
-        finally:
-            if self._stopping_thread:
-                self._stopping_thread.join()
+                            finally:
+                                if self._stopping_thread:
+                                    logger.debug('joining stopping thread...')
+                                    self._stopping_thread.join()
+                                logger.info('wazo-chatd rest api stopped')
 
     def stop(self, reason):
         logger.warning('Stopping wazo-chatd: %s', reason)
