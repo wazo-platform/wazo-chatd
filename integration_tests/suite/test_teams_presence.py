@@ -193,7 +193,7 @@ class TestTeams(TeamsIntegrationTest):
             ),
         )
 
-    @fixtures.db.user(state='available')
+    @fixtures.db.user(state='available', do_not_disturb=False)
     def test_presence_enable_dnd(self, user):
         accumulator = self.bus.accumulator(headers={'name': 'chatd_presence_updated'})
 
@@ -215,7 +215,7 @@ class TestTeams(TeamsIntegrationTest):
             ),
         )
 
-    @fixtures.db.user(state='unavailable')
+    @fixtures.db.user(state='unavailable', do_not_disturb=True)
     def test_presence_disable_dnd(self, user):
         accumulator = self.bus.accumulator(headers={'name': 'chatd_presence_updated'})
 
