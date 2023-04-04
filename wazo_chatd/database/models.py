@@ -16,6 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.schema import Index
 from sqlalchemy.orm import relationship
 from sqlalchemy_utils import UUIDType, generic_repr
 
@@ -32,6 +33,7 @@ class Tenant(Base):
 @generic_repr
 class User(Base):
     __tablename__ = 'chatd_user'
+    __table_args__ = (Index('chatd_user__idx__tenant_uuid', 'tenant_uuid'),)
 
     uuid = Column(UUIDType(), primary_key=True)
     tenant_uuid = Column(
@@ -61,6 +63,7 @@ class User(Base):
 @generic_repr
 class Session(Base):
     __tablename__ = 'chatd_session'
+    __table_args__ = (Index('chatd_session__idx__user_uuid', 'user_uuid'),)
 
     uuid = Column(UUIDType(), primary_key=True)
     mobile = Column(Boolean, nullable=False, default=False)
@@ -94,6 +97,10 @@ class RefreshToken(Base):
 @generic_repr
 class Line(Base):
     __tablename__ = 'chatd_line'
+    __table_args__ = (
+        Index('chatd_line__idx__user_uuid', 'user_uuid'),
+        Index('chatd_line__idx__endpoint_name', 'endpoint_name'),
+    )
 
     id = Column(Integer, primary_key=True)
     user_uuid = Column(UUIDType(), ForeignKey('chatd_user.uuid', ondelete='CASCADE'))
@@ -128,6 +135,7 @@ class Endpoint(Base):
 @generic_repr
 class Channel(Base):
     __tablename__ = 'chatd_channel'
+    __table_args__ = (Index('chatd_channel__idx__line_id', 'line_id'),)
 
     name = Column(Text, primary_key=True)
     state = Column(
@@ -148,6 +156,7 @@ class Channel(Base):
 @generic_repr
 class Room(Base):
     __tablename__ = 'chatd_room'
+    __table_args__ = (Index('chatd_room__idx__tenant_uuid', 'tenant_uuid'),)
 
     uuid = Column(
         UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
@@ -185,6 +194,7 @@ class RoomUser(Base):
 @generic_repr
 class RoomMessage(Base):
     __tablename__ = 'chatd_room_message'
+    __table_args__ = (Index('chatd_room_message__idx__room_uuid', 'room_uuid'),)
 
     uuid = Column(
         UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
