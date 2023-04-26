@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import ValidationError
@@ -62,7 +62,7 @@ class UserRoomListResource(AuthResource):
         room_args['users'].append({'uuid': user_uuid})
 
     def _is_duplicate_user(self, users):
-        unique = set(user['uuid'] for user in users)
+        unique = {user['uuid'] for user in users}
         if len(unique) != len(users):
             return True
         return False

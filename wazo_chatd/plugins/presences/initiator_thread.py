@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import itertools
@@ -11,7 +11,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-class InitiatorThread(object):
+class InitiatorThread:
     def __init__(self, initiator):
         self._initiator = initiator
         self._started = False

@@ -1,5 +1,6 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+from __future__ import annotations
 
 import asyncio
 import iso8601
@@ -8,7 +9,6 @@ import requests
 from datetime import datetime, timezone, timedelta
 from functools import partial
 from requests.exceptions import HTTPError
-from typing import Dict
 
 from wazo_auth_client import Client as AuthClient
 
@@ -23,7 +23,7 @@ DEFAULT_LEEWAY = 600  # 10 mins
 
 
 class _HTTPHelper:
-    def __init__(self, auth_client: AuthClient, base_url: str, config: Dict[str, str]):
+    def __init__(self, auth_client: AuthClient, base_url: str, config: dict[str, str]):
         self._auth = auth_client
         self._base_url = base_url
         self._config = config
@@ -67,11 +67,11 @@ class _HTTPHelper:
     def _make_url(self, *path):
         return '/'.join([self._base_url, *path])
 
-    async def create(self, *path: str, json: Dict = None):
+    async def create(self, *path: str, json: dict | None = None):
         url = self._make_url(*path)
         return await self._execute_with_retry(requests.post, url, json=json)
 
-    async def delete(self, *path: str, json: Dict = None):
+    async def delete(self, *path: str, json: dict | None = None):
         url = self._make_url(*path)
         return await self._execute_with_retry(requests.delete, url, json=json)
 
@@ -79,16 +79,16 @@ class _HTTPHelper:
         url = self._make_url(*path)
         return await self._execute_with_retry(requests.get, url)
 
-    async def update(self, *path: str, json: Dict = None):
+    async def update(self, *path: str, json: dict | None = None):
         url = self._make_url(*path)
         return await self._execute_with_retry(requests.patch, url, json=json)
 
 
 class SubscriptionRenewer:
     def __init__(
-        self, auth: AuthClient, base_url: str, config: Dict, notifier: TeamsNotifier
+        self, auth: AuthClient, base_url: str, config: dict, notifier: TeamsNotifier
     ):
-        self._config: Dict[str, str] = config
+        self._config: dict[str, str] = config
         self._expiration = 0
         self._id = None
         self._notifier = notifier

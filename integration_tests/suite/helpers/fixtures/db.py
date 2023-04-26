@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -333,7 +333,7 @@ def _random_string(length=10):
 
 
 def _random_endpoint_name(length=10):
-    return 'SIP/{}'.format(_random_string(length))
+    return f'SIP/{_random_string(length)}'
 
 
 def _random_channel_name(length=10):

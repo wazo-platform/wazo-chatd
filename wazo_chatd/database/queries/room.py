@@ -109,7 +109,7 @@ class RoomDAO:
         offset=None,
         order='created_at',
         direction='desc',
-        **ignored
+        **ignored,
     ):
         order_column = getattr(RoomMessage, order)
         order_column = order_column.asc() if direction == 'asc' else order_column.desc()
@@ -135,7 +135,7 @@ class RoomDAO:
 
         if search is not None:
             words = [word for word in search.split(' ') if word]
-            pattern = '%{}%'.format('%'.join(words))
+            pattern = f'%{"%".join(words)}%'
             query = query.filter(unaccent(RoomMessage.content).ilike(pattern))
 
         if from_date is not None:
