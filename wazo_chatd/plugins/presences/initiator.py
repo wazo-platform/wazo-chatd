@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -65,9 +65,9 @@ def extract_endpoint_from_line(line):
         return
 
     if line.get('endpoint_sip'):
-        return 'PJSIP/{}'.format(line['name'])
+        return f'PJSIP/{line["name"]}'
     elif line.get('endpoint_sccp'):
-        return 'SCCP/{}'.format(line['name'])
+        return f'SCCP/{line["name"]}'
     elif line.get('endpoint_custom'):
         return line['name']
 
@@ -111,8 +111,8 @@ class Initiator:
         logger.debug('Initialized completed')
 
     def initiate_tenants(self, tenants):
-        tenants = set(tenant['uuid'] for tenant in tenants)
-        tenants_cached = set(str(tenant.uuid) for tenant in self._dao.tenant.list_())
+        tenants = {tenant['uuid'] for tenant in tenants}
+        tenants_cached = {str(tenant.uuid) for tenant in self._dao.tenant.list_()}
 
         tenants_missing = tenants - tenants_cached
         with session_scope():
@@ -140,11 +140,11 @@ class Initiator:
         self._update_services_users(users)
 
     def _add_and_remove_users(self, users):
-        users = set((user['uuid'], user['tenant_uuid']) for user in users)
-        users_cached = set(
+        users = {(user['uuid'], user['tenant_uuid']) for user in users}
+        users_cached = {
             (str(u.uuid), str(u.tenant_uuid))
             for u in self._dao.user.list_(tenant_uuids=None)
-        )
+        }
 
         users_missing = users - users_cached
         with session_scope():
@@ -168,15 +168,15 @@ class Initiator:
                 self._dao.user.delete(user)
 
     def _add_and_remove_lines(self, users):
-        lines = set(
+        lines = {
             (line['id'], user['uuid'], user['tenant_uuid'])
             for user in users
             for line in user['lines']
-        )
-        lines_cached = set(
+        }
+        lines_cached = {
             (line.id, str(line.user_uuid), str(line.tenant_uuid))
             for line in self._dao.line.list_()
-        )
+        }
 
         lines_missing = lines - lines_cached
         with session_scope():
@@ -208,11 +208,11 @@ class Initiator:
                 self._dao.user.remove_session(user, line)
 
     def _add_missing_endpoints(self, users):
-        lines = set(
+        lines = {
             (line['id'], extract_endpoint_from_line(line))
             for user in users
             for line in user['lines']
-        )
+        }
         with session_scope():
             for line_id, endpoint_name in lines:
                 if not endpoint_name:
@@ -227,11 +227,11 @@ class Initiator:
                 self._dao.endpoint.create(Endpoint(name=endpoint_name))
 
     def _associate_line_endpoint(self, users):
-        lines = set(
+        lines = {
             (line['id'], extract_endpoint_from_line(line))
             for user in users
             for line in user['lines']
-        )
+        }
         with session_scope():
             for line_id, endpoint_name in lines:
                 try:
@@ -273,14 +273,14 @@ class Initiator:
         self._update_sessions(sessions)
 
     def _add_and_remove_sessions(self, sessions):
-        sessions = set(
+        sessions = {
             (session['uuid'], session['user_uuid'], session['tenant_uuid'])
             for session in sessions
-        )
-        sessions_cached = set(
+        }
+        sessions_cached = {
             (str(session.uuid), str(session.user_uuid), str(session.tenant_uuid))
             for session in self._dao.session.list_()
-        )
+        }
 
         sessions_missing = sessions - sessions_cached
         with session_scope():
@@ -321,14 +321,14 @@ class Initiator:
         self._update_refresh_tokens(tokens)
 
     def _add_and_remove_refresh_tokens(self, tokens):
-        tokens = set(
+        tokens = {
             (token['client_id'], token['user_uuid'], token['tenant_uuid'])
             for token in tokens
-        )
-        tokens_cached = set(
+        }
+        tokens_cached = {
             (token.client_id, str(token.user_uuid), str(token.tenant_uuid))
             for token in self._dao.refresh_token.list_()
-        )
+        }
 
         tokens_missing = tokens - tokens_cached
         with session_scope():

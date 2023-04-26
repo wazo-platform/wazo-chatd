@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
@@ -10,9 +10,7 @@ class AmidClient:
         self._port = port
 
     def url(self, *parts):
-        return 'http://{host}:{port}/{path}'.format(
-            host=self._host, port=self._port, path='/'.join(parts)
-        )
+        return f'http://{self._host}:{self._port}/{"/".join(parts)}'
 
     def set_devicestatelist(self, *events):
         url = self.url('_set_response_action')

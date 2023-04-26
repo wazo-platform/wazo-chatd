@@ -1,4 +1,4 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
@@ -10,9 +10,7 @@ class MicrosoftGraphClient:
         self._port = port
 
     def url(self, *parts):
-        return 'http://{host}:{port}/{path}'.format(
-            host=self._host, port=self._port, path='/'.join(parts)
-        )
+        return f'http://{self._host}:{self._port}/{"/".join(parts)}'
 
     def register_user(self, user_uuid):
         url = self.url('_register')

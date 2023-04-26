@@ -1,12 +1,12 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+from __future__ import annotations
 
 import asyncio
 import json
 
 from base64 import urlsafe_b64decode
 from requests.exceptions import HTTPError
-from typing import Dict
 
 from wazo_auth_client import Client as AuthClient
 from wazo_chatd.asyncio_ import CoreAsyncio
@@ -39,7 +39,7 @@ class TeamsService:
         aio: CoreAsyncio,
         auth_client: AuthClient,
         confd_client: ConfdClient,
-        config: Dict,
+        config: dict,
         dao: DAO,
         notifier: TeamsNotifier,
         presence_service: PresenceService,
@@ -52,7 +52,7 @@ class TeamsService:
         self.notifier = notifier
         self.presence_service = presence_service
 
-        self._synchronizers: Dict[str, SubscriptionRenewer] = {}
+        self._synchronizers: dict[str, SubscriptionRenewer] = {}
         self._db_lock = asyncio.locks.Lock(loop=aio.loop)
 
     async def create_subscription(self, user_uuid: str):
@@ -86,7 +86,7 @@ class TeamsService:
     def is_connected(self, user_uuid: str):
         return user_uuid in self._synchronizers
 
-    def update_presence(self, payload: Dict, user_uuid: str):
+    def update_presence(self, payload: dict, user_uuid: str):
         for subscription in payload['data']:
             if not self._synchronizers.get(user_uuid):
                 logger.error(
@@ -142,7 +142,7 @@ class TeamsService:
             *[self.create_subscription(user['uuid']) for user in results['items']]
         )
 
-    async def _fetch_configuration(self, user_uuid) -> Dict:
+    async def _fetch_configuration(self, user_uuid) -> dict:
         fetch = self._retry_fetch
 
         async with self._db_lock:
