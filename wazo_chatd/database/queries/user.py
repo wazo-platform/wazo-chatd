@@ -1,10 +1,11 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy import text
+from sqlalchemy.orm import selectinload
 
 from ...exceptions import UnknownUserException
-from ..models import User
+from ..models import User, Line
 
 
 class UserDAO:
@@ -50,7 +51,15 @@ class UserDAO:
         self.session.flush()
 
     def _get_users_query(self, tenant_uuids=None, uuids=None):
-        query = self.session.query(User)
+        query = self.session.query(User).options(
+            selectinload(User.tenant),
+            selectinload(User.sessions),
+            selectinload(User.refresh_tokens),
+            selectinload(User.lines).options(
+                selectinload(Line.endpoint),
+                selectinload(Line.channels),
+            ),
+        )
 
         if uuids:
             query = query.filter(User.uuid.in_(uuids))
