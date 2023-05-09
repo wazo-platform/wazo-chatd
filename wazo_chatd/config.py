@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
@@ -25,6 +25,7 @@ _DEFAULT_CONFIG = {
             'enabled': True,
             'allow_headers': ['Content-Type', 'X-Auth-Token', 'Wazo-Tenant'],
         },
+        'max_threads': 10,
     },
     'db_uri': 'postgresql://asterisk:proformatique@localhost/asterisk?application_name=wazo-chatd',
     'auth': {

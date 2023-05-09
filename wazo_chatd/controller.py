@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class Controller:
     def __init__(self, config):
-        init_db(config['db_uri'])
+        init_db(config['db_uri'], pool_size=config['rest_api']['max_threads'])
         self._service_discovery_args = [
             'wazo-chatd',
             config['uuid'],
