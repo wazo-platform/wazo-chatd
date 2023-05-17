@@ -15,6 +15,7 @@ from .bus import BusConsumer, BusPublisher
 
 from . import auth
 from .asyncio_ import CoreAsyncio
+from .cache import CacheDAO
 from .database.helpers import init_db
 from .database.queries import DAO
 from .http_server import api, app, CoreRestApi
@@ -52,6 +53,7 @@ class Controller:
             dependencies={
                 'api': api,
                 'aio': self.aio,
+                'cache': CacheDAO(),
                 'config': config,
                 'dao': DAO(),
                 'bus_consumer': self.bus_consumer,
