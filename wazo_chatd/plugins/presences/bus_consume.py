@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -211,6 +211,9 @@ class BusEventHandler:
 
     def _device_state_change(self, event):
         endpoint_name = event['Device']
+        if endpoint_name.startswith('Custom:'):
+            return
+
         state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
         with session_scope():
             endpoint = self._dao.endpoint.find_or_create(endpoint_name)
