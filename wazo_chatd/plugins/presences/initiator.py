@@ -153,7 +153,7 @@ class Initiator:
                 tenant = self._dao.tenant.find_or_create(tenant_uuid)
 
                 logger.debug('Create user "%s"', uuid)
-                user = User(uuid=uuid, tenant=tenant, state='unavailable')
+                user = User(uuid=uuid, tenant_uuid=tenant.uuid, state='unavailable')
                 self._dao.user.create(user)
 
         users_expired = users_cached - users
@@ -184,7 +184,7 @@ class Initiator:
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                 except UnknownUserException as e:
-                    logger.warning(e)
+                    logger.warning(f'user not found for line: {e}')
                     continue
                 if self._dao.line.find(id_):
                     logger.warning(

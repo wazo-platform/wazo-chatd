@@ -247,6 +247,7 @@ class BusEventHandler:
             logger.debug('Create channel "%s" for line "%s"', channel.name, line.id)
             self._dao.line.add_channel(line, channel)
 
+            channel = self._dao.channel.find(channel_name)
             self._notifier.updated(channel.line.user)
 
     def _channel_deleted(self, event):

@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -22,7 +22,10 @@ class Plugin:
     def load(self, dependencies):
         api = dependencies['api']
         config = dependencies['config']
-        dao = dependencies['dao']
+
+        dao = dependencies['cache']
+        dao.tenant = dependencies['dao'].tenant
+
         bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
         status_aggregator = dependencies['status_aggregator']
