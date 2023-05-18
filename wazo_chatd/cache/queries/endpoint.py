@@ -31,8 +31,8 @@ class EndpointCache:
 
     def find_by(self, **kwargs):
         endpoints = self.endpoints
-
-        if name := kwargs.pop('name', None):
+        name = kwargs.pop('name', None)
+        if name:
             endpoints = [endpoint for endpoint in endpoints if endpoint.name == name]
 
         if endpoints:
@@ -40,12 +40,14 @@ class EndpointCache:
         return None
 
     def get_by(self, **kwargs):
-        if endpoint := self.find_by(**kwargs):
+        endpoint = self.find_by(**kwargs)
+        if endpoint:
             return self.from_cache(endpoint)
         raise UnknownEndpointException(kwargs['name'])
 
     def find_or_create(self, name: str):
-        if endpoint := self.find_by(name=name):
+        endpoint = self.find_by(name=name)
+        if endpoint:
             return self.from_cache(endpoint)
         return self.create(Endpoint(name=name))
 

@@ -33,10 +33,12 @@ class LineCache:
     def find_by(self, **kwargs):
         lines = [line for user in self.users for line in user.lines]
 
-        if line_id := kwargs.pop('id', None):
+        line_id = kwargs.pop('id', None)
+        if line_id:
             lines = [line for line in lines if line.id == line_id]
 
-        if endpoint_name := kwargs.pop('endpoint_name', None):
+        endpoint_name = kwargs.pop('endpoint_name', None)
+        if endpoint_name:
             lines = [line for line in lines if line.endpoint_name == endpoint_name]
 
         if lines:
@@ -93,6 +95,7 @@ class LineCache:
 
     @staticmethod
     def from_cache(line: CachedLine) -> CachedLine:
-        if user_uuid := line.user_uuid:
+        user_uuid = line.user_uuid
+        if user_uuid:
             line.user = get_local_cache().get(user_uuid, None)
         return line

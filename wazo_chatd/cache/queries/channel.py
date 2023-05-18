@@ -22,7 +22,8 @@ class ChannelCache:
         ]
 
     def get_channels(self, user_uuid: str, line_id: int):
-        if user := get_local_cache().get(user_uuid, None):
+        user = get_local_cache().get(user_uuid, None)
+        if user:
             for line in user.lines:
                 if line.id == line_id:
                     return line.channels

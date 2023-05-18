@@ -14,7 +14,8 @@ class SessionCache:
 
     @classmethod
     def sessions(cls, user_uuid: str):
-        if user := get_local_cache().get(str(user_uuid), None):
+        user = get_local_cache().get(str(user_uuid), None)
+        if user:
             return user.sessions
         raise UnknownUserException(user_uuid)
 
