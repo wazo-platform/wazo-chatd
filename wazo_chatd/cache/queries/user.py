@@ -28,7 +28,7 @@ class UserCache:
         except KeyError:
             raise UnknownUserException(user_uuid)
 
-    def count(self, tenant_uuids: list[str], **filter_parameters):
+    def count(self, tenant_uuids, **filter_parameters):
         return len(self._filter_users(tenant_uuids, **filter_parameters))
 
     def create(self, user: User):
@@ -40,14 +40,14 @@ class UserCache:
         user_uuid = str(user.uuid)
         self.cache.pop(user_uuid, None)
 
-    def get(self, tenant_uuids: list[str], user_uuid: str):
+    def get(self, tenant_uuids, user_uuid: str):
         tenant_uuids = [str(tenant_uuid) for tenant_uuid in tenant_uuids]
         user = self.get_user(user_uuid)
         if user.tenant_uuid not in tenant_uuids:
             raise UnknownUserException(user_uuid)
         return self.from_cache(user)
 
-    def list_(self, tenant_uuids: list[str], uuids: list[str] = None, **filters):
+    def list_(self, tenant_uuids, uuids=None, **filters):
         return self._filter_users(tenant_uuids=tenant_uuids, uuids=uuids)
 
     def update(self, user: User):
@@ -119,7 +119,7 @@ class UserCache:
             if existing_token.client_id == client_id:
                 tokens.remove(existing_token)
 
-    def _filter_users(self, tenant_uuids: list[str] = None, uuids: list[str] = None):
+    def _filter_users(self, tenant_uuids=None, uuids=None):
         users = self.users
         uuids = [str(uuid) for uuid in uuids or []]
         tenant_uuids = [str(tenant_uuid) for tenant_uuid in tenant_uuids or []]
@@ -140,5 +140,5 @@ class UserCache:
         return []
 
     @staticmethod
-    def from_cache(user: CachedUser) -> CachedUser:
+    def from_cache(user: CachedUser):
         return user

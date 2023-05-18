@@ -64,7 +64,7 @@ class ChannelCache:
         line.channels_state = [channel.state for channel in line.channels]
 
     @staticmethod
-    def from_cache(channel: CachedChannel) -> CachedChannel:
+    def from_cache(channel: CachedChannel):
         for user in get_local_cache().values():
             for line in user.lines:
                 if line.id == channel.line_id:

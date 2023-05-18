@@ -13,7 +13,7 @@ class LineCache:
         return get_local_cache().values()
 
     @classmethod
-    def lines(cls, user_uuid: str) -> list[CachedLine]:
+    def lines(cls, user_uuid: str):
         user_uuid = str(user_uuid)
         user = get_local_cache().get(user_uuid, None)
         if not user:
@@ -94,7 +94,7 @@ class LineCache:
                 return
 
     @staticmethod
-    def from_cache(line: CachedLine) -> CachedLine:
+    def from_cache(line: CachedLine):
         user_uuid = line.user_uuid
         if user_uuid:
             line.user = get_local_cache().get(user_uuid, None)

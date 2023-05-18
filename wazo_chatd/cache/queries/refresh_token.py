@@ -13,7 +13,7 @@ class RefreshTokenCache:
         return get_local_cache().values()
 
     @classmethod
-    def refresh_tokens(cls, user_uuid: str) -> list[CachedRefreshToken]:
+    def refresh_tokens(cls, user_uuid: str):
         user_uuid = str(user_uuid)
         user = get_local_cache().get(user_uuid, None)
         if not user:
@@ -57,6 +57,6 @@ class RefreshTokenCache:
             self.refresh_tokens(user_uuid).append(data)
 
     @staticmethod
-    def from_cache(refresh_token: CachedRefreshToken) -> CachedRefreshToken:
+    def from_cache(refresh_token: CachedRefreshToken):
         refresh_token.user = get_local_cache()[refresh_token.user_uuid]
         return refresh_token

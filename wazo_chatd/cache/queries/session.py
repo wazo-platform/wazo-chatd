@@ -56,6 +56,6 @@ class SessionCache:
             self.sessions(user_uuid).append(session_data)
 
     @staticmethod
-    def from_cache(session: CachedSession) -> CachedSession:
+    def from_cache(session: CachedSession):
         session.user = get_local_cache()[session.user_uuid]
         return session

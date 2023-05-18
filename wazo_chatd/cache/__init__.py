@@ -9,11 +9,11 @@ LOCAL_CACHE = {
 }
 
 
-def get_local_cache() -> dict[str, CachedUser]:
+def get_local_cache():
     return LOCAL_CACHE['users']
 
 
-def get_endpoint_cache() -> dict[str, CachedEndpoint]:
+def get_endpoint_cache():
     return LOCAL_CACHE['endpoints']
 
 

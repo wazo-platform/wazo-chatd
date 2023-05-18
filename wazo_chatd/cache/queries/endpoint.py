@@ -66,7 +66,7 @@ class EndpointCache:
         self.cache.clear()
 
     @staticmethod
-    def from_cache(endpoint: CachedEndpoint) -> CachedEndpoint:
+    def from_cache(endpoint: CachedEndpoint):
         users = get_local_cache().values()
 
         endpoint.line = None
