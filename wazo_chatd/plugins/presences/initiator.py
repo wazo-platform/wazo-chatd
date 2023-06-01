@@ -382,8 +382,12 @@ class Initiator:
                 if event.get('Event') != 'DeviceStateChange':
                     continue
 
+                endpoint_name = event['Device']
+                if endpoint_name.startswith('Custom:'):
+                    continue
+
                 endpoint_args = {
-                    'name': event['Device'],
+                    'name': endpoint_name,
                     'state': DEVICE_STATE_MAP.get(event['State'], 'unavailable'),
                 }
                 logger.debug(
