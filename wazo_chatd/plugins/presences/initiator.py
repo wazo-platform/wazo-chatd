@@ -127,7 +127,7 @@ class Initiator:
                 try:
                     tenant = self._dao.tenant.get(uuid)
                 except UnknownTenantException as e:
-                    logger.warning(e)
+                    logger.warning('Unknown tenant: %s', e)
                     continue
                 logger.debug('Delete tenant "%s"', uuid)
                 self._dao.tenant.delete(tenant)
@@ -162,7 +162,7 @@ class Initiator:
                 try:
                     user = self._dao.user.get([tenant_uuid], uuid)
                 except UnknownUserException as e:
-                    logger.warning(e)
+                    logger.warning('Unknown user: %s', e)
                     continue
                 logger.debug('Delete user "%s"', uuid)
                 self._dao.user.delete(user)
@@ -257,7 +257,7 @@ class Initiator:
                         [confd_user['tenant_uuid']], confd_user['uuid']
                     )
                 except UnknownUserException as e:
-                    logger.warning(e)
+                    logger.warning('Unknown service user: %s', e)
                     continue
                 do_not_disturb_status = confd_user['services']['dnd']['enabled']
                 logger.debug(
@@ -305,8 +305,11 @@ class Initiator:
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                     session = self._dao.session.get(uuid)
-                except (UnknownUserException, UnknownSessionException) as e:
-                    logger.warning(e)
+                except UnknownUserException as e:
+                    logger.warning('Unknown session user: %s', e)
+                    continue
+                except UnknownSessionException as e:
+                    logger.warning('Unknown session: %s', e)
                     continue
 
                 logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
@@ -359,8 +362,11 @@ class Initiator:
                 try:
                     user = self._dao.user.get([tenant_uuid], user_uuid)
                     token = self._dao.refresh_token.get(user_uuid, client_id)
-                except (UnknownUserException, UnknownRefreshTokenException) as e:
-                    logger.warning(e)
+                except (UnknownUserException) as e:
+                    logger.warning('Unknown refresh token user: %s', e)
+                    continue
+                except (UnknownRefreshTokenException) as e:
+                    logger.warning('Unknown refresh token: %s', e)
                     continue
 
                 logger.debug(

@@ -1,6 +1,7 @@
 # Copyright 2023-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
 from wazo_chatd.cache.client import CacheClient
 from wazo_chatd.cache.models import (
     CachedUser,
@@ -10,6 +11,8 @@ from wazo_chatd.cache.models import (
 )
 from wazo_chatd.database.models import User, Line, RefreshToken
 from wazo_chatd.exceptions import UnknownUserException
+
+logger = logging.getLogger(__name__)
 
 
 class UserCache:
@@ -30,10 +33,17 @@ class UserCache:
         tenant_uuids = [str(tenant_uuid) for tenant_uuid in tenant_uuids]
         try:
             user = CachedUser.restore(self._cache, user_uuid)
-        except ValueError:
+        except ValueError as e:
+            logger.debug('Error getting user %s: %s', user_uuid, e)
             raise UnknownUserException(user_uuid)
         else:
             if user.tenant_uuid not in tenant_uuids:
+                logger.debug(
+                    'Tenant mismatch for user %s: looking for tenants %s, found tenant %s in cache',
+                    user_uuid,
+                    tenant_uuids,
+                    user.tenant_uuid,
+                )
                 raise UnknownUserException(user_uuid)
         return user
 
