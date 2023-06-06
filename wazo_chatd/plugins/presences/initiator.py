@@ -292,7 +292,11 @@ class Initiator:
                     continue
 
                 logger.debug('Create session "%s" for user "%s"', uuid, user_uuid)
-                session = Session(uuid=uuid, user_uuid=user_uuid)
+                session = Session(
+                    uuid=uuid,
+                    user_uuid=user_uuid,
+                    user=User(uuid=user_uuid, tenant_uuid=tenant_uuid),
+                )
                 self._dao.user.add_session(user, session)
 
         sessions_expired = sessions_cached - sessions
