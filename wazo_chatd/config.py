@@ -43,6 +43,10 @@ _DEFAULT_CONFIG = {
         'exchange_name': 'wazo-headers',
         'exchange_type': 'headers',
     },
+    'cache': {
+        'host': 'localhost',
+        'port': 6379,
+    },
     'amid': {'host': 'localhost', 'port': 9491, 'prefix': None, 'https': False},
     'confd': {
         'host': 'localhost',

@@ -12,11 +12,11 @@ from xivo.consul_helpers import ServiceCatalogRegistration
 from xivo.status import StatusAggregator
 from xivo.token_renewer import TokenRenewer
 
-from .bus import BusConsumer, BusPublisher
-
 from . import auth
 from .asyncio_ import CoreAsyncio
+from .bus import BusConsumer, BusPublisher
 from .cache import CacheDAO
+from .cache.client import CacheClient
 from .database.helpers import init_db
 from .database.queries import DAO
 from .http_server import api, app, CoreRestApi
@@ -41,6 +41,7 @@ class Controller:
         self.aio = CoreAsyncio()
         self.bus_consumer = BusConsumer.from_config(config['bus'])
         self.bus_publisher = BusPublisher.from_config(config['uuid'], config['bus'])
+        self.cache_client = CacheClient.from_config(config)
         self.thread_manager = ThreadManager()
         auth_client = AuthClient(**config['auth'])
         self.token_renewer = TokenRenewer(auth_client)
@@ -55,7 +56,7 @@ class Controller:
             dependencies={
                 'api': api,
                 'aio': self.aio,
-                'cache': CacheDAO(),
+                'cache': CacheDAO(self.cache_client),
                 'config': config,
                 'dao': DAO(),
                 'bus_consumer': self.bus_consumer,
