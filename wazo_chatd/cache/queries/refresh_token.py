@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from wazo_chatd.cache.client import CacheClient
-from wazo_chatd.cache.models import CachedRefreshToken, CachedUser
-from wazo_chatd.database.models import RefreshToken
+from wazo_chatd.cache.models import CachedRefreshToken
 from wazo_chatd.exceptions import UnknownRefreshTokenException
 
 
@@ -35,17 +34,5 @@ class RefreshTokenCache:
     def list_(self):
         return CachedRefreshToken.all(self._cache)
 
-    def update(self, refresh_token: RefreshToken):
-        user_uuid = str(refresh_token.user_uuid)
-        client_id = str(refresh_token.client_id)
-        data = CachedRefreshToken.from_sql(refresh_token)
-        cached_user = CachedUser.restore(self._cache, user_uuid)
-
-        for token in cached_user.refresh_tokens:
-            if token.client_id == client_id:
-                token = data
-                cached_user.store(self._cache)
-                return
-        else:
-            cached_user.refresh_tokens.append(data)
-            cached_user.store(self._cache)
+    def update(self, refresh_token: CachedRefreshToken):
+        refresh_token.store(self._cache)

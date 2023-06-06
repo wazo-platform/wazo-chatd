@@ -20,8 +20,6 @@ from wazo_chatd.database.models import (
 
 from .client import CacheClient
 
-# from .helpers import BaseModel, asdict
-
 
 _TYPES = (
     'CachedUser',
@@ -100,50 +98,6 @@ def relationship(*, key: str = None, many: bool = False):
     if key:
         kwargs['metadata']['foreign_key'] = key
     return field(**kwargs)
-
-
-def load_with_related(
-    client: CacheClient, context: dict, obj_key: str, obj_type: Any
-) -> BaseModel:
-    obj_type = eval(obj_type) if isinstance(obj_type, str) else obj_type
-
-    # load object
-    if obj_key in context:
-        return context[obj_key]
-    obj = context[obj_key] = obj_type.load(client, obj_key)
-
-    for f in fields(obj):
-        if foreign_field := f.metadata.get('foreign_key'):
-            if not (foreign_key := getattr(obj, foreign_field)):
-                continue
-            foreign_type = eval(f.type)
-            foreign_key = ':'.join([foreign_type._prefix, str(foreign_key)])
-            setattr(
-                obj,
-                f.name,
-                load_with_related(client, context, foreign_key, foreign_type),
-            )
-            continue
-
-        # convert from str to datetime
-        value = getattr(obj, f.name)
-        if value and eval(f.type) is datetime:
-            setattr(obj, f.name, datetime.fromisoformat(value))
-            continue
-
-        if not any(kw in f.type for kw in _TYPES):
-            continue  # skip objects which are not a model
-
-        if isinstance(value, (list, set, tuple)):
-            subtype = get_args(eval(f.type))[0]
-            setattr(
-                obj,
-                f.name,
-                type(value)(
-                    load_with_related(client, context, key, subtype) for key in value
-                ),
-            )
-    return obj
 
 
 def load_with_relationship(
@@ -387,8 +341,9 @@ class CachedEndpoint(BaseModel):
 
     name: str
     state: str
+    line_id: int = field(default=None)
 
-    line: CachedLine = relationship()
+    line: CachedLine = relationship(key='line_id')
 
     @classmethod
     def from_sql(cls, endpoint: Endpoint):

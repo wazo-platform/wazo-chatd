@@ -38,12 +38,13 @@ class EndpointCache:
             return endpoint
         return self.create(Endpoint(name=name))
 
-    def update(self, endpoint: Endpoint):
-        for line in CachedLine.all(self._cache):
-            if line.endpoint_name == endpoint.name:
-                line.endpoint = CachedEndpoint.from_sql(endpoint)
-                line.store(self._cache)
-                return
+    def update(self, endpoint: CachedEndpoint):
+        endpoint.store(self._cache)
 
     def delete_all(self):
-        pass
+        for line in CachedLine.all(self._cache):
+            if line.endpoint:
+                line.endpoint.remove(self._cache)
+                line.endpoint = None
+                line.endpoint_name = None
+                line.store(self._cache)
