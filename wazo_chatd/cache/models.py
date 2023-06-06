@@ -223,6 +223,14 @@ class CachedUser(BaseModel):
             refresh_tokens=refresh_tokens,
         )
 
+    def to_sql(self):
+        db_user = User()
+        db_user.uuid = self.uuid
+        db_user.tenant_uuid = self.tenant_uuid
+        db_user.state = self.state
+        db_user.status = self.status
+        return db_user
+
 
 @dataclass
 class CachedLine(BaseModel):

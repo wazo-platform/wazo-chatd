@@ -9,6 +9,7 @@ from wazo_chatd.cache.models import (
     CachedLine,
     CachedRefreshToken,
 )
+from wazo_chatd.database.helpers import Session as DBSession
 from wazo_chatd.database.models import User, Line, RefreshToken
 from wazo_chatd.exceptions import UnknownUserException
 
@@ -50,8 +51,14 @@ class UserCache:
     def list_(self, tenant_uuids: list[str], uuids: list[str] = None, **filters):
         return self._filter_users(tenant_uuids=tenant_uuids, uuids=uuids)
 
+    @property
+    def _db_session(self):
+        return DBSession()
+
     def update(self, user: CachedUser):
         user.store(self._cache)
+        self._db_session.add(user.to_sql())
+        self._db_session.flush()
 
     def add_session(self, user: CachedUser, session: CachedSession):
         for existing_session in user.sessions:
