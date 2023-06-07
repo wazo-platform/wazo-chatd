@@ -231,6 +231,15 @@ class CachedUser(BaseModel):
             status=self.status,
         )
 
+    def remove(self, client: CacheClient):
+        for line in self.lines:
+            line.remove(client)
+        for refresh_token in self.refresh_tokens:
+            refresh_token.remove(client)
+        for session in self.sessions:
+            session.remove(client)
+        client.delete(self.pkey())
+
 
 @dataclass
 class CachedLine(BaseModel):

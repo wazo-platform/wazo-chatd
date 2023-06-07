@@ -58,7 +58,7 @@ class BusEventHandler:
         with session_scope():
             tenant = self._dao.tenant.find_or_create(tenant_uuid)
             logger.debug('Create user "%s"', user_uuid)
-            user = User(uuid=user_uuid, tenant=tenant, state='unavailable')
+            user = User(uuid=user_uuid, tenant_uuid=tenant.uuid, state='unavailable')
             self._dao.user.create(user)
 
     def _user_deleted(self, event):

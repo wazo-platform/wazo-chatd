@@ -237,6 +237,10 @@ class Initiator:
         }
         with session_scope():
             for line_id, endpoint_name in lines:
+                if not endpoint_name:
+                    logger.warning('Line "%s" doesn\'t have name', line_id)
+                    continue
+
                 try:
                     line = self._dao.line.get(line_id)
                     endpoint = self._dao.endpoint.get_by(name=endpoint_name)
@@ -247,7 +251,6 @@ class Initiator:
                         endpoint_name,
                     )
                     raise
-                    continue
                 logger.debug(
                     'Associate line "%s" with endpoint "%s"', line.id, endpoint.name
                 )
