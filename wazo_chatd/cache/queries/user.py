@@ -20,6 +20,10 @@ class UserCache:
     def __init__(self, client: CacheClient):
         self._cache = client
 
+    @property
+    def _db_session(self):
+        return DBSession()
+
     def count(self, tenant_uuids: list[str], **filter_parameters):
         return len(self._filter_users(tenant_uuids, **filter_parameters))
 
@@ -51,14 +55,13 @@ class UserCache:
     def list_(self, tenant_uuids: list[str], uuids: list[str] = None, **filters):
         return self._filter_users(tenant_uuids=tenant_uuids, uuids=uuids)
 
-    @property
-    def _db_session(self):
-        return DBSession()
-
     def update(self, user: CachedUser):
         user.store(self._cache)
         self._db_session.add(user.to_sql())
         self._db_session.flush()
+
+    def load_persitent_state(self, user: CachedUser):
+        pass
 
     def add_session(self, user: CachedUser, session: CachedSession):
         for existing_session in user.sessions:

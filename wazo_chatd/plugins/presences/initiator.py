@@ -3,6 +3,7 @@
 
 import logging
 
+from time import time
 from xivo.status import Status
 
 from wazo_chatd.database.models import (
@@ -101,6 +102,7 @@ class Initiator:
         refresh_tokens = self._auth.refresh_tokens.list(recurse=True)['items']
         channel_events = self._amid.action('CoreShowChannels')
 
+        start = time()
         self.initiate_endpoints(endpoint_events)
         self.initiate_tenants(tenants)
         self.initiate_users(users)
@@ -108,7 +110,7 @@ class Initiator:
         self.initiate_refresh_tokens(refresh_tokens)
         self.initiate_channels(channel_events)
         self._is_initialized = True
-        logger.debug('Initialized completed')
+        logger.debug(f'Initialized in  %.3f seconds', time() - start)
 
     def initiate_tenants(self, tenants):
         tenants = {tenant['uuid'] for tenant in tenants}
@@ -138,6 +140,7 @@ class Initiator:
         self._add_missing_endpoints(users)  # disconnected SCCP endpoints are missing
         self._associate_line_endpoint(users)
         self._update_services_users(users)
+        self._update_user_state(users)
 
     def _add_and_remove_users(self, users):
         users = {(user['uuid'], user['tenant_uuid']) for user in users}
@@ -243,6 +246,7 @@ class Initiator:
                         line_id,
                         endpoint_name,
                     )
+                    raise
                     continue
                 logger.debug(
                     'Associate line "%s" with endpoint "%s"', line.id, endpoint.name
@@ -267,6 +271,12 @@ class Initiator:
                 )
                 user.do_not_disturb = do_not_disturb_status
                 session.flush()
+
+    def _update_user_state(self, users):
+        with session_scope() as session:
+            for user in self._dao.user.list_():
+
+
 
     def initiate_sessions(self, sessions):
         self._add_and_remove_sessions(sessions)

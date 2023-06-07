@@ -224,12 +224,12 @@ class CachedUser(BaseModel):
         )
 
     def to_sql(self):
-        db_user = User()
-        db_user.uuid = self.uuid
-        db_user.tenant_uuid = self.tenant_uuid
-        db_user.state = self.state
-        db_user.status = self.status
-        return db_user
+        return User(
+            uuid=self.uuid,
+            tenant_uuid=self.tenant_uuid,
+            state=self.state,
+            status=self.status,
+        )
 
 
 @dataclass
