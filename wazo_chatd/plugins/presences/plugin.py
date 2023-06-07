@@ -25,6 +25,7 @@ class Plugin:
 
         dao = dependencies['cache']
         dao.tenant = dependencies['dao'].tenant
+        persisting_dao = dependencies['dao']
 
         bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
@@ -38,7 +39,7 @@ class Plugin:
         auth = AuthClient(**config['auth'])
         amid = AmidClient(**config['amid'])
         confd = ConfdClient(**config['confd'])
-        initiator = Initiator(dao, auth, amid, confd)
+        initiator = Initiator(dao, persisting_dao, auth, amid, confd)
         status_aggregator.add_provider(initiator.provide_status)
 
         if initialization['enabled']:

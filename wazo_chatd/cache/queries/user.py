@@ -9,7 +9,7 @@ from wazo_chatd.cache.models import (
     CachedLine,
     CachedRefreshToken,
 )
-from wazo_chatd.database.helpers import Session as DBSession
+from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import User, Line, RefreshToken
 from wazo_chatd.exceptions import UnknownUserException
 
@@ -20,19 +20,25 @@ class UserCache:
     def __init__(self, client: CacheClient):
         self._cache = client
 
-    @property
-    def _db_session(self):
-        return DBSession()
-
     def count(self, tenant_uuids: list[str], **filter_parameters):
         return len(self._filter_users(tenant_uuids, **filter_parameters))
 
-    def create(self, user: User):
+    def create(self, user: User, persist=True):
         CachedUser.from_sql(user).store(self._cache)
+
+        if persist:
+            with session_scope() as session:
+                session.add(user)
+                session.flush()
+
         return user
 
-    def delete(self, user: User):
-        CachedUser.restore(self._cache, user.uuid).remove()
+    def delete(self, user: User, persist: bool = True):
+        CachedUser.restore(self._cache, user.uuid).remove(self._cache)
+        if persist:
+            with session_scope() as session:
+                session.query(User).filter(User.uuid == user.uuid).delete()
+                session.flush()
 
     def get(self, tenant_uuids: list[str], user_uuid: str):
         tenant_uuids = [str(tenant_uuid) for tenant_uuid in tenant_uuids]
@@ -55,13 +61,27 @@ class UserCache:
     def list_(self, tenant_uuids: list[str], uuids: list[str] = None, **filters):
         return self._filter_users(tenant_uuids=tenant_uuids, uuids=uuids)
 
-    def update(self, user: CachedUser):
+    def update(self, user: CachedUser, persist: bool = True):
         user.store(self._cache)
-        self._db_session.add(user.to_sql())
-        self._db_session.flush()
 
-    def load_persitent_state(self, user: CachedUser):
-        pass
+        if persist:
+            with session_scope() as session:
+                query = session.query(User).filter(
+                    User.tenant_uuid == user.tenant_uuid, User.uuid == user.uuid
+                )
+                db_user = query.first()
+                if not db_user:
+                    logger.error(
+                        'Unable to update user not found: tenants %s, user %s',
+                        user.tenant_uuids,
+                        user.uuid,
+                    )
+                    raise UnknownUserException(user.uuid)
+                db_user.state = user.state
+                db_user.status = user.status
+                db_user.last_activity = user.last_activity
+                session.add(db_user)
+                session.flush()
 
     def add_session(self, user: CachedUser, session: CachedSession):
         for existing_session in user.sessions:

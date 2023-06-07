@@ -74,8 +74,9 @@ def extract_endpoint_from_line(line):
 
 
 class Initiator:
-    def __init__(self, dao, auth, amid, confd):
+    def __init__(self, dao, persisting_dao, auth, amid, confd):
         self._dao = dao
+        self._persisting_dao = persisting_dao
         self._auth = auth
         self._amid = amid
         self._confd = confd
@@ -139,36 +140,66 @@ class Initiator:
         self._add_and_remove_lines(users)
         self._add_missing_endpoints(users)  # disconnected SCCP endpoints are missing
         self._associate_line_endpoint(users)
-        self._update_services_users(users)
-        self._update_user_state(users)
+        self._update_users_from_persistance(users)
 
     def _add_and_remove_users(self, users):
         users = {(user['uuid'], user['tenant_uuid']) for user in users}
+        logger.debug('Found %s confd users', len(users))
+        users_persisted = {
+            (str(u.uuid), str(u.tenant_uuid))
+            for u in self._persisting_dao.user.list_(tenant_uuids=None)
+        }
+        logger.debug('Found %s persisted users', len(users_persisted))
         users_cached = {
             (str(u.uuid), str(u.tenant_uuid))
             for u in self._dao.user.list_(tenant_uuids=None)
         }
+        logger.debug('Found %s cached users', len(users_cached))
 
-        users_missing = users - users_cached
+        persisted_users_missing = users - users_persisted
+        logger.debug('Found %s persisted users missing', len(persisted_users_missing))
         with session_scope():
-            for uuid, tenant_uuid in users_missing:
+            for uuid, tenant_uuid in persisted_users_missing:
                 # Avoid race condition between init tenant and init user
-                tenant = self._dao.tenant.find_or_create(tenant_uuid)
+                tenant = self._persisting_dao.tenant.find_or_create(tenant_uuid)
 
-                logger.debug('Create user "%s"', uuid)
+                logger.debug('Create persistent user "%s"', uuid)
                 user = User(uuid=uuid, tenant_uuid=tenant.uuid, state='unavailable')
-                self._dao.user.create(user)
+                self._persisting_dao.user.create(user)
 
-        users_expired = users_cached - users
+            cached_users_missing = users - users_cached
+            logger.debug('Found %s cached users missing', len(cached_users_missing))
+            for uuid, tenant_uuid in cached_users_missing:
+                # Avoid race condition between init tenant and init user
+                tenant = self._persisting_dao.tenant.find_or_create(tenant_uuid)
+
+                logger.debug('Create cached user "%s"', uuid)
+                user = User(uuid=uuid, tenant_uuid=tenant.uuid, state='unavailable')
+                self._dao.user.create(user, persist=False)
+
+        persisted_users_expired = users_persisted - users
+        logger.debug('Found %s persisted users expired', len(persisted_users_expired))
         with session_scope():
-            for uuid, tenant_uuid in users_expired:
+            for uuid, tenant_uuid in persisted_users_expired:
+                try:
+                    user = self._persisting_dao.user.get([tenant_uuid], uuid)
+                except UnknownUserException as e:
+                    logger.warning('Unknown persisted user: %s', e)
+                    continue
+                logger.debug('Delete persisted user "%s"', uuid)
+                self._persisting_dao.user.delete(user)
+
+        cached_users_expired = users_cached - users
+        logger.debug('Found %s cached users expired', len(cached_users_expired))
+        with session_scope():
+            for uuid, tenant_uuid in cached_users_expired:
                 try:
                     user = self._dao.user.get([tenant_uuid], uuid)
                 except UnknownUserException as e:
-                    logger.warning('Unknown user: %s', e)
+                    logger.warning('Unknown cached user: %s', e)
                     continue
-                logger.debug('Delete user "%s"', uuid)
-                self._dao.user.delete(user)
+                logger.debug('Delete cached user "%s"', uuid)
+                self._dao.user.delete(user, persist=False)
 
     def _add_and_remove_lines(self, users):
         lines = {
@@ -256,12 +287,18 @@ class Initiator:
                 )
                 self._dao.line.associate_endpoint(line, endpoint)
 
-    def _update_services_users(self, users):
+    def _update_users_from_persistance(self, users):
         with session_scope() as session:
+            persisted_users = session.query(User).all()
+            persisted_users_indexed = {
+                str(db_user.uuid): db_user for db_user in persisted_users
+            }
+
             for confd_user in users:
+                user_uuid = confd_user['uuid']
                 try:
-                    user = self._dao.user.get(
-                        [confd_user['tenant_uuid']], confd_user['uuid']
+                    cached_user = self._dao.user.get(
+                        [confd_user['tenant_uuid']], user_uuid
                     )
                 except UnknownUserException as e:
                     logger.warning('Unknown service user: %s', e)
@@ -269,17 +306,32 @@ class Initiator:
                 do_not_disturb_status = confd_user['services']['dnd']['enabled']
                 logger.debug(
                     'Updating user "%s" DND status to "%s"',
-                    user.uuid,
+                    user_uuid,
                     do_not_disturb_status,
                 )
-                user.do_not_disturb = do_not_disturb_status
-                session.flush()
+                cached_user.do_not_disturb = do_not_disturb_status
 
-    def _update_user_state(self, users):
-        with session_scope() as session:
-            for user in self._dao.user.list_():
+                try:
+                    persisted_user = persisted_users_indexed[user_uuid]
+                except KeyError:
+                    logger.error(
+                        'User %s is present in wazo-confd, but not persisted, '
+                        'this indicates a desync during the initialization process',
+                        user_uuid,
+                    )
+                else:
+                    logger.debug(
+                        'Updating user "%s" state to "%s", status to "%s", last_activity to "%s"',
+                        user_uuid,
+                        persisted_user.state,
+                        persisted_user.status,
+                        persisted_user.last_activity,
+                    )
+                    cached_user.state = persisted_user.state
+                    cached_user.status = persisted_user.status
+                    cached_user.last_activity = persisted_user.last_activity
 
-
+                self._dao.user.update(cached_user, persist=False)
 
     def initiate_sessions(self, sessions):
         self._add_and_remove_sessions(sessions)
