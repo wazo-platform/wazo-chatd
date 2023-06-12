@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import json
 
-from redis import Redis
+from redis import Redis, ConnectionPool
 from typing import Mapping
 
 
 class CacheClient:
     def __init__(self, host: str, port: int = 6379):
-        self._client = Redis(
-            host, port, db=0, decode_responses=True, max_connections=10
-        )
+        pool = ConnectionPool(host=host, port=port, db=0, decode_responses=True)
+        self._client = Redis(connection_pool=pool, max_connections=100)
 
     @classmethod
     def from_config(cls, config: dict):
