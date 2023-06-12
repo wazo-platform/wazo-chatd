@@ -11,16 +11,16 @@ class ChannelCache:
 
     def find(self, name: str):
         try:
-            return CachedChannel.restore(self._cache, name)
+            return CachedChannel.load(self._cache, name)
         except ValueError:
             return None
 
     def update(self, channel: CachedChannel):
-        channel.store(self._cache)
+        channel.save(self._cache)
 
     def delete_all(self):
-        for line in CachedLine.all(self._cache):
+        for line in CachedLine.load_all(self._cache):
             for channel in line.channels:
-                channel.remove(self._cache)
+                channel.delete(self._cache)
                 line.channels.remove(channel)
-                line.store(self._cache)
+                line.save(self._cache)

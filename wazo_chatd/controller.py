@@ -15,7 +15,7 @@ from xivo.token_renewer import TokenRenewer
 from . import auth
 from .asyncio_ import CoreAsyncio
 from .bus import BusConsumer, BusPublisher
-from .cache import CacheDAO
+from .cache.queries import CacheDAO
 from .cache.client import CacheClient
 from .database.helpers import init_db
 from .database.queries import DAO

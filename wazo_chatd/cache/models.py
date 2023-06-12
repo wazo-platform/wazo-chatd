@@ -3,188 +3,76 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from copy import deepcopy
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, get_args
+from typing import TypeVar
 from typing_extensions import ClassVar, Self
 
+from wazo_chatd.cache.client import CacheClient
+from wazo_chatd.cache.helpers import (
+    CacheProtocol,
+    generate_update_mapping,
+    load_with_relationship,
+    relationship_field,
+)
 from wazo_chatd.database.models import (
-    Channel,
-    Endpoint,
-    Line,
-    RefreshToken,
-    Session,
-    User,
-)
-
-from .client import CacheClient
-
-
-_TYPES = (
-    'CachedUser',
-    'CachedSession',
-    'CachedRefreshToken',
-    'CachedChannel',
-    'CachedEndpoint',
-    'CachedLine',
+    Channel as SQLChannel,
+    Endpoint as SQLEndpoint,
+    Line as SQLLine,
+    RefreshToken as SQLRefreshToken,
+    Session as SQLSession,
+    User as SQLUser,
 )
 
 
-def _asdict_inner(obj, toplevel=False):
-    if isinstance(obj, BaseModel):
-        if not toplevel:
-            return obj.pkey()
-        result = []
-        for f in fields(obj):
-            if f.metadata.get('foreign_key'):
-                continue
-            value = _asdict_inner(getattr(obj, f.name))
-            result.append((f.name, value))
-        return dict(result)
-    elif isinstance(obj, tuple) and hasattr(obj, '_fields'):
-        return type(obj)(*[_asdict_inner(v) for v in obj])
-    elif isinstance(obj, (list, tuple)):
-        return type(obj)(_asdict_inner(v) for v in obj)
-    elif isinstance(obj, dict):
-        return type(obj)((_asdict_inner(k), _asdict_inner(v)) for k, v in obj.items())
-    elif isinstance(obj, datetime):
-        return obj.isoformat()
-    else:
-        return deepcopy(obj)
+SQLModel = TypeVar(
+    'SQLModel', SQLChannel, SQLEndpoint, SQLLine, SQLRefreshToken, SQLSession, SQLUser
+)
 
 
-def asdict(obj):
-    if not isinstance(obj, BaseModel):
-        raise TypeError("asdict() should be called on dataclass instances")
-    return _asdict_inner(obj, True)
+class BaseModel(ABC, CacheProtocol):
+    @staticmethod
+    def __build_context():
+        namespace = {cls.__name__: cls for cls in BaseModel.__subclasses__()}
+        return {'namespace': namespace}
 
-
-class CacheProtocol:
-    @classmethod
-    def _encode_inner(cls, context: dict, obj: Any) -> dict:
-        if isinstance(obj, BaseModel):
-            key = obj.pkey()
-            if key in context:
-                return
-            context[key] = asdict(obj)
-            for f in fields(obj):
-                cls._encode_inner(context, getattr(obj, f.name))
-        elif isinstance(obj, (list, tuple, set)):
-            [cls._encode_inner(context, v) for v in obj]
-        elif isinstance(obj, dict):
-            [cls._encode_inner(context, v) for v in obj.values()]
-        return context
-
-    @classmethod
-    def encode(cls, obj: BaseModel):
-        context = {}
-        return cls._encode_inner(context, obj)
-
-
-def relationship(*, key: str = None, many: bool = False):
-    kwargs = {
-        'init': True,
-        'repr': False,
-        'compare': False,
-        'metadata': {'many': many},
-    }
-
-    if many:
-        kwargs['default_factory'] = list
-    else:
-        kwargs['default'] = None
-
-    if key:
-        kwargs['metadata']['foreign_key'] = key
-    return field(**kwargs)
-
-
-def load_with_relationship(
-    client: CacheClient, context: dict, obj: Any, type_hint: Any
-) -> Any:
-    type_hint = eval(type_hint) if isinstance(type_hint, str) else type_hint
-
-    if isinstance(obj, BaseModel):
-        for f in fields(obj):
-            value = getattr(obj, f.name)
-            if foreign_field := f.metadata.get('foreign_key'):
-                if foreign_key := getattr(obj, foreign_field):
-                    value = ':'.join([eval(f.type)._prefix, str(foreign_key)])
-            setattr(obj, f.name, load_with_relationship(client, context, value, f.type))
-    elif isinstance(obj, (list, set, tuple)):
-        item_type = get_args(type_hint)[0]
-        return type(obj)(
-            load_with_relationship(client, context, value, item_type) for value in obj
-        )
-    elif obj and type_hint is datetime:
-        return datetime.fromisoformat(obj)
-    elif isinstance(obj, str) and any(kw in str(type_hint) for kw in _TYPES):
-        if not obj.startswith(f'{type_hint._prefix}:'):
-            obj = ':'.join([type_hint._prefix, obj])
-
-        if obj in context:
-            return context[obj]
-        context[obj] = type_hint.load(client, obj)
-        return load_with_relationship(client, context, context[obj], type_hint)
-    return obj
-
-
-class BaseModel(ABC):
-    _registry: ClassVar[str]
-    _prefix: ClassVar[str]
-    _pk: ClassVar[str]
-
-    def store(self, client: CacheClient):
-        encoded = CacheProtocol.encode(self)
-        client.save(**encoded)
-
-    @classmethod
-    def restore(cls, client: CacheClient, key: str) -> Self:
-        return load_with_relationship(client, {}, str(key), cls)
-
-    @classmethod
-    def all(cls, client: CacheClient) -> list[Self]:
-        return [cls.restore(client, key) for key in client.array_values(cls._registry)]
-
-    @classmethod
-    def exists(cls, client: CacheClient, key: str) -> bool:
-        return client.array_find(cls._registry, key)
-
-    @classmethod
-    def pk_all(cls, client: CacheClient) -> set[str]:
-        return client.array_values(cls._registry)
-
-    @classmethod
-    def pk_matches(cls, client: CacheClient, partial_pkey: str) -> set[str]:
-        return {
-            value
-            for value in client.array_values(cls._registry)
-            if partial_pkey in value
-        }
+    def delete(self, client: CacheClient) -> None:
+        client.delete(*[self.pk()])
 
     @classmethod
     @abstractmethod
-    def from_sql(self) -> Self:
+    def from_sql(cls, obj: SQLModel) -> Self:
         pass
 
     @classmethod
-    def load(cls, client: CacheClient, key: str) -> Self:
-        pkey = str(key)
-        if not pkey.startswith(f'{cls._prefix}:'):
-            pkey = ':'.join([cls._prefix, pkey])
+    def load(cls, client: CacheClient, pk: str) -> Self:
+        context = cls.__build_context()
+        if not (obj := load_with_relationship(client, context, str(pk), cls)):
+            raise ValueError(f'no such {cls._prefix} in cache: \"{pk}\"')
+        return obj
 
-        if not (data := client.load(pkey)):
-            raise ValueError(f'no such {cls._prefix}: {cls._pk}={key}')
-        return cls(**data)
+    @classmethod
+    def load_all(cls, client: CacheClient) -> list[Self]:
+        return [cls.load(client, pk) for pk in client.array_values(cls._registry)]
 
-    def pkey(self) -> str:
-        if isinstance(self._pk, (list, tuple)):
+    def pk(self) -> str:
+        if isinstance(self._pk, (list, tuple, set)):
             return ':'.join([self._prefix, *(getattr(self, pk) for pk in self._pk)])
         return f'{self._prefix}:{getattr(self, self._pk)}'
 
-    def remove(self, client: CacheClient):
-        client.delete(self.pkey())
+    @classmethod
+    def pk_all(cls, client: CacheClient):
+        return client.array_values(cls._registry)
+
+    @classmethod
+    def pk_matches(cls, client: CacheClient, partial_pk: str) -> set[str]:
+        return {
+            value for value in client.array_values(cls._registry) if partial_pk in value
+        }
+
+    def save(self, client: CacheClient):
+        mapping = generate_update_mapping(self)
+        client.save(**mapping)
 
 
 @dataclass
@@ -200,12 +88,12 @@ class CachedUser(BaseModel):
     do_not_disturb: bool
     last_activity: datetime
 
-    lines: list[CachedLine] = relationship(many=True)
-    refresh_tokens: list[CachedRefreshToken] = relationship(many=True)
-    sessions: list[CachedSession] = relationship(many=True)
+    lines: list[CachedLine] = relationship_field(many=True)
+    refresh_tokens: list[CachedRefreshToken] = relationship_field(many=True)
+    sessions: list[CachedSession] = relationship_field(many=True)
 
     @classmethod
-    def from_sql(cls, user: User):
+    def from_sql(cls, user: SQLUser):
         sessions = [CachedSession.from_sql(session) for session in user.sessions]
         refresh_tokens = [
             CachedRefreshToken.from_sql(token) for token in user.refresh_tokens
@@ -224,21 +112,21 @@ class CachedUser(BaseModel):
         )
 
     def to_sql(self):
-        return User(
+        return SQLUser(
             uuid=self.uuid,
             tenant_uuid=self.tenant_uuid,
             state=self.state,
             status=self.status,
         )
 
-    def remove(self, client: CacheClient):
+    def delete(self, client: CacheClient):
         for line in self.lines:
-            line.remove(client)
+            line.delete(client)
         for refresh_token in self.refresh_tokens:
-            refresh_token.remove(client)
+            refresh_token.delete(client)
         for session in self.sessions:
-            session.remove(client)
-        client.delete(self.pkey())
+            session.delete(client)
+        client.delete(self.pk())
 
 
 @dataclass
@@ -253,9 +141,9 @@ class CachedLine(BaseModel):
     media: str
     tenant_uuid: str
 
-    endpoint: CachedEndpoint = relationship(key='endpoint_name')
-    channels: list[CachedChannel] = relationship(many=True)
-    user: CachedUser = relationship(key='user_uuid')
+    endpoint: CachedEndpoint = relationship_field(foreign_key='endpoint_name')
+    channels: list[CachedChannel] = relationship_field(many=True)
+    user: CachedUser = relationship_field(foreign_key='user_uuid')
 
     @property
     def endpoint_state(self) -> str:
@@ -273,7 +161,7 @@ class CachedLine(BaseModel):
         return [channel.state for channel in self.channels]
 
     @classmethod
-    def from_sql(cls, line: Line):
+    def from_sql(cls, line: SQLLine):
         endpoint = CachedEndpoint.from_sql(line.endpoint) if line.endpoint else None
         channels = [CachedChannel.from_sql(channel) for channel in line.channels]
         return cls(
@@ -298,10 +186,10 @@ class CachedSession(BaseModel):
     user_uuid: str
     tenant_uuid: str
 
-    user: CachedUser = relationship(key='user_uuid')
+    user: CachedUser = relationship_field(foreign_key='user_uuid')
 
     @classmethod
-    def from_sql(cls, session: Session):
+    def from_sql(cls, session: SQLSession):
         return cls(
             str(session.uuid),
             session.mobile,
@@ -314,17 +202,17 @@ class CachedSession(BaseModel):
 class CachedRefreshToken(BaseModel):
     _registry: ClassVar[str] = 'refresh_tokens'
     _prefix: ClassVar[str] = 'refresh_token'
-    _pk: ClassVar[str] = ['user_uuid', 'client_id']
+    _pk: ClassVar[list[str]] = ['user_uuid', 'client_id']
 
     client_id: str
     user_uuid: str
     mobile: bool
     tenant_uuid: str
 
-    user: CachedUser = relationship(key='user_uuid')
+    user: CachedUser = relationship_field(foreign_key='user_uuid')
 
     @classmethod
-    def from_sql(cls, refresh_token: RefreshToken):
+    def from_sql(cls, refresh_token: SQLRefreshToken):
         return cls(
             str(refresh_token.client_id),
             str(refresh_token.user_uuid),
@@ -343,10 +231,10 @@ class CachedChannel(BaseModel):
     state: str
     line_id: int
 
-    line: CachedLine = relationship(key='line_id')
+    line: CachedLine = relationship_field(foreign_key='line_id')
 
     @classmethod
-    def from_sql(cls, channel: Channel):
+    def from_sql(cls, channel: SQLChannel):
         return cls(channel.name, channel.state, channel.line_id)
 
 
@@ -360,8 +248,11 @@ class CachedEndpoint(BaseModel):
     state: str
     line_id: int = field(default=None)
 
-    line: CachedLine = relationship(key='line_id')
+    line: CachedLine = relationship_field(foreign_key='line_id')
 
     @classmethod
-    def from_sql(cls, endpoint: Endpoint):
-        return cls(endpoint.name, endpoint.state)
+    def from_sql(cls, endpoint: SQLEndpoint):
+        cached_endpoint = cls(endpoint.name, endpoint.state)
+        if endpoint.line:
+            cached_endpoint.line_id = int(endpoint.line.id)
+        return cached_endpoint

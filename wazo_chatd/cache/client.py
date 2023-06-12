@@ -9,10 +9,10 @@ from typing import Mapping
 
 
 class CacheClient:
-    _local_stack = {}
-
     def __init__(self, host: str, port: int = 6379):
-        self._client = Redis(host, port, db=0, decode_responses=True)
+        self._client = Redis(
+            host, port, db=0, decode_responses=True, max_connections=10
+        )
 
     @classmethod
     def from_config(cls, config: dict):
@@ -31,18 +31,19 @@ class CacheClient:
             return json.loads(data)
         return None
 
-    def save(self, **mapping: Mapping) -> None:
+    def save(self, **mapping: Mapping[str, dict]) -> None:
         data = {key: json.dumps(value) for key, value in mapping.items()}
         self._client.mset(data)
 
-        for pkey in data.keys():
-            type_ = self._extract_type(pkey)
-            self.array_insert(type_, pkey)
+        for pk in data.keys():
+            type_ = self._extract_type(pk)
+            self.array_insert(type_, pk)
 
-    def delete(self, key: str) -> bool:
-        type_ = self._extract_type(key)
-        self._client.delete(key)
-        self.array_remove(type_, key)
+    def delete(self, *keys: str) -> None:
+        self._client.delete(*keys)
+        for key in keys:
+            type_ = self._extract_type(key)
+            self.array_remove(type_, key)
 
     def array_insert(self, array_name: str, obj_name: str):
         if not self._client.sismember(array_name, obj_name):
@@ -57,8 +58,8 @@ class CacheClient:
     def array_values(self, array_name: str) -> list:
         return self._client.smembers(array_name)
 
-    def _extract_type(self, pkey: str) -> str:
-        type_ = pkey.split(':', 1)[0]
+    def _extract_type(self, pk: str) -> str:
+        type_ = pk.split(':', 1)[0]
         if not type_.endswith('s'):
             type_ += 's'
         return type_

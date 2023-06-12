@@ -12,18 +12,18 @@ class SessionCache:
 
     def get(self, session_uuid: str):
         try:
-            return CachedSession.restore(self._cache, session_uuid)
+            return CachedSession.load(self._cache, session_uuid)
         except ValueError:
             raise UnknownSessionException(session_uuid)
 
     def find(self, session_uuid: str):
         try:
-            return CachedSession.restore(self._cache, session_uuid)
+            return CachedSession.load(self._cache, session_uuid)
         except ValueError:
             return None
 
     def list_(self):
-        return CachedSession.all(self._cache)
+        return CachedSession.load_all(self._cache)
 
     def update(self, session: CachedSession):
-        session.store(self._cache)
+        session.save(self._cache)

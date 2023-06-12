@@ -111,7 +111,7 @@ class Initiator:
         self.initiate_refresh_tokens(refresh_tokens)
         self.initiate_channels(channel_events)
         self._is_initialized = True
-        logger.debug(f'Initialized in  %.3f seconds', time() - start)
+        logger.debug('Initialized in  %.3f seconds', time() - start)
 
     def initiate_tenants(self, tenants):
         tenants = {tenant['uuid'] for tenant in tenants}
@@ -144,20 +144,20 @@ class Initiator:
 
     def _add_and_remove_users(self, users):
         users = {(user['uuid'], user['tenant_uuid']) for user in users}
-        logger.debug('Found %s confd users', len(users))
+        logger.debug('Fetched %s users from wazo-confd', len(users))
         users_persisted = {
             (str(u.uuid), str(u.tenant_uuid))
             for u in self._persisting_dao.user.list_(tenant_uuids=None)
         }
-        logger.debug('Found %s persisted users', len(users_persisted))
+        logger.debug('Found %s users in database', len(users_persisted))
         users_cached = {
             (str(u.uuid), str(u.tenant_uuid))
             for u in self._dao.user.list_(tenant_uuids=None)
         }
-        logger.debug('Found %s cached users', len(users_cached))
+        logger.debug('Found %s users in cache', len(users_cached))
 
         persisted_users_missing = users - users_persisted
-        logger.debug('Found %s persisted users missing', len(persisted_users_missing))
+        logger.debug('Missing %s users in database', len(persisted_users_missing))
         with session_scope():
             for uuid, tenant_uuid in persisted_users_missing:
                 # Avoid race condition between init tenant and init user
@@ -168,7 +168,7 @@ class Initiator:
                 self._persisting_dao.user.create(user)
 
             cached_users_missing = users - users_cached
-            logger.debug('Found %s cached users missing', len(cached_users_missing))
+            logger.debug('Missing %s users in cache', len(cached_users_missing))
             for uuid, tenant_uuid in cached_users_missing:
                 # Avoid race condition between init tenant and init user
                 tenant = self._persisting_dao.tenant.find_or_create(tenant_uuid)
@@ -178,7 +178,7 @@ class Initiator:
                 self._dao.user.create(user, persist=False)
 
         persisted_users_expired = users_persisted - users
-        logger.debug('Found %s persisted users expired', len(persisted_users_expired))
+        logger.debug('Cleaning up %s expired users in database', len(persisted_users_expired))
         with session_scope():
             for uuid, tenant_uuid in persisted_users_expired:
                 try:
@@ -190,7 +190,7 @@ class Initiator:
                 self._persisting_dao.user.delete(user)
 
         cached_users_expired = users_cached - users
-        logger.debug('Found %s cached users expired', len(cached_users_expired))
+        logger.debug('Cleaning up %s expired users in cache', len(cached_users_expired))
         with session_scope():
             for uuid, tenant_uuid in cached_users_expired:
                 try:

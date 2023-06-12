@@ -10,7 +10,11 @@ from wazo_chatd.cache.models import (
     CachedRefreshToken,
 )
 from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.database.models import User, Line, RefreshToken
+from wazo_chatd.database.models import (
+    User as SQLUser,
+    Line as SQLLine,
+    RefreshToken as SQLRefreshToken,
+)
 from wazo_chatd.exceptions import UnknownUserException
 
 logger = logging.getLogger(__name__)
@@ -23,8 +27,8 @@ class UserCache:
     def count(self, tenant_uuids: list[str], **filter_parameters):
         return len(self._filter_users(tenant_uuids, **filter_parameters))
 
-    def create(self, user: User, persist=True):
-        CachedUser.from_sql(user).store(self._cache)
+    def create(self, user: SQLUser, persist=True):
+        CachedUser.from_sql(user).save(self._cache)
 
         if persist:
             with session_scope() as session:
@@ -33,19 +37,18 @@ class UserCache:
 
         return user
 
-    def delete(self, user: User, persist: bool = True):
-        CachedUser.restore(self._cache, user.uuid).remove(self._cache)
+    def delete(self, user: SQLUser, persist: bool = True):
+        CachedUser.load(self._cache, user.uuid).delete(self._cache)
         if persist:
             with session_scope() as session:
-                session.query(User).filter(User.uuid == user.uuid).delete()
+                session.query(SQLUser).filter_by(uuid=user.uuid).delete()
                 session.flush()
 
     def get(self, tenant_uuids: list[str], user_uuid: str):
         tenant_uuids = [str(tenant_uuid) for tenant_uuid in tenant_uuids]
         try:
-            user = CachedUser.restore(self._cache, user_uuid)
-        except ValueError as e:
-            logger.debug('Error getting user %s: %s', user_uuid, e)
+            user = CachedUser.load(self._cache, user_uuid)
+        except ValueError:
             raise UnknownUserException(user_uuid)
         else:
             if user.tenant_uuid not in tenant_uuids:
@@ -62,18 +65,19 @@ class UserCache:
         return self._filter_users(tenant_uuids=tenant_uuids, uuids=uuids)
 
     def update(self, user: CachedUser, persist: bool = True):
-        user.store(self._cache)
+        user.save(self._cache)
 
         if persist:
             with session_scope() as session:
-                query = session.query(User).filter(
-                    User.tenant_uuid == user.tenant_uuid, User.uuid == user.uuid
+                db_user = (
+                    session.query(SQLUser)
+                    .filter_by(tenant_uuid=user.tenant_uuid, uuid=user.uuid)
+                    .first()
                 )
-                db_user = query.first()
                 if not db_user:
                     logger.error(
-                        'Unable to update user not found: tenants %s, user %s',
-                        user.tenant_uuids,
+                        'update failed, user not found in database: tenant %s, user %s',
+                        user.tenant_uuid,
                         user.uuid,
                     )
                     raise UnknownUserException(user.uuid)
@@ -86,44 +90,43 @@ class UserCache:
     def add_session(self, user: CachedUser, session: CachedSession):
         for existing_session in user.sessions:
             if existing_session.uuid == str(session.uuid):
-                user.sessions.remove(existing_session)
-                break
-        else:
-            session = CachedSession(
-                session.uuid,
-                session.mobile,
-                session.user_uuid,
-                session.tenant_uuid,
-            )
-            user.sessions.append(session)
-        user.store(self._cache)
+                return
+
+        session = CachedSession(
+            session.uuid,
+            session.mobile,
+            user.uuid,
+            user.tenant_uuid,
+        )
+        user.sessions.append(session)
+        user.save(self._cache)
 
     def remove_session(self, user: CachedUser, session: CachedSession):
         for existing_session in user.sessions:
             if existing_session.uuid == session.uuid:
                 user.sessions.remove(existing_session)
-                session.remove(self._cache)
-                user.store(self._cache)
+                session.delete(self._cache)
+                user.save(self._cache)
                 return
 
-    def add_line(self, user: CachedUser, line: Line):
+    def add_line(self, user: CachedUser, line: SQLLine):
         for existing_line in user.lines:
             if existing_line.id == int(line.id):
                 return
         else:
             line = CachedLine(line.id, user.uuid, None, None, user.tenant_uuid)
             user.lines.append(line)
-            user.store(self._cache)
+            user.save(self._cache)
 
     def remove_line(self, user: CachedUser, line: CachedLine):
         for existing_line in user.lines:
             if existing_line.id == line.id:
                 user.lines.remove(existing_line)
-                line.remove(self._cache)
-                user.store(self._cache)
+                line.delete(self._cache)
+                user.save(self._cache)
                 return
 
-    def add_refresh_token(self, user: CachedUser, refresh_token: RefreshToken):
+    def add_refresh_token(self, user: CachedUser, refresh_token: SQLRefreshToken):
         user_uuid = str(refresh_token.user_uuid)
         client_id = str(refresh_token.client_id)
 
@@ -136,12 +139,12 @@ class UserCache:
         else:
             token = CachedRefreshToken(
                 refresh_token.client_id,
-                str(refresh_token.user_uuid),
+                user.uuid,
                 refresh_token.mobile,
-                refresh_token.tenant_uuid,
+                user.tenant_uuid,
             )
             user.refresh_tokens.append(token)
-            user.store(self._cache)
+            user.save(self._cache)
 
     def remove_refresh_token(self, user: CachedUser, refresh_token: CachedRefreshToken):
         for existing_token in user.refresh_tokens:
@@ -150,11 +153,11 @@ class UserCache:
                 and existing_token.client_id == refresh_token.client_id
             ):
                 user.refresh_tokens.remove(existing_token)
-                refresh_token.remove(self._cache)
-                user.store(self._cache)
+                refresh_token.delete(self._cache)
+                user.save(self._cache)
 
     def _filter_users(self, tenant_uuids: list[str] = None, uuids: list[str] = None):
-        users = CachedUser.all(self._cache)
+        users = CachedUser.load_all(self._cache)
 
         if uuids:
             uuids = [str(uuid) for uuid in uuids or []]

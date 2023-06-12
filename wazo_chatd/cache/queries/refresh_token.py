@@ -11,9 +11,9 @@ class RefreshTokenCache:
         self._cache = client
 
     def get(self, user_uuid: str, client_id: str):
-        pkey = ':'.join([user_uuid, client_id])
+        pk = ':'.join([user_uuid, client_id])
         try:
-            return CachedRefreshToken.restore(self._cache, pkey)
+            return CachedRefreshToken.load(self._cache, pk)
         except ValueError:
             raise UnknownRefreshTokenException(client_id, user_uuid)
 
@@ -27,12 +27,12 @@ class RefreshTokenCache:
             tokens &= CachedRefreshToken.pk_matches(self._cache, client_id)
 
         try:
-            return CachedRefreshToken.restore(self._cache, tokens.pop())
+            return CachedRefreshToken.load(self._cache, tokens.pop())
         except KeyError:
             return None
 
     def list_(self):
-        return CachedRefreshToken.all(self._cache)
+        return CachedRefreshToken.load_all(self._cache)
 
     def update(self, refresh_token: CachedRefreshToken):
-        refresh_token.store(self._cache)
+        refresh_token.save(self._cache)
