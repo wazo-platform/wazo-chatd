@@ -224,7 +224,7 @@ class InitAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
 
 class DBAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'database'
-    service = 'postgresql'
+    service = 'postgres'
     wait_strategy = NoWaitStrategy()
 
 
