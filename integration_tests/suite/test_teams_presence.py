@@ -1,4 +1,4 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
@@ -16,6 +16,7 @@ from hamcrest import (
     starts_with,
 )
 from uuid import uuid4
+from wazo_test_helpers import until
 
 from .helpers import fixtures
 from .helpers.base import TeamsIntegrationTest, use_asset
@@ -192,7 +193,7 @@ class TestTeams(TeamsIntegrationTest):
             ),
         )
 
-    @fixtures.db.user(state='available')
+    @fixtures.db.user(state='available', do_not_disturb=False)
     def test_presence_enable_dnd(self, user):
         accumulator = self.bus.accumulator(headers={'name': 'chatd_presence_updated'})
 
@@ -214,7 +215,7 @@ class TestTeams(TeamsIntegrationTest):
             ),
         )
 
-    @fixtures.db.user(state='unavailable')
+    @fixtures.db.user(state='unavailable', do_not_disturb=True)
     def test_presence_disable_dnd(self, user):
         accumulator = self.bus.accumulator(headers={'name': 'chatd_presence_updated'})
 
@@ -304,16 +305,15 @@ class TestTeams(TeamsIntegrationTest):
         )
 
     def _assert_event_received(self, accumulator, user_uuid):
-        assert_that(
+        def check_accumulator():
             accumulator.accumulate(with_headers=True),
             has_items(
                 has_entries(
-                    message=has_entries(
-                        data=has_entry('user_uuid', str(user_uuid)),
-                    )
+                    message=has_entries(data=has_entry('user_uuid', str(user_uuid)))
                 )
-            ),
-        )
+            )
+
+        until.assert_(check_accumulator, timeout=5)
 
     @contextmanager
     def _connect_user(self, user):
