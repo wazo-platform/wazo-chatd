@@ -6,6 +6,7 @@ import uuid
 from wazo_test_helpers import bus as bus_helper
 
 FAKE_UUID = str(uuid.uuid4())
+WAZO_UUID = '00000000-0000-0000-0000-0000000c4a7d'
 
 
 class BusClient(bus_helper.BusClient):
@@ -20,6 +21,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_tenant_added',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -34,6 +36,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_tenant_deleted',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -49,6 +52,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'user_created',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -61,6 +65,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'user_deleted',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -80,6 +85,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_session_created',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -96,6 +102,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_session_deleted',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -115,6 +122,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_refresh_token_created',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -131,6 +139,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'auth_refresh_token_deleted',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -157,6 +166,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'user_line_associated',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -181,6 +191,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'user_line_dissociated',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -195,6 +206,7 @@ class BusClient(bus_helper.BusClient):
             },
             headers={
                 'name': 'DeviceStateChange',
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -209,6 +221,7 @@ class BusClient(bus_helper.BusClient):
             },
             headers={
                 'name': 'Newchannel',
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -223,6 +236,7 @@ class BusClient(bus_helper.BusClient):
             },
             headers={
                 'name': 'Newstate',
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -236,6 +250,7 @@ class BusClient(bus_helper.BusClient):
             },
             headers={
                 'name': 'Hangup',
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -249,6 +264,7 @@ class BusClient(bus_helper.BusClient):
             },
             headers={
                 'name': 'Hold',
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -263,6 +279,7 @@ class BusClient(bus_helper.BusClient):
             },
             headers={
                 'name': 'Unhold',
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -279,6 +296,7 @@ class BusClient(bus_helper.BusClient):
             headers={
                 'name': 'users_services_dnd_updated',
                 'tenant_uuid': str(tenant_uuid),
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -295,6 +313,7 @@ class BusClient(bus_helper.BusClient):
                 'name': 'auth_user_external_auth_added',
                 'tenant_uuid': str(tenant_uuid),
                 f'user_uuid:{user_uuid}': True,
+                'origin_uuid': WAZO_UUID,
             },
         )
 
@@ -311,5 +330,6 @@ class BusClient(bus_helper.BusClient):
                 'name': 'auth_user_external_auth_deleted',
                 'tenant_uuid': str(tenant_uuid),
                 f'user_uuid:{user_uuid}': True,
+                'origin_uuid': WAZO_UUID,
             },
         )

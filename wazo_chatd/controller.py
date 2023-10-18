@@ -38,7 +38,7 @@ class Controller:
         self.status_aggregator = StatusAggregator()
         self.rest_api = CoreRestApi(config)
         self.aio = CoreAsyncio()
-        self.bus_consumer = BusConsumer.from_config(config['bus'])
+        self.bus_consumer = BusConsumer.from_config(config['bus'], config)
         self.bus_publisher = BusPublisher.from_config(config['uuid'], config['bus'])
         self.thread_manager = ThreadManager()
         auth_client = AuthClient(**config['auth'])
