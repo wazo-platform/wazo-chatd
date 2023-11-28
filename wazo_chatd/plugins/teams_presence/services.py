@@ -103,9 +103,6 @@ class TeamsService:
 
             user.state = state
             user.do_not_disturb = dnd
-            endpoint_state = 'unavailable' if state == 'invisible' else 'available'
-            for line in user.lines:
-                line.endpoint_state = endpoint_state
 
             logger.debug('updating `%s` presence to %s', user_uuid, state)
             self.presence_service.update(user)
