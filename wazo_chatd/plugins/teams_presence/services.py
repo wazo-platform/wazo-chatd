@@ -98,6 +98,13 @@ class TeamsService:
             tenant_uuids = [self._synchronizers[user_uuid].tenant_uuid]
             presence = subscription['resource_data']
             state = PRESENCES_MAP.get(presence['availability'])
+
+            if state == 'invisible':
+                logger.debug(
+                    'discarding offline presence update for user `%s`', user_uuid
+                )
+                return
+
             dnd = state == 'unavailable'
             user = self.presence_service.get(tenant_uuids, user_uuid)
 
