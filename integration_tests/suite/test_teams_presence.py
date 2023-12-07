@@ -1,4 +1,4 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
@@ -181,14 +181,6 @@ class TestTeams(TeamsIntegrationTest):
                     # DoNotDisturb -> unavailable
                     data=has_entries(state='unavailable'),
                 ),
-                has_entries(
-                    # Offline -> invisible
-                    data=has_entries(state='invisible'),
-                ),
-                has_entries(
-                    # Unknown -> invisible
-                    data=has_entries(state='invisible'),
-                ),
             ),
         )
 
@@ -243,7 +235,7 @@ class TestTeams(TeamsIntegrationTest):
 
         with self._connect_user(user1), self._connect_user(user2):
             self.microsoft.set_presence(user1.uuid, 'Busy')
-            self.microsoft.set_presence(user2.uuid, 'Offline')
+            self.microsoft.set_presence(user2.uuid, 'Away')
             self.microsoft.set_presence(user1.uuid, 'Available')
 
         assert_that(
@@ -262,7 +254,7 @@ class TestTeams(TeamsIntegrationTest):
                     message=has_entries(
                         data=has_entries(
                             uuid=str(user2.uuid),
-                            state='invisible',
+                            state='away',
                             do_not_disturb=False,
                         )
                     )

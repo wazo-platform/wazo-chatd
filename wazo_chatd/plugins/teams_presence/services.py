@@ -28,8 +28,8 @@ PRESENCES_MAP = {
     'Busy': 'unavailable',
     'BusyIdle': 'unavailable',
     'DoNotDisturb': 'unavailable',
-    'Offline': 'invisible',
-    'PresenceUnknown': 'invisible',
+    'Offline': NotImplemented,
+    'PresenceUnknown': NotImplemented,
 }
 
 
@@ -98,14 +98,23 @@ class TeamsService:
             tenant_uuids = [self._synchronizers[user_uuid].tenant_uuid]
             presence = subscription['resource_data']
             state = PRESENCES_MAP.get(presence['availability'])
+
+            # Note:
+            # Offline state is disabled because even when teams is closed,
+            # we can still received presence updates forcing an invisible presence
+            if state is NotImplemented:
+                logger.debug(
+                    'discarding unimplemented `%s` presence update for user `%s`',
+                    presence['availability'],
+                    user_uuid,
+                )
+                return
+
             dnd = state == 'unavailable'
             user = self.presence_service.get(tenant_uuids, user_uuid)
 
             user.state = state
             user.do_not_disturb = dnd
-            endpoint_state = 'unavailable' if state == 'invisible' else 'available'
-            for line in user.lines:
-                line.endpoint_state = endpoint_state
 
             logger.debug('updating `%s` presence to %s', user_uuid, state)
             self.presence_service.update(user)
