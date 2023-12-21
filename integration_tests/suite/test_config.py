@@ -1,19 +1,18 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
-from hamcrest import assert_that, has_key, calling, has_properties
+from hamcrest import assert_that, calling, has_key, has_properties
+from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers import until
 from wazo_test_helpers.hamcrest.raises import raises
 
 from .helpers.base import (
+    START_TIMEOUT,
+    TOKEN_SUBTENANT_UUID,
     APIIntegrationTest,
     use_asset,
-    TOKEN_SUBTENANT_UUID,
-    START_TIMEOUT,
 )
-
-from wazo_chatd_client.exceptions import ChatdError
 
 
 @use_asset('base')

@@ -1,17 +1,17 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from wazo_auth_client import Client as AuthClient
-from wazo_chatd.plugins.presences.notifier import PresenceNotifier
-from wazo_chatd.plugins.presences.services import PresenceService
 from wazo_confd_client import Client as ConfdClient
 
+from wazo_chatd.plugins.presences.notifier import PresenceNotifier
+from wazo_chatd.plugins.presences.services import PresenceService
+
 from .bus_consume import BusEventHandler
-from .log import make_logger
 from .http import TeamsPresenceResource
+from .log import make_logger
 from .notifier import TeamsNotifier
 from .services import TeamsService
-
 
 logger = make_logger(__name__)
 

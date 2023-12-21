@@ -2,21 +2,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
-import string
 import random
+import string
 import uuid
-
 from functools import wraps
 
 from wazo_chatd.database.models import (
     Channel,
     Endpoint,
     Line,
+    RefreshToken,
     Room,
     RoomMessage,
     RoomUser,
     Session,
-    RefreshToken,
     Tenant,
     User,
 )

@@ -3,11 +3,9 @@
 
 import asyncio
 import logging
-
+from collections.abc import Coroutine
 from functools import partial
 from threading import Thread
-from collections.abc import Coroutine
-
 
 logger = logging.getLogger("asyncio")
 

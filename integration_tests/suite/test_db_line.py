@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -13,10 +13,10 @@ from hamcrest import (
     has_items,
     has_properties,
 )
+from wazo_test_helpers.hamcrest.raises import raises
 
 from wazo_chatd.database.models import Channel
 from wazo_chatd.exceptions import UnknownLineException
-from wazo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
 from .helpers.base import DBIntegrationTest, use_asset

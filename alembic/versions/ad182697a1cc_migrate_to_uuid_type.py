@@ -5,11 +5,12 @@ Revises: b96789d13584
 
 """
 
-from alembic import op
+from contextlib import contextmanager
+
 from sqlalchemy import String
 from sqlalchemy_utils import UUIDType
 
-from contextlib import contextmanager
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'ad182697a1cc'

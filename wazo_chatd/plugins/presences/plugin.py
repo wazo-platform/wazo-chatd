@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -8,11 +8,11 @@ from wazo_auth_client import Client as AuthClient
 from wazo_confd_client import Client as ConfdClient
 
 from .bus_consume import BusEventHandler
-from .http import PresenceListResource, PresenceItemResource
-from .notifier import PresenceNotifier
-from .services import PresenceService
+from .http import PresenceItemResource, PresenceListResource
 from .initiator import Initiator
 from .initiator_thread import InitiatorThread
+from .notifier import PresenceNotifier
+from .services import PresenceService
 from .validator import status_validator
 
 logger = logging.getLogger(__name__)

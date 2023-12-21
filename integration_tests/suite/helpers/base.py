@@ -1,27 +1,23 @@
 # Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import pytest
 import logging
 import os
 import unittest
 import uuid
 
+import pytest
 from wazo_chatd_client import Client as ChatdClient
-from wazo_chatd.database.queries import DAO
-from wazo_chatd.database.helpers import init_db, Session
-
-from wazo_test_helpers.auth import (
-    AuthClient,
-    MockCredentials,
-    MockUserToken,
-)
 from wazo_test_helpers import until
 from wazo_test_helpers.asset_launching_test_case import (
     AssetLaunchingTestCase,
     NoSuchPort,
     NoSuchService,
 )
+from wazo_test_helpers.auth import AuthClient, MockCredentials, MockUserToken
+
+from wazo_chatd.database.helpers import Session, init_db
+from wazo_chatd.database.queries import DAO
 
 from .amid import AmidClient
 from .bus import BusClient

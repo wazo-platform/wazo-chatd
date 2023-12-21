@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -9,13 +9,14 @@ from hamcrest import (
     contains,
     empty,
     has_entries,
-    has_properties,
     has_items,
+    has_properties,
     not_,
 )
 from wazo_test_helpers import until
 
 from wazo_chatd.database import models
+
 from .helpers import fixtures
 from .helpers.base import TOKEN_TENANT_UUID, APIIntegrationTest, use_asset
 

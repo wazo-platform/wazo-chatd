@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -12,24 +12,20 @@ from hamcrest import (
     empty,
     equal_to,
     has_properties,
-    is_not,
     instance_of,
+    is_not,
     none,
 )
 from sqlalchemy.inspection import inspect
+from wazo_test_helpers.hamcrest.raises import raises
 
 from wazo_chatd.database.models import Room, RoomMessage, RoomUser
 from wazo_chatd.exceptions import UnknownRoomException
-from wazo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
-from .helpers.base import (
-    DBIntegrationTest,
-    UNKNOWN_UUID,
-    TOKEN_TENANT_UUID as TENANT_1,
-    TOKEN_SUBTENANT_UUID as TENANT_2,
-    use_asset,
-)
+from .helpers.base import TOKEN_SUBTENANT_UUID as TENANT_2
+from .helpers.base import TOKEN_TENANT_UUID as TENANT_1
+from .helpers.base import UNKNOWN_UUID, DBIntegrationTest, use_asset
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()

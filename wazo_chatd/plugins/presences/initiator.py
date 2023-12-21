@@ -5,6 +5,7 @@ import logging
 
 from xivo.status import Status
 
+from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
     Channel,
     Endpoint,
@@ -14,7 +15,6 @@ from wazo_chatd.database.models import (
     Tenant,
     User,
 )
-from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.exceptions import (
     UnknownEndpointException,
     UnknownLineException,

@@ -16,8 +16,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.schema import Index
 from sqlalchemy.orm import relationship
+from sqlalchemy.schema import Index
 from sqlalchemy_utils import UUIDType, generic_repr
 
 Base = declarative_base()

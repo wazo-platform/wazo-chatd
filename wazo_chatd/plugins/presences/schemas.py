@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import post_dump, pre_load
-
 from xivo.mallow import fields
 from xivo.mallow.validate import OneOf
 from xivo.mallow_helpers import Schema

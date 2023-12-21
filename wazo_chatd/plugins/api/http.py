@@ -4,7 +4,6 @@
 import logging
 
 import yaml
-
 from flask import make_response
 from flask_restful import Resource
 from xivo.chain_map import ChainMap

@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -8,25 +8,23 @@ from hamcrest import (
     calling,
     contains,
     contains_inanyorder,
-    equal_to,
     empty,
+    equal_to,
     has_entries,
     has_properties,
     is_not,
     none,
     not_,
 )
-
-from wazo_test_helpers.hamcrest.raises import raises
-
 from wazo_chatd_client.exceptions import ChatdError
+from wazo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
 from .helpers.base import (
-    APIIntegrationTest,
     TOKEN_SUBTENANT_UUID,
     TOKEN_TENANT_UUID,
     UNKNOWN_UUID,
+    APIIntegrationTest,
     use_asset,
 )
 

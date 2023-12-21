@@ -1,9 +1,9 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from xivo.mallow import fields
-from xivo.mallow_helpers import Schema
 from xivo.mallow.validate import OneOf
+from xivo.mallow_helpers import Schema
 
 
 class PresenceResourceSchema(Schema):
