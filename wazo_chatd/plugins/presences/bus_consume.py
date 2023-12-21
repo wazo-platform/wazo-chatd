@@ -3,7 +3,6 @@
 
 import logging
 
-from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
     Channel,
@@ -13,11 +12,13 @@ from wazo_chatd.database.models import (
     Tenant,
     User,
 )
+from wazo_chatd.exceptions import UnknownUserException
+
 from .initiator import (
     CHANNEL_STATE_MAP,
     DEVICE_STATE_MAP,
-    extract_endpoint_from_line,
     extract_endpoint_from_channel,
+    extract_endpoint_from_line,
 )
 
 logger = logging.getLogger(__name__)

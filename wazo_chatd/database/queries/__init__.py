@@ -1,6 +1,7 @@
 # Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from ..helpers import Session
 from .channel import ChannelDAO
 from .endpoint import EndpointDAO
 from .line import LineDAO
@@ -9,8 +10,6 @@ from .room import RoomDAO
 from .session import SessionDAO
 from .tenant import TenantDAO
 from .user import UserDAO
-
-from ..helpers import Session
 
 
 class DAO:

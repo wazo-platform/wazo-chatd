@@ -1,9 +1,10 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+from xivo_bus.resources.common.event import UserEvent
 
 from wazo_chatd.asyncio_ import CoreAsyncio
 from wazo_chatd.bus import BusPublisher
-from xivo_bus.resources.common.event import UserEvent
 
 
 class TeamsPresenceSynchronizationStartedEvent(UserEvent):

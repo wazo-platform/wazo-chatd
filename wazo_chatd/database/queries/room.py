@@ -1,12 +1,12 @@
 # Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from sqlalchemy.sql.functions import ReturnTypeFromArgs
 from sqlalchemy import distinct, text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.sql.functions import ReturnTypeFromArgs
 
 from ...exceptions import UnknownRoomException
-from ..models import Room, RoomUser, RoomMessage
+from ..models import Room, RoomMessage, RoomUser
 
 
 class unaccent(ReturnTypeFromArgs):

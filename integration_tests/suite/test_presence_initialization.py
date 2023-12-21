@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -11,23 +11,15 @@ from hamcrest import (
     has_entries,
     has_properties,
 )
-
+from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers import until
 from wazo_test_helpers.hamcrest.raises import raises
 
-from wazo_chatd_client.exceptions import ChatdError
 from wazo_chatd.database import models
 
 from .helpers import fixtures
-from .helpers.wait_strategy import (
-    PresenceInitOkWaitStrategy,
-    RestApiOkWaitStrategy,
-)
-from .helpers.base import (
-    InitIntegrationTest,
-    CHATD_TOKEN_TENANT_UUID,
-    use_asset,
-)
+from .helpers.base import CHATD_TOKEN_TENANT_UUID, InitIntegrationTest, use_asset
+from .helpers.wait_strategy import PresenceInitOkWaitStrategy, RestApiOkWaitStrategy
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID_1 = uuid.uuid4()

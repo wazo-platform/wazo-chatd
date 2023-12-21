@@ -1,21 +1,21 @@
 # Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import requests
-
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from uuid import uuid4
+
+import requests
 from hamcrest import (
     assert_that,
-    contains_inanyorder,
     contains_exactly,
+    contains_inanyorder,
     has_entries,
     has_entry,
     has_items,
     has_properties,
     starts_with,
 )
-from uuid import uuid4
 
 from .helpers import fixtures
 from .helpers.base import TeamsIntegrationTest, use_asset

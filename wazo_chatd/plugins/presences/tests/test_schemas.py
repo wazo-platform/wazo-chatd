@@ -1,11 +1,9 @@
 # Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import uuid
 import unittest
-
+import uuid
 from unittest.mock import MagicMock, Mock
-from marshmallow.exceptions import ValidationError
 
 from hamcrest import (
     assert_that,
@@ -16,8 +14,9 @@ from hamcrest import (
     has_entries,
     raises,
 )
+from marshmallow.exceptions import ValidationError
 
-from ..schemas import UserPresenceSchema, LinePresenceSchema, ListRequestSchema
+from ..schemas import LinePresenceSchema, ListRequestSchema, UserPresenceSchema
 
 UUID = uuid.uuid4()
 

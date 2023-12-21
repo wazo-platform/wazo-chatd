@@ -5,8 +5,8 @@ import itertools
 import logging
 import threading
 
-from sqlalchemy.exc import SQLAlchemyError
 import requests
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 

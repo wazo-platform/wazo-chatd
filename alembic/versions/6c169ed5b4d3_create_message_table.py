@@ -6,8 +6,10 @@ Revises: 8c20afd7bd4b
 """
 
 import datetime
-from alembic import op
+
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '6c169ed5b4d3'

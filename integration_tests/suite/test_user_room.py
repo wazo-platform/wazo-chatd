@@ -13,19 +13,18 @@ from hamcrest import (
     has_properties,
     none,
 )
-
+from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers.hamcrest.raises import raises
 from wazo_test_helpers.hamcrest.uuid_ import uuid_
 
 from wazo_chatd.database.models import Room
-from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
 from .helpers.base import (
-    APIIntegrationTest,
     TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
     WAZO_UUID,
+    APIIntegrationTest,
     use_asset,
 )
 

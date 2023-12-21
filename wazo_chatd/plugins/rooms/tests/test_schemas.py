@@ -1,26 +1,14 @@
 # Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import uuid
 import unittest
-
+import uuid
 from unittest.mock import MagicMock
 
-from hamcrest import (
-    assert_that,
-    calling,
-    has_entries,
-    has_length,
-    not_,
-    raises,
-)
+from hamcrest import assert_that, calling, has_entries, has_length, not_, raises
 from xivo.mallow_helpers import ValidationError
 
-from ..schemas import (
-    ListRequestSchema,
-    MessageListRequestSchema,
-    RoomListRequestSchema,
-)
+from ..schemas import ListRequestSchema, MessageListRequestSchema, RoomListRequestSchema
 
 
 class TestListRequestSchema(unittest.TestCase):

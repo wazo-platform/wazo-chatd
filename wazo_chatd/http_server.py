@@ -3,7 +3,6 @@
 
 import logging
 import os
-
 from datetime import timedelta
 
 from cheroot import wsgi
@@ -13,8 +12,8 @@ from flask_restful import Api
 from sqlalchemy.exc import SQLAlchemyError
 from xivo import http_helpers
 
-from .http import auth_verifier
 from .database.helpers import Session
+from .http import auth_verifier
 
 VERSION = 1.0
 

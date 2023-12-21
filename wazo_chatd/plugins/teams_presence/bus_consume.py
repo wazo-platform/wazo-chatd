@@ -9,7 +9,6 @@ from wazo_chatd.bus import BusConsumer
 from .log import make_logger
 from .services import TeamsService
 
-
 logger = make_logger(__name__)
 
 

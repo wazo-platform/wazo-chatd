@@ -1,20 +1,19 @@
-# Copyright 2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import logging
 import json
-import jwt
+import logging
 import os
-import requests
 import secrets
 import sys
-
 from collections import defaultdict
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify
-from requests.exceptions import ConnectTimeout, HTTPError
 from uuid import uuid4
 
+import jwt
+import requests
+from flask import Flask, jsonify, request
+from requests.exceptions import ConnectTimeout, HTTPError
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

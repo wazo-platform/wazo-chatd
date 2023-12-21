@@ -1,12 +1,12 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from hamcrest import assert_that, calling, equal_to, has_properties
 from sqlalchemy.inspection import inspect
+from wazo_test_helpers.hamcrest.raises import raises
 
 from wazo_chatd.database.models import Endpoint
 from wazo_chatd.exceptions import UnknownEndpointException
-from wazo_test_helpers.hamcrest.raises import raises
 
 from .helpers import fixtures
 from .helpers.base import DBIntegrationTest, use_asset

@@ -4,21 +4,20 @@
 import logging
 import signal
 import threading
-
 from functools import partial
+
 from wazo_auth_client import Client as AuthClient
 from xivo import plugin_helpers
 from xivo.consul_helpers import ServiceCatalogRegistration
 from xivo.status import StatusAggregator
 from xivo.token_renewer import TokenRenewer
 
-from .bus import BusConsumer, BusPublisher
-
 from . import auth
 from .asyncio_ import CoreAsyncio
+from .bus import BusConsumer, BusPublisher
 from .database.helpers import init_db
 from .database.queries import DAO
-from .http_server import api, app, CoreRestApi
+from .http_server import CoreRestApi, api, app
 from .thread_manager import ThreadManager
 
 logger = logging.getLogger(__name__)

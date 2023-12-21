@@ -4,20 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import json
-
 from base64 import urlsafe_b64decode
-from requests.exceptions import HTTPError
 
+from requests.exceptions import HTTPError
 from wazo_auth_client import Client as AuthClient
+from wazo_confd_client import Client as ConfdClient
+
 from wazo_chatd.asyncio_ import CoreAsyncio
 from wazo_chatd.database.queries import DAO
 from wazo_chatd.plugins.presences.services import PresenceService
-from wazo_confd_client import Client as ConfdClient
 
 from .log import make_logger
 from .notifier import TeamsNotifier
 from .subscriptions import SubscriptionRenewer
-
 
 logger = make_logger(__name__)
 PRESENCES_MAP = {

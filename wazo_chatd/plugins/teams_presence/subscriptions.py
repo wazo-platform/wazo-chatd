@@ -3,18 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
+from functools import partial
+
 import iso8601
 import requests
-
-from datetime import datetime, timezone, timedelta
-from functools import partial
 from requests.exceptions import HTTPError
-
 from wazo_auth_client import Client as AuthClient
 
 from .log import make_logger
 from .notifier import TeamsNotifier
-
 
 logger = make_logger(__name__)
 

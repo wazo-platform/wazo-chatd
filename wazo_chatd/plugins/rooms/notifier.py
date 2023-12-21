@@ -1,4 +1,4 @@
-# Copyright 2019-2022 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from xivo_bus.resources.chatd.events import (
@@ -6,7 +6,7 @@ from xivo_bus.resources.chatd.events import (
     UserRoomMessageCreatedEvent,
 )
 
-from .schemas import RoomSchema, MessageSchema
+from .schemas import MessageSchema, RoomSchema
 
 
 class RoomNotifier:

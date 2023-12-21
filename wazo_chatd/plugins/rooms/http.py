@@ -1,15 +1,14 @@
 # Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import ValidationError
 from flask import request
-
+from marshmallow import ValidationError
 from xivo.auth_verifier import required_acl
 from xivo.mallow.validate import Length
 from xivo.tenant_flask_helpers import token
 
+from wazo_chatd.database.models import Room, RoomMessage, RoomUser
 from wazo_chatd.http import AuthResource
-from wazo_chatd.database.models import Room, RoomUser, RoomMessage
 
 from .exceptions import DuplicateUserException
 from .schemas import (
