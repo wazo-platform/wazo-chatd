@@ -1,7 +1,8 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
+from functools import partial
 
 from xivo.status import Status
 
@@ -88,18 +89,40 @@ class Initiator:
     def is_initialized(self):
         return self._is_initialized
 
+    def _paginate_proxy(self, callback, limit=1000):
+        callback = partial(callback, recurse=True, limit=limit)
+        result = callback(limit=limit, offset=0)
+        total = result['total']
+        items = result['items']
+        offset = limit
+        while offset < total:
+            items.extend(callback(offset=offset)['items'])
+            offset += limit
+
+        return {'items': items, 'total': total}
+
     def initiate(self):
         token = self._auth.token.new(expiration=120)['token']
         self._auth.set_token(token)
         self._amid.set_token(token)
         self._confd.set_token(token)
 
+        logger.debug('Fetching device states...')
         endpoint_events = self._amid.action('DeviceStateList')
-        tenants = self._auth.tenants.list()['items']
-        users = self._confd.users.list(recurse=True)['items']
-        sessions = self._auth.sessions.list(recurse=True)['items']
-        refresh_tokens = self._auth.refresh_tokens.list(recurse=True)['items']
+        logger.debug('Fetching tenants...')
+        tenants = self._paginate_proxy(self._auth.tenants.list, limit=10000)['items']
+        logger.debug('Fetching users...')
+        users = self._paginate_proxy(self._confd.users.list, limit=1000)['items']
+        logger.debug('Fetching sesions...')
+        sessions = self._paginate_proxy(self._auth.sessions.list, limit=10000)['items']
+        logger.debug('Fetching refresh tokens...')
+        refresh_tokens = self._paginate_proxy(
+            self._auth.refresh_tokens.list,
+            limit=10000,
+        )['items']
+        logger.debug('Fetching channels...')
         channel_events = self._amid.action('CoreShowChannels')
+        logger.debug('Fetching data done!')
 
         self.initiate_endpoints(endpoint_events)
         self.initiate_tenants(tenants)
