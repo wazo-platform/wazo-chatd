@@ -1,4 +1,4 @@
-# Copyright 2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2023-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from unittest import TestCase
@@ -18,7 +18,19 @@ class TestBusEventHandler(TestCase):
             'State': 'unavailable',
             'Device': 'Custom:*7351033***223',
         }
-
         self.handler._device_state_change(event)
+        self.dao.endpoint.find_or_create.assert_not_called()
 
+        event = {
+            'State': 'unavailable',
+            'Device': 'MWI:1001@internal',
+        }
+        self.handler._device_state_change(event)
+        self.dao.endpoint.find_or_create.assert_not_called()
+
+        event = {
+            'State': 'unavailable',
+            'Device': 'Queue:grp-01wazo-e0cc9e04-a40f-4d1d-ac51-58634b1cf5b3_avail',
+        }
+        self.handler._device_state_change(event)
         self.dao.endpoint.find_or_create.assert_not_called()
