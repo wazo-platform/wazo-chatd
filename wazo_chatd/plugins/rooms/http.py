@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from flask import request
@@ -42,7 +42,11 @@ class UserRoomListResource(AuthResource):
         room_args['tenant_uuid'] = token.tenant_uuid
 
         user_uuids = [str(user['uuid']) for user in room_args['users']]
-        rooms = self._service.list_([room_args['tenant_uuid']], user_uuids=user_uuids)
+        rooms = self._service.list_(
+            [room_args['tenant_uuid']],
+            user_uuids=user_uuids,
+            exact_user_uuids=True,
+        )
         if rooms:
             room = rooms[0]
         else:

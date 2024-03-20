@@ -1,8 +1,8 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from sqlalchemy import distinct, text
-from sqlalchemy.dialects import postgresql
+from sqlalchemy import and_, distinct, text
+from sqlalchemy.dialects.postgresql import array_agg
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
 
 from ...exceptions import UnknownRoomException
@@ -41,16 +41,20 @@ class RoomDAO:
     def count(self, tenant_uuids, **filter_parameters):
         return self._list_query(tenant_uuids, **filter_parameters).count()
 
-    def _list_query(self, tenant_uuids=None, user_uuids=None):
+    def _list_query(self, tenant_uuids=None, user_uuids=None, exact_user_uuids=False):
         query = self.session.query(Room)
-
         if user_uuids:
+            matcher = array_agg(distinct(RoomUser.uuid)).contains(user_uuids)
+            if exact_user_uuids:
+                matcher = and_(
+                    matcher,
+                    array_agg(distinct(RoomUser.uuid)).contained_by(user_uuids),
+                )
+
             sub_query = (
                 self.session.query(RoomUser.room_uuid)
                 .group_by(RoomUser.room_uuid)
-                .having(
-                    postgresql.array_agg(distinct(RoomUser.uuid)).contains(user_uuids)
-                )
+                .having(matcher)
             ).subquery()
             query = query.filter(Room.uuid.in_(sub_query))
 

@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -12,6 +12,7 @@ from hamcrest import (
     has_entries,
     has_properties,
     none,
+    not_,
 )
 from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers.hamcrest.raises import raises
@@ -231,6 +232,30 @@ class TestUserRoom(APIIntegrationTest):
         )
         self._delete_room(room)
 
+    @fixtures.http.room(users=[USER_1, USER_2, USER_3])
+    def test_create_when_a_group_of_users_already_exists(self, existing_room):
+        room_args = {
+            'users': [USER_1, USER_2],
+        }
+        room = self.chatd.rooms.create_from_user(room_args)
+
+        assert_that(room['uuid'], not_(existing_room['uuid']))
+        self._delete_room(room)
+
+    @fixtures.http.room(users=[USER_1, USER_2])
+    def test_create_when_a_subset_of_users_already_exists(self, existing_room):
+        room_args = {
+            'users': [USER_1, USER_2, USER_3],
+        }
+        room = self.chatd.rooms.create_from_user(room_args)
+
+        assert_that(room['uuid'], not_(existing_room['uuid']))
+        self._delete_room(room)
+
+    def _delete_room(self, room):
+        self._session.query(Room).filter(Room.uuid == room['uuid']).delete()
+        self._session.commit()
+
     @fixtures.http.room(name='old')
     def test_create_when_already_exists(self, existing_room):
         room_args = {
@@ -247,10 +272,6 @@ class TestUserRoom(APIIntegrationTest):
                 users=existing_room['users'],
             ),
         )
-
-    def _delete_room(self, room):
-        self._session.query(Room).filter(Room.uuid == room['uuid']).delete()
-        self._session.commit()
 
     def test_create_with_wrong_users_number(self):
         # 100 + current user = 101
