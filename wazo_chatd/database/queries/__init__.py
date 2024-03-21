@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from ..helpers import Session
@@ -23,6 +23,14 @@ class DAO:
         'tenant': TenantDAO,
         'user': UserDAO,
     }
+    channel: ChannelDAO
+    endpoint: EndpointDAO
+    line: LineDAO
+    refresh_token: RefreshTokenDAO
+    room: RoomDAO
+    session: SessionDAO
+    tenant: TenantDAO
+    user: UserDAO
 
     def __init__(self):
         for name, dao in self._daos.items():
