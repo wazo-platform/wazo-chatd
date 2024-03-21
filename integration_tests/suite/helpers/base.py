@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -103,6 +103,23 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
                 'parent_uuid': str(TOKEN_TENANT_UUID),
             },
         )
+
+    @classmethod
+    def create_user_token(
+        cls, user_uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID
+    ):
+        if isinstance(cls.auth, WrongClient):
+            return
+
+        token = MockUserToken(
+            str(uuid.uuid5(uuid.UUID(user_uuid), 'token')),
+            str(user_uuid),
+            metadata={'uuid': str(user_uuid), 'tenant_uuid': str(tenant_uuid)},
+        )
+        cls.auth.set_token(token)
+        credential = MockCredentials('username', 'password')
+        cls.auth.set_valid_credentials(credential, token.token_id)
+        return token.token_id
 
     @classmethod
     def make_db_session(cls):
