@@ -14,6 +14,7 @@ from hamcrest import (
     none,
     not_,
 )
+from requests import HTTPError
 from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers.hamcrest.raises import raises
 from wazo_test_helpers.hamcrest.uuid_ import uuid_
@@ -114,6 +115,122 @@ class TestUserRoom(APIIntegrationTest):
                 total=equal_to(0),
                 filtered=equal_to(0),
             ),
+        )
+
+    @fixtures.http.room(users=[USER_1])
+    @fixtures.http.room(users=[USER_2])
+    @fixtures.http.room(users=[USER_1, USER_2])
+    def test_list_messages_from_user(self, room1, room2, room3):
+        user1_token = self.asset_cls.create_user_token(user_uuid=USER_1['uuid'])
+
+        self.chatd.set_token(user1_token)
+        # user1 posts a message in the room1
+        self.chatd.rooms.create_message_from_user(
+            room_uuid=room1['uuid'],
+            message_args={'content': 'test message 1'},
+        )
+
+        # user1 posts a message in room3
+        self.chatd.rooms.create_message_from_user(
+            room_uuid=room3['uuid'],
+            message_args={'content': 'test message 2'},
+        )
+
+        user2_token = self.asset_cls.create_user_token(user_uuid=USER_2['uuid'])
+
+        self.chatd.set_token(user2_token)
+        # user2 posts a message in the room2
+        self.chatd.rooms.create_message_from_user(
+            room_uuid=room2['uuid'],
+            message_args={'content': 'test message 3'},
+        )
+        # user2 posts a message in room3
+        self.chatd.rooms.create_message_from_user(
+            room_uuid=room3['uuid'],
+            message_args={'content': 'test message 4'},
+        )
+
+        # user2 can see messages from room2
+        messages = self.chatd.rooms.list_messages_from_user(room2['uuid'])
+        assert_that(
+            messages,
+            has_entries(
+                items=contains_inanyorder(
+                    has_entries(
+                        content='test message 3', room=has_entries(uuid=room2['uuid'])
+                    ),
+                ),
+                total=equal_to(1),
+                filtered=equal_to(1),
+            ),
+        )
+
+        # user2 can see messages from room3
+        messages = self.chatd.rooms.list_messages_from_user(room3['uuid'])
+        assert_that(
+            messages,
+            has_entries(
+                items=contains_inanyorder(
+                    has_entries(
+                        content='test message 2', room=has_entries(uuid=room3['uuid'])
+                    ),
+                    has_entries(
+                        content='test message 4', room=has_entries(uuid=room3['uuid'])
+                    ),
+                ),
+                total=equal_to(2),
+                filtered=equal_to(2),
+            ),
+        )
+
+        # user2 listing messages from room1 raises 404 not found
+        assert_that(
+            calling(self.chatd.rooms.list_messages_from_user).with_args(
+                room_uuid=room1['uuid'], token=user2_token
+            ),
+            raises(HTTPError, has_properties(status_code=404)),
+        )
+
+        self.chatd.set_token(user1_token)
+        # user1 can see messages from room1
+        messages = self.chatd.rooms.list_messages_from_user(room1['uuid'])
+        assert_that(
+            messages,
+            has_entries(
+                items=contains_inanyorder(
+                    has_entries(
+                        content='test message 1', room=has_entries(uuid=room1['uuid'])
+                    ),
+                ),
+                total=equal_to(1),
+                filtered=equal_to(1),
+            ),
+        )
+
+        # user1 can see messages from room3
+        messages = self.chatd.rooms.list_messages_from_user(room3['uuid'])
+        assert_that(
+            messages,
+            has_entries(
+                items=contains_inanyorder(
+                    has_entries(
+                        content='test message 2', room=has_entries(uuid=room3['uuid'])
+                    ),
+                    has_entries(
+                        content='test message 4', room=has_entries(uuid=room3['uuid'])
+                    ),
+                ),
+                total=equal_to(2),
+                filtered=equal_to(2),
+            ),
+        )
+
+        # user1 listing messages from room2 raises 404 not found
+        assert_that(
+            calling(self.chatd.rooms.list_messages_from_user).with_args(
+                room_uuid=room2['uuid'], token=user1_token
+            ),
+            raises(HTTPError, has_properties(status_code=404)),
         )
 
     def test_create(self):
