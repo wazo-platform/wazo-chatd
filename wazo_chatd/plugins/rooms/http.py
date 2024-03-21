@@ -8,6 +8,7 @@ from xivo.mallow.validate import Length
 from xivo.tenant_flask_helpers import token
 
 from wazo_chatd.database.models import Room, RoomMessage, RoomUser
+from wazo_chatd.exceptions import UnknownRoomException
 from wazo_chatd.http import AuthResource
 
 from .exceptions import DuplicateUserException
@@ -124,6 +125,9 @@ class UserRoomMessageListResource(AuthResource):
     def get(self, room_uuid):
         filter_parameters = ListRequestSchema().load(request.args)
         room = self._service.get([token.tenant_uuid], room_uuid)
+        if token.user_uuid not in {str(user.uuid) for user in room.users}:
+            raise UnknownRoomException(room_uuid)
+
         messages = self._service.list_messages(room, **filter_parameters)
         filtered = self._service.count_messages(room, **filter_parameters)
         total = self._service.count_messages(room)
