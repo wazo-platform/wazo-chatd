@@ -1,12 +1,16 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+
+from wazo_chatd.database.queries import DAO
+from wazo_chatd.plugins.rooms.notifier import RoomNotifier
 
 
 class RoomService:
     def __init__(self, wazo_uuid, dao, notifier):
-        self._dao = dao
-        self._notifier = notifier
-        self._wazo_uuid = wazo_uuid
+        self._dao: DAO = dao
+        self._notifier: RoomNotifier = notifier
+        self._wazo_uuid: str = wazo_uuid
 
     def create(self, room):
         self._set_default_room_values(room)
