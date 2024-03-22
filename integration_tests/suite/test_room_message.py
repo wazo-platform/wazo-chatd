@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -14,6 +14,7 @@ from hamcrest import (
     has_properties,
     is_not,
     none,
+    not_,
 )
 from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers.hamcrest.raises import raises
@@ -29,6 +30,8 @@ from .helpers.base import (
 )
 
 UNKNOWN_UUID = str(uuid.uuid4())
+USER_1 = {'uuid': str(uuid.uuid4())}
+USER_2 = {'uuid': str(uuid.uuid4())}
 
 
 @use_asset('base')
@@ -104,6 +107,24 @@ class TestUserRoom(APIIntegrationTest):
             raises(
                 ChatdError, has_properties(status_code=404, error_id='unknown-room')
             ),
+        )
+
+    @fixtures.http.room(users=[USER_1, USER_2, TOKEN_USER_UUID])
+    def test_list_when_many_users(self, room):
+        assert_that(
+            calling(self.chatd.rooms.list_messages_from_user).with_args(
+                room_uuid=room['uuid']
+            ),
+            not_(raises(ChatdError, has_properties(status_code=404))),
+        )
+
+    @fixtures.http.room(users=[USER_1, USER_2])
+    def test_list_in_non_participant_room(self, other_room):
+        assert_that(
+            calling(self.chatd.rooms.list_messages_from_user).with_args(
+                room_uuid=other_room['uuid']
+            ),
+            raises(ChatdError, has_properties(status_code=404)),
         )
 
     @fixtures.http.room()
