@@ -1,10 +1,11 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import os
 import unittest
 import uuid
+from contextlib import contextmanager
 
 import pytest
 from wazo_chatd_client import Client as ChatdClient
@@ -103,6 +104,23 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
                 'parent_uuid': str(TOKEN_TENANT_UUID),
             },
         )
+
+    @classmethod
+    def create_user_token(
+        cls, user_uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID
+    ):
+        if isinstance(cls.auth, WrongClient):
+            return
+
+        token = MockUserToken(
+            str(uuid.uuid5(uuid.UUID(user_uuid), 'token')),
+            str(user_uuid),
+            metadata={'uuid': str(user_uuid), 'tenant_uuid': str(tenant_uuid)},
+        )
+        cls.auth.set_token(token)
+        credential = MockCredentials('username', 'password')
+        cls.auth.set_valid_credentials(credential, token.token_id)
+        return token.token_id
 
     @classmethod
     def make_db_session(cls):
@@ -237,6 +255,15 @@ class _BaseIntegrationTest(unittest.TestCase):
     @property
     def _session(self):
         return self._Session()
+
+    @contextmanager
+    def user_token(self, user_uuid):
+        token = type(self).asset_cls.create_user_token(user_uuid)
+        chatd = self.chatd
+        self.chatd = self.asset_cls.make_chatd(token=token)
+        yield
+        self.__dict__.pop('chatd', None)
+        assert self.chatd is chatd
 
     @classmethod
     def reset_clients(cls):
