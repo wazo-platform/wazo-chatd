@@ -109,7 +109,7 @@ class TestUserRoom(APIIntegrationTest):
             ),
         )
 
-    @fixtures.http.room(users=[USER_1, USER_2, TOKEN_USER_UUID])
+    @fixtures.http.room(users=[USER_1, USER_2, {'uuid': str(TOKEN_USER_UUID)}])
     def test_list_when_many_users(self, room):
         assert_that(
             calling(self.chatd.rooms.list_messages_from_user).with_args(
@@ -118,14 +118,15 @@ class TestUserRoom(APIIntegrationTest):
             not_(raises(ChatdError, has_properties(status_code=404))),
         )
 
-    @fixtures.http.room(users=[USER_1, USER_2])
+    @fixtures.http.room(users=[USER_1])
     def test_list_in_non_participant_room(self, other_room):
-        assert_that(
-            calling(self.chatd.rooms.list_messages_from_user).with_args(
-                room_uuid=other_room['uuid']
-            ),
-            raises(ChatdError, has_properties(status_code=404)),
-        )
+        with self.user_token(USER_2['uuid']):
+            assert_that(
+                calling(self.chatd.rooms.list_messages_from_user).with_args(
+                    room_uuid=other_room['uuid']
+                ),
+                raises(ChatdError, has_properties(status_code=404)),
+            )
 
     @fixtures.http.room()
     def test_create(self, room):

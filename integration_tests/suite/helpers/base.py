@@ -5,6 +5,7 @@ import logging
 import os
 import unittest
 import uuid
+from contextlib import contextmanager
 
 import pytest
 from wazo_chatd_client import Client as ChatdClient
@@ -254,6 +255,15 @@ class _BaseIntegrationTest(unittest.TestCase):
     @property
     def _session(self):
         return self._Session()
+
+    @contextmanager
+    def user_token(self, user_uuid):
+        token = type(self).asset_cls.create_user_token(user_uuid)
+        chatd = self.chatd
+        self.chatd = self.asset_cls.make_chatd(token=token)
+        yield
+        self.__dict__.pop('chatd', None)
+        assert self.chatd is chatd
 
     @classmethod
     def reset_clients(cls):
