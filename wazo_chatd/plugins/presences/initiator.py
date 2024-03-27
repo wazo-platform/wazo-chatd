@@ -94,11 +94,12 @@ class Initiator:
         result = callback(limit=limit, offset=0)
         total = result['total']
         items = result['items']
-        offset = limit
+        offset = len(items)
         while offset < total:
-            items.extend(callback(offset=offset)['items'])
-            offset += limit
-
+            new_items = callback(offset=offset)['items']
+            items.extend(new_items)
+            offset += len(new_items)
+        assert len(items) == total
         return {'items': items, 'total': total}
 
     def initiate(self):
