@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -389,7 +389,7 @@ class TestEventHandler(APIIntegrationTest):
         )
 
     def test_device_state_changed_create_endpoint(self):
-        endpoint_name = 'missing-endpoint'
+        endpoint_name = 'PJSIP/missing-endpoint'
 
         self.bus.send_device_state_changed_event(endpoint_name, 'ONHOLD')
 
