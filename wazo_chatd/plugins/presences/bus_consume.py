@@ -211,10 +211,12 @@ class BusEventHandler:
             self._notifier.updated(user)
 
     def _device_state_change(self, event):
+        logger.debug('Device state change: %s', event)
         endpoint_name = event['Device']
         is_pjsip = endpoint_name.startswith('PJSIP')
         is_sccp = endpoint_name.startswith('SCCP')
-        if not is_pjsip or not is_sccp:
+        if not (is_pjsip or is_sccp):
+            logger.debug('Ignoring non-pjsip or sccp device "%s"', endpoint_name)
             return
 
         state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
