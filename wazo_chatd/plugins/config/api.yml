@@ -9,3 +9,39 @@ paths:
       responses:
         '200':
           description: The configuration of the service
+    patch:
+      summary: Change part of the configuration
+      description: '**Required ACL:** `chatd.config.update`'
+      operationId: patchConfig
+      tags:
+        - config
+      parameters:
+        - $ref: '#/parameters/configpatch'
+      responses:
+        '200':
+          description: The configuration has been updated
+        '400':
+          description: The given configuration is invalid
+
+parameters:
+  configpatch:
+    name: config_patch
+    in: body
+    required: true
+    schema:
+      type: array
+      items:
+        $ref: '#/definitions/ConfigPatchItem'
+
+definitions:
+  ConfigPatchItem:
+    properties:
+      op:
+        type: string
+        description: 'Patch operation. Supported operation: `replace`.'
+      path:
+        type: string
+        description: 'Config element to operate on. Supported path: `/debug`'
+      value:
+        type: object
+        description: 'The new value for the resource.'

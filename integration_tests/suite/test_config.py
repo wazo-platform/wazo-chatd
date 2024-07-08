@@ -1,8 +1,8 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
-from hamcrest import assert_that, calling, has_key, has_properties
+from hamcrest import assert_that, calling, has_entry, has_key, has_properties
 from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers import until
 from wazo_test_helpers.hamcrest.raises import raises
@@ -53,3 +53,22 @@ class TestConfig(APIIntegrationTest):
                 raise AssertionError(e)
 
         until.assert_(_not_return_503, timeout=START_TIMEOUT)
+
+    def test_patch_config_restrict_to_master_tenant(self):
+        patch_body = [{'op': 'replace', 'path': '/debug', 'value': 'false'}]
+
+        chatd_client = self.asset_cls.make_chatd(str(TOKEN_SUBTENANT_UUID))
+        assert_that(
+            calling(chatd_client.config.patch).with_args(patch_body),
+            raises(ChatdError, has_properties('status_code', 401)),
+        )
+
+    def test_patch_config_live_debug(self):
+        patch_body = [{'op': 'replace', 'path': '/debug', 'value': 'true'}]
+
+        result = self.chatd.config.patch(patch_body)
+        assert_that(result, has_entry('debug', True))
+
+        patch_body = [{'op': 'replace', 'path': '/debug', 'value': 'false'}]
+        result = self.chatd.config.patch(patch_body)
+        assert_that(result, has_entry('debug', False))
