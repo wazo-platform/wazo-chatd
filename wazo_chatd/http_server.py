@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -13,7 +13,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from xivo import http_helpers
 
 from .database.helpers import Session
-from .http import auth_verifier
 
 VERSION = 1.0
 
@@ -55,7 +54,6 @@ class CoreRestApi:
         app.secret_key = os.urandom(24)
         app.config.update(global_config)
         app.permanent_session_lifetime = timedelta(minutes=5)
-        auth_verifier.set_config(global_config['auth'])
         self._load_cors()
         self.server = None
 
