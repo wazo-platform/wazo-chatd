@@ -3,11 +3,14 @@
 
 import logging
 import os
+import random
+import string
 import unittest
 import uuid
 from contextlib import contextmanager
 
 import pytest
+import yaml
 from wazo_chatd_client import Client as ChatdClient
 from wazo_test_helpers import until
 from wazo_test_helpers.asset_launching_test_case import (
@@ -16,6 +19,7 @@ from wazo_test_helpers.asset_launching_test_case import (
     NoSuchService,
 )
 from wazo_test_helpers.auth import AuthClient, MockCredentials, MockUserToken
+from wazo_test_helpers.filesystem import FileSystemClient
 
 from wazo_chatd.database.helpers import Session, init_db
 from wazo_chatd.database.queries import DAO
@@ -325,6 +329,25 @@ class _BaseIntegrationTest(unittest.TestCase):
         cls._Session.get_bind().dispose()
         cls._Session.remove()
         cls.asset_cls.stop_service('postgres')
+
+    @classmethod
+    @contextmanager
+    def chatd_with_config(cls, config):
+        filesystem = FileSystemClient(
+            execute=cls.asset_cls.docker_exec,
+            service_name='chatd',
+            root=True,
+        )
+        name = ''.join(random.choice(string.ascii_lowercase) for _ in range(6))
+        config_file = f'/etc/wazo-chatd/conf.d/10-{name}.yml'
+        content = yaml.dump(config)
+        try:
+            with filesystem.file_(config_file, content=content):
+                cls.restart_chatd_service()
+                yield
+        finally:
+            cls.restart_chatd_service()
+            cls.asset_cls.wait_strategy.wait(cls)
 
     def setUp(self):
         super().setUp()
