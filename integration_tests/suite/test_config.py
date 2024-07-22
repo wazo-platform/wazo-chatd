@@ -1,7 +1,6 @@
 # Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import requests
 from hamcrest import assert_that, calling, has_entry, has_key, has_properties
 from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers import until
@@ -28,31 +27,21 @@ class TestConfig(APIIntegrationTest):
             raises(ChatdError, has_properties('status_code', 401)),
         )
 
-    def test_restrict_on_with_slow_wazo_auth(self):
-        self.stop_chatd_service()
-        self.stop_auth_service()
-        self.start_chatd_service()
-
+    def test_restrict_when_service_token_not_initialized(self):
         def _returns_503():
-            try:
-                self.chatd.config.get()
-            except ChatdError as e:
-                assert e.status_code == 503
-            except requests.RequestException as e:
-                raise AssertionError(e)
+            assert_that(
+                calling(self.chatd.config.get),
+                raises(ChatdError).matching(
+                    has_properties(
+                        status_code=503,
+                        error_id='not-initialized',
+                    )
+                ),
+            )
 
-        until.assert_(_returns_503, timeout=START_TIMEOUT)
-
-        self.start_auth_service()
-
-        def _not_return_503():
-            try:
-                response = self.chatd.config.get()
-                assert_that(response, has_key('debug'))
-            except Exception as e:
-                raise AssertionError(e)
-
-        until.assert_(_not_return_503, timeout=START_TIMEOUT)
+        config = {'auth': {'username': 'invalid-service'}}
+        with self.chatd_with_config(config):
+            until.assert_(_returns_503, timeout=START_TIMEOUT)
 
     def test_patch_config_restrict_to_master_tenant(self):
         patch_body = [{'op': 'replace', 'path': '/debug', 'value': 'false'}]
