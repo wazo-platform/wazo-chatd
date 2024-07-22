@@ -1,3 +1,5 @@
-integration_tests
 *.egg-info
+.git
+.mypy_cache
 debian
+integration_tests
