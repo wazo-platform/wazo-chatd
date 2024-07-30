@@ -9,6 +9,7 @@ Environment=PYTHONUNBUFFERED=TRUE
 ExecStart=/usr/bin/wazo-chatd
 Restart=on-failure
 RestartSec=5
+SyslogIdentifier=wazo-chatd
 
 [Install]
 WantedBy=multi-user.target
