@@ -1,4 +1,4 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
@@ -52,15 +52,5 @@ class RoomService:
 
     def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         return self._dao.room.count_user_messages(
-            tenant_uuid, user_uuid, **filter_parameters
-        )
-
-    def list_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
-        return self._dao.room.list_latest_user_messages(
-            tenant_uuid, user_uuid, **filter_parameters
-        )
-
-    def count_latest_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
-        return self._dao.room.count_latest_user_messages(
             tenant_uuid, user_uuid, **filter_parameters
         )
