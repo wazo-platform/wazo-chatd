@@ -1,4 +1,4 @@
-# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from xivo.mallow import fields
@@ -7,6 +7,7 @@ from xivo.mallow_helpers import Schema
 
 
 class PresenceResourceSchema(Schema):
+    id = fields.String(load_only=True, required=True)
     activity = fields.String(load_only=True, missing='', allow_none=False)
     availability = fields.String(
         load_only=True,
@@ -27,6 +28,10 @@ class PresenceResourceSchema(Schema):
     )
 
 
+class ResourceDataSchema(Schema):
+    id = fields.String(required=True)
+
+
 class SubscriptionResourceSchema(Schema):
     subscription_id = fields.UUID(load_only=True, data_key='subscriptionId')
     change_type = fields.String(load_only=True, required=True, data_key='changeType')
@@ -39,11 +44,11 @@ class SubscriptionResourceSchema(Schema):
     )
     client_state = fields.String(load_only=True, data_key='clientState')
     resource_data = fields.Nested(
-        PresenceResourceSchema, many=False, required=True, data_key='resourceData'
+        ResourceDataSchema, many=False, required=True, data_key='resourceData'
     )
 
 
 class TeamsSubscriptionSchema(Schema):
-    data = fields.Nested(
+    value = fields.Nested(
         SubscriptionResourceSchema, many=True, required=True, data_key='value'
     )
