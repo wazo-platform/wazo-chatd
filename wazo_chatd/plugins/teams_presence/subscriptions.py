@@ -14,6 +14,7 @@ from wazo_auth_client import Client as AuthClient
 
 from .log import make_logger
 from .notifier import TeamsNotifier
+from .schemas import PresenceResourceSchema
 
 logger = make_logger(__name__)
 
@@ -87,13 +88,21 @@ class SubscriptionRenewer:
     def __init__(
         self, auth: AuthClient, base_url: str, config: dict, notifier: TeamsNotifier
     ):
-        self._config: dict[str, str] = config
+        self._config: dict = config
         self._expiration = 0
         self._id = None
         self._notifier = notifier
-        self._task: asyncio.Task = None
+        self._task: asyncio.Task | None = None
         self._token: str = config['token']
         self._http = _HTTPHelper(auth, base_url, config)
+
+    @property
+    def teams_user_id(self):
+        return self._config['microsoft']['user_id']
+
+    @property
+    def user_uuid(self):
+        return self._config['user_uuid']
 
     @property
     def tenant_uuid(self):
@@ -104,6 +113,12 @@ class SubscriptionRenewer:
             return 0
         now = datetime.now(timezone.utc)
         return int((self._expiration - now).total_seconds())
+
+    async def fetch_teams_presence(self) -> dict:
+        teams_user_id = self._config['microsoft']['user_id']
+        response = await self._http.read('communications/presences', teams_user_id)
+        response.raise_for_status()
+        return PresenceResourceSchema().load(response.json())
 
     def start(self):
         self._task = asyncio.create_task(self._run())
@@ -139,9 +154,11 @@ class SubscriptionRenewer:
             else:
                 action = 'found'
         elif response.status_code == 400:
-            logger.error(
-                'failed to create subscription (teams was unable to communicate with the stack)'
-            )
+            try:
+                message = response.json()['error']['message']
+            except (requests.exceptions.JSONDecodeError, KeyError):
+                message = response.text
+            logger.error('failed to create subscription: %s', message)
         else:
             response.raise_for_status()
             subscription = response.json()

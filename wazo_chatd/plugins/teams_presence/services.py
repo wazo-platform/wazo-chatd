@@ -86,39 +86,43 @@ class TeamsService:
     def is_connected(self, user_uuid: str):
         return user_uuid in self._synchronizers
 
-    def update_presence(self, payload: dict, user_uuid: str):
-        for subscription in payload['data']:
-            if not self._synchronizers.get(user_uuid):
-                logger.error(
-                    'received presence update but user `%s` has no active subscription, discarding',
-                    user_uuid,
-                )
+    def fetch_teams_presence(self, teams_user_id: str):
+        for synchronizer in self._synchronizers.values():
+            if synchronizer.teams_user_id != teams_user_id:
                 continue
+            try:
+                presence = self.aio.schedule_coroutine(
+                    synchronizer.fetch_teams_presence()
+                ).result()
+            except ValueError as exc:
+                logger.debug(exc)
+                return None
 
-            tenant_uuids = [self._synchronizers[user_uuid].tenant_uuid]
-            presence = subscription['resource_data']
             state = PRESENCES_MAP.get(presence['availability'])
 
-            # Note:
-            # Offline state is disabled because even when teams is closed,
+            # Note: Offline state is disabled because even when teams is closed,
             # we can still received presence updates forcing an invisible presence
             if state is NotImplemented:
                 logger.debug(
                     'discarding unimplemented `%s` presence update for user `%s`',
                     presence['availability'],
-                    user_uuid,
+                    synchronizer.user_uuid,
                 )
-                return
+                return None
+            return state
 
-            dnd = state == 'unavailable'
-            user = self.presence_service.get(tenant_uuids, user_uuid)
+    def update_presence(self, state: str, user_uuid: str):
+        tenant_uuids = [self._synchronizers[user_uuid].tenant_uuid]
 
-            user.state = state
-            user.do_not_disturb = dnd
+        dnd = state == 'unavailable'
+        user = self.presence_service.get(tenant_uuids, user_uuid)
 
-            logger.debug('updating `%s` presence to %s', user_uuid, state)
-            self.presence_service.update(user)
-            self.aio.schedule_coroutine(self._update_confd_dnd(user_uuid, dnd))
+        user.state = state
+        user.do_not_disturb = dnd
+
+        logger.debug('updating user `%s` presence to `%s`', user_uuid, state)
+        self.presence_service.update(user)
+        self.aio.schedule_coroutine(self._update_confd_dnd(user_uuid, dnd))
 
     def _decode_jwt(self, token):
         payload = token.split('.')[1]
@@ -195,3 +199,9 @@ class TeamsService:
             await self.aio.execute(
                 self.confd.users(user_uuid).update_service, 'dnd', {'enabled': state}
             )
+
+    def user_uuid_from_teams(self, teams_user_id: str) -> str | None:
+        for synchronizer in self._synchronizers.values():
+            if synchronizer.teams_user_id == teams_user_id:
+                return synchronizer.user_uuid
+        return None

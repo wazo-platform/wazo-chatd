@@ -1,4 +1,4 @@
-# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import json
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 _users = {}
+_presences = {}
 _subscriptions = defaultdict(list)
 
 
@@ -89,6 +90,7 @@ def register_user():
 @app.route('/_set_presence', methods=['POST'])
 def set_presence():
     global _users
+    global _presences
     global _subscriptions
 
     user_uuid = request.args.get('user')
@@ -109,6 +111,11 @@ def set_presence():
     if not presence:
         return '', 400
 
+    _presences[user_id] = {
+        'id': user_id,
+        'availability': presence['availability'],
+    }
+
     response_data = {
         'value': [
             {
@@ -118,7 +125,7 @@ def set_presence():
                 'changeType': 'updated',
                 'resource': resource_id,
                 'resourceData': {
-                    'availability': presence['availability'],
+                    'id': user_id,
                 },
             }
         ]
@@ -128,9 +135,21 @@ def set_presence():
     try:
         response.raise_for_status()
     except HTTPError:
-        return response
+        return response.content, response.status_code
 
     return '', 200
+
+
+@app.route('/communications/presences/<target_id>', methods=['GET'])
+def get_presence(target_id):
+    user_id = get_user_from_headers()
+    if not user_id:
+        return '', 401
+
+    if not (presence := _presences.get(target_id)):
+        return '', 404
+
+    return presence, 200
 
 
 @app.route('/_unregister', methods=['POST'])
