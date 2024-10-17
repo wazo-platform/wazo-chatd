@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 
 
 class BusEventHandler:
-    def __init__(self, dao, notifier):
+    def __init__(self, dao, notifier, initiator_thread):
         self._dao = dao
         self._notifier = notifier
+        self._initiator_thread = initiator_thread
 
     def subscribe(self, bus_consumer):
         events = [
@@ -48,6 +49,7 @@ class BusEventHandler:
             ('Newstate', self._channel_updated),
             ('Hold', self._channel_hold),
             ('Unhold', self._channel_unhold),
+            ('FullyBooted', self._asterisk_fullybooted),
         ]
 
         for event, handler in events:
@@ -310,3 +312,7 @@ class BusEventHandler:
             self._dao.channel.update(channel)
 
             self._notifier.updated(channel.line.user)
+
+    def _asterisk_fullybooted(self, event):
+        logger.info('Asterisk boot detected, (re)starting presence initialization')
+        self._initiator_thread.restart()
