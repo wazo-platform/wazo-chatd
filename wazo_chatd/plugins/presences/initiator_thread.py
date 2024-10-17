@@ -23,6 +23,15 @@ class InitiatorThread:
         )
         self._retry_time_failed_timeout = itertools.chain((30, 60, 120, 240, 480))
 
+    def restart(self):
+        if self._started and not self._stopped.is_set():
+            logger.info('initiator thread is already running, not restarting.')
+            return
+
+        self._started = False
+        self._stopped.clear()
+        self.start()
+
     def start(self):
         if self._started:
             raise Exception('Initialization already started')
