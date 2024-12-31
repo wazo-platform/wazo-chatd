@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import post_dump, pre_load
@@ -86,8 +86,8 @@ class UserPresenceSchema(Schema):
 
 
 class ListRequestSchema(Schema):
-    recurse = fields.Boolean(missing=False)
-    user_uuid = fields.List(fields.UUID(), missing=list, attribute='uuids')
+    recurse = fields.Boolean(load_default=False)
+    user_uuid = fields.List(fields.UUID(), load_default=list, attribute='uuids')
 
     @pre_load
     def convert_user_uuid_to_list(self, data, **kwargs):

@@ -8,7 +8,7 @@ from xivo.mallow_helpers import Schema
 
 class PresenceResourceSchema(Schema):
     id = fields.String(load_only=True, required=True)
-    activity = fields.String(load_only=True, missing='', allow_none=False)
+    activity = fields.String(load_only=True, load_default='', allow_none=False)
     availability = fields.String(
         load_only=True,
         required=True,
