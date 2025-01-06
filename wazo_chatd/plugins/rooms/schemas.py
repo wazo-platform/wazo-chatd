@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from marshmallow import pre_load, validates_schema
@@ -19,7 +19,7 @@ class RoomSchema(Schema):
 
     name = fields.String(allow_none=True)
 
-    users = fields.Nested('RoomUserSchema', many=True, missing=list)
+    users = fields.Nested('RoomUserSchema', many=True, load_default=list)
 
 
 class MessageSchema(Schema):
@@ -58,7 +58,7 @@ class MessageListRequestSchema(_ListSchema):
 
 
 class RoomListRequestSchema(Schema):
-    user_uuid = fields.List(fields.UUID(), missing=list, attribute='user_uuids')
+    user_uuid = fields.List(fields.UUID(), load_default=list, attribute='user_uuids')
 
     @pre_load
     def convert_user_uuid_to_list(self, data, **kwargs):
