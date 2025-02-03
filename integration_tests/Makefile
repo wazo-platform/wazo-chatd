@@ -17,5 +17,6 @@ chatd-test: egg-info
 
 db:
 	docker build -f ../contribs/docker/Dockerfile-db -t wazoplatform/wazo-chatd-db ..
+	docker build -f Dockerfile-db -t wazoplatform/wazo-chatd-db-test ..
 
 .PHONY: test-setup test egg-info chatd chatd-test

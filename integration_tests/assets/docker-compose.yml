@@ -24,7 +24,7 @@ services:
       - '9497'
 
   postgres:
-    image: wazoplatform/wazo-chatd-db
+    image: wazoplatform/wazo-chatd-db-test
     ports:
       - "5432"
 
