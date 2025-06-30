@@ -1,5 +1,6 @@
 *.egg-info
 .git
 .mypy_cache
+.tox
 debian
 integration_tests
