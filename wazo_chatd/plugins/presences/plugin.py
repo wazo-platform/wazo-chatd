@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -38,9 +38,9 @@ class Plugin:
         initiator = Initiator(dao, auth, amid, confd)
         status_aggregator.add_provider(initiator.provide_status)
 
-        initiator_thread = InitiatorThread(initiator)
-
+        initiator_thread = None
         if initialization['enabled']:
+            initiator_thread = InitiatorThread(initiator)
             thread_manager = dependencies['thread_manager']
             thread_manager.manage(initiator_thread)
 
