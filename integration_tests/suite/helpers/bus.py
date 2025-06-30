@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -311,5 +311,16 @@ class BusClient(bus_helper.BusClient):
                 'name': 'auth_user_external_auth_deleted',
                 'tenant_uuid': str(tenant_uuid),
                 f'user_uuid:{user_uuid}': True,
+            },
+        )
+
+    def send_fullybooted_event(self):
+        self.publish(
+            {
+                'data': {},
+                'name': 'FullyBooted',
+            },
+            headers={
+                'name': 'FullyBooted',
             },
         )

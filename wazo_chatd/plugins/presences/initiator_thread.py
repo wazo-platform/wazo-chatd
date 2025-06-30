@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import itertools
@@ -24,12 +24,11 @@ class InitiatorThread:
         self._retry_time_failed_timeout = itertools.chain((30, 60, 120, 240, 480))
 
     def restart(self):
-        if self._started and not self._stopped.is_set():
+        if self._started:
             logger.info('initiator thread is already running, not restarting.')
             return
 
-        self._started = False
-        self._stopped.clear()
+        self._initiator.reset_initialized()
         self.start()
 
     def start(self):
@@ -51,6 +50,8 @@ class InitiatorThread:
         while True:
             self._stopped.wait(self._retry_time)
             if self._stopped.is_set():
+                self._stopped.clear()
+                self._started = False
                 return
 
             self._initiate()
