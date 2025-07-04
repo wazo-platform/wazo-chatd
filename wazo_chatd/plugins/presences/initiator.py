@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -101,6 +101,9 @@ class Initiator:
             offset += len(new_items)
         assert len(items) == total
         return {'items': items, 'total': total}
+
+    def reset_initialized(self):
+        self._is_initialized = False
 
     def initiate(self):
         token = self._auth.token.new(expiration=120)['token']

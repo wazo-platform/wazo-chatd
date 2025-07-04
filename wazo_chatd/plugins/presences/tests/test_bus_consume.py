@@ -1,4 +1,4 @@
-# Copyright 2023-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2023-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from unittest import TestCase
@@ -11,7 +11,8 @@ class TestBusEventHandler(TestCase):
     def setUp(self):
         self.dao = Mock()
         self.notifier = Mock()
-        self.handler = BusEventHandler(self.dao, self.notifier)
+        self.initiator_thread = Mock()
+        self.handler = BusEventHandler(self.dao, self.notifier, self.initiator_thread)
 
     def test_on_device_state_change_ignored_on_hints(self):
         event = {

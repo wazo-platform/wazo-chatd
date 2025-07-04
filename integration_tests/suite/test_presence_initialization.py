@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -18,7 +18,12 @@ from wazo_test_helpers.hamcrest.raises import raises
 from wazo_chatd.database import models
 
 from .helpers import fixtures
-from .helpers.base import CHATD_TOKEN_TENANT_UUID, InitIntegrationTest, use_asset
+from .helpers.base import (
+    CHATD_TOKEN_TENANT_UUID,
+    TOKEN_TENANT_UUID,
+    InitIntegrationTest,
+    use_asset,
+)
 from .helpers.wait_strategy import PresenceInitOkWaitStrategy, RestApiOkWaitStrategy
 
 TENANT_UUID = uuid.uuid4()
@@ -324,6 +329,58 @@ class TestPresenceInitialization(InitIntegrationTest):
                 has_properties(name=channel_created_name, state='holding'),
             ),
         )
+
+
+@use_asset('initialization')
+class TestAsteriskFullyBooted(InitIntegrationTest):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        PresenceInitOkWaitStrategy().wait(cls)
+
+    def test_fullybooted_event_received(self):
+        user_created_uuid = uuid.uuid4()
+        self.confd.set_users(
+            {
+                'uuid': str(user_created_uuid),
+                'tenant_uuid': str(TOKEN_TENANT_UUID),
+                'lines': [],
+                'services': {'dnd': {'enabled': True}},
+            },
+        )
+
+        self.bus.send_fullybooted_event()
+
+        def db_updated():
+            users = self._dao.user.list_(tenant_uuids=None)
+            assert_that(
+                users, contains_inanyorder(has_properties(uuid=user_created_uuid))
+            )
+
+        until.assert_(db_updated, tries=10)
+
+    def test_multiple_fullybooted_events_do_not_impact(self):
+        user_created_uuid = uuid.uuid4()
+        self.confd.set_users(
+            {
+                'uuid': str(user_created_uuid),
+                'tenant_uuid': str(TOKEN_TENANT_UUID),
+                'lines': [],
+                'services': {'dnd': {'enabled': True}},
+            },
+        )
+
+        self.bus.send_fullybooted_event()
+        self.bus.send_fullybooted_event()  # ignored
+        self.bus.send_fullybooted_event()  # ignored
+
+        def db_updated():
+            users = self._dao.user.list_(tenant_uuids=None)
+            assert_that(
+                users, contains_inanyorder(has_properties(uuid=user_created_uuid))
+            )
+
+        until.assert_(db_updated, tries=10)
 
 
 @use_asset('initialization')
