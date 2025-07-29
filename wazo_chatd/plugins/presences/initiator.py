@@ -111,8 +111,6 @@ class Initiator:
         self._amid.set_token(token)
         self._confd.set_token(token)
 
-        logger.debug('Fetching device states...')
-        endpoint_events = self._amid.action('DeviceStateList')
         logger.debug('Fetching tenants...')
         tenants = self._paginate_proxy(self._auth.tenants.list, limit=10000)['items']
         logger.debug('Fetching users...')
@@ -124,6 +122,8 @@ class Initiator:
             self._auth.refresh_tokens.list,
             limit=10000,
         )['items']
+        logger.debug('Fetching device states...')
+        endpoint_events = self._amid.action('DeviceStateList')
         logger.debug('Fetching channels...')
         channel_events = self._amid.action('CoreShowChannels')
         logger.debug('Fetching data done!')
