@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
+from functools import partial, wraps
 
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.database.models import (
@@ -17,11 +18,53 @@ from wazo_chatd.exceptions import UnknownUserException
 from .initiator import (
     CHANNEL_STATE_MAP,
     DEVICE_STATE_MAP,
+    FetchedFlags,
     extract_endpoint_from_channel,
     extract_endpoint_from_line,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class BusInitiatorHandler:
+    def __init__(self, event_handler, initiator_thread, initiator):
+        self._event_handler = event_handler
+        self._initiator_thread = initiator_thread
+        self._initiator = initiator
+        self._callbacks_delayed = []
+
+    def on_init_complete(self):
+        logger.debug('Dispatching delayed events: %s', len(self._callbacks_delayed))
+        for callback in self._callbacks_delayed:
+            try:
+                callback()
+            except Exception as e:
+                logger.error(e)
+                continue
+
+    @staticmethod
+    def unlock_state(flag):
+        def wrapper(func):
+            func.init_unlock_state = flag
+            return func
+
+        return wrapper
+
+    def handle_init_process(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if self._initiator_thread and self._initiator_thread._started:
+                if self._initiator.is_fetched(func.init_unlock_state):
+                    callback = partial(func, *args, **kwargs)
+                    self._callbacks_delayed.append(callback)
+                    logger.debug('Delaying event: Initialization in progress')
+                else:
+                    logger.debug('Dropping event: Initialization in progress')
+                return
+
+            return func(*args, **kwargs)
+
+        return wrapper
 
 
 class BusEventHandler:
@@ -55,6 +98,7 @@ class BusEventHandler:
         for event, handler in events:
             bus_consumer.subscribe(event, handler)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.USER)
     def _user_created(self, event):
         user_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
@@ -64,6 +108,7 @@ class BusEventHandler:
             user = User(uuid=user_uuid, tenant=tenant, state='unavailable')
             self._dao.user.create(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.USER)
     def _user_deleted(self, event):
         user_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
@@ -72,6 +117,7 @@ class BusEventHandler:
             logger.debug('Delete user "%s"', user_uuid)
             self._dao.user.delete(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.TENANT)
     def _tenant_created(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
@@ -79,6 +125,7 @@ class BusEventHandler:
             tenant = Tenant(uuid=tenant_uuid)
             self._dao.tenant.create(tenant)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.TENANT)
     def _tenant_deleted(self, event):
         tenant_uuid = event['uuid']
         with session_scope():
@@ -86,6 +133,7 @@ class BusEventHandler:
             logger.debug('Delete tenant "%s"', tenant_uuid)
             self._dao.tenant.delete(tenant)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.SESSION)
     def _session_created(self, event):
         mobile = event['mobile']
         session_uuid = event['uuid']
@@ -105,6 +153,7 @@ class BusEventHandler:
             self._dao.user.add_session(user, session)
             self._notifier.updated(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.SESSION)
     def _session_deleted(self, event):
         session_uuid = event['uuid']
         tenant_uuid = event['tenant_uuid']
@@ -123,6 +172,7 @@ class BusEventHandler:
             self._dao.user.remove_session(user, session)
             self._notifier.updated(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.REFRESH_TOKEN)
     def _refresh_token_created(self, event):
         mobile = event['mobile']
         tenant_uuid = event['tenant_uuid']
@@ -146,6 +196,7 @@ class BusEventHandler:
             self._dao.user.add_refresh_token(user, refresh_token)
             self._notifier.updated(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.REFRESH_TOKEN)
     def _refresh_token_deleted(self, event):
         tenant_uuid = event['tenant_uuid']
         user_uuid = event['user_uuid']
@@ -166,6 +217,7 @@ class BusEventHandler:
             self._dao.user.remove_refresh_token(user, refresh_token)
             self._notifier.updated(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.USER)
     def _user_line_associated(self, event):
         line_id = event['line']['id']
         user_uuid = event['user']['uuid']
@@ -190,6 +242,7 @@ class BusEventHandler:
             self._dao.line.associate_endpoint(line, endpoint)
             self._notifier.updated(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.USER)
     def _user_line_dissociated(self, event):
         line_id = event['line']['id']
         user_uuid = event['user']['uuid']
@@ -201,6 +254,7 @@ class BusEventHandler:
             self._dao.user.remove_line(user, line)
             self._notifier.updated(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.USER)
     def _user_dnd_updated(self, event):
         user_uuid = event['user_uuid']
         tenant_uuid = event['tenant_uuid']
@@ -212,6 +266,7 @@ class BusEventHandler:
             self._dao.user.update(user)
             self._notifier.updated(user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.DEVICE)
     def _device_state_change(self, event):
         logger.debug('Device state change: %s', event)
         endpoint_name = event['Device']
@@ -236,6 +291,7 @@ class BusEventHandler:
             if endpoint.line:
                 self._notifier.updated(endpoint.line.user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.CHANNEL)
     def _channel_created(self, event):
         channel_name = event['Channel']
         state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
@@ -256,6 +312,7 @@ class BusEventHandler:
 
             self._notifier.updated(channel.line.user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.CHANNEL)
     def _channel_deleted(self, event):
         channel_name = event['Channel']
         with session_scope():
@@ -269,6 +326,7 @@ class BusEventHandler:
 
             self._notifier.updated(channel.line.user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.CHANNEL)
     def _channel_updated(self, event):
         channel_name = event['Channel']
         state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')
@@ -284,6 +342,7 @@ class BusEventHandler:
 
             self._notifier.updated(channel.line.user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.CHANNEL)
     def _channel_hold(self, event):
         channel_name = event['Channel']
         with session_scope():
@@ -298,6 +357,7 @@ class BusEventHandler:
 
             self._notifier.updated(channel.line.user)
 
+    @BusInitiatorHandler.unlock_state(FetchedFlags.CHANNEL)
     def _channel_unhold(self, event):
         channel_name = event['Channel']
         state = CHANNEL_STATE_MAP.get(event['ChannelStateDesc'], 'undefined')

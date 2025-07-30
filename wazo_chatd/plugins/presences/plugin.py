@@ -7,7 +7,7 @@ from wazo_amid_client import Client as AmidClient
 from wazo_auth_client import Client as AuthClient
 from wazo_confd_client import Client as ConfdClient
 
-from .bus_consume import BusEventHandler
+from .bus_consume import BusEventHandler, BusInitiatorHandler
 from .http import PresenceItemResource, PresenceListResource
 from .initiator import Initiator
 from .initiator_thread import InitiatorThread
@@ -45,6 +45,13 @@ class Plugin:
             thread_manager.manage(initiator_thread)
 
         bus_event_handler = BusEventHandler(dao, notifier, initiator_thread)
+
+        bus_initiator_handler = BusInitiatorHandler(
+            bus_event_handler, initiator_thread, initiator
+        )
+        bus_consumer.subscribe_decorators = [bus_initiator_handler.handle_init_process]
+        initiator.post_hooks.append(bus_initiator_handler.on_init_complete)
+
         bus_event_handler.subscribe(bus_consumer)
 
         api.add_resource(

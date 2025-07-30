@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
+import threading
+from dataclasses import dataclass
 from functools import partial
 
 from xivo.status import Status
@@ -53,6 +55,27 @@ CHANNEL_STATE_MAP = {
 }
 
 
+@dataclass(frozen=True)
+class FetchedFlags:
+    CHANNEL: str = 'channel'
+    DEVICE: str = 'device'
+    REFRESH_TOKEN: str = 'refresh_token'
+    SESSION: str = 'session'
+    TENANT: str = 'tenant'
+    USER: str = 'user'
+
+    @classmethod
+    def all(cls):
+        return [
+            cls.CHANNEL,
+            cls.DEVICE,
+            cls.REFRESH_TOKEN,
+            cls.SESSION,
+            cls.TENANT,
+            cls.USER,
+        ]
+
+
 def extract_endpoint_from_channel(channel_name):
     endpoint_name = '-'.join(channel_name.split('-')[:-1])
     if not endpoint_name:
@@ -80,6 +103,10 @@ class Initiator:
         self._amid = amid
         self._confd = confd
         self._is_initialized = False
+        self.post_hooks = []
+        self._fetched_resources = {
+            flag: threading.Event() for flag in FetchedFlags.all()
+        }
 
     def provide_status(self, status):
         status['presence_initialization']['status'] = (
@@ -105,7 +132,25 @@ class Initiator:
     def reset_initialized(self):
         self._is_initialized = False
 
+    def execute_post_hooks(self):
+        for hook in self.post_hooks:
+            logger.debug('Executing post hook: %s', hook.__name__)
+            try:
+                hook()
+            except Exception as e:
+                logger.error(e)
+                continue
+
+    def _clear_flags(self):
+        for event in self._fetched_resources.values():
+            event.clear()
+
+    def is_fetched(self, resource):
+        return self._fetched_resources[resource].is_set()
+
     def initiate(self):
+        self._clear_flags()
+
         token = self._auth.token.new(expiration=120)['token']
         self._auth.set_token(token)
         self._amid.set_token(token)
@@ -113,19 +158,31 @@ class Initiator:
 
         logger.debug('Fetching tenants...')
         tenants = self._paginate_proxy(self._auth.tenants.list, limit=10000)['items']
+        self._fetched_resources[FetchedFlags.TENANT].set()
+
         logger.debug('Fetching users...')
         users = self._paginate_proxy(self._confd.users.list, limit=1000)['items']
+        self._fetched_resources[FetchedFlags.USER].set()
+
         logger.debug('Fetching sesions...')
         sessions = self._paginate_proxy(self._auth.sessions.list, limit=10000)['items']
+        self._fetched_resources[FetchedFlags.SESSION].set()
+
         logger.debug('Fetching refresh tokens...')
         refresh_tokens = self._paginate_proxy(
             self._auth.refresh_tokens.list,
             limit=10000,
         )['items']
+        self._fetched_resources[FetchedFlags.REFRESH_TOKEN].set()
+
         logger.debug('Fetching device states...')
         endpoint_events = self._amid.action('DeviceStateList')
+        self._fetched_resources[FetchedFlags.DEVICE].set()
+
         logger.debug('Fetching channels...')
         channel_events = self._amid.action('CoreShowChannels')
+        self._fetched_resources[FetchedFlags.CHANNEL].set()
+
         logger.debug('Fetching data done!')
 
         self.initiate_endpoints(endpoint_events)
@@ -134,6 +191,8 @@ class Initiator:
         self.initiate_sessions(sessions)
         self.initiate_refresh_tokens(refresh_tokens)
         self.initiate_channels(channel_events)
+        self.execute_post_hooks()
+        self._clear_flags()
         self._is_initialized = True
         logger.debug('Initialized completed')
 
