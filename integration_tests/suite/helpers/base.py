@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -11,6 +11,7 @@ from contextlib import contextmanager
 
 import pytest
 import yaml
+from hamcrest import assert_that, has_entries, has_items, not_
 from wazo_chatd_client import Client as ChatdClient
 from wazo_test_helpers import until
 from wazo_test_helpers.asset_launching_test_case import (
@@ -378,6 +379,19 @@ class InitIntegrationTest(_BaseIntegrationTest):
     @classmethod
     def setUpClass(cls):
         cls.reset_clients()
+
+    @contextmanager
+    def ensure_being_in_fetching_users_stage(self):
+        def fetched_tenant():
+            requests = self.auth.list_requests()['requests']
+            assert_that(requests, has_items(has_entries(path='/0.1/tenants')))
+
+        until.assert_(fetched_tenant, timeout=2, interval=0.5)
+
+        yield
+
+        requests = self.auth.list_requests()['requests']
+        assert_that(requests, not_(has_items(has_entries(path='/0.1/sessions'))))
 
 
 class TeamsIntegrationTest(_BaseIntegrationTest):

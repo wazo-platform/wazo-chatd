@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import requests
@@ -45,6 +45,18 @@ class RestApiOkWaitStrategy(WaitStrategy):
             except requests.RequestException:
                 status = {}
             assert_that(status, has_entries({'rest_api': has_entries(status='ok')}))
+
+        until.assert_(is_ready, tries=60)
+
+
+class BusOkWaitStrategy(WaitStrategy):
+    def wait(self, integration_test):
+        def is_ready():
+            try:
+                status = integration_test.chatd.status.get()
+            except requests.RequestException:
+                status = {}
+            assert_that(status, has_entries({'bus_consumer': has_entries(status='ok')}))
 
         until.assert_(is_ready, tries=60)
 
