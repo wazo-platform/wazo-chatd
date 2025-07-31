@@ -102,7 +102,7 @@ class Initiator:
         self._auth = auth
         self._amid = amid
         self._confd = confd
-        self._is_initialized = False
+        self._is_initialized = threading.Event()
         self._in_progress = threading.Event()
         self.post_hooks = []
         self._fetched_resources = {
@@ -115,7 +115,7 @@ class Initiator:
         )
 
     def is_initialized(self):
-        return self._is_initialized
+        return self._is_initialized.is_set()
 
     def in_progress(self):
         return self._in_progress.is_set()
@@ -134,7 +134,7 @@ class Initiator:
         return {'items': items, 'total': total}
 
     def reset_initialized(self):
-        self._is_initialized = False
+        self._is_initialized.clear()
 
     def execute_post_hooks(self):
         for hook in self.post_hooks:
@@ -199,7 +199,7 @@ class Initiator:
         self.execute_post_hooks()
         self._clear_flags()
         self._in_progress.clear()
-        self._is_initialized = True
+        self._is_initialized.set()
         logger.debug('Initialized completed')
 
     def initiate_tenants(self, tenants):
