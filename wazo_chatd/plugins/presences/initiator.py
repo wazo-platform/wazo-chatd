@@ -3,7 +3,7 @@
 
 import logging
 import threading
-from dataclasses import dataclass
+from enum import Enum, auto
 from functools import partial
 
 from xivo.status import Status
@@ -55,25 +55,35 @@ CHANNEL_STATE_MAP = {
 }
 
 
-@dataclass(frozen=True)
-class FetchedFlags:
-    CHANNEL: str = 'channel'
-    DEVICE: str = 'device'
-    REFRESH_TOKEN: str = 'refresh_token'
-    SESSION: str = 'session'
-    TENANT: str = 'tenant'
-    USER: str = 'user'
+class Resource(Enum):
+    CHANNEL = auto()
+    DEVICE = auto()
+    REFRESH_TOKEN = auto()
+    SESSION = auto()
+    TENANT = auto()
+    USER = auto()
 
-    @classmethod
-    def all(cls):
-        return [
-            cls.CHANNEL,
-            cls.DEVICE,
-            cls.REFRESH_TOKEN,
-            cls.SESSION,
-            cls.TENANT,
-            cls.USER,
-        ]
+
+class Stage(Enum):
+    FETCHED = auto()
+
+
+class MilestoneTracker:
+    def __init__(self):
+        self._milestones = set()
+        self._lock = threading.Lock()
+
+    def mark(self, resource, stage):
+        with self._lock:
+            self._milestones.add((resource, stage))
+
+    def has_passed(self, resource, stage):
+        with self._lock:
+            return (resource, stage) in self._milestones
+
+    def reset(self):
+        with self._lock:
+            self._milestones.clear()
 
 
 def extract_endpoint_from_channel(channel_name):
@@ -105,9 +115,7 @@ class Initiator:
         self._is_initialized = threading.Event()
         self._in_progress = threading.Event()
         self.post_hooks = []
-        self._fetched_resources = {
-            flag: threading.Event() for flag in FetchedFlags.all()
-        }
+        self._milestone_tracker = MilestoneTracker()
 
     def provide_status(self, status):
         status['presence_initialization']['status'] = (
@@ -145,15 +153,11 @@ class Initiator:
                 logger.error(e)
                 continue
 
-    def _clear_flags(self):
-        for event in self._fetched_resources.values():
-            event.clear()
-
-    def is_fetched(self, resource):
-        return self._fetched_resources[resource].is_set()
+    def has_fetched(self, resource):
+        return self._milestone_tracker.has_passed(resource, Stage.FETCHED)
 
     def initiate(self):
-        self._clear_flags()
+        self._milestone_tracker.reset()
         self._in_progress.set()
 
         token = self._auth.token.new(expiration=120)['token']
@@ -163,30 +167,30 @@ class Initiator:
 
         logger.debug('Fetching tenants...')
         tenants = self._paginate_proxy(self._auth.tenants.list, limit=10000)['items']
-        self._fetched_resources[FetchedFlags.TENANT].set()
+        self._milestone_tracker.mark(Resource.TENANT, Stage.FETCHED)
 
         logger.debug('Fetching users...')
         users = self._paginate_proxy(self._confd.users.list, limit=1000)['items']
-        self._fetched_resources[FetchedFlags.USER].set()
+        self._milestone_tracker.mark(Resource.USER, Stage.FETCHED)
 
         logger.debug('Fetching sesions...')
         sessions = self._paginate_proxy(self._auth.sessions.list, limit=10000)['items']
-        self._fetched_resources[FetchedFlags.SESSION].set()
+        self._milestone_tracker.mark(Resource.SESSION, Stage.FETCHED)
 
         logger.debug('Fetching refresh tokens...')
         refresh_tokens = self._paginate_proxy(
             self._auth.refresh_tokens.list,
             limit=10000,
         )['items']
-        self._fetched_resources[FetchedFlags.REFRESH_TOKEN].set()
+        self._milestone_tracker.mark(Resource.REFRESH_TOKEN, Stage.FETCHED)
 
         logger.debug('Fetching device states...')
         endpoint_events = self._amid.action('DeviceStateList')
-        self._fetched_resources[FetchedFlags.DEVICE].set()
+        self._milestone_tracker.mark(Resource.DEVICE, Stage.FETCHED)
 
         logger.debug('Fetching channels...')
         channel_events = self._amid.action('CoreShowChannels')
-        self._fetched_resources[FetchedFlags.CHANNEL].set()
+        self._milestone_tracker.mark(Resource.CHANNEL, Stage.FETCHED)
 
         logger.debug('Fetching data done!')
 
@@ -197,7 +201,6 @@ class Initiator:
         self.initiate_refresh_tokens(refresh_tokens)
         self.initiate_channels(channel_events)
         self.execute_post_hooks()
-        self._clear_flags()
         self._in_progress.clear()
         self._is_initialized.set()
         logger.debug('Initialized completed')
