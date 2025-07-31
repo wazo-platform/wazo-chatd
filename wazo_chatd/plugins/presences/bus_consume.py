@@ -27,9 +27,8 @@ logger = logging.getLogger(__name__)
 
 
 class BusInitiatorHandler:
-    def __init__(self, event_handler, initiator_thread, initiator):
+    def __init__(self, event_handler, initiator):
         self._event_handler = event_handler
-        self._initiator_thread = initiator_thread
         self._initiator = initiator
         self._callbacks_delayed = []
 
@@ -53,7 +52,7 @@ class BusInitiatorHandler:
     def handle_init_process(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if self._initiator_thread and self._initiator_thread._started:
+            if self._initiator.in_progress():
                 if self._initiator.is_fetched(func.init_unlock_state):
                     callback = partial(func, *args, **kwargs)
                     self._callbacks_delayed.append(callback)

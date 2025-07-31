@@ -46,9 +46,7 @@ class Plugin:
 
         bus_event_handler = BusEventHandler(dao, notifier, initiator_thread)
 
-        bus_initiator_handler = BusInitiatorHandler(
-            bus_event_handler, initiator_thread, initiator
-        )
+        bus_initiator_handler = BusInitiatorHandler(bus_event_handler, initiator)
         bus_consumer.subscribe_decorators = [bus_initiator_handler.handle_init_process]
         initiator.post_hooks.append(bus_initiator_handler.on_init_complete)
 

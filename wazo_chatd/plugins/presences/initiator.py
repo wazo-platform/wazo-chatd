@@ -103,6 +103,7 @@ class Initiator:
         self._amid = amid
         self._confd = confd
         self._is_initialized = False
+        self._in_progress = threading.Event()
         self.post_hooks = []
         self._fetched_resources = {
             flag: threading.Event() for flag in FetchedFlags.all()
@@ -115,6 +116,9 @@ class Initiator:
 
     def is_initialized(self):
         return self._is_initialized
+
+    def in_progress(self):
+        return self._in_progress.is_set()
 
     def _paginate_proxy(self, callback, limit=1000):
         callback = partial(callback, recurse=True, limit=limit)
@@ -150,6 +154,7 @@ class Initiator:
 
     def initiate(self):
         self._clear_flags()
+        self._in_progress.set()
 
         token = self._auth.token.new(expiration=120)['token']
         self._auth.set_token(token)
@@ -193,6 +198,7 @@ class Initiator:
         self.initiate_channels(channel_events)
         self.execute_post_hooks()
         self._clear_flags()
+        self._in_progress.clear()
         self._is_initialized = True
         logger.debug('Initialized completed')
 
