@@ -26,11 +26,7 @@ from .helpers.base import (
     InitIntegrationTest,
     use_asset,
 )
-from .helpers.wait_strategy import (
-    BusOkWaitStrategy,
-    PresenceInitOkWaitStrategy,
-    RestApiOkWaitStrategy,
-)
+from .helpers.wait_strategy import ComponentsWaitStrategy, PresenceInitOkWaitStrategy
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID_1 = uuid.uuid4()
@@ -440,7 +436,7 @@ class TestHandleEvents(InitIntegrationTest):
         )
 
         self.restart_chatd_service()
-        BusOkWaitStrategy().wait(self)
+        ComponentsWaitStrategy(['bus_consumer']).wait(self)
 
         created_tenant_uuid = uuid.uuid4()
         dropped_user_uuid = uuid.uuid4()
@@ -463,7 +459,7 @@ class TestPresenceInitializationErrors(InitIntegrationTest):
         self.stop_chatd_service()
         self.stop_amid_service()
         self.start_chatd_service()
-        RestApiOkWaitStrategy().wait(self)
+        ComponentsWaitStrategy(['rest_api']).wait(self)
 
         def server_wait():
             status = self.chatd.status.get()
@@ -488,7 +484,7 @@ class TestPresenceInitializationErrors(InitIntegrationTest):
         self.stop_postgres_service()
         self.start_chatd_service()
         self.reset_clients()
-        RestApiOkWaitStrategy().wait(self)
+        ComponentsWaitStrategy(['rest_api']).wait(self)
 
         def server_wait():
             status = self.chatd.status.get()
@@ -514,7 +510,7 @@ class TestPresenceInitializationErrors(InitIntegrationTest):
         self.stop_chatd_service()
         self.stop_amid_service()
         self.start_chatd_service()
-        RestApiOkWaitStrategy().wait(self)
+        ComponentsWaitStrategy(['rest_api']).wait(self)
 
         assert_that(
             calling(self.chatd.user_presences.list),

@@ -1,82 +1,37 @@
 # Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import requests
-from hamcrest import assert_that, has_entries
-from wazo_test_helpers import until
+from wazo_test_helpers.wait_strategy import (
+    ComponentsWaitStrategy as _ComponentsWaitStrategy,
+)
+from wazo_test_helpers.wait_strategy import NoWaitStrategy
+
+__all__ = ['NoWaitStrategy']
 
 
-class WaitStrategy:
-    def wait(self, chatd):
-        raise NotImplementedError()
+class ComponentsWaitStrategy(_ComponentsWaitStrategy):
+    def get_status(self, integration_test):
+        return integration_test.chatd.status.get()
 
 
-class NoWaitStrategy(WaitStrategy):
-    def wait(self, chatd):
-        pass
+class PresenceInitOkWaitStrategy(ComponentsWaitStrategy):
+    def __init__(self):
+        super().__init__(
+            [
+                'presence_initialization',
+                'rest_api',
+                'bus_consumer',
+            ]
+        )
 
 
-class EverythingOkWaitStrategy(WaitStrategy):
-    def wait(self, integration_test):
-        def is_ready():
-            try:
-                status = integration_test.chatd.status.get()
-            except requests.RequestException:
-                status = {}
-            assert_that(
-                status,
-                has_entries(
-                    {
-                        'rest_api': has_entries(status='ok'),
-                        'bus_consumer': has_entries(status='ok'),
-                        'master_tenant': has_entries(status='ok'),
-                    }
-                ),
-            )
-
-        until.assert_(is_ready, tries=60)
-
-
-class RestApiOkWaitStrategy(WaitStrategy):
-    def wait(self, integration_test):
-        def is_ready():
-            try:
-                status = integration_test.chatd.status.get()
-            except requests.RequestException:
-                status = {}
-            assert_that(status, has_entries({'rest_api': has_entries(status='ok')}))
-
-        until.assert_(is_ready, tries=60)
-
-
-class BusOkWaitStrategy(WaitStrategy):
-    def wait(self, integration_test):
-        def is_ready():
-            try:
-                status = integration_test.chatd.status.get()
-            except requests.RequestException:
-                status = {}
-            assert_that(status, has_entries({'bus_consumer': has_entries(status='ok')}))
-
-        until.assert_(is_ready, tries=60)
-
-
-class PresenceInitOkWaitStrategy(WaitStrategy):
-    def wait(self, integration_test):
-        def is_ready():
-            try:
-                status = integration_test.chatd.status.get()
-            except requests.RequestException:
-                status = {}
-            assert_that(
-                status,
-                has_entries(
-                    {
-                        'presence_initialization': has_entries(status='ok'),
-                        'rest_api': has_entries(status='ok'),
-                        'bus_consumer': has_entries(status='ok'),
-                    }
-                ),
-            )
-
-        until.assert_(is_ready, tries=60)
+class EverythingOkWaitStrategy(ComponentsWaitStrategy):
+    def __init__(self):
+        super().__init__(
+            [
+                # 'presence_initialization',  # disabled for non-related init tests
+                'rest_api',
+                'bus_consumer',
+                'master_tenant',
+            ]
+        )
