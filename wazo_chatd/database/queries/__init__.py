@@ -1,5 +1,7 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+from __future__ import annotations
 
 from ..helpers import Session
 from .channel import ChannelDAO
@@ -13,6 +15,14 @@ from .user import UserDAO
 
 
 class DAO:
+    channel: ChannelDAO
+    endpoint: EndpointDAO
+    line: LineDAO
+    refresh_token: RefreshTokenDAO
+    room: RoomDAO
+    session: SessionDAO
+    tenant: TenantDAO
+    user: UserDAO
     _daos = {
         'channel': ChannelDAO,
         'endpoint': EndpointDAO,

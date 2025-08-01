@@ -1,7 +1,5 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
-
-from sqlalchemy import and_, text
 
 from ...exceptions import UnknownEndpointException
 from ..models import Endpoint
@@ -36,12 +34,12 @@ class EndpointDAO:
         return endpoint
 
     def _find_by(self, **kwargs):
-        filter_ = text('true')
+        query = self.session.query(Endpoint)
 
         if 'name' in kwargs:
-            filter_ = and_(filter_, Endpoint.name == kwargs['name'])
+            query = query.filter(Endpoint.name == kwargs['name'])
 
-        return self.session.query(Endpoint).filter(filter_).first()
+        return query.first()
 
     def update(self, endpoint):
         self.session.add(endpoint)

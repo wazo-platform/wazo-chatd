@@ -1,4 +1,4 @@
-# Copyright 2022-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
@@ -89,7 +89,7 @@ class SubscriptionRenewer:
         self, auth: AuthClient, base_url: str, config: dict, notifier: TeamsNotifier
     ):
         self._config: dict = config
-        self._expiration = 0
+        self._expiration: datetime | None = None
         self._id = None
         self._notifier = notifier
         self._task: asyncio.Task | None = None
@@ -124,6 +124,7 @@ class SubscriptionRenewer:
         self._task = asyncio.create_task(self._run())
 
     def stop(self):
+        assert self._task is not None
         self._task.cancel()
 
     def _build_notification_url(self) -> str:

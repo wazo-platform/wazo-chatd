@@ -1,7 +1,5 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
-
-from sqlalchemy import and_, text
 
 from ...exceptions import UnknownLineException
 from ..models import Line
@@ -28,14 +26,14 @@ class LineDAO:
         return self._find_by(**kwargs)
 
     def _find_by(self, **kwargs):
-        filter_ = text('true')
+        query = self.session.query(Line)
 
         if 'id' in kwargs:
-            filter_ = and_(filter_, Line.id == kwargs['id'])
+            query = query.filter(Line.id == kwargs['id'])
         if 'endpoint_name' in kwargs:
-            filter_ = and_(filter_, Line.endpoint_name == kwargs['endpoint_name'])
+            query = query.filter(Line.endpoint_name == kwargs['endpoint_name'])
 
-        return self.session.query(Line).filter(filter_).first()
+        return query.first()
 
     def list_(self):
         return self.session.query(Line).all()

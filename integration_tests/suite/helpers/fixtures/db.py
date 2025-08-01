@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -35,7 +35,7 @@ def user(**user_args):
             user = self._dao.user.create(model)
 
             self._session.commit()
-            args = list(args) + [user]
+            args = (*args, user)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
@@ -73,7 +73,7 @@ def session(**session_args):
             self._session.flush()
 
             self._session.commit()
-            args = list(args) + [session]
+            args = (*args, session)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
@@ -115,7 +115,7 @@ def refresh_token(**refresh_token_args):
             self._session.flush()
 
             self._session.commit()
-            args = list(args) + [refresh_token]
+            args = (*args, refresh_token)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
@@ -145,7 +145,7 @@ def tenant(**tenant_args):
             tenant = self._dao.tenant.create(model)
 
             self._session.commit()
-            args = list(args) + [tenant]
+            args = (*args, tenant)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
@@ -183,7 +183,7 @@ def line(**line_args):
             self._session.flush()
 
             self._session.commit()
-            args = list(args) + [line]
+            args = (*args, line)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
@@ -235,7 +235,7 @@ def room(**room_args):
             self._session.flush()
 
             self._session.commit()
-            args = list(args) + [room]
+            args = (*args, room)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
@@ -264,7 +264,7 @@ def endpoint(**endpoint_args):
             self._session.flush()
 
             self._session.commit()
-            args = list(args) + [endpoint]
+            args = (*args, endpoint)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:
@@ -309,7 +309,7 @@ def channel(**channel_args):
             self._session.flush()
 
             self._session.commit()
-            args = list(args) + [channel]
+            args = (*args, channel)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:

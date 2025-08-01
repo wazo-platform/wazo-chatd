@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -23,7 +23,7 @@ def room(**room_args):
 
             room = self.chatd.rooms.create_from_user(room_args)
 
-            args = list(args) + [room]
+            args = (*args, room)
             try:
                 result = decorated(self, *args, **kwargs)
             finally:

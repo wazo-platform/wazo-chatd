@@ -1,7 +1,6 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from sqlalchemy import and_, text
 from sqlalchemy.orm import joinedload
 
 from ...exceptions import UnknownRefreshTokenException
@@ -26,14 +25,14 @@ class RefreshTokenDAO:
         return self._find_by(user_uuid=user_uuid, client_id=client_id)
 
     def _find_by(self, **kwargs):
-        filter_ = text('true')
+        query = self.session.query(RefreshToken)
 
         if 'user_uuid' in kwargs:
-            filter_ = and_(filter_, RefreshToken.user_uuid == kwargs['user_uuid'])
+            query = query.filter(RefreshToken.user_uuid == kwargs['user_uuid'])
         if 'client_id' in kwargs:
-            filter_ = and_(filter_, RefreshToken.client_id == kwargs['client_id'])
+            query = query.filter(RefreshToken.client_id == kwargs['client_id'])
 
-        return self.session.query(RefreshToken).filter(filter_).first()
+        return query.first()
 
     def list_(self):
         return self.session.query(RefreshToken).options(joinedload('user')).all()

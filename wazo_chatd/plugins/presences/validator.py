@@ -1,5 +1,7 @@
-# Copyright 2019 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+from __future__ import annotations
 
 from functools import wraps
 
@@ -25,6 +27,9 @@ class StatusValidator:
     def presence_initialization(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            if not self._config or not self._status_aggregator:
+                raise Exception('StatusValidator not configured')
+
             enabled = self._config['initialization']['enabled']
             if enabled:
                 status = self._status_aggregator.status()['presence_initialization'][
