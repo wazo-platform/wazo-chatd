@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
+import threading
+from enum import Enum, auto
 from functools import partial
 
 from xivo.status import Status
@@ -53,6 +55,37 @@ CHANNEL_STATE_MAP = {
 }
 
 
+class Resource(Enum):
+    CHANNEL = auto()
+    DEVICE = auto()
+    REFRESH_TOKEN = auto()
+    SESSION = auto()
+    TENANT = auto()
+    USER = auto()
+
+
+class Stage(Enum):
+    FETCHED = auto()
+
+
+class MilestoneTracker:
+    def __init__(self):
+        self._milestones = set()
+        self._lock = threading.Lock()
+
+    def mark(self, resource, stage):
+        with self._lock:
+            self._milestones.add((resource, stage))
+
+    def has_passed(self, resource, stage):
+        with self._lock:
+            return (resource, stage) in self._milestones
+
+    def reset(self):
+        with self._lock:
+            self._milestones.clear()
+
+
 def extract_endpoint_from_channel(channel_name):
     endpoint_name = '-'.join(channel_name.split('-')[:-1])
     if not endpoint_name:
@@ -79,7 +112,10 @@ class Initiator:
         self._auth = auth
         self._amid = amid
         self._confd = confd
-        self._is_initialized = False
+        self._is_initialized = threading.Event()
+        self._in_progress = threading.Event()
+        self.post_hooks = []
+        self._milestone_tracker = MilestoneTracker()
 
     def provide_status(self, status):
         status['presence_initialization']['status'] = (
@@ -87,7 +123,10 @@ class Initiator:
         )
 
     def is_initialized(self):
-        return self._is_initialized
+        return self._is_initialized.is_set()
+
+    def in_progress(self):
+        return self._in_progress.is_set()
 
     def _paginate_proxy(self, callback, limit=1000):
         callback = partial(callback, recurse=True, limit=limit)
@@ -103,29 +142,56 @@ class Initiator:
         return {'items': items, 'total': total}
 
     def reset_initialized(self):
-        self._is_initialized = False
+        self._is_initialized.clear()
+
+    def execute_post_hooks(self):
+        for hook in self.post_hooks:
+            logger.debug('Executing post hook: %s', hook.__name__)
+            try:
+                hook()
+            except Exception as e:
+                logger.error(e)
+                continue
+
+    def has_fetched(self, resource):
+        return self._milestone_tracker.has_passed(resource, Stage.FETCHED)
 
     def initiate(self):
+        self._milestone_tracker.reset()
+        self._in_progress.set()
+
         token = self._auth.token.new(expiration=120)['token']
         self._auth.set_token(token)
         self._amid.set_token(token)
         self._confd.set_token(token)
 
-        logger.debug('Fetching device states...')
-        endpoint_events = self._amid.action('DeviceStateList')
         logger.debug('Fetching tenants...')
         tenants = self._paginate_proxy(self._auth.tenants.list, limit=10000)['items']
+        self._milestone_tracker.mark(Resource.TENANT, Stage.FETCHED)
+
         logger.debug('Fetching users...')
         users = self._paginate_proxy(self._confd.users.list, limit=1000)['items']
+        self._milestone_tracker.mark(Resource.USER, Stage.FETCHED)
+
         logger.debug('Fetching sesions...')
         sessions = self._paginate_proxy(self._auth.sessions.list, limit=10000)['items']
+        self._milestone_tracker.mark(Resource.SESSION, Stage.FETCHED)
+
         logger.debug('Fetching refresh tokens...')
         refresh_tokens = self._paginate_proxy(
             self._auth.refresh_tokens.list,
             limit=10000,
         )['items']
+        self._milestone_tracker.mark(Resource.REFRESH_TOKEN, Stage.FETCHED)
+
+        logger.debug('Fetching device states...')
+        endpoint_events = self._amid.action('DeviceStateList')
+        self._milestone_tracker.mark(Resource.DEVICE, Stage.FETCHED)
+
         logger.debug('Fetching channels...')
         channel_events = self._amid.action('CoreShowChannels')
+        self._milestone_tracker.mark(Resource.CHANNEL, Stage.FETCHED)
+
         logger.debug('Fetching data done!')
 
         self.initiate_endpoints(endpoint_events)
@@ -134,7 +200,9 @@ class Initiator:
         self.initiate_sessions(sessions)
         self.initiate_refresh_tokens(refresh_tokens)
         self.initiate_channels(channel_events)
-        self._is_initialized = True
+        self.execute_post_hooks()
+        self._in_progress.clear()
+        self._is_initialized.set()
         logger.debug('Initialized completed')
 
     def initiate_tenants(self, tenants):

@@ -9,7 +9,9 @@ from hamcrest import (
     calling,
     contains_inanyorder,
     has_entries,
+    has_items,
     has_properties,
+    not_,
 )
 from wazo_chatd_client.exceptions import ChatdError
 from wazo_test_helpers import until
@@ -24,7 +26,7 @@ from .helpers.base import (
     InitIntegrationTest,
     use_asset,
 )
-from .helpers.wait_strategy import PresenceInitOkWaitStrategy, RestApiOkWaitStrategy
+from .helpers.wait_strategy import ComponentsWaitStrategy, PresenceInitOkWaitStrategy
 
 TENANT_UUID = uuid.uuid4()
 USER_UUID_1 = uuid.uuid4()
@@ -337,6 +339,7 @@ class TestAsteriskFullyBooted(InitIntegrationTest):
     def setUpClass(cls):
         super().setUpClass()
         PresenceInitOkWaitStrategy().wait(cls)
+        cls.auth.clear_requests()
 
     def test_fullybooted_event_received(self):
         user_created_uuid = uuid.uuid4()
@@ -382,6 +385,73 @@ class TestAsteriskFullyBooted(InitIntegrationTest):
 
         until.assert_(db_updated, tries=10)
 
+    def test_fullybooted_can_handle_events(self):
+        user_created_uuid = uuid.uuid4()
+        self.confd.set_users(
+            {
+                'uuid': str(user_created_uuid),
+                'tenant_uuid': str(TOKEN_TENANT_UUID),
+                'lines': [],
+                'services': {'dnd': {'enabled': True}},
+            },
+            delay=3,
+        )
+
+        self.bus.send_fullybooted_event()
+
+        created_tenant_uuid = uuid.uuid4()
+        dropped_user_uuid = uuid.uuid4()
+        with self.ensure_being_in_fetching_users_stage():
+            self.bus.send_tenant_created_event(created_tenant_uuid)
+            self.bus.send_user_created_event(dropped_user_uuid, TOKEN_TENANT_UUID)
+
+        PresenceInitOkWaitStrategy().wait(self)
+
+        self._session.expire_all()
+        tenants = self._dao.tenant.list_()
+        assert_that(tenants, has_items(has_properties(uuid=created_tenant_uuid)))
+        users = self._dao.user.list_(tenant_uuids=None)
+        assert_that(users, not_(has_items(has_properties(uuid=dropped_user_uuid))))
+
+
+@use_asset('initialization')
+class TestHandleEvents(InitIntegrationTest):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Avoid race condition when clearing requests
+        PresenceInitOkWaitStrategy().wait(cls)
+        cls.auth.clear_requests()
+
+    def test_initialization_can_handle_events(self):
+        user_created_uuid = uuid.uuid4()
+        self.confd.set_users(
+            {
+                'uuid': str(user_created_uuid),
+                'tenant_uuid': str(TOKEN_TENANT_UUID),
+                'lines': [],
+                'services': {'dnd': {'enabled': True}},
+            },
+            delay=3,
+        )
+
+        self.restart_chatd_service()
+        ComponentsWaitStrategy(['bus_consumer']).wait(self)
+
+        created_tenant_uuid = uuid.uuid4()
+        dropped_user_uuid = uuid.uuid4()
+        with self.ensure_being_in_fetching_users_stage():
+            self.bus.send_tenant_created_event(created_tenant_uuid)
+            self.bus.send_user_created_event(dropped_user_uuid, TOKEN_TENANT_UUID)
+
+        PresenceInitOkWaitStrategy().wait(self)
+
+        self._session.expire_all()
+        tenants = self._dao.tenant.list_()
+        assert_that(tenants, has_items(has_properties(uuid=created_tenant_uuid)))
+        users = self._dao.user.list_(tenant_uuids=None)
+        assert_that(users, not_(has_items(has_properties(uuid=dropped_user_uuid))))
+
 
 @use_asset('initialization')
 class TestPresenceInitializationErrors(InitIntegrationTest):
@@ -389,7 +459,7 @@ class TestPresenceInitializationErrors(InitIntegrationTest):
         self.stop_chatd_service()
         self.stop_amid_service()
         self.start_chatd_service()
-        RestApiOkWaitStrategy().wait(self)
+        ComponentsWaitStrategy(['rest_api']).wait(self)
 
         def server_wait():
             status = self.chatd.status.get()
@@ -414,7 +484,7 @@ class TestPresenceInitializationErrors(InitIntegrationTest):
         self.stop_postgres_service()
         self.start_chatd_service()
         self.reset_clients()
-        RestApiOkWaitStrategy().wait(self)
+        ComponentsWaitStrategy(['rest_api']).wait(self)
 
         def server_wait():
             status = self.chatd.status.get()
@@ -440,7 +510,7 @@ class TestPresenceInitializationErrors(InitIntegrationTest):
         self.stop_chatd_service()
         self.stop_amid_service()
         self.start_chatd_service()
-        RestApiOkWaitStrategy().wait(self)
+        ComponentsWaitStrategy(['rest_api']).wait(self)
 
         assert_that(
             calling(self.chatd.user_presences.list),

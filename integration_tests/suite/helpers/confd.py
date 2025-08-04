@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from uuid import uuid4
@@ -14,11 +14,12 @@ class ConfdClient:
     def url(self, *parts):
         return f'http://{self._host}:{self._port}/{"/".join(parts)}'
 
-    def set_users(self, *mock_users):
+    def set_users(self, *mock_users, delay=None):
         url = self.url('_set_response')
         body = {
             'response': 'users',
             'content': {user['uuid']: user for user in mock_users},
+            'delay': delay,
         }
         requests.post(url, json=body)
 
