@@ -1,4 +1,4 @@
-# Copyright 2022-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ class TeamsService:
         self.presence_service = presence_service
 
         self._synchronizers: dict[str, SubscriptionRenewer] = {}
-        self._db_lock = asyncio.locks.Lock(loop=aio.loop)
+        self._db_lock = asyncio.locks.Lock(loop=aio.loop)  # type: ignore[call-arg]
 
     async def create_subscription(self, user_uuid: str):
         url = self.config['teams_presence']['microsoft_graph_url']

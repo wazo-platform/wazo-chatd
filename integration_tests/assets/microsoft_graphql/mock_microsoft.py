@@ -1,5 +1,7 @@
-# Copyright 2022-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+from __future__ import annotations
 
 import json
 import logging
@@ -8,6 +10,7 @@ import secrets
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import jwt
@@ -19,9 +22,9 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-_users = {}
-_presences = {}
-_subscriptions = defaultdict(list)
+_users: dict[str, Any] = {}
+_presences: dict[str, Any] = {}
+_subscriptions: dict[str, Any] = defaultdict(list)
 
 
 class JWTFactory:

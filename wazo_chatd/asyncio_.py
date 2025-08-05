@@ -1,5 +1,7 @@
-# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0+
+
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -11,7 +13,7 @@ logger = logging.getLogger("asyncio")
 
 
 class CoreAsyncio:
-    def __init__(self):
+    def __init__(self) -> None:
         name: str = 'Asyncio-Thread'
         self._loop = loop = asyncio.new_event_loop()
         self._thread: Thread = Thread(target=loop.run_forever, name=name, daemon=True)

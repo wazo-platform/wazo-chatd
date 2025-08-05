@@ -1,6 +1,8 @@
 # Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
 import logging
 import os
 import random
@@ -12,6 +14,7 @@ from contextlib import contextmanager
 import pytest
 import yaml
 from hamcrest import assert_that, has_entries, has_items, not_
+from sqlalchemy.orm import scoped_session
 from wazo_chatd_client import Client as ChatdClient
 from wazo_test_helpers import until
 from wazo_test_helpers.asset_launching_test_case import (
@@ -248,6 +251,15 @@ class DBAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
 
 
 class _BaseIntegrationTest(unittest.TestCase):
+    asset_cls: AssetLaunchingTestCase
+
+    _Session: scoped_session
+    amid: AmidClient
+    auth: AuthClient
+    bus: BusClient
+    chatd: ChatdClient
+    confd: ConfdClient
+
     @classmethod
     def setUpClass(cls):
         cls._Session = cls.asset_cls.make_db_session()
@@ -396,6 +408,7 @@ class InitIntegrationTest(_BaseIntegrationTest):
 
 class TeamsIntegrationTest(_BaseIntegrationTest):
     asset_cls = TeamsAssetLaunchingTestCase
+    microsoft: MicrosoftGraphClient
 
     @classmethod
     def setUpClass(cls):

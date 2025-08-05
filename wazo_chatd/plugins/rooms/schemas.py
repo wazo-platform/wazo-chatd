@@ -1,5 +1,7 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+from __future__ import annotations
 
 from marshmallow import pre_load, validates_schema
 from xivo.mallow import fields, validate
@@ -37,7 +39,7 @@ class MessageSchema(Schema):
 class ListRequestSchema(_ListSchema):
     default_sort_column = 'created_at'
     sort_columns = ['created_at']
-    searchable_columns = []
+    searchable_columns: list[str] = []
     default_direction = 'desc'
     from_date = fields.DateTime()
 
@@ -45,7 +47,7 @@ class ListRequestSchema(_ListSchema):
 class MessageListRequestSchema(_ListSchema):
     default_sort_column = 'created_at'
     sort_columns = ['created_at']
-    searchable_columns = []
+    searchable_columns: list[str] = []
     default_direction = 'desc'
 
     search = fields.String()

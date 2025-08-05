@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy import and_, distinct, text
@@ -48,7 +48,9 @@ class RoomDAO:
             if exact_user_uuids:
                 matcher = and_(
                     matcher,
-                    array_agg(distinct(RoomUser.uuid)).contained_by(user_uuids),
+                    array_agg(distinct(RoomUser.uuid)).contained_by(  # type: ignore[attr-defined]
+                        user_uuids
+                    ),
                 )
 
             sub_query = (

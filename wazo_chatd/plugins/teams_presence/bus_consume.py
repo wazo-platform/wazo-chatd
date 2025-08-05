@@ -1,7 +1,9 @@
-# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from collections.abc import Coroutine
+from __future__ import annotations
+
+from typing import Callable
 
 from wazo_chatd.asyncio_ import CoreAsyncio
 from wazo_chatd.bus import BusConsumer
@@ -23,7 +25,7 @@ class BusEventHandler:
         self.bus = bus
         self.service = teams_service
 
-    def _register_async_handler(self, event_name: str, handler: Coroutine):
+    def _register_async_handler(self, event_name: str, handler: Callable):
         def dispatch(payload):
             self.aio.schedule_coroutine(handler(payload))
 
