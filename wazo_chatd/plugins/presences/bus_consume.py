@@ -52,7 +52,8 @@ class BusInitiatorHandler:
     def handle_init_process(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if self._initiator.in_progress():
+            is_callback_handled = hasattr(func, 'init_fetched_resource')
+            if self._initiator.in_progress() and is_callback_handled:
                 if self._initiator.has_fetched(func.init_fetched_resource):
                     callback = partial(func, *args, **kwargs)
                     self._callbacks_delayed.append(callback)
