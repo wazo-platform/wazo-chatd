@@ -49,7 +49,10 @@ class User(Base):  # type: ignore[misc, valid-type]
     )
     state = Column(
         String(24),
-        CheckConstraint("state in ('available', 'unavailable', 'invisible', 'away')"),
+        CheckConstraint(
+            "state in ('available', 'unavailable', 'invisible', 'away')",
+            name='chatd_user_state_check',
+        ),
         nullable=False,
     )
     status = Column(Text())
@@ -120,9 +123,13 @@ class Line(Base):  # type: ignore[misc, valid-type]
     user_uuid: UUIDType = Column(
         UUIDType(),
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+        nullable=False,
     )
     endpoint_name = Column(Text, ForeignKey('chatd_endpoint.name', ondelete='SET NULL'))
-    media = Column(String(24), CheckConstraint("media in ('audio', 'video')"))
+    media = Column(
+        String(24),
+        CheckConstraint("media in ('audio', 'video')", name='chatd_line_media_check'),
+    )
     user: RelationshipProperty[User] = relationship('User', viewonly=True)
     tenant_uuid = association_proxy('user', 'tenant_uuid')
 
@@ -164,7 +171,8 @@ class Channel(Base):  # type: ignore[misc, valid-type]
     state = Column(
         String(24),
         CheckConstraint(
-            "state in ('undefined', 'holding', 'ringing', 'talking', 'progressing')"
+            "state in ('undefined', 'holding', 'ringing', 'talking', 'progressing')",
+            name='chatd_channel_state_check',
         ),
         nullable=False,
         default='undefined',
