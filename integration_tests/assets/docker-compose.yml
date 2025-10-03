@@ -24,9 +24,10 @@ services:
       - '9497'
 
   postgres:
-    image: wazoplatform/wazo-chatd-db-test
+    image: wazoplatform/wazo-chatd-db
     ports:
       - "5432"
+    command: "-c log_statement=all"
 
   amid:
     image: wazoplatform/wazo-amid-mock
