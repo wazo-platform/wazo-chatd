@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -34,7 +34,7 @@ USER_UUID = uuid.uuid4()
 class TestUser(DBIntegrationTest):
     def test_create(self):
         user_uuid = uuid.uuid4()
-        last_activity = datetime.datetime.now(datetime.timezone.utc)
+        last_activity = datetime.datetime.now(datetime.UTC)
         user = User(
             uuid=user_uuid,
             tenant_uuid=TENANT_1,
@@ -129,7 +129,7 @@ class TestUser(DBIntegrationTest):
         user_uuid = user.uuid
         user_state = 'invisible'
         user_status = 'other status'
-        user_last_activity = datetime.datetime.now(datetime.timezone.utc)
+        user_last_activity = datetime.datetime.now(datetime.UTC)
         user_do_not_disturb = True
 
         user.state = user_state
