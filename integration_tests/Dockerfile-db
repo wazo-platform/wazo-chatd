@@ -1,4 +1,4 @@
 FROM wazoplatform/wazo-chatd-db
 LABEL maintainer="Wazo Maintainers <dev@wazo.community>"
 
-RUN echo "log_statement=all" >> "/etc/postgresql/13/main/postgresql.conf"
+RUN echo "log_statement=all" >> "/etc/postgresql/15/main/postgresql.conf"
