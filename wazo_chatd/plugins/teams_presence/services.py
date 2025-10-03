@@ -53,7 +53,7 @@ class TeamsService:
         self.presence_service = presence_service
 
         self._synchronizers: dict[str, SubscriptionRenewer] = {}
-        self._db_lock = asyncio.locks.Lock()  # type: ignore[call-arg]
+        self._db_lock = asyncio.locks.Lock()
 
     async def create_subscription(self, user_uuid: str):
         url = self.config['teams_presence']['microsoft_graph_url']
