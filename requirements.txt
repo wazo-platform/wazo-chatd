@@ -1,9 +1,9 @@
-https://github.com/wazo-platform/wazo-lib-rest-client/archive/bookworm.zip
-https://github.com/wazo-platform/wazo-amid-client/archive/bookworm.zip
-https://github.com/wazo-platform/wazo-auth-client/archive/bookworm.zip
-https://github.com/wazo-platform/wazo-confd-client/archive/bookworm.zip
-https://github.com/wazo-platform/wazo-bus/archive/bookworm.zip
-https://github.com/wazo-platform/xivo-lib-python/archive/bookworm.zip
+https://github.com/wazo-platform/wazo-lib-rest-client/archive/master.zip
+https://github.com/wazo-platform/wazo-amid-client/archive/master.zip
+https://github.com/wazo-platform/wazo-auth-client/archive/master.zip
+https://github.com/wazo-platform/wazo-confd-client/archive/master.zip
+https://github.com/wazo-platform/wazo-bus/archive/master.zip
+https://github.com/wazo-platform/xivo-lib-python/archive/master.zip
 alembic==1.8.1
 cheroot==9.0.0
 flask-cors==3.0.10
