@@ -1,4 +1,4 @@
-FROM python:3.9-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 RUN apt-get update -q
 RUN pip install -U pip requests flask pyjwt

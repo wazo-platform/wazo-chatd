@@ -11,10 +11,10 @@ services:
     volumes:
       - ../..:/usr/src/wazo-chatd:ro
       - ./etc/wazo-chatd/conf.d/50-default.yml:/etc/wazo-chatd/conf.d/50-default.yml:ro
-      # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/opt/venv/lib/python3.9/site-packages/xivo'
-      # - '${LOCAL_GIT_REPOS}/wazo-bus/wazo_bus:/opt/venv/lib/python3.9/site-packages/wazo_bus'
-      # - '${LOCAL_GIT_REPOS}/wazo-auth-client/wazo_auth_client:/opt/venv/lib/python3.9/site-packages/wazo_auth_client'
-      # - '${LOCAL_GIT_REPOS}/wazo-confd-client/wazo_confd_client:/opt/venv/lib/python3.9/site-packages/wazo_confd_client'
+      # - '${LOCAL_GIT_REPOS}/xivo-lib-python/xivo:/opt/venv/lib/python3.11/site-packages/xivo'
+      # - '${LOCAL_GIT_REPOS}/wazo-bus/wazo_bus:/opt/venv/lib/python3.11/site-packages/wazo_bus'
+      # - '${LOCAL_GIT_REPOS}/wazo-auth-client/wazo_auth_client:/opt/venv/lib/python3.11/site-packages/wazo_auth_client'
+      # - '${LOCAL_GIT_REPOS}/wazo-confd-client/wazo_confd_client:/opt/venv/lib/python3.11/site-packages/wazo_confd_client'
     ports:
       - '9304'
 
@@ -24,9 +24,10 @@ services:
       - '9497'
 
   postgres:
-    image: wazoplatform/wazo-chatd-db-test
+    image: wazoplatform/wazo-chatd-db
     ports:
       - "5432"
+    command: "-c log_statement=all"
 
   amid:
     image: wazoplatform/wazo-amid-mock
