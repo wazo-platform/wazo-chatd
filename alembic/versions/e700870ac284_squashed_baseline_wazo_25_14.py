@@ -1,4 +1,4 @@
-"""squashed baseline wazo-23.05
+"""squashed baseline wazo-25.14
 
 Revision ID: e700870ac284
 Revises: None
@@ -17,7 +17,7 @@ down_revision = None
 def upgrade():
     # Read and execute the SQL dump file
     versions_dir_path = os.path.dirname(__file__)
-    sql_file_path = os.path.join(versions_dir_path, 'baseline-2305.sql')
+    sql_file_path = os.path.join(versions_dir_path, 'baseline-2514.sql')
 
     with open(sql_file_path) as f:
         sql_content = f.read()
