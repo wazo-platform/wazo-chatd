@@ -1,8 +1,9 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
 import uuid
+from typing import TYPE_CHECKING
 
 from hamcrest import (
     assert_that,
@@ -18,6 +19,9 @@ from hamcrest import (
 )
 from sqlalchemy.inspection import inspect
 from wazo_test_helpers.hamcrest.raises import raises
+
+if TYPE_CHECKING:
+    from sqlalchemy_stubs import InstanceState
 
 from wazo_chatd.database.models import Room, RoomMessage, RoomUser
 from wazo_chatd.exceptions import UnknownRoomException
@@ -140,7 +144,8 @@ class TestRoom(DBIntegrationTest):
         self._dao.room.add_message(room, message)
 
         self._session.expire_all()
-        assert_that(inspect(message).persistent)
+        inspect_result: InstanceState = inspect(message)
+        assert_that(inspect_result.persistent)
         assert_that(room.messages, contains(message))
 
     @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
@@ -450,7 +455,8 @@ class TestRoomRelationships(DBIntegrationTest):
         self._session.flush()
 
         self._session.expire_all()
-        assert_that(inspect(room_user).persistent)
+        inspect_result: InstanceState = inspect(room_user)
+        assert_that(inspect_result.persistent)
         assert_that(room.users, contains(room_user))
 
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}])
@@ -481,7 +487,8 @@ class TestRoomRelationships(DBIntegrationTest):
         self._session.flush()
 
         self._session.expire_all()
-        assert_that(inspect(message).persistent)
+        inspect_result: InstanceState = inspect(message)
+        assert_that(inspect_result.persistent)
         assert_that(room.messages, contains(message))
 
     @fixtures.db.room()
@@ -494,7 +501,8 @@ class TestRoomRelationships(DBIntegrationTest):
         self._session.flush()
 
         self._session.expire_all()
-        assert_that(inspect(message).deleted)
+        inspect_result: InstanceState = inspect(message)
+        assert_that(inspect_result.deleted)
         assert_that(room.messages, empty())
 
     @fixtures.db.room()

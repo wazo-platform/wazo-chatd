@@ -4,6 +4,7 @@
 import datetime
 import random
 import uuid
+from typing import TYPE_CHECKING
 
 from hamcrest import (
     assert_that,
@@ -18,6 +19,9 @@ from hamcrest import (
 )
 from sqlalchemy.inspection import inspect
 from wazo_test_helpers.hamcrest.raises import raises
+
+if TYPE_CHECKING:
+    from sqlalchemy_stubs import InstanceState
 
 from wazo_chatd.database.models import Line, RefreshToken, Session, User
 from wazo_chatd.exceptions import UnknownUserException
@@ -46,7 +50,8 @@ class TestUser(DBIntegrationTest):
         user = self._dao.user.create(user)
 
         self._session.expire_all()
-        assert_that(inspect(user).persistent)
+        inspect_result: InstanceState = inspect(user)
+        assert_that(inspect_result.persistent)
         assert_that(
             user,
             has_properties(
