@@ -14,6 +14,7 @@ from contextlib import contextmanager
 import pytest
 import yaml
 from hamcrest import assert_that, has_entries, has_items, not_
+from sqlalchemy import text
 from sqlalchemy.orm import scoped_session
 from wazo_chatd_client import Client as ChatdClient
 from wazo_test_helpers import until
@@ -329,7 +330,7 @@ class _BaseIntegrationTest(unittest.TestCase):
 
         def db_is_up():
             try:
-                cls._Session.execute('SELECT 1')
+                cls._Session.execute(text('SELECT 1'))
             except Exception:
                 return False
             return True
