@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import unittest
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock
 from hamcrest import (
     assert_that,
     calling,
-    contains,
+    contains_exactly,
     contains_inanyorder,
     empty,
     has_entries,
@@ -229,7 +229,7 @@ class TestListRequestSchema(unittest.TestCase):
         self.request_args.__getitem__.return_value = str(uuid_1)
 
         result = self.schema().load(self.request_args)
-        assert_that(result, has_entries(uuids=contains(uuid_1)))
+        assert_that(result, has_entries(uuids=contains_exactly(uuid_1)))
 
     def test_get_user_uuid_multiple(self):
         uuid_1 = uuid.uuid4()

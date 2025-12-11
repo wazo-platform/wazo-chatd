@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -6,7 +6,7 @@ import uuid
 from hamcrest import (
     assert_that,
     calling,
-    contains,
+    contains_exactly,
     contains_inanyorder,
     empty,
     equal_to,
@@ -110,13 +110,13 @@ class TestLine(DBIntegrationTest):
         self._dao.line.add_channel(line, channel)
 
         self._session.expire_all()
-        assert_that(line.channels, contains(has_properties(name=channel_name)))
+        assert_that(line.channels, contains_exactly(has_properties(name=channel_name)))
 
         # twice
         self._dao.line.add_channel(line, channel)
 
         self._session.expire_all()
-        assert_that(line.channels, contains(has_properties(name=channel_name)))
+        assert_that(line.channels, contains_exactly(has_properties(name=channel_name)))
 
     @fixtures.db.line(id=1)
     @fixtures.db.channel(line_id=1)
