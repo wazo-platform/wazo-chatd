@@ -21,6 +21,8 @@ from sqlalchemy.inspection import inspect
 from wazo_test_helpers.hamcrest.raises import raises
 
 if TYPE_CHECKING:
+    # NOTE(clanglois): this can be removed with sqlalchemy 2.0,
+    #  as inspect should be typed correctly
     from sqlalchemy_stubs import InstanceState
 
 from wazo_chatd.database.models import Room, RoomMessage, RoomUser

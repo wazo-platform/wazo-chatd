@@ -24,6 +24,7 @@ from sqlalchemy.schema import Index
 from sqlalchemy_utils import UUIDType, generic_repr
 
 if TYPE_CHECKING:
+    # NOTE(clanglois): this can be removed with sqlalchemy 2.0
     from sqlalchemy_stubs import DeclarativeMeta, RelationshipProperty
 
 
