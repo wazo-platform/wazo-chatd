@@ -1,9 +1,16 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+from typing import TYPE_CHECKING
 
 from hamcrest import assert_that, calling, equal_to, has_properties
 from sqlalchemy.inspection import inspect
 from wazo_test_helpers.hamcrest.raises import raises
+
+if TYPE_CHECKING:
+    # NOTE(clanglois): this can be removed with sqlalchemy 2.0,
+    #  as inspect should be typed correctly
+    from sqlalchemy_stubs import InstanceState
 
 from wazo_chatd.database.models import Endpoint
 from wazo_chatd.exceptions import UnknownEndpointException
@@ -22,7 +29,8 @@ class TestEndpoint(DBIntegrationTest):
         endpoint = self._dao.endpoint.create(endpoint)
 
         self._session.expire_all()
-        assert_that(inspect(endpoint).persistent)
+        inspect_result: InstanceState = inspect(endpoint)
+        assert_that(inspect_result.persistent)
         assert_that(endpoint, has_properties(name=endpoint_name, state='unavailable'))
 
         self._dao.endpoint.delete_all()

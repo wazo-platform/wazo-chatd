@@ -1,11 +1,17 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
+from typing import TYPE_CHECKING
 
 from hamcrest import assert_that, calling, equal_to, has_items, has_properties
 from sqlalchemy.inspection import inspect
 from wazo_test_helpers.hamcrest.raises import raises
+
+if TYPE_CHECKING:
+    # NOTE(clanglois): this can be removed with sqlalchemy 2.0,
+    #  as inspect should be typed correctly
+    from sqlalchemy_stubs import InstanceState
 
 from wazo_chatd.database.models import Tenant
 from wazo_chatd.exceptions import UnknownTenantException
@@ -37,7 +43,8 @@ class TestTenant(DBIntegrationTest):
         tenant = self._dao.tenant.create(tenant)
 
         self._session.expire_all()
-        assert_that(inspect(tenant).persistent)
+        inspect_result: InstanceState = inspect(tenant)
+        assert_that(inspect_result.persistent)
         assert_that(tenant, has_properties(uuid=tenant_uuid))
 
         self._dao.tenant.delete(tenant)
