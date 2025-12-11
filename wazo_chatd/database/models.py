@@ -24,9 +24,10 @@ from sqlalchemy.schema import Index
 from sqlalchemy_utils import UUIDType, generic_repr
 
 if TYPE_CHECKING:
-    from sqlalchemy_stubs import RelationshipProperty
+    from sqlalchemy_stubs import DeclarativeMeta, RelationshipProperty
 
-Base = declarative_base()
+
+Base: type[DeclarativeMeta] = declarative_base()
 
 
 @generic_repr
