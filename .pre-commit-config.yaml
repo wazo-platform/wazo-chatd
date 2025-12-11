@@ -38,7 +38,7 @@ repos:
         language_version: "3.11"
         additional_dependencies:
           - "alembic"
-          - "sqlalchemy-stubs"
+          - "sqlalchemy2-stubs"
           - "types-requests"
           - "types-pyyaml"
           - "wazo_auth_client@https://github.com/wazo-platform/wazo-auth-client/archive/master.zip"
