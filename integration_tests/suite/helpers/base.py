@@ -266,7 +266,6 @@ class _BaseIntegrationTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls._Session.get_bind().dispose()
         cls._Session.remove()
 
     @property
@@ -339,7 +338,6 @@ class _BaseIntegrationTest(unittest.TestCase):
 
     @classmethod
     def stop_postgres_service(cls):
-        cls._Session.get_bind().dispose()
         cls._Session.remove()
         cls.asset_cls.stop_service('postgres')
 
