@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from ...exceptions import UnknownTenantException
@@ -14,7 +14,7 @@ class TenantDAO:
         return self._session()
 
     def get(self, tenant_uuid):
-        tenant = self.session.query(Tenant).get(tenant_uuid)
+        tenant = self.session.get(Tenant, tenant_uuid)
         if not tenant:
             raise UnknownTenantException(tenant_uuid)
         return tenant
@@ -28,7 +28,7 @@ class TenantDAO:
         return tenant
 
     def find_or_create(self, tenant_uuid):
-        result = self.session.query(Tenant).get(tenant_uuid)
+        result = self.session.get(Tenant, tenant_uuid)
         if result:
             return result
 

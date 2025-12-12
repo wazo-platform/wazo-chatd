@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -6,7 +6,7 @@ import uuid
 from hamcrest import (
     assert_that,
     calling,
-    contains,
+    contains_exactly,
     contains_inanyorder,
     empty,
     equal_to,
@@ -43,7 +43,7 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presences,
             has_entries(
-                items=contains(
+                items=contains_exactly(
                     has_entries(
                         uuid=str(user_1.uuid),
                         tenant_uuid=str(user_1.tenant_uuid),
@@ -81,7 +81,7 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presences,
             has_entries(
-                items=contains(has_entries(uuid=str(user_1.uuid))),
+                items=contains_exactly(has_entries(uuid=str(user_1.uuid))),
                 total=equal_to(1),
                 filtered=equal_to(1),
             ),
@@ -91,7 +91,7 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presences,
             has_entries(
-                items=contains(
+                items=contains_exactly(
                     has_entries(uuid=str(user_1.uuid)),
                     has_entries(uuid=str(user_2.uuid)),
                 ),
@@ -110,7 +110,7 @@ class TestPresence(APIIntegrationTest):
         assert_that(
             presences,
             has_entries(
-                items=contains(
+                items=contains_exactly(
                     has_entries(uuid=str(user_1.uuid)),
                     has_entries(uuid=str(user_2.uuid)),
                 ),
@@ -259,7 +259,7 @@ class TestPresence(APIIntegrationTest):
         events = event_accumulator.accumulate(with_headers=True)
         assert_that(
             events,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(last_activity=not_(none()), **user_args)

@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -6,7 +6,7 @@ import uuid
 
 from hamcrest import (
     assert_that,
-    contains,
+    contains_exactly,
     empty,
     has_entries,
     has_items,
@@ -110,7 +110,7 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(data=has_entries(connected=True)),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -141,7 +141,7 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(data=has_entries(connected=False)),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -173,7 +173,7 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(data=has_entries(mobile=True)),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -208,7 +208,7 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(data=has_entries(mobile=False)),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -247,11 +247,13 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(
-                            lines=contains(has_entries(id=line_id, state='unavailable'))
+                            lines=contains_exactly(
+                                has_entries(id=line_id, state='unavailable')
+                            )
                         )
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -344,7 +346,7 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(data=has_entries(lines=empty())),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -376,11 +378,13 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(
-                            lines=contains(has_entries(id=line_id, state='available'))
+                            lines=contains_exactly(
+                                has_entries(id=line_id, state='available')
+                            )
                         )
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -427,11 +431,13 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(
-                            lines=contains(has_entries(id=line_id, state='progressing'))
+                            lines=contains_exactly(
+                                has_entries(id=line_id, state='progressing')
+                            )
                         )
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -461,11 +467,13 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(
-                            lines=contains(has_entries(id=LINE_ID, state='available'))
+                            lines=contains_exactly(
+                                has_entries(id=LINE_ID, state='available')
+                            )
                         )
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -497,11 +505,13 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(
-                            lines=contains(has_entries(id=LINE_ID, state='talking'))
+                            lines=contains_exactly(
+                                has_entries(id=LINE_ID, state='talking')
+                            )
                         )
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -533,11 +543,13 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(
-                            lines=contains(has_entries(id=LINE_ID, state='holding'))
+                            lines=contains_exactly(
+                                has_entries(id=LINE_ID, state='holding')
+                            )
                         )
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -569,11 +581,13 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(
-                            lines=contains(has_entries(id=LINE_ID, state='talking'))
+                            lines=contains_exactly(
+                                has_entries(id=LINE_ID, state='talking')
+                            )
                         )
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -602,7 +616,7 @@ class TestEventHandler(APIIntegrationTest):
         event = event_accumulator.accumulate(with_headers=True)
         assert_that(
             event,
-            contains(
+            contains_exactly(
                 has_entries(
                     message=has_entries(
                         data=has_entries(uuid=user_uuid, do_not_disturb=True)

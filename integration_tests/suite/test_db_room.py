@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from hamcrest import (
     assert_that,
     calling,
-    contains,
+    contains_exactly,
     contains_inanyorder,
     empty,
     equal_to,
@@ -148,7 +148,7 @@ class TestRoom(DBIntegrationTest):
         self._session.expire_all()
         inspect_result: InstanceState = inspect(message)
         assert_that(inspect_result.persistent)
-        assert_that(room.messages, contains(message))
+        assert_that(room.messages, contains_exactly(message))
 
     @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
     def test_list_messages(self, room):
@@ -156,17 +156,17 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_messages(room)
 
-        assert_that(messages, contains(message_2, message_1))
+        assert_that(messages, contains_exactly(message_2, message_1))
 
     @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
     def test_list_messages_direction(self, room):
         message_2, message_1 = room.messages
 
         messages = self._dao.room.list_messages(room, direction='desc')
-        assert_that(messages, contains(message_2, message_1))
+        assert_that(messages, contains_exactly(message_2, message_1))
 
         messages = self._dao.room.list_messages(room, direction='asc')
-        assert_that(messages, contains(message_1, message_2))
+        assert_that(messages, contains_exactly(message_1, message_2))
 
     @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
     def test_list_messages_limit(self, room):
@@ -174,7 +174,7 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_messages(room, limit=1)
 
-        assert_that(messages, contains(message_2))
+        assert_that(messages, contains_exactly(message_2))
 
     @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
     def test_list_messages_offset(self, room):
@@ -182,7 +182,7 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_messages(room, offset=1)
 
-        assert_that(messages, contains(message_1))
+        assert_that(messages, contains_exactly(message_1))
 
     @fixtures.db.room(messages=[{'content': 'older'}, {'content': 'newer'}])
     def test_count_messages(self, room):
@@ -203,7 +203,7 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_user_messages(UUID, USER_UUID_1)
 
-        assert_that(messages, contains(message_2, message_1))
+        assert_that(messages, contains_exactly(message_2, message_1))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -219,10 +219,10 @@ class TestRoom(DBIntegrationTest):
         messages = self._dao.room.list_user_messages(
             UUID, USER_UUID_1, direction='desc'
         )
-        assert_that(messages, contains(message_2, message_1))
+        assert_that(messages, contains_exactly(message_2, message_1))
 
         messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, direction='asc')
-        assert_that(messages, contains(message_1, message_2))
+        assert_that(messages, contains_exactly(message_1, message_2))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -237,7 +237,7 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, limit=1)
 
-        assert_that(messages, contains(message_2))
+        assert_that(messages, contains_exactly(message_2))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -252,7 +252,7 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, offset=1)
 
-        assert_that(messages, contains(message_1))
+        assert_that(messages, contains_exactly(message_1))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -263,7 +263,7 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, search='found')
 
-        assert_that(messages, contains(message_found))
+        assert_that(messages, contains_exactly(message_found))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -276,7 +276,7 @@ class TestRoom(DBIntegrationTest):
             UUID, USER_UUID_1, search='found space'
         )
 
-        assert_that(messages, contains(message_found))
+        assert_that(messages, contains_exactly(message_found))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -287,7 +287,7 @@ class TestRoom(DBIntegrationTest):
 
         messages = self._dao.room.list_user_messages(UUID, USER_UUID_1, search='found')
 
-        assert_that(messages, contains(message_found))
+        assert_that(messages, contains_exactly(message_found))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -306,7 +306,7 @@ class TestRoom(DBIntegrationTest):
         messages = self._dao.room.list_user_messages(
             UUID, USER_UUID_1, from_date=from_date
         )
-        assert_that(messages, contains(message_1, message_2, message_3))
+        assert_that(messages, contains_exactly(message_1, message_2, message_3))
 
         from_date = datetime.datetime(
             2019,
@@ -320,7 +320,7 @@ class TestRoom(DBIntegrationTest):
         messages = self._dao.room.list_user_messages(
             UUID, USER_UUID_1, from_date=from_date
         )
-        assert_that(messages, contains(message_1))
+        assert_that(messages, contains_exactly(message_1))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -358,7 +358,7 @@ class TestRoom(DBIntegrationTest):
         messages = self._dao.room.list_user_messages(
             UUID, USER_UUID_1, distinct='room_uuid'
         )
-        assert_that(messages, contains(message_2, message_1))
+        assert_that(messages, contains_exactly(message_2, message_1))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -374,12 +374,12 @@ class TestRoom(DBIntegrationTest):
         messages = self._dao.room.list_user_messages(
             UUID, USER_UUID_1, distinct='room_uuid', direction='desc'
         )
-        assert_that(messages, contains(message_2, message_1))
+        assert_that(messages, contains_exactly(message_2, message_1))
 
         messages = self._dao.room.list_user_messages(
             UUID, USER_UUID_1, distinct='room_uuid', direction='asc'
         )
-        assert_that(messages, contains(message_1, message_2))
+        assert_that(messages, contains_exactly(message_1, message_2))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -396,7 +396,7 @@ class TestRoom(DBIntegrationTest):
             UUID, USER_UUID_1, distinct='room_uuid', limit=1
         )
 
-        assert_that(messages, contains(message_2))
+        assert_that(messages, contains_exactly(message_2))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -413,7 +413,7 @@ class TestRoom(DBIntegrationTest):
             UUID, USER_UUID_1, distinct='room_uuid', offset=1
         )
 
-        assert_that(messages, contains(message_1))
+        assert_that(messages, contains_exactly(message_1))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -430,7 +430,7 @@ class TestRoom(DBIntegrationTest):
             UUID, USER_UUID_1, distinct='room_uuid', search='found'
         )
 
-        assert_that(messages, contains(message_1))
+        assert_that(messages, contains_exactly(message_1))
 
     @fixtures.db.room(
         users=[{'uuid': USER_UUID_1, 'tenant_uuid': UUID}],
@@ -459,7 +459,7 @@ class TestRoomRelationships(DBIntegrationTest):
         self._session.expire_all()
         inspect_result: InstanceState = inspect(room_user)
         assert_that(inspect_result.persistent)
-        assert_that(room.users, contains(room_user))
+        assert_that(room.users, contains_exactly(room_user))
 
     @fixtures.db.room(users=[{'uuid': USER_UUID_1}])
     def test_users_delete(self, room):
@@ -480,7 +480,7 @@ class TestRoomRelationships(DBIntegrationTest):
         self._session.flush()
 
         self._session.expire_all()
-        assert_that(room.users, contains(room_user))
+        assert_that(room.users, contains_exactly(room_user))
 
     @fixtures.db.room()
     def test_messages_create(self, room):
@@ -491,7 +491,7 @@ class TestRoomRelationships(DBIntegrationTest):
         self._session.expire_all()
         inspect_result: InstanceState = inspect(message)
         assert_that(inspect_result.persistent)
-        assert_that(room.messages, contains(message))
+        assert_that(room.messages, contains_exactly(message))
 
     @fixtures.db.room()
     def test_messages_delete(self, room):
@@ -515,7 +515,7 @@ class TestRoomRelationships(DBIntegrationTest):
         message_2 = self.add_room_message(room_uuid=room.uuid, created_at=now)
 
         self._session.expire_all()
-        assert_that(room.messages, contains(message_2, message_1))
+        assert_that(room.messages, contains_exactly(message_2, message_1))
 
     def add_room_message(self, **kwargs):
         kwargs.setdefault('user_uuid', uuid.uuid4())

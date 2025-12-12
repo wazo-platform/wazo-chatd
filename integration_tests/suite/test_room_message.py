@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -7,7 +7,7 @@ from datetime import datetime
 from hamcrest import (
     assert_that,
     calling,
-    contains,
+    contains_exactly,
     contains_inanyorder,
     equal_to,
     has_entries,
@@ -50,7 +50,9 @@ class TestUserRoom(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_2), has_entries(**message_1)),
+                items=contains_exactly(
+                    has_entries(**message_2), has_entries(**message_1)
+                ),
                 total=equal_to(2),
                 filtered=equal_to(2),
             ),
@@ -71,7 +73,7 @@ class TestUserRoom(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_2)),
+                items=contains_exactly(has_entries(**message_2)),
                 total=equal_to(3),
                 filtered=equal_to(3),
             ),
@@ -95,7 +97,9 @@ class TestUserRoom(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_2), has_entries(**message_1)),
+                items=contains_exactly(
+                    has_entries(**message_2), has_entries(**message_1)
+                ),
                 total=equal_to(3),
                 filtered=equal_to(2),
             ),
@@ -250,7 +254,9 @@ class TestUserMessage(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_2), has_entries(**message_3)),
+                items=contains_exactly(
+                    has_entries(**message_2), has_entries(**message_3)
+                ),
                 total=equal_to(4),
                 filtered=equal_to(4),
             ),
@@ -273,7 +279,9 @@ class TestUserMessage(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_2), has_entries(**message_1)),
+                items=contains_exactly(
+                    has_entries(**message_2), has_entries(**message_1)
+                ),
                 total=equal_to(3),
                 filtered=equal_to(2),
             ),
@@ -296,7 +304,9 @@ class TestUserMessage(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_3), has_entries(**message_2)),
+                items=contains_exactly(
+                    has_entries(**message_3), has_entries(**message_2)
+                ),
                 total=equal_to(3),
                 filtered=equal_to(2),
             ),
@@ -322,7 +332,9 @@ class TestUserMessage(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_4), has_entries(**message_2)),
+                items=contains_exactly(
+                    has_entries(**message_4), has_entries(**message_2)
+                ),
                 total=equal_to(4),
                 filtered=equal_to(2),
             ),
@@ -352,7 +364,7 @@ class TestUserMessage(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(
+                items=contains_exactly(
                     has_entries(**message_3),
                     has_entries(**message_2),
                     has_entries(**message_1),
@@ -368,7 +380,7 @@ class TestUserMessage(APIIntegrationTest):
         assert_that(
             messages,
             has_entries(
-                items=contains(has_entries(**message_3)),
+                items=contains_exactly(has_entries(**message_3)),
                 total=equal_to(3),
                 filtered=equal_to(1),
             ),

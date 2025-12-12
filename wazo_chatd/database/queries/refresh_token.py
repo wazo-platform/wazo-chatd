@@ -16,7 +16,7 @@ class RefreshTokenDAO:
         return self._session()
 
     def get(self, user_uuid, client_id):
-        refresh_token = self.session.query(RefreshToken).get((client_id, user_uuid))
+        refresh_token = self.session.get(RefreshToken, (client_id, user_uuid))
         if not refresh_token:
             raise UnknownRefreshTokenException(client_id, user_uuid)
         return refresh_token
@@ -35,7 +35,11 @@ class RefreshTokenDAO:
         return query.first()
 
     def list_(self):
-        return self.session.query(RefreshToken).options(joinedload('user')).all()
+        return (
+            self.session.query(RefreshToken)
+            .options(joinedload(RefreshToken.user))
+            .all()
+        )
 
     def update(self, refresh_token):
         self.session.add(refresh_token)

@@ -3,14 +3,17 @@
 
 from sqlalchemy import and_, distinct, text
 from sqlalchemy.dialects.postgresql import array_agg
+from sqlalchemy.orm import Query, aliased
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
+
+from wazo_chatd.database.helpers import get_query_main_entity
 
 from ...exceptions import UnknownRoomException
 from ..models import Room, RoomMessage, RoomUser
 
 
 class unaccent(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 class RoomDAO:
@@ -58,7 +61,7 @@ class RoomDAO:
                 .group_by(RoomUser.room_uuid)
                 .having(matcher)
             ).subquery()
-            query = query.filter(Room.uuid.in_(sub_query))
+            query = query.filter(Room.uuid.in_(sub_query.select()))
 
         if tenant_uuids is None:
             return query
@@ -117,7 +120,7 @@ class RoomDAO:
         direction='desc',
         **ignored,
     ):
-        order_column = getattr(RoomMessage, order)
+        order_column = getattr(get_query_main_entity(query), order)
         order_column = order_column.asc() if direction == 'asc' else order_column.desc()
         query = query.order_by(order_column)
 
@@ -129,22 +132,35 @@ class RoomDAO:
         return query
 
     def _list_filter(
-        self, query, search=None, from_date=None, distinct=None, **ignored
+        self,
+        query: Query,
+        search=None,
+        from_date=None,
+        distinct=None,
+        **ignored,
     ):
         if distinct is not None:
             distinct_field = getattr(RoomMessage, distinct)
-            query = (
+            distinct_query = (
                 query.distinct(distinct_field)
                 .order_by(distinct_field, RoomMessage.created_at.desc())
-                .from_self()
+                .subquery()
             )
+            distinct_entity = aliased(
+                RoomMessage,
+                distinct_query,
+                name='distinct_messages',
+            )
+            query = self.session.query(distinct_entity)
 
         if search is not None:
             words = [word for word in search.split(' ') if word]
             pattern = f'%{"%".join(words)}%'
-            query = query.filter(unaccent(RoomMessage.content).ilike(pattern))
+            query = query.filter(
+                unaccent(get_query_main_entity(query).content).ilike(pattern)
+            )
 
         if from_date is not None:
-            query = query.filter(RoomMessage.created_at >= from_date)
+            query = query.filter(get_query_main_entity(query).created_at >= from_date)
 
         return query

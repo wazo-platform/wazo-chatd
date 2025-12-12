@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from hamcrest import (
     assert_that,
     calling,
-    contains,
+    contains_exactly,
     empty,
     equal_to,
     has_items,
@@ -164,20 +164,20 @@ class TestUser(DBIntegrationTest):
         self._dao.user.add_session(user, session)
 
         self._session.expire_all()
-        assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
+        assert_that(user.sessions, contains_exactly(has_properties(uuid=session_uuid)))
 
         # twice with same instance
         self._dao.user.add_session(user, session)
 
         self._session.expire_all()
-        assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
+        assert_that(user.sessions, contains_exactly(has_properties(uuid=session_uuid)))
 
         # twice with different instances
         session = Session(uuid=session_uuid)
         self._dao.user.add_session(user, session)
 
         self._session.expire_all()
-        assert_that(user.sessions, contains(has_properties(uuid=session_uuid)))
+        assert_that(user.sessions, contains_exactly(has_properties(uuid=session_uuid)))
 
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.session(user_uuid=USER_UUID)
@@ -201,7 +201,8 @@ class TestUser(DBIntegrationTest):
 
         self._session.expire_all()
         assert_that(
-            user.refresh_tokens, contains(has_properties(client_id=token_client_id))
+            user.refresh_tokens,
+            contains_exactly(has_properties(client_id=token_client_id)),
         )
 
         # twice with same instance
@@ -209,7 +210,8 @@ class TestUser(DBIntegrationTest):
 
         self._session.expire_all()
         assert_that(
-            user.refresh_tokens, contains(has_properties(client_id=token_client_id))
+            user.refresh_tokens,
+            contains_exactly(has_properties(client_id=token_client_id)),
         )
 
         # twice with different instances
@@ -218,7 +220,8 @@ class TestUser(DBIntegrationTest):
 
         self._session.expire_all()
         assert_that(
-            user.refresh_tokens, contains(has_properties(client_id=token_client_id))
+            user.refresh_tokens,
+            contains_exactly(has_properties(client_id=token_client_id)),
         )
 
     @fixtures.db.user(uuid=USER_UUID)
@@ -242,13 +245,13 @@ class TestUser(DBIntegrationTest):
         self._dao.user.add_line(user, line)
 
         self._session.expire_all()
-        assert_that(user.lines, contains(has_properties(id=line_id)))
+        assert_that(user.lines, contains_exactly(has_properties(id=line_id)))
 
         # twice
         self._dao.user.add_line(user, line)
 
         self._session.expire_all()
-        assert_that(user.lines, contains(has_properties(id=line_id)))
+        assert_that(user.lines, contains_exactly(has_properties(id=line_id)))
 
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.line(user_uuid=USER_UUID)
