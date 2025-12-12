@@ -10,7 +10,7 @@ from ..models import Room, RoomMessage, RoomUser
 
 
 class unaccent(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 class RoomDAO:
