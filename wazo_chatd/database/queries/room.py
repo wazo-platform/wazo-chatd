@@ -58,7 +58,7 @@ class RoomDAO:
                 .group_by(RoomUser.room_uuid)
                 .having(matcher)
             ).subquery()
-            query = query.filter(Room.uuid.in_(sub_query))
+            query = query.filter(Room.uuid.in_(sub_query.select()))
 
         if tenant_uuids is None:
             return query
