@@ -33,5 +33,5 @@ source = [
   "/usr/src/wazo-chatd/wazo_chatd",
 ]
 
-[tool.pytest.ini_options]
-testpaths = "wazo_chatd"
+[tool.pytest]
+testpaths = ["wazo_chatd"]
