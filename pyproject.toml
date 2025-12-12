@@ -32,3 +32,6 @@ source = [
   "wazo_chatd",
   "/usr/src/wazo-chatd/wazo_chatd",
 ]
+
+[tool.pytest]
+testpaths = ["wazo_chatd"]
