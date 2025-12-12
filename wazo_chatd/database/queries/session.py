@@ -33,7 +33,7 @@ class SessionDAO:
         return query.first()
 
     def list_(self):
-        return self.session.query(Session).options(joinedload('user')).all()
+        return self.session.query(Session).options(joinedload(Session.user)).all()
 
     def update(self, session):
         self.session.add(session)
