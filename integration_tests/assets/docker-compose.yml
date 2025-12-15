@@ -8,6 +8,7 @@ services:
     image: wazo-chatd-test
     environment:
       XIVO_UUID: 00000000-0000-0000-0000-0000000c4a7d
+      SQLALCHEMY_WARN_20: 1
     volumes:
       - ../..:/usr/src/wazo-chatd:ro
       - ./etc/wazo-chatd/conf.d/50-default.yml:/etc/wazo-chatd/conf.d/50-default.yml:ro
