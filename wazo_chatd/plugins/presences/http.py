@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from flask import request
@@ -48,7 +48,7 @@ class PresenceItemResource(AuthResource):
     def put(self, user_uuid):
         tenant_uuids = get_tenant_uuids(recurse=True)
         presence = self._service.get(tenant_uuids, user_uuid)
-        presence_args = UserPresenceSchema().load(request.get_json())
+        presence_args = UserPresenceSchema().load(request.get_json(force=True))
         update_model_instance(presence, presence_args)
         self._service.update(presence)
         return '', 204

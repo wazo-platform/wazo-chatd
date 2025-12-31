@@ -1,4 +1,4 @@
-# Copyright 2022-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from flask import Response, request
@@ -27,7 +27,7 @@ class TeamsPresenceResource(ErrorCatchingResource):
             # respond with the token within 10 seconds
             return Response(validation_token, mimetype='text/plain')
 
-        pushed_data = TeamsSubscriptionSchema().load(request.get_json())
+        pushed_data = TeamsSubscriptionSchema().load(request.get_json(force=True))
 
         for subscription in pushed_data['value']:
             user_id = subscription['resource_data']['id']

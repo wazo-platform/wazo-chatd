@@ -1,4 +1,4 @@
-# Copyright 2019-2021 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -31,7 +31,7 @@ class ConfigResource(AuthResource):
     @required_master_tenant()
     @required_acl('chatd.config.update')
     def patch(self):
-        config_patch = config_patch_schema.load(request.get_json(), many=True)
+        config_patch = config_patch_schema.load(request.get_json(force=True), many=True)
         self._config = jsonpatch.apply_patch(self._config, config_patch)
         self._toggle_debug_flag()
         return dict(self._config), 200
