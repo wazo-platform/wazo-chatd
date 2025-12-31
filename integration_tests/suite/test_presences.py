@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -304,3 +304,7 @@ class TestPresence(APIIntegrationTest):
             ),
             raises(ChatdError, has_properties(status_code=404)),
         )
+
+    @fixtures.db.user()
+    def test_that_empty_body_for_put_presence_returns_400(self, user):
+        self.assert_empty_body_returns_400([('put', f'users/{user.uuid}/presences')])

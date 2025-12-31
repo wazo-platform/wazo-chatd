@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -222,6 +222,12 @@ class TestUserRoom(APIIntegrationTest):
             raises(
                 ChatdError, has_properties(status_code=404, error_id='unknown-room')
             ),
+        )
+
+    @fixtures.http.room()
+    def test_that_empty_body_for_post_room_message_returns_400(self, room):
+        self.assert_empty_body_returns_400(
+            [('post', f'users/me/rooms/{room["uuid"]}/messages')]
         )
 
 
