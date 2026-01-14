@@ -372,18 +372,6 @@ class _BaseIntegrationTest(unittest.TestCase):
     def tearDown(self):
         self._Session.rollback()
 
-
-class DBIntegrationTest(_BaseIntegrationTest):
-    asset_cls = DBAssetLaunchingTestCase
-
-
-class APIIntegrationTest(_BaseIntegrationTest):
-    asset_cls = APIAssetLaunchingTestCase
-
-    @classmethod
-    def setUpClass(cls):
-        cls.reset_clients()
-
     def _make_http_request(
         self, verb: str, endpoint: str, body: str | None, headers: dict | None = None
     ):
@@ -418,6 +406,18 @@ class APIIntegrationTest(_BaseIntegrationTest):
 
             response = self._make_http_request(method, url, None)
             assert response.status_code == 400, f'Error with url: ({method}) {url}'
+
+
+class DBIntegrationTest(_BaseIntegrationTest):
+    asset_cls = DBAssetLaunchingTestCase
+
+
+class APIIntegrationTest(_BaseIntegrationTest):
+    asset_cls = APIAssetLaunchingTestCase
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reset_clients()
 
 
 class InitIntegrationTest(_BaseIntegrationTest):

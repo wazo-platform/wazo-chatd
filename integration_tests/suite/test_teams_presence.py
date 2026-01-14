@@ -1,4 +1,4 @@
-# Copyright 2022-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2022-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from contextlib import contextmanager
@@ -109,6 +109,13 @@ class TestTeams(TeamsIntegrationTest):
             response.json(),
             has_entries(error_id='invalid-data', message='Sent data is invalid'),
         )
+
+    @fixtures.db.user()
+    def test_that_empty_body_for_post_teams_presence_returns_400(self, user):
+        with self._connect_user(user):
+            self.assert_empty_body_returns_400(
+                [('post', f'users/{user.uuid}/teams/presence')]
+            )
 
     @fixtures.db.user(state='available')
     def test_dont_synchronize_when_user_is_not_connected(self, user):
