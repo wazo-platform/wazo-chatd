@@ -343,5 +343,5 @@ class TestUserRoom(APIIntegrationTest):
             raises(ChatdError, has_properties(status_code=400)),
         )
 
-    def test_that_empty_body_for_post_room_returns_400(self):
+    def test_that_empty_body_for_post_rooms_returns_400(self):
         self.assert_empty_body_returns_400([('post', 'users/me/rooms')])

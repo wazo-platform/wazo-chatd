@@ -225,7 +225,7 @@ class TestUserRoom(APIIntegrationTest):
         )
 
     @fixtures.http.room()
-    def test_that_empty_body_for_post_room_message_returns_400(self, room):
+    def test_that_empty_body_for_post_rooms_message_returns_400(self, room):
         self.assert_empty_body_returns_400(
             [('post', f'users/me/rooms/{room["uuid"]}/messages')]
         )

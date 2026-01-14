@@ -306,5 +306,5 @@ class TestPresence(APIIntegrationTest):
         )
 
     @fixtures.db.user()
-    def test_that_empty_body_for_put_presence_returns_400(self, user):
+    def test_that_empty_body_for_put_presences_returns_400(self, user):
         self.assert_empty_body_returns_400([('put', f'users/{user.uuid}/presences')])
