@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -342,3 +342,6 @@ class TestUserRoom(APIIntegrationTest):
             calling(self.chatd.rooms.create_from_user).with_args(room_args),
             raises(ChatdError, has_properties(status_code=400)),
         )
+
+    def test_that_empty_body_for_post_rooms_returns_400(self):
+        self.assert_empty_body_returns_400([('post', 'users/me/rooms')])

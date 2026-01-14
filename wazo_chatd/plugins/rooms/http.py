@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from flask import request
@@ -27,7 +27,7 @@ class UserRoomListResource(AuthResource):
 
     @required_acl('chatd.users.me.rooms.create')
     def post(self):
-        room_args = RoomSchema().load(request.get_json())
+        room_args = RoomSchema().load(request.get_json(force=True))
 
         if self._is_duplicate_user(room_args['users']):
             raise DuplicateUserException()
@@ -113,7 +113,7 @@ class UserRoomMessageListResource(AuthResource):
     @required_acl('chatd.users.me.rooms.{room_uuid}.messages.create')
     def post(self, room_uuid):
         room = self._service.get([token.tenant_uuid], room_uuid)
-        message_args = MessageSchema().load(request.get_json())
+        message_args = MessageSchema().load(request.get_json(force=True))
         message_args['user_uuid'] = token.user_uuid
         message_args['tenant_uuid'] = token.tenant_uuid
         message = RoomMessage(**message_args)
