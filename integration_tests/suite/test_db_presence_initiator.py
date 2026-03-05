@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -21,7 +21,7 @@ ENDPOINT_NAME = 'PJSIP/12345'
 class TestDBPresenceInitiator(DBIntegrationTest):
     def setUp(self):
         super().setUp()
-        self.initiator = Initiator(self._dao, Mock, Mock, Mock)
+        self.initiator = Initiator(self._dao, Mock, Mock, Mock, 10)
 
     @fixtures.db.tenant(uuid=TENANT_UUID)
     def test_initiate_session_when_no_user_associate(self, tenant):

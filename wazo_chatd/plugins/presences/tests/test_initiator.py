@@ -16,6 +16,7 @@ def initiator():
         auth=mock.create_autospec(AuthClient, instance=True),
         amid=mock.create_autospec(AmidClient, instance=True),
         confd=mock.create_autospec(ConfdClient, instance=True),
+        token_expiration=10,
     )
 
 
