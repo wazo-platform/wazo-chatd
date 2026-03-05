@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -35,7 +35,9 @@ class Plugin:
         auth = AuthClient(**config['auth'])
         amid = AmidClient(**config['amid'])
         confd = ConfdClient(**config['confd'])
-        initiator = Initiator(dao, auth, amid, confd)
+        initiator = Initiator(
+            dao, auth, amid, confd, initialization['token_expiration']
+        )
         status_aggregator.add_provider(initiator.provide_status)
 
         initiator_thread = None
