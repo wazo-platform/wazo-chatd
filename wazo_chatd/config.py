@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
@@ -70,7 +70,10 @@ _DEFAULT_CONFIG = {
         'status': True,
         'teams_presence': False,
     },
-    'initialization': {'enabled': True},
+    'initialization': {
+        'enabled': True,
+        'token_expiration': 600,
+    },
     'teams_presence': {'microsoft_graph_url': 'https://graph.microsoft.com/v1.0'},
 }
 

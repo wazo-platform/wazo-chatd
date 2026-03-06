@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -107,11 +107,12 @@ def extract_endpoint_from_line(line):
 
 
 class Initiator:
-    def __init__(self, dao, auth, amid, confd):
+    def __init__(self, dao, auth, amid, confd, token_expiration):
         self._dao = dao
         self._auth = auth
         self._amid = amid
         self._confd = confd
+        self._token_expiration = token_expiration
         self._is_initialized = threading.Event()
         self._in_progress = threading.Event()
         self.post_hooks = []
@@ -160,7 +161,7 @@ class Initiator:
         self._milestone_tracker.reset()
         self._in_progress.set()
 
-        token = self._auth.token.new(expiration=120)['token']
+        token = self._auth.token.new(expiration=self._token_expiration)['token']
         self._auth.set_token(token)
         self._amid.set_token(token)
         self._confd.set_token(token)
