@@ -62,6 +62,29 @@ class MessageListRequestSchema(_ListSchema):
             raise ValidationError('Missing search or distinct')
 
 
+class UserAliasSchema(Schema):
+    uuid = fields.UUID(dump_only=True)
+    type = fields.String(dump_only=True, attribute='provider.type_')
+    backend = fields.String(dump_only=True, attribute='provider.backend')
+    identity = fields.String(dump_only=True)
+
+
+class UserAliasListRequestSchema(Schema):
+    type = fields.String(load_default='', attribute='_raw_type')
+    types = fields.List(fields.String(), dump_default=list)
+
+    @pre_load
+    def split_types(self, data, **kwargs):
+        result = {}
+        raw_type = data.get('type', '')
+        if raw_type:
+            result['type'] = raw_type
+            result['types'] = [t.strip() for t in raw_type.split(',') if t.strip()]
+        else:
+            result['types'] = []
+        return result
+
+
 class RoomListRequestSchema(Schema):
     user_uuid = fields.List(fields.UUID(), load_default=list, attribute='user_uuids')
 

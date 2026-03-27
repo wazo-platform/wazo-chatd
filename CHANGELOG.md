@@ -1,5 +1,22 @@
 # Changelog
 
+## 26.05
+
+* New endpoints:
+  * `GET /1.0/users/me/aliases`
+  * `POST /1.0/connectors/incoming/<backend>`
+
+* New read only parameters have been added to the room resource:
+  * `capabilities`
+
+* New read only parameters have been added to the room user resource:
+  * `identity`
+
+* New parameters have been added to the message creation endpoint:
+  * `user_alias_uuid`
+
+* New configuration: `enabled_connectors` to control which connector backends are loaded
+
 ## 26.02
 
 * `POST`, `PATCH` and `PUT` request bodies to endpoints accepting JSON payload are systematically parsed as JSON, with or without a proper `Content-Type` header;
