@@ -82,3 +82,18 @@ class ConfigUpdate:
     """One of 'add', 'update', 'remove'."""
 
     provider: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class Ping:
+    """Sent via pipe to check worker health."""
+
+
+@dataclass(frozen=True)
+class Pong:
+    """Sent via pipe in response to a Ping."""
+
+
+@dataclass(frozen=True)
+class Ready:
+    """Sent via pipe by the worker after initialization is complete."""

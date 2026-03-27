@@ -3,9 +3,13 @@
 
 from __future__ import annotations
 
+import multiprocessing as mp
+import threading
+import time
 import unittest
+from unittest.mock import Mock
 
-from wazo_chatd.connectors.server import HealthCheck, MessageServer, Sentinel
+from wazo_chatd.connectors.server import PING, PONG, MessageServer, Sentinel
 from wazo_chatd.connectors.types import ConfigSync, ConfigUpdate, OutboundMessage
 
 
@@ -19,9 +23,19 @@ def _make_outbound(delivery_uuid: str = 'delivery-1') -> OutboundMessage:
     )
 
 
+def _make_server() -> MessageServer:
+    return MessageServer({}, Mock())
+
+
+def _make_server_with_pipe() -> MessageServer:
+    server = _make_server()
+    server._main_connection, server._worker_connection = mp.Pipe()
+    return server
+
+
 class TestMessageServerQueue(unittest.TestCase):
     def setUp(self) -> None:
-        self.server = MessageServer()
+        self.server = _make_server()
 
     def test_send_message_puts_on_queue(self) -> None:
         outbound = _make_outbound()
@@ -37,8 +51,6 @@ class TestMessageServerQueue(unittest.TestCase):
 
         self.server.send_message(outbound, delay=0.01)
 
-        import time
-
         time.sleep(0.05)
         item = self.server._queue.get_nowait()
         assert isinstance(item, OutboundMessage)
@@ -47,13 +59,14 @@ class TestMessageServerQueue(unittest.TestCase):
 
 class TestMessageServerPipe(unittest.TestCase):
     def setUp(self) -> None:
-        self.server = MessageServer()
+        self.server = _make_server_with_pipe()
 
     def test_pipe_send_config_sync(self) -> None:
         config_sync = ConfigSync(providers=[{'name': 'test', 'backend': 'twilio'}])
 
         self.server.pipe_send(config_sync)
 
+        assert self.server._worker_connection is not None
         data = self.server._worker_connection.recv()
         assert isinstance(data, ConfigSync)
         assert len(data.providers) == 1
@@ -63,6 +76,7 @@ class TestMessageServerPipe(unittest.TestCase):
 
         self.server.pipe_send(update)
 
+        assert self.server._worker_connection is not None
         data = self.server._worker_connection.recv()
         assert isinstance(data, ConfigUpdate)
         assert data.action == 'add'
@@ -70,7 +84,7 @@ class TestMessageServerPipe(unittest.TestCase):
 
 class TestMessageServerShutdown(unittest.TestCase):
     def setUp(self) -> None:
-        self.server = MessageServer()
+        self.server = _make_server()
 
     def test_shutdown_sends_sentinel(self) -> None:
         self.server.shutdown(timeout=1)
@@ -81,16 +95,17 @@ class TestMessageServerShutdown(unittest.TestCase):
 
 class TestMessageServerPing(unittest.TestCase):
     def setUp(self) -> None:
-        self.server = MessageServer()
+        self.server = _make_server_with_pipe()
 
     def test_ping_receives_pong(self) -> None:
-        import threading
+        assert self.server._worker_connection is not None
+        conn = self.server._worker_connection
 
         def respond_pong() -> None:
-            if self.server._worker_connection.poll(timeout=2):
-                msg = self.server._worker_connection.recv()
-                if msg is HealthCheck.PING:
-                    self.server._worker_connection.send(HealthCheck.PONG)
+            if conn.poll(timeout=2):
+                msg = conn.recv()
+                if msg == PING:
+                    conn.send(PONG)
 
         responder = threading.Thread(target=respond_pong)
         responder.start()
@@ -104,3 +119,19 @@ class TestMessageServerPing(unittest.TestCase):
         result = self.server.ping(timeout=0.1)
 
         assert result is False
+
+
+class TestMessageServerStatus(unittest.TestCase):
+    def test_restart_count_starts_at_zero(self) -> None:
+        server = _make_server()
+
+        assert server.restart_count == 0
+
+    def test_provide_status_fail_when_not_started(self) -> None:
+        server = _make_server()
+        status: dict[str, dict[str, str | int]] = {}
+
+        server.provide_status(status)
+
+        assert status['message_worker']['status'] == 'fail'
+        assert status['message_worker']['restart_count'] == 0
