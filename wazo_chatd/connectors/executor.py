@@ -5,10 +5,6 @@
 
 Uses asyncio for I/O-bound operations (DB writes, external API calls).
 Sync connector implementations are wrapped with ``asyncio.to_thread()``.
-
-The worker process should call :func:`set_worker_process_title` at
-startup to give it a meaningful name in ``ps`` output (instead of the
-default ``python -c multiprocessing...``).
 """
 
 from __future__ import annotations
@@ -30,23 +26,6 @@ if TYPE_CHECKING:
     from wazo_chatd.bus import BusPublisher
 
 logger = logging.getLogger(__name__)
-
-WORKER_PROCESS_TITLE = 'wazo-chatd: connector worker'
-
-
-def set_worker_process_title() -> None:
-    """Set the worker process title for ``ps`` visibility.
-
-    Call this at the start of the worker process entry point.
-    Requires the ``setproctitle`` package (``python3-setproctitle``
-    on Debian bookworm).
-    """
-    try:
-        import setproctitle
-
-        setproctitle.setproctitle(WORKER_PROCESS_TITLE)
-    except ImportError:
-        logger.debug('setproctitle not available, process title unchanged')
 
 
 class DeliveryExecutor:
