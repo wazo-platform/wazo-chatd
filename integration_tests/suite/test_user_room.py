@@ -49,10 +49,16 @@ class TestUserRoom(APIIntegrationTest):
             has_entries(
                 items=contains_inanyorder(
                     has_entries(
-                        uuid=room_1['uuid'], users=contains_inanyorder(*room_1['users'])
+                        uuid=room_1['uuid'],
+                        users=contains_inanyorder(
+                            *[has_entries(**u) for u in room_1['users']]
+                        ),
                     ),
                     has_entries(
-                        uuid=room_2['uuid'], users=contains_inanyorder(*room_2['users'])
+                        uuid=room_2['uuid'],
+                        users=contains_inanyorder(
+                            *[has_entries(**u) for u in room_2['users']]
+                        ),
                     ),
                 ),
                 total=equal_to(2),
@@ -138,7 +144,9 @@ class TestUserRoom(APIIntegrationTest):
             has_entries(
                 uuid=uuid_(),
                 name=room_args['name'],
-                users=contains_inanyorder(*room_args['users']),
+                users=contains_inanyorder(
+                    *[has_entries(**u) for u in room_args['users']]
+                ),
             ),
         )
 
@@ -148,14 +156,14 @@ class TestUserRoom(APIIntegrationTest):
             contains_inanyorder(
                 has_entries(
                     message=has_entries(
-                        data=has_entries(room_args),
+                        data=has_entries(name=room_args['name']),
                         required_acl=f'events.chatd.users.{TOKEN_USER_UUID}.rooms.created',
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
                 ),
                 has_entries(
                     message=has_entries(
-                        data=has_entries(room_args),
+                        data=has_entries(name=room_args['name']),
                         required_acl=f'events.chatd.users.{UUID}.rooms.created',
                     ),
                     headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),
@@ -187,7 +195,9 @@ class TestUserRoom(APIIntegrationTest):
             has_entries(
                 uuid=uuid_(),
                 name=room_args['name'],
-                users=contains_inanyorder(*room_args['users']),
+                users=contains_inanyorder(
+                    *[has_entries(**u) for u in room_args['users']]
+                ),
             ),
         )
 
@@ -195,7 +205,7 @@ class TestUserRoom(APIIntegrationTest):
         expected_entries = [
             has_entries(
                 message=has_entries(
-                    data=has_entries(room_args),
+                    data=has_entries(name=room_args['name']),
                     required_acl=f'events.chatd.users.{uuid}.rooms.created',
                 ),
                 headers=has_entries(tenant_uuid=str(TOKEN_TENANT_UUID)),

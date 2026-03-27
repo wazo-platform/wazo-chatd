@@ -31,6 +31,8 @@ from .helpers.base import WAZO_UUID, DBIntegrationTest, use_asset
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
+PROVIDER_UUID_1 = uuid.uuid4()
+PROVIDER_UUID_2 = uuid.uuid4()
 
 
 @use_asset('database')
@@ -77,17 +79,12 @@ class TestChatProvider(DBIntegrationTest):
 @use_asset('database')
 class TestUserAlias(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.chat_provider(name='Twilio SMS')
-    def test_create_alias(self, provider, user):
-        alias = UserAlias(
-            tenant_uuid=TENANT_1,
-            user_uuid=user.uuid,
-            provider_uuid=provider.uuid,
-            identity='+15551234567',
-        )
-        self._session.add(alias)
-        self._session.flush()
-
+    @fixtures.db.chat_provider(uuid=PROVIDER_UUID_1, name='Twilio SMS')
+    @fixtures.db.user_alias(
+        user_uuid=USER_UUID_1, provider_uuid=PROVIDER_UUID_1,
+        identity='+15551234567',
+    )
+    def test_create_alias(self, alias, provider, user):
         result = (
             self._session.query(UserAlias)
             .filter(UserAlias.identity == '+15551234567')
@@ -95,44 +92,30 @@ class TestUserAlias(DBIntegrationTest):
         )
 
         assert result is not None
-        assert result.user_uuid == user.uuid
-        assert result.provider_uuid == provider.uuid
-
-        # cleanup
-        self._session.delete(result)
-        self._session.flush()
+        assert result.user_uuid == USER_UUID_1
+        assert result.provider_uuid == PROVIDER_UUID_1
 
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.chat_provider(name='Twilio SMS')
-    @fixtures.db.chat_provider(name='Vonage SMS', backend='vonage')
-    def test_user_multiple_aliases(self, provider_vonage, provider_twilio, user):
-        alias_1 = UserAlias(
-            tenant_uuid=TENANT_1,
-            user_uuid=user.uuid,
-            provider_uuid=provider_twilio.uuid,
-            identity='+15551111111',
-        )
-        alias_2 = UserAlias(
-            tenant_uuid=TENANT_1,
-            user_uuid=user.uuid,
-            provider_uuid=provider_vonage.uuid,
-            identity='+15552222222',
-        )
-        self._session.add_all([alias_1, alias_2])
-        self._session.flush()
-
+    @fixtures.db.chat_provider(uuid=PROVIDER_UUID_1, name='Twilio SMS')
+    @fixtures.db.chat_provider(uuid=PROVIDER_UUID_2, name='Vonage SMS', backend='vonage')
+    @fixtures.db.user_alias(
+        user_uuid=USER_UUID_1, provider_uuid=PROVIDER_UUID_1,
+        identity='+15551111111',
+    )
+    @fixtures.db.user_alias(
+        user_uuid=USER_UUID_1, provider_uuid=PROVIDER_UUID_2,
+        identity='+15552222222',
+    )
+    def test_user_multiple_aliases(
+        self, alias_2, alias_1, provider_vonage, provider_twilio, user,
+    ):
         results = (
             self._session.query(UserAlias)
-            .filter(UserAlias.user_uuid == user.uuid)
+            .filter(UserAlias.user_uuid == USER_UUID_1)
             .all()
         )
 
         assert len(results) == 2
-
-        # cleanup
-        for alias in results:
-            self._session.delete(alias)
-        self._session.flush()
 
 
 @use_asset('database')
