@@ -26,19 +26,19 @@ logger = logging.getLogger(__name__)
 _E164_PATTERN = re.compile(r'^\+[1-9]\d{6,14}$')
 
 
-def _get_twilio_client_class() -> type:
-    """Lazy import of twilio.rest.Client to avoid hard dependency."""
+def _get_twilio_client_class() -> type | None:
     try:
         from twilio.rest import Client
+
+        return Client
     except ImportError:
-        raise ImportError(
-            'The twilio package is required for the Twilio connector. '
-            'Install it with: pip install twilio'
+        logger.warning(
+            'twilio package not installed — '
+            'TwilioConnector.send() will not work until installed'
         )
-    return Client
+        return None
 
 
-# Alias for patching in tests
 TwilioRestClient = _get_twilio_client_class
 
 
@@ -75,7 +75,8 @@ class TwilioConnector:
 
         if self._account_sid and self._auth_token:
             client_cls = TwilioRestClient()
-            self._client = client_cls(self._account_sid, self._auth_token)
+            if client_cls:
+                self._client = client_cls(self._account_sid, self._auth_token)
 
     def send(self, message: OutboundMessage) -> str:
         if self._client is None:

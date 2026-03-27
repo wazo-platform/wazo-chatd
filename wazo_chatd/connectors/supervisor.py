@@ -22,7 +22,9 @@ from typing import Protocol as TypingProtocol
 
 logger = logging.getLogger(__name__)
 
-_MAX_RESTART_DELAY: int = 60  # seconds
+_MAX_RESTART_DELAY: int = 60
+_HEALTH_CHECK_INTERVAL: float = 5.0
+_PING_TIMEOUT: float = 3.0
 
 
 class _WorkerServer(TypingProtocol):
@@ -36,6 +38,9 @@ class _WorkerServer(TypingProtocol):
         ...  # noqa: E704
 
     def shutdown(self, timeout: float = 10) -> None:
+        ...  # noqa: E704
+
+    def ping(self, timeout: float = 5) -> bool:
         ...  # noqa: E704
 
 
@@ -88,22 +93,31 @@ class WorkerSupervisor:
         Registered with ``status_aggregator.add_provider()``.
         """
         is_alive = self._server.process.is_alive()
+        is_responsive = is_alive and self._server.ping(timeout=2)
         status['message_worker'] = {
-            'status': 'ok' if is_alive else 'fail',
+            'status': 'ok' if is_responsive else 'fail',
             'restart_count': self._restart_count,
         }
 
     def _watch(self) -> None:
-        """Watchdog loop — restarts the worker if it dies unexpectedly."""
         while not self._stopped:
-            self._server.process.join(timeout=5)
+            time.sleep(_HEALTH_CHECK_INTERVAL)
             if self._stopped:
                 break
+
             if not self._server.process.is_alive():
                 logger.error(
                     'Worker process died (exit code %s), restarting...',
                     self._server.process.exitcode,
                 )
+                self._restart_with_backoff()
+                continue
+
+            if not self._server.ping(timeout=_PING_TIMEOUT):
+                logger.error(
+                    'Worker process unresponsive (ping timeout), restarting...'
+                )
+                self._server.shutdown(timeout=5)
                 self._restart_with_backoff()
 
     def _restart_with_backoff(self) -> None:

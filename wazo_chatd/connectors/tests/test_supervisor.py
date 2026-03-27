@@ -15,11 +15,12 @@ class TestWorkerSupervisor(unittest.TestCase):
         self.server.process = Mock()
         self.server.process.is_alive.return_value = True
         self.server.process.exitcode = None
+        self.server.ping.return_value = True
         self.router = Mock()
         self.supervisor = WorkerSupervisor(self.server, self.router)
 
-    def test_provide_status_ok_when_alive(self) -> None:
-        status: dict = {}
+    def test_provide_status_ok_when_alive_and_responsive(self) -> None:
+        status: dict = {}  # type: ignore[type-arg]
 
         self.supervisor.provide_status(status)
 
@@ -28,7 +29,16 @@ class TestWorkerSupervisor(unittest.TestCase):
 
     def test_provide_status_fail_when_dead(self) -> None:
         self.server.process.is_alive.return_value = False
-        status: dict = {}
+        status: dict = {}  # type: ignore[type-arg]
+
+        self.supervisor.provide_status(status)
+
+        assert status['message_worker']['status'] == 'fail'
+
+    def test_provide_status_fail_when_unresponsive(self) -> None:
+        self.server.process.is_alive.return_value = True
+        self.server.ping.return_value = False
+        status: dict = {}  # type: ignore[type-arg]
 
         self.supervisor.provide_status(status)
 

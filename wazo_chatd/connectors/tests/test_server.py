@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import unittest
 
-from wazo_chatd.connectors.server import MessageServer, Sentinel
+from wazo_chatd.connectors.server import HealthCheck, MessageServer, Sentinel
 from wazo_chatd.connectors.types import ConfigSync, ConfigUpdate, OutboundMessage
 
 
@@ -77,3 +77,30 @@ class TestMessageServerShutdown(unittest.TestCase):
 
         item = self.server._queue.get(timeout=1)
         assert item is Sentinel.SHUTDOWN
+
+
+class TestMessageServerPing(unittest.TestCase):
+    def setUp(self) -> None:
+        self.server = MessageServer()
+
+    def test_ping_receives_pong(self) -> None:
+        import threading
+
+        def respond_pong() -> None:
+            if self.server._worker_connection.poll(timeout=2):
+                msg = self.server._worker_connection.recv()
+                if msg is HealthCheck.PING:
+                    self.server._worker_connection.send(HealthCheck.PONG)
+
+        responder = threading.Thread(target=respond_pong)
+        responder.start()
+
+        result = self.server.ping(timeout=2)
+        responder.join()
+
+        assert result is True
+
+    def test_ping_returns_false_on_timeout(self) -> None:
+        result = self.server.ping(timeout=0.1)
+
+        assert result is False

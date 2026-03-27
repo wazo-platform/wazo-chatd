@@ -28,6 +28,11 @@ class Sentinel(enum.Enum):
     SHUTDOWN = enum.auto()
 
 
+class HealthCheck(enum.Enum):
+    PING = enum.auto()
+    PONG = enum.auto()
+
+
 class MessageServer:
     """Manages the worker process for outbound message delivery."""
 
@@ -76,6 +81,20 @@ class MessageServer:
     def pipe_send(self, data: ConfigSync | ConfigUpdate) -> None:
         self._main_connection.send(data)
 
+    def ping(self, timeout: float = 5) -> bool:
+        """Send a ping to the worker and wait for a pong.
+
+        Returns True if the worker responded within the timeout.
+        """
+        try:
+            self._main_connection.send(HealthCheck.PING)
+            if self._main_connection.poll(timeout=timeout):
+                response = self._main_connection.recv()
+                return response is HealthCheck.PONG
+        except (OSError, EOFError):
+            pass
+        return False
+
 
 class MessageWorker:
     """Runs inside the spawned process. Owns the asyncio loop and executor."""
@@ -96,6 +115,7 @@ class MessageWorker:
         connection: Connection,
     ) -> None:
         setproctitle(WORKER_PROCESS_TITLE)
+
         logging.basicConfig(level=logging.INFO)
         logger.info('Worker process started')
 
@@ -134,7 +154,9 @@ class MessageWorker:
     def _handle_pipe_updates(self) -> None:
         while self._connection.poll():
             update = self._connection.recv()
-            if isinstance(update, ConfigSync):
+            if update is HealthCheck.PING:
+                self._connection.send(HealthCheck.PONG)
+            elif isinstance(update, ConfigSync):
                 self._delivery_executor.load_from_pipe(update)
             elif isinstance(update, ConfigUpdate):
                 self._delivery_executor.handle_config_update(update)
