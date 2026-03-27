@@ -29,19 +29,28 @@ class _WorkerServer(TypingProtocol):
     """Minimal interface the supervisor needs from the server process."""
 
     @property
-    def process(self) -> _WorkerProcess: ...  # noqa: E704
-    def serve_forever(self) -> None: ...  # noqa: E704
-    def shutdown(self, timeout: float = 10) -> None: ...  # noqa: E704
+    def process(self) -> _WorkerProcess:
+        ...  # noqa: E704
+
+    def serve_forever(self) -> None:
+        ...  # noqa: E704
+
+    def shutdown(self, timeout: float = 10) -> None:
+        ...  # noqa: E704
 
 
 class _WorkerProcess(TypingProtocol):
     """Minimal interface for the underlying process handle."""
 
-    def is_alive(self) -> bool: ...  # noqa: E704
-    def join(self, timeout: float | None = None) -> None: ...  # noqa: E704
+    def is_alive(self) -> bool:
+        ...  # noqa: E704
+
+    def join(self, timeout: float | None = None) -> None:
+        ...  # noqa: E704
 
     @property
-    def exitcode(self) -> int | None: ...  # noqa: E704
+    def exitcode(self) -> int | None:
+        ...  # noqa: E704
 
 
 class WorkerSupervisor:
@@ -98,7 +107,7 @@ class WorkerSupervisor:
                 self._restart_with_backoff()
 
     def _restart_with_backoff(self) -> None:
-        delay = min(2 ** self._restart_count, _MAX_RESTART_DELAY)
+        delay = min(2**self._restart_count, _MAX_RESTART_DELAY)
         logger.info(
             'Restarting worker in %ds (attempt #%d)',
             delay,

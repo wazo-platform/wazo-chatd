@@ -9,9 +9,10 @@ Revises: e700870ac284
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy_utils import UUIDType
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '4ca51d8f3bb2'
@@ -118,18 +119,14 @@ def upgrade() -> None:
             primary_key=True,
         ),
         sa.Column('type', sa.String, nullable=True),
-        sa.Column(
-            'backend', sa.String, nullable=False, server_default='internal'
-        ),
+        sa.Column('backend', sa.String, nullable=False, server_default='internal'),
         sa.Column(
             'identity_uuid',
             UUIDType(),
             sa.ForeignKey('chatd_user_alias.uuid', ondelete='SET NULL'),
             nullable=True,
         ),
-        sa.Column(
-            'retry_count', sa.Integer, nullable=False, server_default='0'
-        ),
+        sa.Column('retry_count', sa.Integer, nullable=False, server_default='0'),
         sa.Column('external_id', sa.String, nullable=True),
         sa.Column(
             'extra',
@@ -148,15 +145,11 @@ def upgrade() -> None:
     # DeliveryRecord: append-only status updates from connectors
     op.create_table(
         'chatd_delivery_record',
-        sa.Column(
-            'id', sa.Integer, primary_key=True, autoincrement=True
-        ),
+        sa.Column('id', sa.Integer, primary_key=True, autoincrement=True),
         sa.Column(
             'message_uuid',
             UUIDType(),
-            sa.ForeignKey(
-                'chatd_message_meta.message_uuid', ondelete='CASCADE'
-            ),
+            sa.ForeignKey('chatd_message_meta.message_uuid', ondelete='CASCADE'),
             nullable=False,
         ),
         sa.Column('status', sa.String, nullable=False),

@@ -57,9 +57,7 @@ class TestConnectorWebhookResource(unittest.TestCase):
         assert status_code == 204
 
     def test_post_unknown_backend_returns_404(self) -> None:
-        self.router.dispatch_webhook.side_effect = ConnectorParseError(
-            'No connector'
-        )
+        self.router.dispatch_webhook.side_effect = ConnectorParseError('No connector')
 
         with self.app.test_request_context(
             '/connectors/incoming/nonexistent',

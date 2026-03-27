@@ -47,9 +47,7 @@ class ConnectorRegistry:
         """
         name = cls.backend
         if name in self._backends:
-            logger.warning(
-                'Connector backend %r already registered, overwriting', name
-            )
+            logger.warning('Connector backend %r already registered, overwriting', name)
         logger.info(
             'Registered connector backend %r (types: %s)',
             name,

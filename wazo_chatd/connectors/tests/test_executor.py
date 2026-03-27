@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock
 
-from wazo_chatd.connectors.delivery import DeliveryStatus, MAX_RETRIES
+from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.executor import DeliveryExecutor
 from wazo_chatd.connectors.types import ConfigSync, OutboundMessage
@@ -50,10 +50,16 @@ class TestDeliveryExecutorLoadFromPipe(unittest.TestCase):
         )
 
     def test_load_from_pipe_creates_instances(self) -> None:
-        config_sync = ConfigSync(providers=[
-            {'name': 'twilio-sms', 'type': 'sms', 'backend': 'twilio',
-             'configuration': {'account_sid': 'test'}},
-        ])
+        config_sync = ConfigSync(
+            providers=[
+                {
+                    'name': 'twilio-sms',
+                    'type': 'sms',
+                    'backend': 'twilio',
+                    'configuration': {'account_sid': 'test'},
+                },
+            ]
+        )
 
         self.executor.load_from_pipe(config_sync)
 
@@ -61,12 +67,22 @@ class TestDeliveryExecutorLoadFromPipe(unittest.TestCase):
         self.registry.get_backend.assert_called_with('twilio')
 
     def test_load_from_pipe_multiple_providers(self) -> None:
-        config_sync = ConfigSync(providers=[
-            {'name': 'twilio-sms', 'type': 'sms', 'backend': 'twilio',
-             'configuration': {}},
-            {'name': 'twilio-mms', 'type': 'mms', 'backend': 'twilio',
-             'configuration': {}},
-        ])
+        config_sync = ConfigSync(
+            providers=[
+                {
+                    'name': 'twilio-sms',
+                    'type': 'sms',
+                    'backend': 'twilio',
+                    'configuration': {},
+                },
+                {
+                    'name': 'twilio-mms',
+                    'type': 'mms',
+                    'backend': 'twilio',
+                    'configuration': {},
+                },
+            ]
+        )
 
         self.executor.load_from_pipe(config_sync)
 
@@ -81,7 +97,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
             registry=self.registry,
             connector_config={},
         )
-        self.executor.connectors['twilio-sms'] = self.connector
+        self.executor.connectors['twilio-sms'] = self.connector  # type: ignore[assignment]
 
         self.delivery = Mock()
         self.delivery.message_uuid = 'delivery-1'
@@ -96,7 +112,10 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         outbound = _make_outbound()
 
         await self.executor.execute(
-            outbound, self.delivery, self.session, self.bus_publisher,
+            outbound,
+            self.delivery,
+            self.session,
+            self.bus_publisher,
         )
 
         assert self.delivery.external_id == 'ext-msg-id-123'
@@ -109,7 +128,10 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         outbound = _make_outbound()
 
         await self.executor.execute(
-            outbound, self.delivery, self.session, self.bus_publisher,
+            outbound,
+            self.delivery,
+            self.session,
+            self.bus_publisher,
         )
 
         assert self.delivery.retry_count == 1
@@ -120,15 +142,13 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         outbound = _make_outbound()
 
         await self.executor.execute(
-            outbound, self.delivery, self.session, self.bus_publisher,
+            outbound,
+            self.delivery,
+            self.session,
+            self.bus_publisher,
         )
 
         # Should have a DEAD_LETTER record
-        added_objects = [
-            call.args[0] for call in self.session.add.call_args_list
-        ]
-        statuses = [
-            obj.status for obj in added_objects
-            if hasattr(obj, 'status')
-        ]
+        added_objects = [call.args[0] for call in self.session.add.call_args_list]
+        statuses = [obj.status for obj in added_objects if hasattr(obj, 'status')]
         assert DeliveryStatus.DEAD_LETTER.value in statuses

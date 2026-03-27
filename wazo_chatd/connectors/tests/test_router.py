@@ -53,8 +53,8 @@ def _make_room(users: list[Mock] | None = None) -> Mock:
 
 def _build_registry() -> ConnectorRegistry:
     registry = ConnectorRegistry()
-    registry.register_backend(_SmsConnector)
-    registry.register_backend(_EmailConnector)
+    registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+    registry.register_backend(_EmailConnector)  # type: ignore[arg-type]
     return registry
 
 
@@ -64,50 +64,60 @@ class TestConnectorRouterListCapabilities(unittest.TestCase):
         self.router = ConnectorRouter(registry=self.registry)
 
     def test_all_internal_users(self) -> None:
-        room = _make_room([
-            _make_room_user('user-a'),
-            _make_room_user('user-b'),
-        ])
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('user-b'),
+            ]
+        )
 
         capabilities = self.router.list_capabilities(room)
 
         assert capabilities == {'internal'}
 
     def test_external_phone_number(self) -> None:
-        room = _make_room([
-            _make_room_user('user-a'),
-            _make_room_user('ext-uuid', identity='+15559876'),
-        ])
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='+15559876'),
+            ]
+        )
 
         capabilities = self.router.list_capabilities(room)
 
         assert capabilities == {'sms', 'mms'}
 
     def test_external_email(self) -> None:
-        room = _make_room([
-            _make_room_user('user-a'),
-            _make_room_user('ext-uuid', identity='bob@example.com'),
-        ])
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='bob@example.com'),
+            ]
+        )
 
         capabilities = self.router.list_capabilities(room)
 
         assert capabilities == {'email'}
 
     def test_external_unknown_identity(self) -> None:
-        room = _make_room([
-            _make_room_user('user-a'),
-            _make_room_user('ext-uuid', identity='unknown-format'),
-        ])
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='unknown-format'),
+            ]
+        )
 
         capabilities = self.router.list_capabilities(room)
 
         assert capabilities == set()
 
     def test_internal_excluded_when_external_present(self) -> None:
-        room = _make_room([
-            _make_room_user('user-a'),
-            _make_room_user('ext-uuid', identity='+15559876'),
-        ])
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='+15559876'),
+            ]
+        )
 
         capabilities = self.router.list_capabilities(room)
 
@@ -136,9 +146,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
         self.router.dispatch_webhook('twilio', {'From': '+15559876'})
 
-        connector.on_event.assert_called_once_with(
-            'webhook', {'From': '+15559876'}
-        )
+        connector.on_event.assert_called_once_with('webhook', {'From': '+15559876'})
         self.on_message.assert_called_once_with(inbound)
 
     def test_dispatch_skips_none_events(self) -> None:

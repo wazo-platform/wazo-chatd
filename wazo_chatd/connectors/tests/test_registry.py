@@ -30,18 +30,18 @@ class TestConnectorRegistry(unittest.TestCase):
         assert self.registry.available_backends() == []
 
     def test_register_backend(self) -> None:
-        self.registry.register_backend(_FakeConnectorA)
+        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
 
         assert self.registry.available_backends() == ['fake_a']
 
     def test_register_multiple_backends(self) -> None:
-        self.registry.register_backend(_FakeConnectorA)
-        self.registry.register_backend(_FakeConnectorB)
+        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
+        self.registry.register_backend(_FakeConnectorB)  # type: ignore[arg-type]
 
         assert sorted(self.registry.available_backends()) == ['fake_a', 'fake_b']
 
     def test_get_backend(self) -> None:
-        self.registry.register_backend(_FakeConnectorA)
+        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
 
         assert self.registry.get_backend('fake_a') is _FakeConnectorA
 
@@ -54,8 +54,8 @@ class TestConnectorRegistry(unittest.TestCase):
             backend: ClassVar[str] = 'fake_a'
             supported_types: ClassVar[tuple[str, ...]] = ('mms',)
 
-        self.registry.register_backend(_FakeConnectorA)
-        self.registry.register_backend(_DuplicateConnector)
+        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
+        self.registry.register_backend(_DuplicateConnector)  # type: ignore[arg-type]
 
         assert self.registry.get_backend('fake_a') is _DuplicateConnector
 

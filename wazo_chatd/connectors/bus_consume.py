@@ -30,19 +30,24 @@ class ConnectorBusEventHandler:
     def subscribe(self) -> None:
         """Register all event subscriptions."""
         self._bus_consumer.subscribe(
-            'chat_provider_created', self.on_provider_created,
+            'chat_provider_created',
+            self.on_provider_created,
         )
         self._bus_consumer.subscribe(
-            'chat_provider_edited', self.on_provider_edited,
+            'chat_provider_edited',
+            self.on_provider_edited,
         )
         self._bus_consumer.subscribe(
-            'chat_provider_deleted', self.on_provider_deleted,
+            'chat_provider_deleted',
+            self.on_provider_deleted,
         )
         self._bus_consumer.subscribe(
-            'user_alias_created', self.on_user_alias_created,
+            'user_alias_created',
+            self.on_user_alias_created,
         )
         self._bus_consumer.subscribe(
-            'user_alias_deleted', self.on_user_alias_deleted,
+            'user_alias_deleted',
+            self.on_user_alias_deleted,
         )
 
     def on_provider_created(self, event: dict[str, str]) -> None:

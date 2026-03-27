@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from wazo_chatd.connectors.supervisor import WorkerSupervisor
 

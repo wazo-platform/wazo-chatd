@@ -15,15 +15,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from wazo_chatd.connectors.connector import Connector
-from wazo_chatd.connectors.delivery import (
-    RETRY_DELAYS,
-    DeliveryStatus,
-    MAX_RETRIES,
-)
+from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import ConfigSync, ConfigUpdate, OutboundMessage
@@ -144,13 +139,14 @@ class DeliveryExecutor:
             session: The DB session for persisting ``DeliveryRecord`` rows.
             bus_publisher: The bus publisher for status event notifications.
         """
-        connector = self._find_connector(delivery.backend)  # type: ignore[union-attr]
+        backend = str(delivery.backend)
+        connector = self._find_connector(backend)
         if connector is None:
             self._add_record(
                 session,
                 delivery,
                 DeliveryStatus.DEAD_LETTER,
-                reason=f'Backend {delivery.backend!r} not available',  # type: ignore[union-attr]
+                reason=f'Backend {backend!r} not available',
             )
             return
 
@@ -158,16 +154,19 @@ class DeliveryExecutor:
 
         try:
             external_id = await self._send(connector, outbound)
-            delivery.external_id = external_id  # type: ignore[union-attr]
+            delivery.external_id = external_id  # type: ignore[assignment]
             self._add_record(session, delivery, DeliveryStatus.SENT)
 
         except ConnectorSendError as exc:
-            delivery.retry_count += 1  # type: ignore[union-attr]
+            delivery.retry_count += 1  # type: ignore[assignment]
             self._add_record(
-                session, delivery, DeliveryStatus.FAILED, reason=str(exc),
+                session,
+                delivery,
+                DeliveryStatus.FAILED,
+                reason=str(exc),
             )
 
-            if delivery.retry_count >= MAX_RETRIES:  # type: ignore[union-attr]
+            if delivery.retry_count >= MAX_RETRIES:  # type: ignore[operator]
                 self._add_record(
                     session,
                     delivery,
@@ -187,7 +186,9 @@ class DeliveryExecutor:
         return None
 
     async def _send(
-        self, connector: Connector, outbound: OutboundMessage,
+        self,
+        connector: Connector,
+        outbound: OutboundMessage,
     ) -> str:
         """Call connector.send(), wrapping sync implementations."""
         if asyncio.iscoroutinefunction(connector.send):
@@ -195,7 +196,9 @@ class DeliveryExecutor:
         return await asyncio.to_thread(connector.send, outbound)
 
     async def _publish_status(
-        self, bus_publisher: BusPublisher, delivery: MessageMeta,
+        self,
+        bus_publisher: BusPublisher,
+        delivery: MessageMeta,
     ) -> None:
         """Publish delivery status event to the bus.
 

@@ -17,7 +17,10 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
         self.notifier = Mock()
         self.connector_router = Mock()
         self.service = RoomService(
-            WAZO_UUID, self.dao, self.notifier, self.connector_router,
+            WAZO_UUID,
+            self.dao,
+            self.notifier,
+            self.connector_router,
         )
         self.room = Mock()
         self.message = Mock(wazo_uuid=None)
@@ -25,21 +28,15 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
     def test_create_message_persists_and_notifies(self) -> None:
         result = self.service.create_message(self.room, self.message)
 
-        self.dao.room.add_message.assert_called_once_with(
-            self.room, self.message
-        )
-        self.notifier.message_created.assert_called_once_with(
-            self.room, self.message
-        )
+        self.dao.room.add_message.assert_called_once_with(self.room, self.message)
+        self.notifier.message_created.assert_called_once_with(self.room, self.message)
         assert result is self.message
         assert self.message.wazo_uuid == WAZO_UUID
 
     def test_create_message_routes_through_connector(self) -> None:
         self.service.create_message(self.room, self.message, route=True)
 
-        self.connector_router.send.assert_called_once_with(
-            self.room, self.message
-        )
+        self.connector_router.send.assert_called_once_with(self.room, self.message)
 
     def test_create_message_skips_routing_when_route_false(self) -> None:
         self.service.create_message(self.room, self.message, route=False)
@@ -63,6 +60,4 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
     def test_create_message_notifies_even_when_routing(self) -> None:
         self.service.create_message(self.room, self.message, route=True)
 
-        self.notifier.message_created.assert_called_once_with(
-            self.room, self.message
-        )
+        self.notifier.message_created.assert_called_once_with(self.room, self.message)

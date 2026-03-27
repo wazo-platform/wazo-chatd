@@ -4,9 +4,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.exceptions import ConnectorParseError
@@ -29,6 +28,14 @@ class ConnectorRouter:
     def __init__(self, registry: ConnectorRegistry) -> None:
         self._registry = registry
         self._instances: dict[str, Connector] = {}
+
+    def sync_to_server(self) -> None:
+        """Serialize provider configs and send through pipe to server process.
+
+        Called after load_from_cache or after a restart.
+        """
+        # TODO: implement pipe sync when server process is wired
+        pass
 
     def invalidate_cache(self) -> None:
         """Mark the connector cache as stale.
@@ -112,7 +119,8 @@ class ConnectorRouter:
                 backend or none produces a message.
         """
         matching = [
-            inst for inst in self._instances.values()
+            inst
+            for inst in self._instances.values()
             if getattr(inst, 'backend', None) == backend
         ]
         if not matching:
