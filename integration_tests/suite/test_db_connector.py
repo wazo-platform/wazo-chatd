@@ -81,7 +81,8 @@ class TestUserAlias(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.chat_provider(uuid=PROVIDER_UUID_1, name='Twilio SMS')
     @fixtures.db.user_alias(
-        user_uuid=USER_UUID_1, provider_uuid=PROVIDER_UUID_1,
+        user_uuid=USER_UUID_1,
+        provider_uuid=PROVIDER_UUID_1,
         identity='+15551234567',
     )
     def test_create_alias(self, alias, provider, user):
@@ -97,17 +98,26 @@ class TestUserAlias(DBIntegrationTest):
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.chat_provider(uuid=PROVIDER_UUID_1, name='Twilio SMS')
-    @fixtures.db.chat_provider(uuid=PROVIDER_UUID_2, name='Vonage SMS', backend='vonage')
+    @fixtures.db.chat_provider(
+        uuid=PROVIDER_UUID_2, name='Vonage SMS', backend='vonage'
+    )
     @fixtures.db.user_alias(
-        user_uuid=USER_UUID_1, provider_uuid=PROVIDER_UUID_1,
+        user_uuid=USER_UUID_1,
+        provider_uuid=PROVIDER_UUID_1,
         identity='+15551111111',
     )
     @fixtures.db.user_alias(
-        user_uuid=USER_UUID_1, provider_uuid=PROVIDER_UUID_2,
+        user_uuid=USER_UUID_1,
+        provider_uuid=PROVIDER_UUID_2,
         identity='+15552222222',
     )
     def test_user_multiple_aliases(
-        self, alias_2, alias_1, provider_vonage, provider_twilio, user,
+        self,
+        alias_2,
+        alias_1,
+        provider_vonage,
+        provider_twilio,
+        user,
     ):
         results = (
             self._session.query(UserAlias)

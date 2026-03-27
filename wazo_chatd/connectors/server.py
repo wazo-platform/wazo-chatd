@@ -117,19 +117,31 @@ class MessageWorker:
         setproctitle(WORKER_PROCESS_TITLE)
 
         logging.basicConfig(level=logging.INFO)
-        logger.info('Worker process started')
+        logger.info('Worker process starting (pid=%d)', mp.current_process().pid)
 
         registry = ConnectorRegistry()
         registry.discover()
+        logger.info(
+            'Discovered %d connector backend(s): %s',
+            len(registry.available_backends()),
+            ', '.join(registry.available_backends()) or '(none)',
+        )
 
         delivery_executor = DeliveryExecutor(registry=registry, connector_config={})
 
         if connection.poll(timeout=5):
             initial_config = connection.recv()
             if isinstance(initial_config, ConfigSync):
+                logger.info(
+                    'Loaded %d provider(s) from pipe',
+                    len(initial_config.providers),
+                )
                 delivery_executor.load_from_pipe(initial_config)
+        else:
+            logger.info('No initial config received from pipe')
 
         worker = MessageWorker(queue, connection, delivery_executor)
+        logger.info('Worker process ready, entering event loop')
         worker.run()
 
     def run(self) -> None:
@@ -143,20 +155,29 @@ class MessageWorker:
 
     async def _process_loop(self) -> None:
         while True:
+            logger.debug('Waiting for next message...')
             message = await asyncio.to_thread(self._queue.get)
 
             if message is Sentinel.SHUTDOWN:
+                logger.info('Received shutdown sentinel')
                 break
 
             self._handle_pipe_updates()
-            logger.debug('Processing outbound message: %s', message.delivery_uuid)
+            logger.info(
+                'Processing outbound message (delivery=%s)',
+                message.delivery_uuid,
+            )
 
     def _handle_pipe_updates(self) -> None:
         while self._connection.poll():
             update = self._connection.recv()
             if update is HealthCheck.PING:
+                logger.debug('Received ping, sending pong')
                 self._connection.send(HealthCheck.PONG)
             elif isinstance(update, ConfigSync):
+                logger.info(
+                    'Received config sync (%d providers)', len(update.providers)
+                )
                 self._delivery_executor.load_from_pipe(update)
             elif isinstance(update, ConfigUpdate):
                 self._delivery_executor.handle_config_update(update)
