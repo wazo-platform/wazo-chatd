@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from .http import (
@@ -17,8 +17,10 @@ class Plugin:
         dao = dependencies['dao']
         bus_publisher = dependencies['bus_publisher']
 
+        connector_router = dependencies.get('connector_router')
+
         notifier = RoomNotifier(bus_publisher)
-        service = RoomService(config['uuid'], dao, notifier)
+        service = RoomService(config['uuid'], dao, notifier, connector_router)
 
         api.add_resource(
             UserRoomListResource, '/users/me/rooms', resource_class_args=[service]

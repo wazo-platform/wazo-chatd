@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ class RoomUserSchema(Schema):
     uuid = fields.UUID()
     tenant_uuid = fields.UUID()
     wazo_uuid = fields.UUID()
+    identity = fields.String(dump_only=True, allow_none=True)
 
 
 class RoomSchema(Schema):
@@ -22,6 +23,7 @@ class RoomSchema(Schema):
     name = fields.String(allow_none=True)
 
     users = fields.Nested('RoomUserSchema', many=True, load_default=list)
+    capabilities = fields.List(fields.String(), dump_only=True)
 
 
 class MessageSchema(Schema):
@@ -32,6 +34,7 @@ class MessageSchema(Schema):
     tenant_uuid = fields.UUID(dump_only=True)
     wazo_uuid = fields.UUID(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
+    user_alias_uuid = fields.UUID(load_only=True, allow_none=True)
 
     room = fields.Nested('RoomSchema', dump_only=True, only=['uuid'])
 

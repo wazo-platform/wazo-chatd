@@ -1,12 +1,26 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from wazo_chatd.connectors.router import ConnectorRouter
 
 
 class RoomService:
-    def __init__(self, wazo_uuid, dao, notifier):
+    def __init__(
+        self,
+        wazo_uuid,
+        dao,
+        notifier,
+        connector_router: ConnectorRouter | None = None,
+    ):
         self._dao = dao
         self._notifier = notifier
         self._wazo_uuid = wazo_uuid
+        self._connector_router = connector_router
 
     def create(self, room):
         self._set_default_room_values(room)
@@ -30,9 +44,13 @@ class RoomService:
     def get(self, tenant_uuids, room_uuid):
         return self._dao.room.get(tenant_uuids, room_uuid)
 
-    def create_message(self, room, message):
+    def create_message(self, room, message, *, route: bool = True):
         self._set_default_message_values(message)
         self._dao.room.add_message(room, message)
+
+        if route and self._connector_router:
+            self._connector_router.send(room, message)
+
         self._notifier.message_created(room, message)
         return message
 
