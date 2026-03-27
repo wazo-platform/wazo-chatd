@@ -4,16 +4,22 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
 from wazo_chatd.connectors.connector import Connector
-from wazo_chatd.connectors.exceptions import ConnectorParseError
+from wazo_chatd.connectors.delivery import DeliveryStatus
+from wazo_chatd.connectors.exceptions import ConnectorParseError, NoCommonConnectorError
 from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.types import InboundMessage
+from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.database.models import DeliveryRecord, MessageMeta
+from wazo_chatd.database.models import RoomMessage as RoomMessageModel
+from wazo_chatd.plugins.rooms.notifier import RoomNotifier
 
 if TYPE_CHECKING:
-    from wazo_chatd.database.models import Room, RoomMessage
+    from sqlalchemy.orm import Session as SASession
+
+    from wazo_chatd.database.models import Room, RoomMessage, UserAlias
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +34,57 @@ class ConnectorRouter:
     def __init__(self, registry: ConnectorRegistry) -> None:
         self._registry = registry
         self._instances: dict[str, Connector] = {}
+        self._session: SASession | None = None
+        self._enqueue: Callable[[OutboundMessage], None] | None = None
+        self._alias_resolver: Callable[[str, str], UserAlias | None] | None = None
+        self._notifier: RoomNotifier | None = None
+        self._room_resolver: Callable[[str, str, str], Room] | None = None
+        self._dedup_checker: Callable[[str], bool] | None = None
+
+    def set_session(self, session: SASession) -> None:
+        """Set the DB session for delivery persistence."""
+        self._session = session
+
+    def set_enqueue(self, enqueue: Callable[[OutboundMessage], None]) -> None:
+        """Set the callback for enqueuing outbound messages to the server process."""
+        self._enqueue = enqueue
+
+    def set_alias_resolver(
+        self,
+        resolver: Callable[[str, str], UserAlias | None],
+    ) -> None:
+        """Set the function that resolves a user's alias for a given type.
+
+        Args:
+            resolver: Callable(user_uuid, type_) -> UserAlias | None
+        """
+        self._alias_resolver = resolver
+
+    def set_notifier(self, notifier: RoomNotifier) -> None:
+        """Set the notifier for publishing bus events on message creation."""
+        self._notifier = notifier
+
+    def set_room_resolver(
+        self,
+        resolver: Callable[[str, str, str], Room],
+    ) -> None:
+        """Set the function that finds or creates a room for identities.
+
+        Args:
+            resolver: Callable(tenant_uuid, sender_identity, recipient_identity) -> Room
+        """
+        self._room_resolver = resolver
+
+    def set_dedup_checker(
+        self,
+        checker: Callable[[str], bool],
+    ) -> None:
+        """Set the function that checks if an idempotency key already exists.
+
+        Args:
+            checker: Callable(idempotency_key) -> True if duplicate
+        """
+        self._dedup_checker = checker
 
     def sync_to_server(self) -> None:
         """Serialize provider configs and send through pipe to server process.
@@ -89,13 +146,59 @@ class ConnectorRouter:
         For internal-only rooms (no external participants), this is a
         no-op.
         """
-        # TODO: implement full outbound flow
-        #  1. resolve connector from room participants
-        #  2. resolve sender's UserAlias
-        #  3. create MessageMeta + initial DeliveryRecord (PENDING)
-        #  4. build OutboundMessage
-        #  5. enqueue to server process
-        pass
+        capabilities = self.list_capabilities(room)
+        if not capabilities:
+            raise NoCommonConnectorError(
+                'Room participants share no common connector type'
+            )
+
+        # Internal-only rooms don't need external delivery
+        if capabilities == {'internal'}:
+            return
+
+        external_users = [u for u in room.users if u.identity is not None]
+        if not external_users:
+            return
+
+        chosen_type = next(iter(capabilities))
+        recipient_identity = str(external_users[0].identity)
+
+        sender_alias_str = ''
+        backend_name = chosen_type
+        if self._alias_resolver:
+            alias = self._alias_resolver(str(message.user_uuid), chosen_type)
+            if alias:
+                sender_alias_str = str(alias.identity)
+                if alias.provider:
+                    backend_name = str(alias.provider.backend)
+
+        meta = MessageMeta(
+            message_uuid=message.uuid,
+            type_=chosen_type,
+            backend=backend_name,
+            extra={'outbound_idempotency_key': str(message.uuid)},
+        )
+        initial_record = DeliveryRecord(
+            message_uuid=message.uuid,
+            status=DeliveryStatus.PENDING.value,
+        )
+
+        if self._session:
+            self._session.add(meta)
+            self._session.add(initial_record)
+            self._session.flush()
+
+        outbound = OutboundMessage(
+            sender_alias=sender_alias_str,
+            recipient_alias=recipient_identity or '',
+            sender_uuid=str(message.user_uuid),
+            body=str(message.content),
+            delivery_uuid=str(message.uuid),
+            metadata={'idempotency_key': str(message.uuid)},
+        )
+
+        if self._enqueue:
+            self._enqueue(outbound)
 
     def dispatch_webhook(
         self,
@@ -141,16 +244,56 @@ class ConnectorRouter:
         poll, websocket).  Performs idempotency dedup, identity
         resolution, room find/create, message persistence, and bus
         notification.
-
-        Subclasses or monkey-patching in tests can override this.
         """
-        # TODO: implement full inbound flow
-        #  1. idempotency dedup via MessageMeta.extra JSONB
-        #  2. resolve sender/recipient identities
-        #  3. find or create room
-        #  4. persist RoomMessage + MessageMeta
-        #  5. publish bus event
-        raise NotImplementedError('on_message not yet implemented')
+        idempotency_key = inbound.metadata.get('idempotency_key')
+        if idempotency_key and self._dedup_checker:
+            if self._dedup_checker(idempotency_key):
+                logger.info(
+                    'Duplicate inbound message skipped (key=%s)',
+                    idempotency_key,
+                )
+                return
+
+        if not self._room_resolver:
+            logger.error('No room resolver configured, dropping inbound message')
+            return
+
+        room = self._room_resolver('', inbound.sender, inbound.recipient)
+
+        message = RoomMessageModel(
+            content=inbound.body,
+            room_uuid=room.uuid,
+            user_uuid=room.users[0].uuid if room.users else None,
+            tenant_uuid=room.tenant_uuid if hasattr(room, 'tenant_uuid') else None,
+            wazo_uuid=room.users[0].wazo_uuid if room.users else None,
+        )
+
+        meta = MessageMeta(
+            message_uuid=message.uuid,
+            backend=inbound.backend,
+            extra={
+                'idempotency_key': idempotency_key,
+                'external_id': inbound.external_id,
+            }
+            if idempotency_key
+            else {
+                'external_id': inbound.external_id,
+            },
+        )
+        message.meta = meta
+
+        record = DeliveryRecord(
+            message_uuid=message.uuid,
+            status=DeliveryStatus.DELIVERED.value,
+        )
+
+        if self._session:
+            self._session.add(message)
+            self._session.add(record)
+            self._session.flush()
+
+        if self._notifier:
+            self._notifier.message_created(room, message)
 
     def _resolve_reachable_types(self, identity: str) -> set[str]:
         """Ask each registered connector backend if it can normalize

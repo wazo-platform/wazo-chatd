@@ -56,7 +56,7 @@ class TwilioConnector:
         self._type: str = ''
         self._account_sid: str = ''
         self._auth_token: str = ''
-        self._client: object | None = None
+        self._client = None  # type: ignore[var-annotated]
         self._mode: str = 'webhook'
         self._polling_interval: int = 30
         self._stopped: bool = False

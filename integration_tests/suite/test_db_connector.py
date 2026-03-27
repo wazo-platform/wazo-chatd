@@ -21,20 +21,13 @@ from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageMeta,
     Room,
-    RoomMessage,
     RoomUser,
     UserAlias,
 )
 
 from .helpers import fixtures
-from .helpers.base import (
-    TOKEN_TENANT_UUID as TENANT_1,
-)
-from .helpers.base import (
-    WAZO_UUID,
-    DBIntegrationTest,
-    use_asset,
-)
+from .helpers.base import TOKEN_TENANT_UUID as TENANT_1
+from .helpers.base import WAZO_UUID, DBIntegrationTest, use_asset
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
@@ -44,9 +37,11 @@ USER_UUID_2 = uuid.uuid4()
 class TestChatProvider(DBIntegrationTest):
     @fixtures.db.chat_provider(name='Twilio SMS', type_='sms', backend='twilio')
     def test_create_provider(self, provider):
-        result = self._session.query(ChatProvider).filter(
-            ChatProvider.uuid == provider.uuid
-        ).first()
+        result = (
+            self._session.query(ChatProvider)
+            .filter(ChatProvider.uuid == provider.uuid)
+            .first()
+        )
 
         assert result is not None
         assert result.name == 'Twilio SMS'
@@ -57,9 +52,11 @@ class TestChatProvider(DBIntegrationTest):
     @fixtures.db.chat_provider(name='Provider A', type_='sms', backend='twilio')
     @fixtures.db.chat_provider(name='Provider B', type_='whatsapp', backend='twilio')
     def test_multiple_providers_same_backend(self, provider_b, provider_a):
-        results = self._session.query(ChatProvider).filter(
-            ChatProvider.backend == 'twilio'
-        ).all()
+        results = (
+            self._session.query(ChatProvider)
+            .filter(ChatProvider.backend == 'twilio')
+            .all()
+        )
 
         assert len(results) == 2
 
@@ -67,9 +64,11 @@ class TestChatProvider(DBIntegrationTest):
         configuration={'account_sid': 'AC123', 'auth_token': 'secret'},
     )
     def test_provider_configuration_jsonb(self, provider):
-        result = self._session.query(ChatProvider).filter(
-            ChatProvider.uuid == provider.uuid
-        ).first()
+        result = (
+            self._session.query(ChatProvider)
+            .filter(ChatProvider.uuid == provider.uuid)
+            .first()
+        )
 
         assert result.configuration['account_sid'] == 'AC123'
         assert result.configuration['auth_token'] == 'secret'
@@ -89,9 +88,11 @@ class TestUserAlias(DBIntegrationTest):
         self._session.add(alias)
         self._session.flush()
 
-        result = self._session.query(UserAlias).filter(
-            UserAlias.identity == '+15551234567'
-        ).first()
+        result = (
+            self._session.query(UserAlias)
+            .filter(UserAlias.identity == '+15551234567')
+            .first()
+        )
 
         assert result is not None
         assert result.user_uuid == user.uuid
@@ -120,9 +121,11 @@ class TestUserAlias(DBIntegrationTest):
         self._session.add_all([alias_1, alias_2])
         self._session.flush()
 
-        results = self._session.query(UserAlias).filter(
-            UserAlias.user_uuid == user.uuid
-        ).all()
+        results = (
+            self._session.query(UserAlias)
+            .filter(UserAlias.user_uuid == user.uuid)
+            .all()
+        )
 
         assert len(results) == 2
 
@@ -171,9 +174,11 @@ class TestRoomUserIdentity(DBIntegrationTest):
         self._session.add(room)
         self._session.flush()
 
-        results = self._session.query(RoomUser).filter(
-            RoomUser.identity == '+15559999999'
-        ).all()
+        results = (
+            self._session.query(RoomUser)
+            .filter(RoomUser.identity == '+15559999999')
+            .all()
+        )
 
         assert len(results) == 1
         assert results[0].uuid == ext_uuid
@@ -310,10 +315,16 @@ class TestCascadeDeletes(DBIntegrationTest):
         self._session.query(Room).filter(Room.uuid == room.uuid).delete()
         self._session.flush()
 
-        assert self._session.query(MessageMeta).filter(
-            MessageMeta.message_uuid == message_uuid
-        ).first() is None
+        assert (
+            self._session.query(MessageMeta)
+            .filter(MessageMeta.message_uuid == message_uuid)
+            .first()
+            is None
+        )
 
-        assert self._session.query(DeliveryRecord).filter(
-            DeliveryRecord.message_uuid == message_uuid
-        ).first() is None
+        assert (
+            self._session.query(DeliveryRecord)
+            .filter(DeliveryRecord.message_uuid == message_uuid)
+            .first()
+            is None
+        )

@@ -81,7 +81,7 @@ class TestTwilioConnectorSend(unittest.TestCase):
         mock_client = Mock()
         mock_client.messages.create.return_value = Mock(sid='SM_MSG_123')
         mock_client_cls.return_value = mock_client
-        self.connector._client = mock_client
+        self.connector._client = mock_client  # type: ignore[assignment]
 
         message = OutboundMessage(
             sender_alias='+15551234',
@@ -106,7 +106,7 @@ class TestTwilioConnectorSend(unittest.TestCase):
         mock_client = Mock()
         mock_client.messages.create.side_effect = Exception('Twilio error')
         mock_client_cls.return_value = mock_client
-        self.connector._client = mock_client
+        self.connector._client = mock_client  # type: ignore[assignment]
 
         message = OutboundMessage(
             sender_alias='+15551234',
@@ -137,8 +137,6 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
             'To': '+15551234',
             'Body': 'Hello!',
             'MessageSid': 'SM_ABC_123',
-            '_headers': {'User-Agent': 'TwilioProxy/1.1'},
-            '_content_type': 'application/x-www-form-urlencoded',
         }
 
         result = self.connector.on_event('webhook', raw_data)
@@ -156,7 +154,6 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
             'From': '+15559876',
             'To': '+15551234',
             'MessageSid': 'SM_ABC_123',
-            '_headers': {},
         }
 
         result = self.connector.on_event('webhook', raw_data)
