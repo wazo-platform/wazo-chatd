@@ -25,11 +25,18 @@ class ConnectorRegistry:
     def __init__(self) -> None:
         self._backends: dict[str, type[Connector]] = {}
 
-    def discover(self) -> None:
+    def discover(
+        self,
+        enabled_connectors: dict[str, bool] | None = None,
+    ) -> None:
         """Auto-discover installed connector backends via stevedore.
 
         Scans the ``wazo_chatd.connectors`` entry_point namespace for
         installed packages that provide connector backends.
+
+        Args:
+            enabled_connectors: If provided, only register backends whose
+                name is in this dict with a True value.
         """
         mgr = ExtensionManager(
             namespace=NAMESPACE,
@@ -37,6 +44,9 @@ class ConnectorRegistry:
             on_load_failure_callback=self._on_load_failure,
         )
         for ext in mgr:
+            if enabled_connectors and not enabled_connectors.get(ext.name, False):
+                logger.debug('Connector backend %r is disabled, skipping', ext.name)
+                continue
             self.register_backend(ext.plugin)
 
     def register_backend(self, cls: type[Connector]) -> None:

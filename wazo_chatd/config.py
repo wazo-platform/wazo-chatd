@@ -70,6 +70,11 @@ _DEFAULT_CONFIG = {
         'status': True,
         'teams_presence': False,
     },
+    'enabled_connectors': {
+        'internal': True,
+        'twilio': False,
+    },
+    'connectors': {},
     'initialization': {
         'enabled': True,
         'token_expiration': 600,

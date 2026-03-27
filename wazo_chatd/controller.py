@@ -15,7 +15,6 @@ from xivo.token_renewer import TokenRenewer
 from . import auth
 from .asyncio_ import CoreAsyncio
 from .bus import BusConsumer, BusPublisher
-from .connectors.backends.internal import InternalConnector
 from .connectors.registry import ConnectorRegistry
 from .connectors.router import ConnectorRouter
 from .database.helpers import init_db
@@ -48,8 +47,9 @@ class Controller:
         self._stopping_thread = None
 
         self.connector_registry = ConnectorRegistry()
-        self.connector_registry.register_backend(InternalConnector)
-        self.connector_registry.discover()
+        self.connector_registry.discover(
+            enabled_connectors=config.get('enabled_connectors', {}),
+        )
         self.connector_router = ConnectorRouter(registry=self.connector_registry)
 
         if not app.config['auth'].get('master_tenant_uuid'):
