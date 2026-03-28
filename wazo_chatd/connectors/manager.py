@@ -7,10 +7,12 @@ import asyncio
 import enum
 import logging
 import multiprocessing as mp
+import os
 import threading
 import time
 from multiprocessing.connection import Connection
 from multiprocessing.context import SpawnProcess
+from queue import Empty
 from types import TracebackType
 from typing import TYPE_CHECKING
 
@@ -24,6 +26,7 @@ from wazo_chatd.connectors.types import (
     ConfigUpdate,
     OutboundMessage,
     Ping,
+    PipeCommand,
     Pong,
     Ready,
 )
@@ -32,28 +35,24 @@ if TYPE_CHECKING:
     from wazo_chatd.connectors.router import ConnectorRouter
 
 WORKER_PROCESS_TITLE = 'wazo-chatd: connector worker'
+PING = Ping()
+PONG = Pong()
+READY = Ready()
 
 logger = logging.getLogger(__name__)
 
 _spawn = mp.get_context('spawn')
-
 _MAX_RESTART_DELAY: int = 60
 _HEALTH_CHECK_INTERVAL: float = 5.0
 _PING_TIMEOUT: float = 3.0
+_WORKER_READY_TIMEOUT: float = 30.0
 
 
 class Sentinel(enum.Enum):
     SHUTDOWN = enum.auto()
 
 
-PING = Ping()
-PONG = Pong()
-READY = Ready()
-
-_WORKER_READY_TIMEOUT: float = 30.0
-
-
-class MessageServer:
+class DeliveryManager:
     """Manages the worker process for outbound message delivery.
 
     Owns the process lifecycle, queue, pipe, health monitoring via
@@ -77,7 +76,7 @@ class MessageServer:
         self._restart_count = 0
         self._watchdog: threading.Thread | None = None
 
-    def __enter__(self) -> MessageServer:
+    def __enter__(self) -> DeliveryManager:
         self.start()
         return self
 
@@ -104,7 +103,9 @@ class MessageServer:
         return self._main_connection
 
     def start(self) -> None:
-        self._serve_forever()
+        logger.info('Starting delivery manager')
+        self._spawn_worker()
+        self._router.sync_to_server()
         self._wait_for_ready()
         self._watchdog = threading.Thread(
             target=self._watch,
@@ -128,7 +129,7 @@ class MessageServer:
             except (OSError, EOFError, RuntimeError):
                 logger.error('Failed to receive ready signal from worker')
 
-    def _serve_forever(self) -> None:
+    def _spawn_worker(self) -> None:
         if self._process and self._process.is_alive():
             raise RuntimeError('Server is already running')
 
@@ -136,7 +137,7 @@ class MessageServer:
 
         worker_args = (self._config, self._queue, self._worker_connection)
         self._process = _spawn.Process(
-            target=MessageWorker.bootstrap,
+            target=_Worker.bootstrap,
             args=worker_args,
             name=WORKER_PROCESS_TITLE,
         )
@@ -144,6 +145,7 @@ class MessageServer:
         self._worker_connection.close()
 
     def shutdown(self, timeout: float = 10) -> None:
+        logger.debug('Stopping delivery manager')
         self._stopped = True
         self._queue.put_nowait(Sentinel.SHUTDOWN)
 
@@ -153,6 +155,8 @@ class MessageServer:
                 logger.warning('Worker did not stop gracefully, terminating')
                 self._process.terminate()
                 self._process.join(timeout=5)
+
+        logger.info('Stopped delivery manager')
 
     def send_message(
         self,
@@ -164,19 +168,21 @@ class MessageServer:
         else:
             self._queue.put(message)
 
-    def pipe_send(self, data: ConfigSync | ConfigUpdate) -> None:
+    def sync_config(self, providers: list[dict[str, str]]) -> None:
+        self._pipe_send(ConfigSync(providers=providers))
+
+    def _pipe_send(self, command: PipeCommand) -> None:
         with self._pipe_lock:
-            self.pipe.send(data)
+            self.pipe.send(command)
 
     def ping(self, timeout: float = 5) -> bool:
         with self._pipe_lock:
-            logger.debug("Server sending ping!")
+            logger.debug("Server: sending Ping!")
             try:
                 self.pipe.send(PING)
                 if self.pipe.poll(timeout=timeout):
                     response = self.pipe.recv()
-                    if response == PONG:
-                        return True
+                    return response == PONG
             except (OSError, EOFError, RuntimeError):
                 pass
         return False
@@ -208,13 +214,13 @@ class MessageServer:
                 self._restart_with_backoff()
                 continue
 
-            logger.debug('Sending health check ping to worker')
             if not self.ping(timeout=_PING_TIMEOUT):
                 logger.error(
                     'Worker process unresponsive (ping timeout), restarting...'
                 )
-                self.shutdown(timeout=5)
-                self._stopped = False
+                if self._process and self._process.is_alive():
+                    self._process.terminate()
+                    self._process.join(timeout=5)
                 self._restart_with_backoff()
 
     def _restart_with_backoff(self) -> None:
@@ -226,14 +232,13 @@ class MessageServer:
         )
         time.sleep(delay)
 
-        self._serve_forever()
+        self._spawn_worker()
         self._router.sync_to_server()
+        self._wait_for_ready()
         self._restart_count += 1
 
 
-class MessageWorker:
-    """Runs inside the spawned process. Owns the asyncio loop and executor."""
-
+class _Worker:
     def __init__(
         self,
         queue: mp.Queue[OutboundMessage | Sentinel],
@@ -243,6 +248,7 @@ class MessageWorker:
         self._queue = queue
         self._connection = connection
         self._delivery_executor = delivery_executor
+        self._should_stop: asyncio.Future[None] | None = None
 
     @property
     def pipe(self) -> Connection:
@@ -260,7 +266,7 @@ class MessageWorker:
             config.get('log_file', '/var/log/wazo-chatd.log'),  # type: ignore[arg-type]
             debug=bool(config.get('debug', False)),
         )
-        logger.info('Worker process starting')
+        logger.info('Worker process starting (pid: %d)', os.getpid())
 
         registry = ConnectorRegistry()
         registry.discover()
@@ -283,33 +289,55 @@ class MessageWorker:
         else:
             logger.info('No initial config received from pipe')
 
-        worker = MessageWorker(queue, connection, delivery_executor)
+        worker = _Worker(queue, connection, delivery_executor)
         connection.send(READY)
         logger.info('Worker process ready, entering event loop')
         worker.run()
 
     def run(self) -> None:
-        event_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(event_loop)
-        try:
-            event_loop.run_until_complete(self._run_tasks())
-        finally:
-            event_loop.close()
-            logger.info('Worker process stopped')
+        asyncio.run(self._run_tasks())
+        logger.info('Worker process stopped (pid: %d)', os.getpid())
 
     async def _run_tasks(self) -> None:
+        self._should_stop = asyncio.Future()
         pipe_task = asyncio.create_task(self._pipe_listener())
         queue_task = asyncio.create_task(self._queue_consumer())
-        await queue_task
+
+        await self._should_stop
+
+        queue_task.cancel()
         pipe_task.cancel()
+        for task in (queue_task, pipe_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     async def _queue_consumer(self) -> None:
-        while True:
-            message = await asyncio.to_thread(self._queue.get)
+        assert self._should_stop is not None
+
+        while not self._should_stop.done():
+            get_task = asyncio.create_task(
+                asyncio.to_thread(self._queue.get, True, 30.0)
+            )
+            done, _ = await asyncio.wait(
+                (get_task, self._should_stop),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            if self._should_stop in done:
+                get_task.cancel()
+                return
+
+            try:
+                message = get_task.result()
+            except Empty:
+                continue
 
             if message is Sentinel.SHUTDOWN:
                 logger.info('Received shutdown sentinel')
-                break
+                self._should_stop.set_result(None)
+                return
 
             logger.info(
                 'Processing outbound message (delivery=%s)',
@@ -319,15 +347,14 @@ class MessageWorker:
     async def _pipe_listener(self) -> None:
         while True:
             has_data = await asyncio.to_thread(self.pipe.poll, 1.0)
-            if has_data:
-                self._handle_pipe_updates()
+            if not has_data:
+                continue
 
-    def _handle_pipe_updates(self) -> None:
-        while self.pipe.poll():
             command = self.pipe.recv()
 
             match command:
                 case Ping():
+                    logger.debug('Worker: replying Pong!')
                     self.pipe.send(PONG)
 
                 case ConfigSync():

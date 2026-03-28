@@ -63,8 +63,28 @@ class InboundMessage:
     """
 
 
-@dataclass
-class ConfigSync:
+@dataclass(frozen=True)
+class PipeCommand:
+    """Base class for all commands sent between processes via pipe."""
+
+
+@dataclass(frozen=True)
+class Ping(PipeCommand):
+    """Sent via pipe to check worker health."""
+
+
+@dataclass(frozen=True)
+class Pong(PipeCommand):
+    """Sent via pipe in response to a Ping."""
+
+
+@dataclass(frozen=True)
+class Ready(PipeCommand):
+    """Sent via pipe by the worker after initialization is complete."""
+
+
+@dataclass(frozen=True)
+class ConfigSync(PipeCommand):
     """Sent via pipe during server process initialization.
 
     Contains the full list of provider configurations so the server
@@ -74,26 +94,11 @@ class ConfigSync:
     providers: list[dict[str, Any]]
 
 
-@dataclass
-class ConfigUpdate:
+@dataclass(frozen=True)
+class ConfigUpdate(PipeCommand):
     """Sent via pipe at runtime when a provider configuration changes."""
 
     action: str
     """One of 'add', 'update', 'remove'."""
 
     provider: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class Ping:
-    """Sent via pipe to check worker health."""
-
-
-@dataclass(frozen=True)
-class Pong:
-    """Sent via pipe in response to a Ping."""
-
-
-@dataclass(frozen=True)
-class Ready:
-    """Sent via pipe by the worker after initialization is complete."""

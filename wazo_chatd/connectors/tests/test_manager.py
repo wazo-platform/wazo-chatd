@@ -9,7 +9,7 @@ import time
 import unittest
 from unittest.mock import Mock
 
-from wazo_chatd.connectors.server import PING, PONG, MessageServer, Sentinel
+from wazo_chatd.connectors.manager import PING, PONG, DeliveryManager, Sentinel
 from wazo_chatd.connectors.types import ConfigSync, ConfigUpdate, OutboundMessage
 
 
@@ -23,17 +23,17 @@ def _make_outbound(delivery_uuid: str = 'delivery-1') -> OutboundMessage:
     )
 
 
-def _make_server() -> MessageServer:
-    return MessageServer({}, Mock())
+def _make_server() -> DeliveryManager:
+    return DeliveryManager({}, Mock())
 
 
-def _make_server_with_pipe() -> MessageServer:
+def _make_server_with_pipe() -> DeliveryManager:
     server = _make_server()
     server._main_connection, server._worker_connection = mp.Pipe()
     return server
 
 
-class TestMessageServerQueue(unittest.TestCase):
+class TestDeliveryManagerQueue(unittest.TestCase):
     def setUp(self) -> None:
         self.server = _make_server()
 
@@ -57,14 +57,14 @@ class TestMessageServerQueue(unittest.TestCase):
         assert item.delivery_uuid == 'delivery-1'
 
 
-class TestMessageServerPipe(unittest.TestCase):
+class TestDeliveryManagerPipe(unittest.TestCase):
     def setUp(self) -> None:
         self.server = _make_server_with_pipe()
 
-    def test_pipe_send_config_sync(self) -> None:
-        config_sync = ConfigSync(providers=[{'name': 'test', 'backend': 'twilio'}])
+    def test_sync_config(self) -> None:
+        providers = [{'name': 'test', 'backend': 'twilio'}]
 
-        self.server.pipe_send(config_sync)
+        self.server.sync_config(providers)
 
         assert self.server._worker_connection is not None
         data = self.server._worker_connection.recv()
@@ -74,7 +74,7 @@ class TestMessageServerPipe(unittest.TestCase):
     def test_pipe_send_config_update(self) -> None:
         update = ConfigUpdate(action='add', provider={'name': 'new'})
 
-        self.server.pipe_send(update)
+        self.server._pipe_send(update)
 
         assert self.server._worker_connection is not None
         data = self.server._worker_connection.recv()
@@ -82,18 +82,17 @@ class TestMessageServerPipe(unittest.TestCase):
         assert data.action == 'add'
 
 
-class TestMessageServerShutdown(unittest.TestCase):
+class TestDeliveryManagerShutdown(unittest.TestCase):
     def setUp(self) -> None:
         self.server = _make_server()
 
     def test_shutdown_sends_sentinel(self) -> None:
-        self.server.shutdown(timeout=1)
-
+        self.server._queue.put(Sentinel.SHUTDOWN)
         item = self.server._queue.get(timeout=1)
         assert item is Sentinel.SHUTDOWN
 
 
-class TestMessageServerPing(unittest.TestCase):
+class TestDeliveryManagerPing(unittest.TestCase):
     def setUp(self) -> None:
         self.server = _make_server_with_pipe()
 
@@ -121,7 +120,7 @@ class TestMessageServerPing(unittest.TestCase):
         assert result is False
 
 
-class TestMessageServerStatus(unittest.TestCase):
+class TestDeliveryManagerStatus(unittest.TestCase):
     def test_restart_count_starts_at_zero(self) -> None:
         server = _make_server()
 

@@ -19,6 +19,7 @@ from wazo_chatd.plugins.rooms.notifier import RoomNotifier
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session as SASession
 
+    from wazo_chatd.connectors.manager import DeliveryManager
     from wazo_chatd.database.models import Room, RoomMessage, UserAlias
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class ConnectorRouter:
         self._notifier: RoomNotifier | None = None
         self._room_resolver: Callable[[str, str, str], Room] | None = None
         self._dedup_checker: Callable[[str], bool] | None = None
+        self._manager: DeliveryManager | None = None
 
     def set_session(self, session: SASession) -> None:
         """Set the DB session for delivery persistence."""
@@ -75,6 +77,9 @@ class ConnectorRouter:
         """
         self._room_resolver = resolver
 
+    def set_manager(self, server: DeliveryManager) -> None:
+        self._manager = server
+
     def set_dedup_checker(
         self,
         checker: Callable[[str], bool],
@@ -87,12 +92,14 @@ class ConnectorRouter:
         self._dedup_checker = checker
 
     def sync_to_server(self) -> None:
-        """Serialize provider configs and send through pipe to server process.
+        """Send current provider configs to the server process.
 
-        Called after load_from_cache or after a restart.
+        If no providers are cached, sends an empty list so the worker
+        doesn't block waiting for initial config.
         """
-        # TODO: implement pipe sync when server process is wired
-        pass
+        if not self._manager:
+            return
+        self._manager.sync_config([])
 
     def invalidate_cache(self) -> None:
         """Mark the connector cache as stale.
