@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from sqlalchemy import and_, distinct, text
@@ -73,6 +73,11 @@ class RoomDAO:
 
     def add_message(self, room, message):
         room.messages.append(message)
+        self.session.flush()
+
+    def add_message_meta(self, meta, initial_record):
+        self.session.add(meta)
+        self.session.add(initial_record)
         self.session.flush()
 
     def list_messages(self, room, **filter_parameters):

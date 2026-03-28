@@ -48,11 +48,13 @@ class Controller:
         self.token_renewer = TokenRenewer(auth_client)
         self._stopping_thread = None
 
+        dao = DAO()
+
         connector_registry = ConnectorRegistry()
         connector_registry.discover(
             enabled_connectors=config.get('enabled_connectors', {}),
         )
-        self.connector_router = ConnectorRouter(registry=connector_registry)
+        self.connector_router = ConnectorRouter(registry=connector_registry, dao=dao)
         self.delivery_manager = DeliveryManager(config, self.connector_router)
         self.connector_router.set_manager(self.delivery_manager)
 
@@ -67,7 +69,7 @@ class Controller:
                 'api': api,
                 'aio': self.aio,
                 'config': config,
-                'dao': DAO(),
+                'dao': dao,
                 'bus_consumer': self.bus_consumer,
                 'bus_publisher': self.bus_publisher,
                 'status_aggregator': self.status_aggregator,

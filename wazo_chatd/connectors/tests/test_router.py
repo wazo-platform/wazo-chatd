@@ -61,7 +61,7 @@ def _build_registry() -> ConnectorRegistry:
 class TestConnectorRouterListCapabilities(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        self.router = ConnectorRouter(registry=self.registry)
+        self.router = ConnectorRouter(registry=self.registry, dao=Mock())
 
     def test_all_internal_users(self) -> None:
         room = _make_room(
@@ -127,7 +127,7 @@ class TestConnectorRouterListCapabilities(unittest.TestCase):
 class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
-        self.router = ConnectorRouter(registry=self.registry)
+        self.router = ConnectorRouter(registry=self.registry, dao=Mock())
         self.on_message = Mock()
         self.router.on_message = self.on_message  # type: ignore[assignment]
 
@@ -191,11 +191,11 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 class TestConnectorRouterSend(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        self.router = ConnectorRouter(registry=self.registry)
-        self.session = Mock()
-        self.enqueue = Mock()
-        self.router.set_session(self.session)
-        self.router.set_enqueue(self.enqueue)
+        self.dao = Mock()
+        self.dao.user_alias.list_by_user_and_types.return_value = []
+        self.manager = Mock()
+        self.router = ConnectorRouter(registry=self.registry, dao=self.dao)
+        self.router.set_manager(self.manager)
 
     def test_send_internal_room_is_noop(self) -> None:
         room = _make_room(
@@ -208,8 +208,8 @@ class TestConnectorRouterSend(unittest.TestCase):
 
         self.router.send(room, message)
 
-        self.session.add.assert_not_called()
-        self.enqueue.assert_not_called()
+        self.dao.room.add_message_meta.assert_not_called()
+        self.manager.send_message.assert_not_called()
 
     def test_send_external_room_creates_meta_and_enqueues(self) -> None:
         room = _make_room(
@@ -220,46 +220,19 @@ class TestConnectorRouterSend(unittest.TestCase):
         )
         message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hello')
 
-        # Set up a user alias for the sender
         alias = Mock()
         alias.identity = '+15551234'
-        alias.uuid = 'alias-uuid'
         alias.provider = Mock(type_='sms', backend='twilio')
-        self.router.set_alias_resolver(lambda user_uuid, type_: alias)
+        self.dao.user_alias.list_by_user_and_types.return_value = [alias]
 
         self.router.send(room, message)
 
-        # Should have persisted MessageMeta + DeliveryRecord
-        assert self.session.add.call_count >= 2
-        self.session.flush.assert_called()
-
-        # Should have enqueued an outbound message
-        self.enqueue.assert_called_once()
-        outbound = self.enqueue.call_args[0][0]
+        self.dao.room.add_message_meta.assert_called_once()
+        self.manager.send_message.assert_called_once()
+        outbound = self.manager.send_message.call_args[0][0]
         assert outbound.sender_alias == '+15551234'
         assert outbound.recipient_alias == '+15559876'
         assert outbound.body == 'hello'
-
-    def test_send_with_user_alias_uuid(self) -> None:
-        """When user_alias_uuid is provided, it determines the type and sender."""
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='+15559876'),
-            ]
-        )
-        message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hello')
-
-        alias = Mock()
-        alias.identity = '+15551234'
-        alias.uuid = 'alias-uuid'
-        alias.provider = Mock(type_='sms', backend='twilio')
-        self.router.set_alias_resolver(lambda user_uuid, type_: alias)
-
-        self.router.send(room, message)
-
-        outbound = self.enqueue.call_args[0][0]
-        assert outbound.sender_alias == '+15551234'
 
     def test_send_no_capabilities_raises(self) -> None:
         room = _make_room(
@@ -277,10 +250,9 @@ class TestConnectorRouterSend(unittest.TestCase):
 class TestConnectorRouterOnMessage(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        self.router = ConnectorRouter(registry=self.registry)
-        self.session = Mock()
+        self.dao = Mock()
         self.notifier = Mock()
-        self.router.set_session(self.session)
+        self.router = ConnectorRouter(registry=self.registry, dao=self.dao)
         self.router.set_notifier(self.notifier)
 
     def _make_inbound(
@@ -318,8 +290,7 @@ class TestConnectorRouterOnMessage(unittest.TestCase):
         self.router.on_message(inbound)
 
         # Should persist RoomMessage + MessageMeta
-        assert self.session.add.call_count >= 1
-        self.session.flush.assert_called()
+        self.dao.room.add_message.assert_called_once()
 
     def test_on_message_notifies(self) -> None:
         inbound = self._make_inbound()
@@ -351,7 +322,7 @@ class TestConnectorRouterOnMessage(unittest.TestCase):
         self.router.on_message(inbound)
 
         # Should NOT persist anything — duplicate
-        self.session.add.assert_not_called()
+        self.dao.room.add_message.assert_not_called()
         self.notifier.message_created.assert_not_called()
 
     def test_on_message_dedup_allows_new_key(self) -> None:
@@ -370,7 +341,7 @@ class TestConnectorRouterOnMessage(unittest.TestCase):
 
         self.router.on_message(inbound)
 
-        assert self.session.add.call_count >= 1
+        self.dao.room.add_message.assert_called_once()
 
     def test_on_message_no_idempotency_key_always_processes(self) -> None:
         inbound = self._make_inbound(metadata={})
@@ -382,4 +353,4 @@ class TestConnectorRouterOnMessage(unittest.TestCase):
 
         self.router.on_message(inbound)
 
-        assert self.session.add.call_count >= 1
+        self.dao.room.add_message.assert_called_once()

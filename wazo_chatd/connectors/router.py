@@ -14,13 +14,12 @@ from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
 from wazo_chatd.database.models import DeliveryRecord, MessageMeta
 from wazo_chatd.database.models import RoomMessage as RoomMessageModel
+from wazo_chatd.database.queries import DAO
 from wazo_chatd.plugins.rooms.notifier import RoomNotifier
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session as SASession
-
     from wazo_chatd.connectors.manager import DeliveryManager
-    from wazo_chatd.database.models import Room, RoomMessage, UserAlias
+    from wazo_chatd.database.models import Room, RoomMessage
 
 logger = logging.getLogger(__name__)
 
@@ -32,35 +31,14 @@ class ConnectorRouter:
     persistence, and webhook dispatch.
     """
 
-    def __init__(self, registry: ConnectorRegistry) -> None:
+    def __init__(self, registry: ConnectorRegistry, dao: DAO) -> None:
         self._registry = registry
+        self._dao = dao
         self._instances: dict[str, Connector] = {}
-        self._session: SASession | None = None
-        self._enqueue: Callable[[OutboundMessage], None] | None = None
-        self._alias_resolver: Callable[[str, str], UserAlias | None] | None = None
         self._notifier: RoomNotifier | None = None
         self._room_resolver: Callable[[str, str, str], Room] | None = None
         self._dedup_checker: Callable[[str], bool] | None = None
         self._manager: DeliveryManager | None = None
-
-    def set_session(self, session: SASession) -> None:
-        """Set the DB session for delivery persistence."""
-        self._session = session
-
-    def set_enqueue(self, enqueue: Callable[[OutboundMessage], None]) -> None:
-        """Set the callback for enqueuing outbound messages to the server process."""
-        self._enqueue = enqueue
-
-    def set_alias_resolver(
-        self,
-        resolver: Callable[[str, str], UserAlias | None],
-    ) -> None:
-        """Set the function that resolves a user's alias for a given type.
-
-        Args:
-            resolver: Callable(user_uuid, type_) -> UserAlias | None
-        """
-        self._alias_resolver = resolver
 
     def set_notifier(self, notifier: RoomNotifier) -> None:
         """Set the notifier for publishing bus events on message creation."""
@@ -172,12 +150,13 @@ class ConnectorRouter:
 
         sender_alias_str = ''
         backend_name = chosen_type
-        if self._alias_resolver:
-            alias = self._alias_resolver(str(message.user_uuid), chosen_type)
-            if alias:
-                sender_alias_str = str(alias.identity)
-                if alias.provider:
-                    backend_name = str(alias.provider.backend)
+        aliases = self._dao.user_alias.list_by_user_and_types(
+            str(message.user_uuid), [chosen_type]
+        )
+        if aliases:
+            sender_alias_str = str(aliases[0].identity)
+            if aliases[0].provider:
+                backend_name = str(aliases[0].provider.backend)
 
         meta = MessageMeta(
             message_uuid=message.uuid,
@@ -190,22 +169,19 @@ class ConnectorRouter:
             status=DeliveryStatus.PENDING.value,
         )
 
-        if self._session:
-            self._session.add(meta)
-            self._session.add(initial_record)
-            self._session.flush()
+        self._dao.room.add_message_meta(meta, initial_record)
 
         outbound = OutboundMessage(
             sender_alias=sender_alias_str,
-            recipient_alias=recipient_identity or '',
+            recipient_alias=recipient_identity,
             sender_uuid=str(message.user_uuid),
             body=str(message.content),
             delivery_uuid=str(message.uuid),
             metadata={'idempotency_key': str(message.uuid)},
         )
 
-        if self._enqueue:
-            self._enqueue(outbound)
+        if self._manager:
+            self._manager.send_message(outbound)
 
     def dispatch_webhook(
         self,
@@ -294,10 +270,8 @@ class ConnectorRouter:
             status=DeliveryStatus.DELIVERED.value,
         )
 
-        if self._session:
-            self._session.add(message)
-            self._session.add(record)
-            self._session.flush()
+        self._dao.room.add_message(room, message)
+        self._dao.room.add_message_meta(meta, record)
 
         if self._notifier:
             self._notifier.message_created(room, message)
