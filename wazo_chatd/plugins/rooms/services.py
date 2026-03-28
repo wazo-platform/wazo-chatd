@@ -44,11 +44,11 @@ class RoomService:
     def get(self, tenant_uuids, room_uuid):
         return self._dao.room.get(tenant_uuids, room_uuid)
 
-    def create_message(self, room, message, *, route: bool = True):
+    def create_message(self, room, message):
         self._set_default_message_values(message)
         self._dao.room.add_message(room, message)
 
-        if route and self._connector_router:
+        if self._connector_router:
             self._connector_router.send(room, message)
 
         self._notifier.message_created(room, message)

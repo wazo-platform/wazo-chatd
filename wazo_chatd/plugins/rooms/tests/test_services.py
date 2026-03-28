@@ -34,19 +34,9 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
         assert self.message.wazo_uuid == WAZO_UUID
 
     def test_create_message_routes_through_connector(self) -> None:
-        self.service.create_message(self.room, self.message, route=True)
-
-        self.connector_router.send.assert_called_once_with(self.room, self.message)
-
-    def test_create_message_skips_routing_when_route_false(self) -> None:
-        self.service.create_message(self.room, self.message, route=False)
-
-        self.connector_router.send.assert_not_called()
-
-    def test_create_message_routes_by_default(self) -> None:
         self.service.create_message(self.room, self.message)
 
-        self.connector_router.send.assert_called_once()
+        self.connector_router.send.assert_called_once_with(self.room, self.message)
 
     def test_create_message_without_connector_router(self) -> None:
         service = RoomService(WAZO_UUID, self.dao, self.notifier)
@@ -58,6 +48,7 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
         assert result is self.message
 
     def test_create_message_notifies_even_when_routing(self) -> None:
-        self.service.create_message(self.room, self.message, route=True)
+        self.service.create_message(self.room, self.message)
 
+        self.connector_router.send.assert_called_once()
         self.notifier.message_created.assert_called_once_with(self.room, self.message)
