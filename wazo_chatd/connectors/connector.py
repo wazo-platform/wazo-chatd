@@ -76,6 +76,30 @@ class Connector(Protocol):
         """
         ...
 
+    def can_handle(
+        self,
+        transport: str,
+        raw_data: Mapping[str, Any],
+    ) -> bool:
+        """Check whether this connector can handle the given event data.
+
+        A lightweight pre-filter called before :meth:`on_event`.  Should
+        inspect headers, content-type, or other cheap signals without
+        doing full parsing or signature validation.
+
+        Args:
+            transport: How the data arrived — ``'webhook'``, ``'poll'``, etc.
+            raw_data: Plain dict extracted by the caller.
+
+        Returns:
+            ``True`` if this connector should attempt to handle the event.
+
+        The default implementation returns ``True`` (accept everything).
+        Override to add discriminators such as checking for
+        provider-specific headers (e.g. ``X-Twilio-Signature``).
+        """
+        ...
+
     def on_event(
         self,
         transport: str,

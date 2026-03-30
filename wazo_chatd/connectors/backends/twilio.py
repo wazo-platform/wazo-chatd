@@ -92,6 +92,17 @@ class TwilioConnector:
         except Exception as exc:
             raise ConnectorSendError(str(exc)) from exc
 
+    def can_handle(
+        self,
+        transport: str,
+        raw_data: Mapping[str, str],
+    ) -> bool:
+        if transport != 'webhook':
+            return True
+
+        headers = raw_data.get('_headers', {})
+        return 'X-Twilio-Signature' in headers
+
     def on_event(
         self,
         transport: str,

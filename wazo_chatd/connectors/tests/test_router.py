@@ -131,9 +131,16 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.manager = Mock()
         self.router.set_manager(self.manager)
 
-    def test_dispatch_enqueues_inbound_message(self) -> None:
+    def _make_connector(
+        self, backend: str = 'twilio', can_handle: bool = True
+    ) -> Mock:
         connector = Mock()
-        connector.backend = 'twilio'
+        connector.backend = backend
+        connector.can_handle.return_value = can_handle
+        return connector
+
+    def test_dispatch_enqueues_inbound_message(self) -> None:
+        connector = self._make_connector()
         inbound = InboundMessage(
             sender='+15559876',
             recipient='+15551234',
@@ -144,33 +151,85 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         connector.on_event.return_value = inbound
         self.router.add_instance('twilio-sms', connector)
 
-        self.router.dispatch_webhook('twilio', {'From': '+15559876'})
+        self.router.dispatch_webhook({'From': '+15559876'}, backend='twilio')
 
+        connector.can_handle.assert_called_once_with('webhook', {'From': '+15559876'})
         connector.on_event.assert_called_once_with('webhook', {'From': '+15559876'})
         self.manager.enqueue_message.assert_called_once_with(inbound)
 
+    def test_dispatch_without_backend_hint(self) -> None:
+        connector = self._make_connector()
+        inbound = InboundMessage(
+            sender='+15559876',
+            recipient='+15551234',
+            body='hello',
+            backend='twilio',
+            external_id='msg-123',
+        )
+        connector.on_event.return_value = inbound
+        self.router.add_instance('twilio-sms', connector)
+
+        self.router.dispatch_webhook({'From': '+15559876'})
+
+        self.manager.enqueue_message.assert_called_once_with(inbound)
+
+    def test_dispatch_skips_connector_that_cannot_handle(self) -> None:
+        skipped = self._make_connector(can_handle=False)
+        skipped.on_event.return_value = None
+
+        handler = self._make_connector()
+        inbound = InboundMessage(
+            sender='+15559876',
+            recipient='+15551234',
+            body='hello',
+            backend='twilio',
+            external_id='msg-123',
+        )
+        handler.on_event.return_value = inbound
+
+        self.router.add_instance('skipped', skipped)
+        self.router.add_instance('handler', handler)
+
+        self.router.dispatch_webhook({'From': '+15559876'})
+
+        skipped.on_event.assert_not_called()
+        self.manager.enqueue_message.assert_called_once_with(inbound)
+
     def test_dispatch_skips_none_events(self) -> None:
-        connector = Mock()
-        connector.backend = 'twilio'
+        connector = self._make_connector()
         connector.on_event.return_value = None
         self.router.add_instance('twilio-sms', connector)
 
-        self.router.dispatch_webhook('twilio', {'status': 'delivered'})
+        with pytest.raises(ConnectorParseError):
+            self.router.dispatch_webhook({'status': 'delivered'})
 
-        connector.on_event.assert_called_once()
         self.manager.enqueue_message.assert_not_called()
 
-    def test_dispatch_unknown_backend(self) -> None:
+    def test_dispatch_no_instances_raises(self) -> None:
         with pytest.raises(ConnectorParseError):
-            self.router.dispatch_webhook('nonexistent', {})
+            self.router.dispatch_webhook({})
 
-    def test_dispatch_tries_all_instances_of_backend(self) -> None:
-        connector_a = Mock()
-        connector_a.backend = 'twilio'
+    def test_dispatch_falls_back_to_non_hint_connectors(self) -> None:
+        vonage = self._make_connector(backend='vonage')
+        inbound = InboundMessage(
+            sender='+15559876',
+            recipient='+15551234',
+            body='hello',
+            backend='vonage',
+            external_id='msg-789',
+        )
+        vonage.on_event.return_value = inbound
+        self.router.add_instance('vonage-sms', vonage)
+
+        self.router.dispatch_webhook({'data': 'test'}, backend='twilio')
+
+        self.manager.enqueue_message.assert_called_once_with(inbound)
+
+    def test_dispatch_tries_all_instances(self) -> None:
+        connector_a = self._make_connector()
         connector_a.on_event.return_value = None
 
-        connector_b = Mock()
-        connector_b.backend = 'twilio'
+        connector_b = self._make_connector()
         inbound = InboundMessage(
             sender='+15559876',
             recipient='+15551234',
@@ -183,7 +242,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.add_instance('twilio-sms', connector_a)
         self.router.add_instance('twilio-mms', connector_b)
 
-        self.router.dispatch_webhook('twilio', {'data': 'test'})
+        self.router.dispatch_webhook({'data': 'test'})
 
         self.manager.enqueue_message.assert_called_once_with(inbound)
 

@@ -124,35 +124,46 @@ class ConnectorRouter:
 
     def dispatch_webhook(
         self,
-        backend: str,
         raw_data: Mapping[str, str],
+        backend: str | None = None,
     ) -> None:
         """Parse an incoming webhook and enqueue the result for the worker.
 
-        Finds all connector instances whose backend matches, calls
-        ``on_event('webhook', ...)`` on each until one returns a
-        non-None :class:`InboundMessage`, then enqueues it.
+        Uses a two-phase dispatch:
+
+        1. ``can_handle('webhook', raw_data)`` pre-filters connectors
+           cheaply (header/content-type checks).
+        2. ``on_event('webhook', raw_data)`` does full parsing on
+           candidates until one returns a non-None :class:`InboundMessage`.
+
+        When *backend* is provided (from the URL path), matching instances
+        are tried first as a fast path. Remaining instances are tried as
+        fallback.
 
         Raises:
-            ConnectorParseError: If no connector instance matches the
-                backend or none produces a message.
+            ConnectorParseError: If no connector can handle the webhook.
         """
-        matching = [
-            inst
-            for inst in self._instances.values()
-            if getattr(inst, 'backend', None) == backend
-        ]
-        if not matching:
-            raise ConnectorParseError(
-                f'No connector instance registered for backend {backend!r}'
-            )
+        instances = list(self._instances.values())
+        if not instances:
+            raise ConnectorParseError('No connector instances registered')
 
-        for instance in matching:
+        if backend:
+            hint_match = [i for i in instances if getattr(i, 'backend', None) == backend]
+            rest = [i for i in instances if i not in hint_match]
+            ordered = hint_match + rest
+        else:
+            ordered = instances
+
+        for instance in ordered:
+            if not instance.can_handle('webhook', raw_data):
+                continue
             inbound = instance.on_event('webhook', raw_data)
             if inbound is not None:
                 if self._manager:
                     self._manager.enqueue_message(inbound)
                 return
+
+        raise ConnectorParseError('No connector matched the webhook payload')
 
     def _resolve_reachable_types(self, identity: str) -> set[str]:
         """Ask each registered connector backend if it can normalize

@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 class ConnectorWebhookResource(Resource):
     """Shared webhook endpoint for all connector backends.
 
-    Route: ``POST /connectors/incoming/<backend>``
+    Routes:
+        ``POST /connectors/incoming`` — tries all connectors
+        ``POST /connectors/incoming/<backend>`` — backend hint for fast path
 
     Extracts raw data from the request (JSON or form-encoded),
     includes headers as ``_headers`` for signature validation,
@@ -28,14 +30,14 @@ class ConnectorWebhookResource(Resource):
     def __init__(self, router: ConnectorRouter) -> None:
         self._router = router
 
-    def post(self, backend: str) -> tuple[dict[str, Any] | str, int]:
+    def post(self, backend: str | None = None) -> tuple[dict[str, Any] | str, int]:
         raw_data = self._extract_raw_data()
 
         try:
-            self._router.dispatch_webhook(backend, raw_data)
+            self._router.dispatch_webhook(raw_data, backend=backend)
         except ConnectorParseError:
-            logger.info('No connector matched backend %r', backend)
-            return {'error': f'Unknown backend: {backend}'}, 404
+            logger.info('No connector matched webhook (backend=%s)', backend)
+            return {'error': 'No connector matched the webhook'}, 404
 
         return '', 204
 

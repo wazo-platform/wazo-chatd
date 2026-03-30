@@ -32,10 +32,10 @@ class TestConnectorWebhookResource(unittest.TestCase):
 
         self.router.dispatch_webhook.assert_called_once()
         call_args = self.router.dispatch_webhook.call_args
-        assert call_args[0][0] == 'twilio'
-        raw_data = call_args[0][1]
+        raw_data = call_args[0][0]
         assert raw_data['Body'] == 'hello'
         assert raw_data['From'] == '+15559876'
+        assert call_args[1]['backend'] == 'twilio'
         assert status_code == 204
 
     def test_post_form_data_dispatches_to_router(self) -> None:
@@ -50,10 +50,25 @@ class TestConnectorWebhookResource(unittest.TestCase):
             response, status_code = self.resource.post(backend='twilio')
 
         call_args = self.router.dispatch_webhook.call_args
-        assert call_args[0][0] == 'twilio'
-        raw_data = call_args[0][1]
+        raw_data = call_args[0][0]
         assert raw_data['Body'] == 'hello'
         assert raw_data['From'] == '+15559876'
+        assert call_args[1]['backend'] == 'twilio'
+        assert status_code == 204
+
+    def test_post_without_backend_hint(self) -> None:
+        self.router.dispatch_webhook.return_value = None
+
+        with self.app.test_request_context(
+            '/connectors/incoming',
+            method='POST',
+            data=json.dumps({'Body': 'hello'}),
+            content_type='application/json',
+        ):
+            response, status_code = self.resource.post()
+
+        call_args = self.router.dispatch_webhook.call_args
+        assert call_args[1]['backend'] is None
         assert status_code == 204
 
     def test_post_unknown_backend_returns_404(self) -> None:
@@ -82,6 +97,6 @@ class TestConnectorWebhookResource(unittest.TestCase):
             self.resource.post(backend='twilio')
 
         call_args = self.router.dispatch_webhook.call_args
-        raw_data = call_args[0][1]
+        raw_data = call_args[0][0]
         assert '_headers' in raw_data
         assert raw_data['_headers']['X-Custom-Header'] == 'test-value'

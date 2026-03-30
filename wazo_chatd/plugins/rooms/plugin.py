@@ -47,6 +47,7 @@ class Plugin:
         if connector_router:
             api.add_resource(
                 ConnectorWebhookResource,
+                '/connectors/incoming',
                 '/connectors/incoming/<backend>',
                 resource_class_args=[connector_router],
             )

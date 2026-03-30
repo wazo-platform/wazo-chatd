@@ -43,6 +43,14 @@ class InternalConnector:
         """
         return ''
 
+    def can_handle(
+        self,
+        transport: str,
+        raw_data: Mapping[str, Any],
+    ) -> bool:
+        """Internal connector never handles external events."""
+        return False
+
     def on_event(
         self,
         transport: str,

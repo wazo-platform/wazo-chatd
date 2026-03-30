@@ -8,19 +8,16 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from wazo_chatd.connectors.backends.twilio import TwilioConnector
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
 
 
 class TestTwilioConnectorClassAttrs(unittest.TestCase):
     def test_backend(self) -> None:
-        from wazo_chatd.connectors.backends.twilio import TwilioConnector
-
         assert TwilioConnector.backend == 'twilio'
 
     def test_supported_types(self) -> None:
-        from wazo_chatd.connectors.backends.twilio import TwilioConnector
-
         assert 'sms' in TwilioConnector.supported_types
         assert 'mms' in TwilioConnector.supported_types
         assert 'whatsapp' in TwilioConnector.supported_types
@@ -28,8 +25,6 @@ class TestTwilioConnectorClassAttrs(unittest.TestCase):
 
 class TestTwilioConnectorConfigure(unittest.TestCase):
     def setUp(self) -> None:
-        from wazo_chatd.connectors.backends.twilio import TwilioConnector
-
         self.connector = TwilioConnector()
 
     def test_configure_stores_credentials(self) -> None:
@@ -67,8 +62,6 @@ class TestTwilioConnectorConfigure(unittest.TestCase):
 
 class TestTwilioConnectorSend(unittest.TestCase):
     def setUp(self) -> None:
-        from wazo_chatd.connectors.backends.twilio import TwilioConnector
-
         self.connector = TwilioConnector()
         self.connector.configure(
             'sms',
@@ -122,10 +115,36 @@ class TestTwilioConnectorSend(unittest.TestCase):
             self.connector.send(message)
 
 
+class TestTwilioConnectorCanHandle(unittest.TestCase):
+    def setUp(self) -> None:
+        self.connector = TwilioConnector()
+
+    def test_webhook_with_twilio_signature(self) -> None:
+        raw_data = {
+            '_headers': {
+                'X-Twilio-Signature': 'abc123',
+                'User-Agent': 'TwilioProxy/1.1',
+            },
+        }
+
+        assert self.connector.can_handle('webhook', raw_data) is True
+
+    def test_webhook_without_signature(self) -> None:
+        raw_data = {
+            '_headers': {'User-Agent': 'SomeOtherAgent'},
+        }
+
+        assert self.connector.can_handle('webhook', raw_data) is False
+
+    def test_webhook_no_headers(self) -> None:
+        assert self.connector.can_handle('webhook', {}) is False
+
+    def test_non_webhook_transport(self) -> None:
+        assert self.connector.can_handle('poll', {}) is True
+
+
 class TestTwilioConnectorOnEvent(unittest.TestCase):
     def setUp(self) -> None:
-        from wazo_chatd.connectors.backends.twilio import TwilioConnector
-
         self.connector = TwilioConnector()
         self.connector.configure(
             'sms',
@@ -170,8 +189,6 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
 
 class TestTwilioConnectorNormalizeIdentity(unittest.TestCase):
     def setUp(self) -> None:
-        from wazo_chatd.connectors.backends.twilio import TwilioConnector
-
         self.connector = TwilioConnector()
 
     def test_valid_e164(self) -> None:
