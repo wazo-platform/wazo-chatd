@@ -7,19 +7,24 @@ import multiprocessing as mp
 import threading
 import time
 import unittest
+import unittest.mock
 from unittest.mock import Mock
 
-from wazo_chatd.connectors.manager import PING, PONG, DeliveryManager, Sentinel
-from wazo_chatd.connectors.types import ConfigSync, ConfigUpdate, OutboundMessage
+from wazo_chatd.connectors.manager import PING, PONG, DeliveryManager, Sentinel, _Worker
+from wazo_chatd.connectors.types import (
+    ConfigSync,
+    ConfigUpdate,
+    InboundMessage,
+    OutboundMessage,
+)
 
 
-def _make_outbound(delivery_uuid: str = 'delivery-1') -> OutboundMessage:
+def _make_outbound(message_uuid: str = 'delivery-1') -> OutboundMessage:
     return OutboundMessage(
-        sender_alias='+15551234',
-        recipient_alias='+15559876',
+        room_uuid='room-uuid',
+        message_uuid=message_uuid,
         sender_uuid='user-uuid',
         body='hello',
-        delivery_uuid=delivery_uuid,
     )
 
 
@@ -44,7 +49,7 @@ class TestDeliveryManagerQueue(unittest.TestCase):
 
         item = self.server._queue.get(timeout=1)
         assert isinstance(item, OutboundMessage)
-        assert item.delivery_uuid == 'delivery-1'
+        assert item.message_uuid == 'delivery-1'
 
     def test_send_message_delayed(self) -> None:
         outbound = _make_outbound()
@@ -54,7 +59,7 @@ class TestDeliveryManagerQueue(unittest.TestCase):
         time.sleep(0.05)
         item = self.server._queue.get_nowait()
         assert isinstance(item, OutboundMessage)
-        assert item.delivery_uuid == 'delivery-1'
+        assert item.message_uuid == 'delivery-1'
 
 
 class TestDeliveryManagerPipe(unittest.TestCase):
@@ -118,6 +123,33 @@ class TestDeliveryManagerPing(unittest.TestCase):
         result = self.server.ping(timeout=0.1)
 
         assert result is False
+
+
+class TestWorkerInit(unittest.TestCase):
+    def test_initialize_sets_engine_session_and_publisher(self) -> None:
+        queue: mp.Queue[OutboundMessage | InboundMessage | Sentinel] = mp.Queue()
+        conn, _ = mp.Pipe()
+        executor = Mock()
+        worker = _Worker(queue, conn, executor)
+
+        with unittest.mock.patch(
+            'wazo_chatd.connectors.manager.init_async_db'
+        ) as mock_init_db, unittest.mock.patch(
+            'wazo_chatd.connectors.manager.BusPublisher'
+        ) as mock_bus:
+            mock_engine = Mock()
+            mock_factory = Mock()
+            mock_init_db.return_value = (mock_engine, mock_factory)
+            mock_publisher = Mock()
+            mock_bus.from_config.return_value = mock_publisher
+
+            worker.initialize(
+                {'db_uri': 'postgresql://localhost/test', 'uuid': 'svc', 'bus': {}}
+            )
+
+        assert worker._engine is mock_engine
+        assert worker._session_factory is mock_factory
+        assert worker._bus_publisher is mock_publisher
 
 
 class TestDeliveryManagerStatus(unittest.TestCase):

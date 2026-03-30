@@ -54,7 +54,7 @@ class Controller:
         connector_registry.discover(
             enabled_connectors=config.get('enabled_connectors', {}),
         )
-        self.connector_router = ConnectorRouter(registry=connector_registry, dao=dao)
+        self.connector_router = ConnectorRouter(registry=connector_registry)
         self.delivery_manager = DeliveryManager(config, self.connector_router)
         self.connector_router.set_manager(self.delivery_manager)
 

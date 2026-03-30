@@ -1,6 +1,8 @@
 # Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from wazo_chatd.connectors.http import ConnectorWebhookResource
+
 from .http import (
     UserAliasListResource,
     UserMessageListResource,
@@ -41,3 +43,10 @@ class Plugin:
             '/users/me/aliases',
             resource_class_args=[dao],
         )
+
+        if connector_router:
+            api.add_resource(
+                ConnectorWebhookResource,
+                '/connectors/incoming/<backend>',
+                resource_class_args=[connector_router],
+            )

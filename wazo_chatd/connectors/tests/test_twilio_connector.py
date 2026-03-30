@@ -84,11 +84,12 @@ class TestTwilioConnectorSend(unittest.TestCase):
         self.connector._client = mock_client  # type: ignore[assignment]
 
         message = OutboundMessage(
-            sender_alias='+15551234',
-            recipient_alias='+15559876',
+            room_uuid='room-uuid',
+            message_uuid='delivery-uuid',
             sender_uuid='user-uuid',
             body='Hello from Wazo',
-            delivery_uuid='delivery-uuid',
+            sender_alias='+15551234',
+            recipient_alias='+15559876',
             metadata={'idempotency_key': 'key-1'},
         )
 
@@ -109,11 +110,12 @@ class TestTwilioConnectorSend(unittest.TestCase):
         self.connector._client = mock_client  # type: ignore[assignment]
 
         message = OutboundMessage(
-            sender_alias='+15551234',
-            recipient_alias='+15559876',
+            room_uuid='room-uuid',
+            message_uuid='delivery-uuid',
             sender_uuid='user-uuid',
             body='Hello',
-            delivery_uuid='delivery-uuid',
+            sender_alias='+15551234',
+            recipient_alias='+15559876',
         )
 
         with pytest.raises(ConnectorSendError):

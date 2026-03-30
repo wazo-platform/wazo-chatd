@@ -23,11 +23,10 @@ class TestInternalConnector(unittest.TestCase):
 
     def test_send_returns_empty_string(self) -> None:
         message = OutboundMessage(
-            sender_alias='',
-            recipient_alias='',
+            room_uuid='room-uuid',
+            message_uuid='delivery-uuid',
             sender_uuid='some-uuid',
             body='hello',
-            delivery_uuid='delivery-uuid',
         )
 
         result = self.connector.send(message)

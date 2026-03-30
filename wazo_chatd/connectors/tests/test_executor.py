@@ -4,21 +4,28 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock
+import unittest.mock
+from unittest.mock import AsyncMock, Mock
 
 from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.executor import DeliveryExecutor
-from wazo_chatd.connectors.types import ConfigSync, OutboundMessage
+from wazo_chatd.connectors.types import (
+    ConfigSync,
+    InboundMessage,
+    OutboundMessage,
+    RoomParticipant,
+)
 
 
-def _make_outbound(delivery_uuid: str = 'delivery-1') -> OutboundMessage:
+def _make_outbound(message_uuid: str = 'delivery-1') -> OutboundMessage:
     return OutboundMessage(
-        sender_alias='+15551234',
-        recipient_alias='+15559876',
+        room_uuid='room-uuid',
+        message_uuid=message_uuid,
         sender_uuid='user-uuid',
         body='hello',
-        delivery_uuid=delivery_uuid,
+        sender_alias='+15551234',
+        recipient_alias='+15559876',
         metadata={'idempotency_key': 'key-1'},
     )
 
@@ -105,7 +112,8 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.delivery.retry_count = 0
         self.delivery.external_id = None
 
-        self.session = Mock()
+        self.session = AsyncMock()
+        self.session.add = Mock()
         self.bus_publisher = Mock()
 
     async def test_execute_success(self) -> None:
@@ -121,7 +129,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         assert self.delivery.external_id == 'ext-msg-id-123'
         # Should have added SENDING then SENT records
         assert self.session.add.call_count >= 2
-        self.session.flush.assert_called()
+        self.session.flush.assert_awaited()
 
     async def test_execute_failure_increments_retry(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
@@ -152,3 +160,175 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         added_objects = [call.args[0] for call in self.session.add.call_args_list]
         statuses = [obj.status for obj in added_objects if hasattr(obj, 'status')]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
+
+
+def _make_outbound_with_participants(
+    external_identity: str = '+15559876',
+) -> OutboundMessage:
+    return OutboundMessage(
+        room_uuid='room-uuid',
+        message_uuid='msg-uuid',
+        sender_uuid='user-uuid',
+        body='hello',
+        participants=(
+            RoomParticipant(uuid='user-a', identity=None),
+            RoomParticipant(uuid='ext-uuid', identity=external_identity),
+        ),
+        metadata={'idempotency_key': 'msg-uuid'},
+    )
+
+
+class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.registry = Mock()
+        self.registry.available_backends.return_value = ['twilio']
+        backend_cls = Mock()
+        backend_cls.supported_types = ('sms',)
+        instance = Mock()
+        instance.normalize_identity.return_value = '+15559876'
+        backend_cls.return_value = instance
+        self.registry.get_backend.return_value = backend_cls
+
+        self.connector = _FakeConnector()
+        self.executor = DeliveryExecutor(
+            registry=self.registry,
+            connector_config={},
+        )
+        self.executor.connectors['twilio-sms'] = self.connector  # type: ignore[assignment]
+
+        self.session = AsyncMock()
+        self.session.add = Mock()
+        self.bus_publisher = Mock()
+
+    async def test_route_outbound_resolves_alias_and_enqueues(self) -> None:
+        alias = Mock()
+        alias.identity = '+15551234'
+        alias.provider = Mock(backend='twilio')
+
+        outbound = _make_outbound_with_participants()
+
+        with unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_user_alias.list_by_user_and_types',
+            new_callable=AsyncMock,
+            return_value=[alias],
+        ):
+            await self.executor.route_outbound(
+                outbound, self.session, self.bus_publisher
+            )
+
+        assert self.session.add.call_count >= 2
+        self.session.flush.assert_awaited()
+
+    async def test_route_outbound_internal_only_is_noop(self) -> None:
+        outbound = OutboundMessage(
+            room_uuid='room-uuid',
+            message_uuid='msg-uuid',
+            sender_uuid='user-uuid',
+            body='hello',
+            participants=(
+                RoomParticipant(uuid='user-a', identity=None),
+                RoomParticipant(uuid='user-b', identity=None),
+            ),
+        )
+
+        await self.executor.route_outbound(outbound, self.session, self.bus_publisher)
+
+        self.session.add.assert_not_called()
+
+
+def _make_inbound(
+    idempotency_key: str | None = None,
+) -> InboundMessage:
+    metadata: dict[str, str] = {}
+    if idempotency_key:
+        metadata['idempotency_key'] = idempotency_key
+    return InboundMessage(
+        sender='+15559876',
+        recipient='+15551234',
+        body='hello from outside',
+        backend='twilio',
+        external_id='ext-123',
+        metadata=metadata,
+    )
+
+
+class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.registry = Mock()
+        self.executor = DeliveryExecutor(
+            registry=self.registry,
+            connector_config={},
+        )
+        self.session = AsyncMock()
+        self.session.add = Mock()
+        self.bus_publisher = Mock()
+
+    async def test_route_inbound_dedup_skips_duplicate(self) -> None:
+        inbound = _make_inbound(idempotency_key='existing-key')
+
+        with unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_room.check_duplicate_idempotency_key',
+            new_callable=AsyncMock,
+            return_value=True,
+        ):
+            await self.executor.route_inbound(inbound, self.session, self.bus_publisher)
+
+        self.session.add.assert_not_called()
+
+    async def test_route_inbound_no_dedup_key_skips_dedup_check(self) -> None:
+        inbound = _make_inbound()
+
+        with unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_room.check_duplicate_idempotency_key',
+            new_callable=AsyncMock,
+        ) as mock_dedup, unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_user_alias.find_by_identity_and_backend',
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            await self.executor.route_inbound(inbound, self.session, self.bus_publisher)
+
+        mock_dedup.assert_not_awaited()
+
+    async def test_route_inbound_unknown_recipient_logs_and_returns(self) -> None:
+        inbound = _make_inbound()
+
+        with unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_user_alias.find_by_identity_and_backend',
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            await self.executor.route_inbound(inbound, self.session, self.bus_publisher)
+
+        self.session.add.assert_not_called()
+
+    async def test_route_inbound_creates_message_and_meta(self) -> None:
+        alias = Mock()
+        alias.user_uuid = 'wazo-user-uuid'
+        alias.tenant_uuid = 'tenant-uuid'
+        alias.provider = Mock(tenant_uuid='tenant-uuid')
+        alias.user = Mock(uuid='wazo-user-uuid', wazo_uuid='wazo-system-uuid')
+
+        room = Mock()
+        room.uuid = 'room-uuid'
+        room.users = [Mock(uuid='wazo-user-uuid')]
+
+        inbound = _make_inbound()
+
+        with unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_user_alias.find_by_identity_and_backend',
+            new_callable=AsyncMock,
+            return_value=alias,
+        ), unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_room.find_or_create_room',
+            new_callable=AsyncMock,
+            return_value=room,
+        ), unittest.mock.patch(
+            'wazo_chatd.connectors.executor.async_room.add_message_meta',
+            new_callable=AsyncMock,
+        ) as mock_add_meta:
+            await self.executor.route_inbound(inbound, self.session, self.bus_publisher)
+
+        self.session.add.assert_called_once()
+        self.session.flush.assert_awaited()
+        mock_add_meta.assert_awaited_once()

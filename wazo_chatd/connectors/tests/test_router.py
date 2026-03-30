@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from wazo_chatd.connectors.exceptions import ConnectorParseError, NoCommonConnectorError
+from wazo_chatd.connectors.exceptions import ConnectorParseError
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.router import ConnectorRouter
 from wazo_chatd.connectors.types import InboundMessage
@@ -61,7 +61,7 @@ def _build_registry() -> ConnectorRegistry:
 class TestConnectorRouterListCapabilities(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        self.router = ConnectorRouter(registry=self.registry, dao=Mock())
+        self.router = ConnectorRouter(registry=self.registry)
 
     def test_all_internal_users(self) -> None:
         room = _make_room(
@@ -127,11 +127,11 @@ class TestConnectorRouterListCapabilities(unittest.TestCase):
 class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
-        self.router = ConnectorRouter(registry=self.registry, dao=Mock())
-        self.on_message = Mock()
-        self.router.on_message = self.on_message  # type: ignore[assignment]
+        self.router = ConnectorRouter(registry=self.registry)
+        self.manager = Mock()
+        self.router.set_manager(self.manager)
 
-    def test_dispatch_to_matching_connector(self) -> None:
+    def test_dispatch_enqueues_inbound_message(self) -> None:
         connector = Mock()
         connector.backend = 'twilio'
         inbound = InboundMessage(
@@ -147,7 +147,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.dispatch_webhook('twilio', {'From': '+15559876'})
 
         connector.on_event.assert_called_once_with('webhook', {'From': '+15559876'})
-        self.on_message.assert_called_once_with(inbound)
+        self.manager.send_inbound.assert_called_once_with(inbound)
 
     def test_dispatch_skips_none_events(self) -> None:
         connector = Mock()
@@ -158,7 +158,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.dispatch_webhook('twilio', {'status': 'delivered'})
 
         connector.on_event.assert_called_once()
-        self.on_message.assert_not_called()
+        self.manager.send_inbound.assert_not_called()
 
     def test_dispatch_unknown_backend(self) -> None:
         with pytest.raises(ConnectorParseError):
@@ -185,16 +185,14 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
         self.router.dispatch_webhook('twilio', {'data': 'test'})
 
-        self.on_message.assert_called_once_with(inbound)
+        self.manager.send_inbound.assert_called_once_with(inbound)
 
 
 class TestConnectorRouterSend(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        self.dao = Mock()
-        self.dao.user_alias.list_by_user_and_types.return_value = []
         self.manager = Mock()
-        self.router = ConnectorRouter(registry=self.registry, dao=self.dao)
+        self.router = ConnectorRouter(registry=self.registry)
         self.router.set_manager(self.manager)
 
     def test_send_internal_room_is_noop(self) -> None:
@@ -204,153 +202,32 @@ class TestConnectorRouterSend(unittest.TestCase):
                 _make_room_user('user-b'),
             ]
         )
+        room.uuid = 'room-uuid'
         message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hi')
 
         self.router.send(room, message)
 
-        self.dao.room.add_message_meta.assert_not_called()
         self.manager.send_message.assert_not_called()
 
-    def test_send_external_room_creates_meta_and_enqueues(self) -> None:
+    def test_send_external_room_enqueues_with_participants(self) -> None:
         room = _make_room(
             [
                 _make_room_user('user-a'),
                 _make_room_user('ext-uuid', identity='+15559876'),
             ]
         )
+        room.uuid = 'room-uuid'
         message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hello')
-
-        alias = Mock()
-        alias.identity = '+15551234'
-        alias.provider = Mock(type_='sms', backend='twilio')
-        self.dao.user_alias.list_by_user_and_types.return_value = [alias]
 
         self.router.send(room, message)
 
-        self.dao.room.add_message_meta.assert_called_once()
         self.manager.send_message.assert_called_once()
         outbound = self.manager.send_message.call_args[0][0]
-        assert outbound.sender_alias == '+15551234'
-        assert outbound.recipient_alias == '+15559876'
+        assert outbound.room_uuid == 'room-uuid'
+        assert outbound.message_uuid == 'msg-uuid'
+        assert outbound.sender_uuid == 'user-a'
         assert outbound.body == 'hello'
-
-    def test_send_no_capabilities_raises(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='unknown-format'),
-            ]
-        )
-        message = Mock(uuid='msg-uuid')
-
-        with pytest.raises(NoCommonConnectorError):
-            self.router.send(room, message)
-
-
-class TestConnectorRouterOnMessage(unittest.TestCase):
-    def setUp(self) -> None:
-        self.registry = _build_registry()
-        self.dao = Mock()
-        self.notifier = Mock()
-        self.router = ConnectorRouter(registry=self.registry, dao=self.dao)
-        self.router.set_notifier(self.notifier)
-
-    def _make_inbound(
-        self,
-        sender: str = '+15559876',
-        recipient: str = '+15551234',
-        body: str = 'hello',
-        backend: str = 'twilio',
-        external_id: str = 'ext-123',
-        metadata: dict[str, str] | None = None,
-    ) -> InboundMessage:
-        return InboundMessage(
-            sender=sender,
-            recipient=recipient,
-            body=body,
-            backend=backend,
-            external_id=external_id,
-            metadata=metadata or {},
-        )
-
-    def test_on_message_persists_room_message_and_meta(self) -> None:
-        inbound = self._make_inbound()
-
-        # Mock room resolution
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='+15559876'),
-            ]
-        )
-        self.router.set_room_resolver(
-            lambda tenant, sender, recipient: room,
-        )
-
-        self.router.on_message(inbound)
-
-        # Should persist RoomMessage + MessageMeta
-        self.dao.room.add_message.assert_called_once()
-
-    def test_on_message_notifies(self) -> None:
-        inbound = self._make_inbound()
-
-        room = _make_room([_make_room_user('user-a')])
-        self.router.set_room_resolver(
-            lambda tenant, sender, recipient: room,
-        )
-
-        self.router.on_message(inbound)
-
-        self.notifier.message_created.assert_called_once()
-
-    def test_on_message_dedup_skips_duplicate(self) -> None:
-        inbound = self._make_inbound(
-            metadata={'idempotency_key': 'idem-abc'},
-        )
-
-        # Simulate existing message with this key
-        self.router.set_dedup_checker(
-            lambda key: True,  # key already exists
-        )
-
-        room = _make_room([_make_room_user('user-a')])
-        self.router.set_room_resolver(
-            lambda tenant, sender, recipient: room,
-        )
-
-        self.router.on_message(inbound)
-
-        # Should NOT persist anything — duplicate
-        self.dao.room.add_message.assert_not_called()
-        self.notifier.message_created.assert_not_called()
-
-    def test_on_message_dedup_allows_new_key(self) -> None:
-        inbound = self._make_inbound(
-            metadata={'idempotency_key': 'new-key'},
-        )
-
-        self.router.set_dedup_checker(
-            lambda key: False,  # key is new
-        )
-
-        room = _make_room([_make_room_user('user-a')])
-        self.router.set_room_resolver(
-            lambda tenant, sender, recipient: room,
-        )
-
-        self.router.on_message(inbound)
-
-        self.dao.room.add_message.assert_called_once()
-
-    def test_on_message_no_idempotency_key_always_processes(self) -> None:
-        inbound = self._make_inbound(metadata={})
-
-        room = _make_room([_make_room_user('user-a')])
-        self.router.set_room_resolver(
-            lambda tenant, sender, recipient: room,
-        )
-
-        self.router.on_message(inbound)
-
-        self.dao.room.add_message.assert_called_once()
+        assert len(outbound.participants) == 2
+        external = [p for p in outbound.participants if p.identity]
+        assert len(external) == 1
+        assert external[0].identity == '+15559876'

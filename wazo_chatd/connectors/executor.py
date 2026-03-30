@@ -17,11 +17,24 @@ from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.types import ConfigSync, ConfigUpdate, OutboundMessage
-from wazo_chatd.database.models import DeliveryRecord, MessageMeta
+from wazo_chatd.connectors.types import (
+    ConfigSync,
+    ConfigUpdate,
+    InboundMessage,
+    OutboundMessage,
+    RoomParticipant,
+)
+from wazo_chatd.database.models import (
+    DeliveryRecord,
+    MessageMeta,
+    RoomMessage,
+    RoomUser,
+)
+from wazo_chatd.database.queries.async_ import room as async_room
+from wazo_chatd.database.queries.async_ import user_alias as async_user_alias
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session as SASession
+    from sqlalchemy.ext.asyncio import AsyncSession
 
     from wazo_chatd.bus import BusPublisher
 
@@ -103,25 +116,182 @@ class DeliveryExecutor:
         self.connectors[name] = instance
         logger.info('Updated connector instance %r (backend=%r)', name, backend)
 
+    async def route_outbound(
+        self,
+        outbound: OutboundMessage,
+        session: AsyncSession,
+        bus_publisher: BusPublisher | None,
+    ) -> None:
+        external = [p for p in outbound.participants if p.identity]
+        if not external:
+            return
+
+        capabilities = self._resolve_capabilities(external)
+        if not capabilities:
+            logger.warning(
+                'No common connector type for message %s',
+                outbound.message_uuid,
+            )
+            return
+
+        chosen_type = next(iter(capabilities))
+        recipient_identity = str(external[0].identity)
+
+        aliases = await async_user_alias.list_by_user_and_types(
+            session, outbound.sender_uuid, [chosen_type]
+        )
+        sender_alias = str(aliases[0].identity) if aliases else ''
+        backend_name = (
+            str(aliases[0].provider.backend)
+            if aliases and aliases[0].provider
+            else chosen_type
+        )
+
+        meta = MessageMeta(
+            message_uuid=outbound.message_uuid,
+            type_=chosen_type,
+            backend=backend_name,
+            extra={'outbound_idempotency_key': outbound.message_uuid},
+        )
+        initial_record = DeliveryRecord(
+            message_uuid=outbound.message_uuid,
+            status=DeliveryStatus.PENDING.value,
+        )
+        session.add(meta)
+        session.add(initial_record)
+        await session.flush()
+
+        resolved = OutboundMessage(
+            room_uuid=outbound.room_uuid,
+            message_uuid=outbound.message_uuid,
+            sender_uuid=outbound.sender_uuid,
+            body=outbound.body,
+            sender_alias=sender_alias,
+            recipient_alias=recipient_identity,
+            metadata=outbound.metadata,
+        )
+        await self.execute(resolved, meta, session, bus_publisher)
+
+    async def route_inbound(
+        self,
+        inbound: InboundMessage,
+        session: AsyncSession,
+        bus_publisher: BusPublisher | None,
+    ) -> None:
+        idempotency_key = inbound.metadata.get('idempotency_key')
+        if idempotency_key:
+            is_duplicate = await async_room.check_duplicate_idempotency_key(
+                session, str(idempotency_key)
+            )
+            if is_duplicate:
+                logger.info(
+                    'Duplicate inbound message skipped (key=%s)',
+                    idempotency_key,
+                )
+                return
+
+        recipient_alias = await async_user_alias.find_by_identity_and_backend(
+            session, inbound.recipient, inbound.backend
+        )
+        if not recipient_alias:
+            logger.warning(
+                'No user alias found for recipient %s (backend=%s), dropping',
+                inbound.recipient,
+                inbound.backend,
+            )
+            return
+
+        tenant_uuid = str(recipient_alias.tenant_uuid)
+        user = recipient_alias.user
+        user_uuid = str(user.uuid)
+        wazo_uuid = str(user.wazo_uuid)
+
+        sender_participant = RoomUser(
+            uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            wazo_uuid=wazo_uuid,
+            identity=inbound.sender,
+        )
+        recipient_participant = RoomUser(
+            uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            wazo_uuid=wazo_uuid,
+        )
+        room = await async_room.find_or_create_room(
+            session,
+            tenant_uuid=tenant_uuid,
+            participants=[sender_participant, recipient_participant],
+        )
+
+        message = RoomMessage(
+            room_uuid=room.uuid,
+            content=inbound.body,
+            user_uuid=user_uuid,
+            tenant_uuid=tenant_uuid,
+            wazo_uuid=wazo_uuid,
+        )
+        session.add(message)
+        await session.flush()
+
+        extra: dict[str, str] = {'external_id': inbound.external_id}
+        if idempotency_key:
+            extra['idempotency_key'] = str(idempotency_key)
+
+        meta = MessageMeta(
+            message_uuid=message.uuid,
+            backend=inbound.backend,
+            extra=extra,
+        )
+        record = DeliveryRecord(
+            message_uuid=message.uuid,
+            status=DeliveryStatus.DELIVERED.value,
+        )
+        await async_room.add_message_meta(session, meta, record)
+
+        # TODO: publish bus event via to_thread (wazo-bus is sync)
+        logger.info(
+            'Inbound message from %s persisted (room=%s)',
+            inbound.sender,
+            room.uuid,
+        )
+
+    def _resolve_capabilities(
+        self,
+        external_participants: list[RoomParticipant],
+    ) -> set[str]:
+        reachable_types: set[str] = set()
+        for participant in external_participants:
+            identity = str(participant.identity)
+            user_types = self._resolve_reachable_types(identity)
+            if not reachable_types:
+                reachable_types = user_types
+            else:
+                reachable_types &= user_types
+        return reachable_types
+
+    def _resolve_reachable_types(self, identity: str) -> set[str]:
+        reachable: set[str] = set()
+        for backend_name in self._registry.available_backends():
+            cls = self._registry.get_backend(backend_name)
+            instance = cls()
+            try:
+                instance.normalize_identity(identity)
+            except (ValueError, TypeError):
+                continue
+            reachable.update(cls.supported_types)
+        return reachable
+
     async def execute(
         self,
         outbound: OutboundMessage,
         delivery: MessageMeta,
-        session: SASession,
-        bus_publisher: BusPublisher,
+        session: AsyncSession,
+        bus_publisher: BusPublisher | None,
     ) -> None:
-        """Attempt to send a message and track the delivery lifecycle.
-
-        Args:
-            outbound: The message to send.
-            delivery: The ``MessageMeta`` (or mock) for this delivery.
-            session: The DB session for persisting ``DeliveryRecord`` rows.
-            bus_publisher: The bus publisher for status event notifications.
-        """
         backend = str(delivery.backend)
         connector = self._find_connector(backend)
         if connector is None:
-            self._add_record(
+            await self._add_record(
                 session,
                 delivery,
                 DeliveryStatus.DEAD_LETTER,
@@ -129,16 +299,16 @@ class DeliveryExecutor:
             )
             return
 
-        self._add_record(session, delivery, DeliveryStatus.SENDING)
+        await self._add_record(session, delivery, DeliveryStatus.SENDING)
 
         try:
             external_id = await self._send(connector, outbound)
             delivery.external_id = external_id  # type: ignore[assignment]
-            self._add_record(session, delivery, DeliveryStatus.SENT)
+            await self._add_record(session, delivery, DeliveryStatus.SENT)
 
         except ConnectorSendError as exc:
             delivery.retry_count += 1  # type: ignore[assignment]
-            self._add_record(
+            await self._add_record(
                 session,
                 delivery,
                 DeliveryStatus.FAILED,
@@ -146,14 +316,14 @@ class DeliveryExecutor:
             )
 
             if delivery.retry_count >= MAX_RETRIES:  # type: ignore[operator]
-                self._add_record(
+                await self._add_record(
                     session,
                     delivery,
                     DeliveryStatus.DEAD_LETTER,
                     reason=f'Max retries ({MAX_RETRIES}) exceeded',
                 )
             else:
-                self._add_record(session, delivery, DeliveryStatus.RETRYING)
+                await self._add_record(session, delivery, DeliveryStatus.RETRYING)
 
         await self._publish_status(bus_publisher, delivery)
 
@@ -176,7 +346,7 @@ class DeliveryExecutor:
 
     async def _publish_status(
         self,
-        bus_publisher: BusPublisher,
+        bus_publisher: BusPublisher | None,
         delivery: MessageMeta,
     ) -> None:
         """Publish delivery status event to the bus.
@@ -187,17 +357,16 @@ class DeliveryExecutor:
         pass
 
     @staticmethod
-    def _add_record(
-        session: SASession,
+    async def _add_record(
+        session: AsyncSession,
         delivery: MessageMeta,
         status: DeliveryStatus,
         reason: str | None = None,
     ) -> None:
-        """Append a delivery status record."""
         record = DeliveryRecord(
             message_uuid=delivery.message_uuid,  # type: ignore[union-attr]
             status=status.value,
             reason=reason,
         )
         session.add(record)  # type: ignore[union-attr]
-        session.flush()  # type: ignore[union-attr]
+        await session.flush()  # type: ignore[union-attr]

@@ -17,13 +17,18 @@ from types import TracebackType
 from typing import TYPE_CHECKING
 
 from setproctitle import setproctitle
+from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.orm import sessionmaker
 from xivo.xivo_logging import setup_logging
 
+from wazo_chatd.bus import BusPublisher
 from wazo_chatd.connectors.executor import DeliveryExecutor
+from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import (
     ConfigSync,
     ConfigUpdate,
+    InboundMessage,
     OutboundMessage,
     Ping,
     PipeCommand,
@@ -50,6 +55,7 @@ _WORKER_READY_TIMEOUT: float = 30.0
 
 class Sentinel(enum.Enum):
     SHUTDOWN = enum.auto()
+    EMPTY = enum.auto()
 
 
 class DeliveryManager:
@@ -67,7 +73,9 @@ class DeliveryManager:
     ) -> None:
         self._config = config
         self._router = router
-        self._queue: mp.Queue[OutboundMessage | Sentinel] = _spawn.Queue()
+        self._queue: mp.Queue[OutboundMessage | InboundMessage | Sentinel] = (
+            _spawn.Queue()
+        )
         self._main_connection: Connection | None = None
         self._worker_connection: Connection | None = None
         self._process: SpawnProcess | None = None
@@ -168,6 +176,9 @@ class DeliveryManager:
         else:
             self._queue.put(message)
 
+    def send_inbound(self, message: InboundMessage) -> None:
+        self._queue.put(message)
+
     def sync_config(self, providers: list[dict[str, str]]) -> None:
         self._pipe_send(ConfigSync(providers=providers))
 
@@ -241,14 +252,28 @@ class DeliveryManager:
 class _Worker:
     def __init__(
         self,
-        queue: mp.Queue[OutboundMessage | Sentinel],
+        queue: mp.Queue[OutboundMessage | InboundMessage | Sentinel],
         connection: Connection,
         delivery_executor: DeliveryExecutor,
     ) -> None:
         self._queue = queue
         self._connection = connection
         self._delivery_executor = delivery_executor
+        self._engine: AsyncEngine | None = None
+        self._session_factory: sessionmaker | None = None
+        self._bus_publisher: BusPublisher | None = None
         self._should_stop: asyncio.Future[None] | None = None
+
+    def initialize(self, config: dict[str, str | bool]) -> None:
+        db_uri = str(config.get('db_uri', ''))
+        self._engine, self._session_factory = init_async_db(db_uri)
+        logger.debug('Async database engine initialized')
+
+        self._bus_publisher = BusPublisher.from_config(
+            service_uuid=config.get('uuid', ''),
+            bus_config=config.get('bus', {}),
+        )
+        logger.debug('Worker bus publisher initialized')
 
     @property
     def pipe(self) -> Connection:
@@ -257,7 +282,7 @@ class _Worker:
     @staticmethod
     def bootstrap(
         config: dict[str, str | bool],
-        queue: mp.Queue[OutboundMessage | Sentinel],
+        queue: mp.Queue[OutboundMessage | InboundMessage | Sentinel],
         connection: Connection,
     ) -> None:
         setproctitle(WORKER_PROCESS_TITLE)
@@ -290,7 +315,9 @@ class _Worker:
             logger.info('No initial config received from pipe')
 
         worker = _Worker(queue, connection, delivery_executor)
+        worker.initialize(config)
         connection.send(READY)
+
         logger.info('Worker process ready, entering event loop')
         worker.run()
 
@@ -303,23 +330,33 @@ class _Worker:
         pipe_task = asyncio.create_task(self._pipe_listener())
         queue_task = asyncio.create_task(self._queue_consumer())
 
-        await self._should_stop
+        try:
+            await self._should_stop
 
-        queue_task.cancel()
-        pipe_task.cancel()
-        for task in (queue_task, pipe_task):
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            queue_task.cancel()
+            pipe_task.cancel()
+            for task in (queue_task, pipe_task):
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        finally:
+            if self._engine:
+                await self._engine.dispose()
+                logger.debug('Async database engine disposed')
+
+    async def _queue_get(self) -> OutboundMessage | InboundMessage | Sentinel:
+        try:
+            return await asyncio.to_thread(self._queue.get, True, 30.0)
+        except Empty:
+            return Sentinel.EMPTY
 
     async def _queue_consumer(self) -> None:
         assert self._should_stop is not None
+        assert self._session_factory is not None
 
         while not self._should_stop.done():
-            get_task = asyncio.create_task(
-                asyncio.to_thread(self._queue.get, True, 30.0)
-            )
+            get_task = asyncio.create_task(self._queue_get())
             done, _ = await asyncio.wait(
                 (get_task, self._should_stop),
                 return_when=asyncio.FIRST_COMPLETED,
@@ -329,20 +366,39 @@ class _Worker:
                 get_task.cancel()
                 return
 
-            try:
-                message = get_task.result()
-            except Empty:
-                continue
+            message = get_task.result()
+            match message:
+                case Sentinel.EMPTY:
+                    continue
 
-            if message is Sentinel.SHUTDOWN:
-                logger.info('Received shutdown sentinel')
-                self._should_stop.set_result(None)
-                return
+                case Sentinel.SHUTDOWN:
+                    logger.info('Received shutdown sentinel')
+                    self._should_stop.set_result(None)
+                    return
 
-            logger.info(
-                'Processing outbound message (delivery=%s)',
-                message.delivery_uuid,
-            )
+                case OutboundMessage():
+                    logger.debug(
+                        'Processing outbound message (message=%s)',
+                        message.message_uuid,
+                    )
+                    async with async_session_scope(self._session_factory) as session:
+                        await self._delivery_executor.route_outbound(
+                            message,
+                            session,
+                            self._bus_publisher,
+                        )
+
+                case InboundMessage():
+                    logger.debug(
+                        'Processing inbound message (backend=%s)',
+                        message.backend,
+                    )
+                    async with async_session_scope(self._session_factory) as session:
+                        await self._delivery_executor.route_inbound(
+                            message,
+                            session,
+                            self._bus_publisher,
+                        )
 
     async def _pipe_listener(self) -> None:
         while True:
