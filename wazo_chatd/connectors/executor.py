@@ -11,11 +11,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
-
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
+from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import (
     ConfigSync,
@@ -33,8 +32,6 @@ from wazo_chatd.database.models import (
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
 from wazo_chatd.database.queries.async_.user_alias import AsyncUserAliasDAO
 
-if TYPE_CHECKING:
-    from wazo_chatd.bus import BusPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +48,11 @@ class DeliveryExecutor:
         self,
         registry: ConnectorRegistry,
         connector_config: dict[str, str],
+        notifier: AsyncNotifier,
     ) -> None:
         self._registry = registry
         self._connector_config = connector_config
+        self._notifier = notifier
         self.connectors: dict[str, Connector] = {}
         self._room_dao = AsyncRoomDAO()
         self._user_alias_dao = AsyncUserAliasDAO()
@@ -119,7 +118,6 @@ class DeliveryExecutor:
     async def route_outbound(
         self,
         outbound: OutboundMessage,
-        bus_publisher: BusPublisher | None,
     ) -> None:
         external = [p for p in outbound.participants if p.identity]
         if not external:
@@ -167,12 +165,11 @@ class DeliveryExecutor:
             recipient_alias=recipient_identity,
             metadata=outbound.metadata,
         )
-        await self.execute(resolved, meta, bus_publisher)
+        await self.execute(resolved, meta)
 
     async def route_inbound(
         self,
         inbound: InboundMessage,
-        bus_publisher: BusPublisher | None,
     ) -> None:
         idempotency_key = inbound.metadata.get('idempotency_key')
         if idempotency_key:
@@ -242,7 +239,7 @@ class DeliveryExecutor:
         )
         await self._room_dao.add_message_meta(meta, record)
 
-        # TODO: publish bus event via to_thread (wazo-bus is sync)
+        await self._notifier.message_created(room, message)
         logger.info(
             'Inbound message from %s persisted (room=%s)',
             inbound.sender,
@@ -279,7 +276,6 @@ class DeliveryExecutor:
         self,
         outbound: OutboundMessage,
         delivery: MessageMeta,
-        bus_publisher: BusPublisher | None,
     ) -> None:
         backend = str(delivery.backend)
         connector = self._find_connector(backend)
@@ -315,7 +311,7 @@ class DeliveryExecutor:
             else:
                 await self._add_record(delivery, DeliveryStatus.RETRYING)
 
-        await self._publish_status(bus_publisher, delivery)
+        await self._notifier.delivery_status_updated(delivery)
 
     def _find_connector(self, backend: str) -> Connector | None:
         """Find a connector instance matching the given backend name."""
@@ -333,18 +329,6 @@ class DeliveryExecutor:
         if asyncio.iscoroutinefunction(connector.send):
             return await connector.send(outbound)  # type: ignore[misc]
         return await asyncio.to_thread(connector.send, outbound)
-
-    async def _publish_status(
-        self,
-        bus_publisher: BusPublisher | None,
-        delivery: MessageMeta,
-    ) -> None:
-        """Publish delivery status event to the bus.
-
-        wazo-bus is sync-only, so we wrap with ``to_thread`` for v1.
-        """
-        # TODO: publish actual bus event when event classes are defined
-        pass
 
     async def _add_record(
         self,

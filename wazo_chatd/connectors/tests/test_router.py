@@ -147,7 +147,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.dispatch_webhook('twilio', {'From': '+15559876'})
 
         connector.on_event.assert_called_once_with('webhook', {'From': '+15559876'})
-        self.manager.send_inbound.assert_called_once_with(inbound)
+        self.manager.enqueue_message.assert_called_once_with(inbound)
 
     def test_dispatch_skips_none_events(self) -> None:
         connector = Mock()
@@ -158,7 +158,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.dispatch_webhook('twilio', {'status': 'delivered'})
 
         connector.on_event.assert_called_once()
-        self.manager.send_inbound.assert_not_called()
+        self.manager.enqueue_message.assert_not_called()
 
     def test_dispatch_unknown_backend(self) -> None:
         with pytest.raises(ConnectorParseError):
@@ -185,7 +185,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
         self.router.dispatch_webhook('twilio', {'data': 'test'})
 
-        self.manager.send_inbound.assert_called_once_with(inbound)
+        self.manager.enqueue_message.assert_called_once_with(inbound)
 
 
 class TestConnectorRouterSend(unittest.TestCase):
@@ -207,7 +207,7 @@ class TestConnectorRouterSend(unittest.TestCase):
 
         self.router.send(room, message)
 
-        self.manager.send_message.assert_not_called()
+        self.manager.enqueue_message.assert_not_called()
 
     def test_send_external_room_enqueues_with_participants(self) -> None:
         room = _make_room(
@@ -221,8 +221,8 @@ class TestConnectorRouterSend(unittest.TestCase):
 
         self.router.send(room, message)
 
-        self.manager.send_message.assert_called_once()
-        outbound = self.manager.send_message.call_args[0][0]
+        self.manager.enqueue_message.assert_called_once()
+        outbound = self.manager.enqueue_message.call_args[0][0]
         assert outbound.room_uuid == 'room-uuid'
         assert outbound.message_uuid == 'msg-uuid'
         assert outbound.sender_uuid == 'user-a'

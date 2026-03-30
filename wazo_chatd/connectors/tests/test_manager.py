@@ -154,7 +154,7 @@ class TestWorkerInit(unittest.TestCase):
 
         assert worker._engine is mock_engine
         assert worker._session_factory is mock_factory
-        assert worker._bus_publisher is mock_publisher
+        assert worker._notifier is not None
 
 
 class TestDeliveryManagerStatus(unittest.TestCase):

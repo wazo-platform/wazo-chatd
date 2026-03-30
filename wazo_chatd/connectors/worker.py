@@ -17,6 +17,7 @@ from xivo.xivo_logging import setup_logging
 
 from wazo_chatd.bus import BusPublisher
 from wazo_chatd.connectors.executor import DeliveryExecutor
+from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import (
     ConfigSync,
@@ -65,14 +66,8 @@ class Worker:
         self._delivery_executor: DeliveryExecutor | None = None
         self._engine: AsyncEngine | None = None
         self._session_factory: sessionmaker | None = None
-        self._bus_publisher: BusPublisher | None = None
+        self._notifier: AsyncNotifier | None = None
         self._should_stop: asyncio.Future[None] | None = None
-
-    @property
-    def bus_publisher(self) -> BusPublisher:
-        if self._bus_publisher is None:
-            raise RuntimeError('Worker not bootstrapped')
-        return self._bus_publisher
 
     @property
     def executor(self) -> DeliveryExecutor:
@@ -102,19 +97,20 @@ class Worker:
             ', '.join(registry.available_backends()) or '(none)',
         )
 
-        self._delivery_executor = DeliveryExecutor(
-            registry=registry, connector_config={}
-        )
-
         db_uri = str(config.get('db_uri', ''))
         self._engine, self._session_factory = init_async_db(db_uri)
         logger.debug('Async database engine initialized')
 
-        self._bus_publisher = BusPublisher.from_config(
+        bus_publisher = BusPublisher.from_config(
             service_uuid=config.get('uuid', ''),
             bus_config=config.get('bus', {}),
         )
+        self._notifier = AsyncNotifier(bus_publisher)
         logger.debug('Worker bus publisher initialized')
+
+        self._delivery_executor = DeliveryExecutor(
+            registry=registry, connector_config={}, notifier=self._notifier
+        )
 
     def wait_for_config(self) -> None:
         if self.pipe.poll(timeout=5):
@@ -192,10 +188,7 @@ class Worker:
                         message.message_uuid,
                     )
                     async with async_session_scope(self.session_factory):
-                        await self.executor.route_outbound(
-                            message,
-                            self.bus_publisher,
-                        )
+                        await self.executor.route_outbound(message)
 
                 case InboundMessage():
                     logger.debug(
@@ -203,10 +196,7 @@ class Worker:
                         message.backend,
                     )
                     async with async_session_scope(self.session_factory):
-                        await self.executor.route_inbound(
-                            message,
-                            self.bus_publisher,
-                        )
+                        await self.executor.route_inbound(message)
 
     async def _pipe_listener(self) -> None:
         while True:
