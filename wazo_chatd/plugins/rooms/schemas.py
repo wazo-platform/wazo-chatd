@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from marshmallow import fields as ma_fields
 from marshmallow import pre_load, validates_schema
 from xivo.mallow import fields, validate
 from xivo.mallow_helpers import ListSchema as _ListSchema
@@ -30,6 +31,8 @@ class MessageSchema(Schema):
     uuid = fields.UUID(dump_only=True)
     content = fields.String(required=True)
     alias = fields.String(validate=validate.Length(max=256), allow_none=True)
+    type_ = ma_fields.Method('get_type', dump_only=True, data_key='type')
+    backend = ma_fields.Method('get_backend', dump_only=True)
     user_uuid = fields.UUID(dump_only=True)
     tenant_uuid = fields.UUID(dump_only=True)
     wazo_uuid = fields.UUID(dump_only=True)
@@ -37,6 +40,18 @@ class MessageSchema(Schema):
     user_alias_uuid = fields.UUID(load_only=True, allow_none=True)
 
     room = fields.Nested('RoomSchema', dump_only=True, only=['uuid'])
+
+    def get_type(self, obj: object) -> str:
+        meta = getattr(obj, 'meta', None)
+        if meta and meta.type_:
+            return str(meta.type_)
+        return 'internal'
+
+    def get_backend(self, obj: object) -> str | None:
+        meta = getattr(obj, 'meta', None)
+        if meta and meta.backend:
+            return str(meta.backend)
+        return None
 
 
 class ListRequestSchema(_ListSchema):

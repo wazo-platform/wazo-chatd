@@ -1,4 +1,4 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import unittest
@@ -8,7 +8,12 @@ from unittest.mock import MagicMock
 from hamcrest import assert_that, calling, has_entries, has_length, not_, raises
 from xivo.mallow_helpers import ValidationError
 
-from ..schemas import ListRequestSchema, MessageListRequestSchema, RoomListRequestSchema
+from ..schemas import (
+    ListRequestSchema,
+    MessageListRequestSchema,
+    MessageSchema,
+    RoomListRequestSchema,
+)
 
 
 class TestListRequestSchema(unittest.TestCase):
@@ -35,6 +40,32 @@ class TestMessageListRequestSchema(unittest.TestCase):
             calling(self.schema().load).with_args({'search': 'ok'}),
             not_(raises(ValidationError, pattern='search or distinct')),
         )
+
+
+class TestMessageSchemaType(unittest.TestCase):
+    def test_type_defaults_to_internal_when_no_meta(self) -> None:
+        message = MagicMock(meta=None)
+
+        result = MessageSchema().dump(message)
+
+        assert result['type'] == 'internal'
+
+    def test_type_from_meta(self) -> None:
+        message = MagicMock()
+        message.meta.type_ = 'sms'
+        message.meta.backend = 'twilio'
+
+        result = MessageSchema().dump(message)
+
+        assert result['type'] == 'sms'
+        assert result['backend'] == 'twilio'
+
+    def test_backend_none_when_no_meta(self) -> None:
+        message = MagicMock(meta=None)
+
+        result = MessageSchema().dump(message)
+
+        assert result['backend'] is None
 
 
 class TestRoomListRequestSchema(unittest.TestCase):

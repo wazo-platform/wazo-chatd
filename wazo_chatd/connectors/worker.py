@@ -134,6 +134,8 @@ class Worker:
 
     async def _run_tasks(self) -> None:
         self._should_stop = asyncio.Future()
+        self._in_flight: set[asyncio.Task[None]] = set()
+        self._semaphore = asyncio.Semaphore(100)
         pipe_task = asyncio.create_task(self._pipe_listener())
         queue_task = asyncio.create_task(self._queue_consumer())
 
@@ -147,6 +149,13 @@ class Worker:
                     await task
                 except asyncio.CancelledError:
                     pass
+
+            if self._in_flight:
+                logger.info(
+                    'Waiting for %d in-flight task(s) to complete',
+                    len(self._in_flight),
+                )
+                await asyncio.gather(*self._in_flight, return_exceptions=True)
         finally:
             if self._engine:
                 await self._engine.dispose()
@@ -183,20 +192,44 @@ class Worker:
                     return
 
                 case OutboundMessage():
-                    logger.debug(
-                        'Processing outbound message (message=%s)',
-                        message.message_uuid,
-                    )
-                    async with async_session_scope(self.session_factory):
-                        await self.executor.route_outbound(message)
+                    self._schedule_task(self._process_outbound(message))
 
                 case InboundMessage():
-                    logger.debug(
-                        'Processing inbound message (backend=%s)',
-                        message.backend,
-                    )
-                    async with async_session_scope(self.session_factory):
-                        await self.executor.route_inbound(message)
+                    self._schedule_task(self._process_inbound(message))
+
+    def _schedule_task(self, coro: asyncio.coroutines) -> None:
+        task = asyncio.create_task(coro)
+        self._in_flight.add(task)
+        task.add_done_callback(self._in_flight.discard)
+
+    async def _process_outbound(self, message: OutboundMessage) -> None:
+        async with self._semaphore:
+            logger.debug(
+                'Processing outbound message (message=%s)',
+                message.message_uuid,
+            )
+            try:
+                async with async_session_scope(self.session_factory):
+                    await self.executor.route_outbound(message)
+            except Exception:
+                logger.exception(
+                    'Failed to process outbound message %s', message.message_uuid
+                )
+
+    async def _process_inbound(self, message: InboundMessage) -> None:
+        async with self._semaphore:
+            logger.debug(
+                'Processing inbound message (backend=%s)',
+                message.backend,
+            )
+            try:
+                async with async_session_scope(self.session_factory):
+                    await self.executor.route_inbound(message)
+            except Exception:
+                logger.exception(
+                    'Failed to process inbound message (external_id=%s)',
+                    message.external_id,
+                )
 
     async def _pipe_listener(self) -> None:
         while True:
