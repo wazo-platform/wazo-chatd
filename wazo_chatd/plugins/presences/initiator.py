@@ -139,7 +139,8 @@ class Initiator:
             new_items = callback(offset=offset)['items']
             items.extend(new_items)
             offset += len(new_items)
-        assert len(items) == total
+        if len(items) != total:
+            logger.warning('Fetched %d items but total was %d', len(items), total)
         return {'items': items, 'total': total}
 
     def reset_initialized(self):
