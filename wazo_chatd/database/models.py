@@ -372,7 +372,6 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
     records: RelationshipProperty[list[DeliveryRecord]] = relationship(
         'DeliveryRecord',
         uselist=True,
-        viewonly=True,
         order_by='DeliveryRecord.timestamp',
     )
     latest_record: RelationshipProperty[DeliveryRecord | None] = relationship(

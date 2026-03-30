@@ -8,40 +8,45 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.models import ChatProvider, UserAlias
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def find_by_identity_and_backend(
-    session: AsyncSession,
-    identity: str,
-    backend: str,
-) -> UserAlias | None:
-    stmt = (
-        select(UserAlias)
-        .join(ChatProvider)
-        .options(selectinload(UserAlias.provider))
-        .filter(UserAlias.identity == identity, ChatProvider.backend == backend)
-    )
-    result = await session.execute(stmt)
-    return result.scalar_one_or_none()
+class AsyncUserAliasDAO:
+    @property
+    def session(self) -> AsyncSession:
+        return get_async_session()
 
+    async def find_by_identity_and_backend(
+        self,
+        identity: str,
+        backend: str,
+    ) -> UserAlias | None:
+        stmt = (
+            select(UserAlias)
+            .join(ChatProvider)
+            .options(selectinload(UserAlias.provider))
+            .filter(UserAlias.identity == identity, ChatProvider.backend == backend)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
-async def list_by_user_and_types(
-    session: AsyncSession,
-    user_uuid: str,
-    types: list[str] | None = None,
-) -> list[UserAlias]:
-    stmt = (
-        select(UserAlias)
-        .options(selectinload(UserAlias.provider))
-        .filter(UserAlias.user_uuid == user_uuid)
-    )
+    async def list_by_user_and_types(
+        self,
+        user_uuid: str,
+        types: list[str] | None = None,
+    ) -> list[UserAlias]:
+        stmt = (
+            select(UserAlias)
+            .options(selectinload(UserAlias.provider))
+            .filter(UserAlias.user_uuid == user_uuid)
+        )
 
-    if types:
-        stmt = stmt.join(ChatProvider).filter(ChatProvider.type_.in_(types))
+        if types:
+            stmt = stmt.join(ChatProvider).filter(ChatProvider.type_.in_(types))
 
-    result = await session.execute(stmt)
-    return list(result.scalars().all())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

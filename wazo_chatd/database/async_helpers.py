@@ -4,10 +4,17 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+
+_current_session: ContextVar[AsyncSession] = ContextVar('_current_session')
+
+
+def get_async_session() -> AsyncSession:
+    return _current_session.get()
 
 
 def make_async_uri(sync_uri: str) -> str:
@@ -35,6 +42,7 @@ async def async_session_scope(
     factory: sessionmaker,
 ) -> AsyncGenerator[AsyncSession, None]:
     session: AsyncSession = factory()
+    token = _current_session.set(session)
     try:
         yield session
         await session.commit()
@@ -43,3 +51,4 @@ async def async_session_scope(
         raise
     finally:
         await session.close()
+        _current_session.reset(token)

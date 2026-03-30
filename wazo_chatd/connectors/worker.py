@@ -191,10 +191,9 @@ class Worker:
                         'Processing outbound message (message=%s)',
                         message.message_uuid,
                     )
-                    async with async_session_scope(self.session_factory) as session:
+                    async with async_session_scope(self.session_factory):
                         await self.executor.route_outbound(
                             message,
-                            session,
                             self.bus_publisher,
                         )
 
@@ -203,10 +202,9 @@ class Worker:
                         'Processing inbound message (backend=%s)',
                         message.backend,
                     )
-                    async with async_session_scope(self.session_factory) as session:
+                    async with async_session_scope(self.session_factory):
                         await self.executor.route_inbound(
                             message,
-                            session,
                             self.bus_publisher,
                         )
 

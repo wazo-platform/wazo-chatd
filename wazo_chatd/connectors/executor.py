@@ -30,12 +30,10 @@ from wazo_chatd.database.models import (
     RoomMessage,
     RoomUser,
 )
-from wazo_chatd.database.queries.async_ import room as async_room
-from wazo_chatd.database.queries.async_ import user_alias as async_user_alias
+from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
+from wazo_chatd.database.queries.async_.user_alias import AsyncUserAliasDAO
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from wazo_chatd.bus import BusPublisher
 
 logger = logging.getLogger(__name__)
@@ -57,6 +55,8 @@ class DeliveryExecutor:
         self._registry = registry
         self._connector_config = connector_config
         self.connectors: dict[str, Connector] = {}
+        self._room_dao = AsyncRoomDAO()
+        self._user_alias_dao = AsyncUserAliasDAO()
 
     def load_from_pipe(self, config_sync: ConfigSync) -> None:
         """Reconstruct connector instances from serialized config.
@@ -119,7 +119,6 @@ class DeliveryExecutor:
     async def route_outbound(
         self,
         outbound: OutboundMessage,
-        session: AsyncSession,
         bus_publisher: BusPublisher | None,
     ) -> None:
         external = [p for p in outbound.participants if p.identity]
@@ -137,8 +136,8 @@ class DeliveryExecutor:
         chosen_type = next(iter(capabilities))
         recipient_identity = str(external[0].identity)
 
-        aliases = await async_user_alias.list_by_user_and_types(
-            session, outbound.sender_uuid, [chosen_type]
+        aliases = await self._user_alias_dao.list_by_user_and_types(
+            outbound.sender_uuid, [chosen_type]
         )
         sender_alias = str(aliases[0].identity) if aliases else ''
         backend_name = (
@@ -157,9 +156,7 @@ class DeliveryExecutor:
             message_uuid=outbound.message_uuid,
             status=DeliveryStatus.PENDING.value,
         )
-        session.add(meta)
-        session.add(initial_record)
-        await session.flush()
+        await self._room_dao.add_message_meta(meta, initial_record)
 
         resolved = OutboundMessage(
             room_uuid=outbound.room_uuid,
@@ -170,18 +167,17 @@ class DeliveryExecutor:
             recipient_alias=recipient_identity,
             metadata=outbound.metadata,
         )
-        await self.execute(resolved, meta, session, bus_publisher)
+        await self.execute(resolved, meta, bus_publisher)
 
     async def route_inbound(
         self,
         inbound: InboundMessage,
-        session: AsyncSession,
         bus_publisher: BusPublisher | None,
     ) -> None:
         idempotency_key = inbound.metadata.get('idempotency_key')
         if idempotency_key:
-            is_duplicate = await async_room.check_duplicate_idempotency_key(
-                session, str(idempotency_key)
+            is_duplicate = await self._room_dao.check_duplicate_idempotency_key(
+                str(idempotency_key)
             )
             if is_duplicate:
                 logger.info(
@@ -190,8 +186,8 @@ class DeliveryExecutor:
                 )
                 return
 
-        recipient_alias = await async_user_alias.find_by_identity_and_backend(
-            session, inbound.recipient, inbound.backend
+        recipient_alias = await self._user_alias_dao.find_by_identity_and_backend(
+            inbound.recipient, inbound.backend
         )
         if not recipient_alias:
             logger.warning(
@@ -217,8 +213,7 @@ class DeliveryExecutor:
             tenant_uuid=tenant_uuid,
             wazo_uuid=wazo_uuid,
         )
-        room = await async_room.find_or_create_room(
-            session,
+        room = await self._room_dao.find_or_create_room(
             tenant_uuid=tenant_uuid,
             participants=[sender_participant, recipient_participant],
         )
@@ -230,8 +225,7 @@ class DeliveryExecutor:
             tenant_uuid=tenant_uuid,
             wazo_uuid=wazo_uuid,
         )
-        session.add(message)
-        await session.flush()
+        await self._room_dao.add_message(room, message)
 
         extra: dict[str, str] = {'external_id': inbound.external_id}
         if idempotency_key:
@@ -246,7 +240,7 @@ class DeliveryExecutor:
             message_uuid=message.uuid,
             status=DeliveryStatus.DELIVERED.value,
         )
-        await async_room.add_message_meta(session, meta, record)
+        await self._room_dao.add_message_meta(meta, record)
 
         # TODO: publish bus event via to_thread (wazo-bus is sync)
         logger.info(
@@ -285,31 +279,28 @@ class DeliveryExecutor:
         self,
         outbound: OutboundMessage,
         delivery: MessageMeta,
-        session: AsyncSession,
         bus_publisher: BusPublisher | None,
     ) -> None:
         backend = str(delivery.backend)
         connector = self._find_connector(backend)
         if connector is None:
             await self._add_record(
-                session,
                 delivery,
                 DeliveryStatus.DEAD_LETTER,
                 reason=f'Backend {backend!r} not available',
             )
             return
 
-        await self._add_record(session, delivery, DeliveryStatus.SENDING)
+        await self._add_record(delivery, DeliveryStatus.SENDING)
 
         try:
             external_id = await self._send(connector, outbound)
             delivery.external_id = external_id  # type: ignore[assignment]
-            await self._add_record(session, delivery, DeliveryStatus.SENT)
+            await self._add_record(delivery, DeliveryStatus.SENT)
 
         except ConnectorSendError as exc:
             delivery.retry_count += 1  # type: ignore[assignment]
             await self._add_record(
-                session,
                 delivery,
                 DeliveryStatus.FAILED,
                 reason=str(exc),
@@ -317,13 +308,12 @@ class DeliveryExecutor:
 
             if delivery.retry_count >= MAX_RETRIES:  # type: ignore[operator]
                 await self._add_record(
-                    session,
                     delivery,
                     DeliveryStatus.DEAD_LETTER,
                     reason=f'Max retries ({MAX_RETRIES}) exceeded',
                 )
             else:
-                await self._add_record(session, delivery, DeliveryStatus.RETRYING)
+                await self._add_record(delivery, DeliveryStatus.RETRYING)
 
         await self._publish_status(bus_publisher, delivery)
 
@@ -356,17 +346,14 @@ class DeliveryExecutor:
         # TODO: publish actual bus event when event classes are defined
         pass
 
-    @staticmethod
     async def _add_record(
-        session: AsyncSession,
+        self,
         delivery: MessageMeta,
         status: DeliveryStatus,
         reason: str | None = None,
     ) -> None:
         record = DeliveryRecord(
-            message_uuid=delivery.message_uuid,  # type: ignore[union-attr]
             status=status.value,
             reason=reason,
         )
-        session.add(record)  # type: ignore[union-attr]
-        await session.flush()  # type: ignore[union-attr]
+        await self._room_dao.add_delivery_record(delivery, record)
