@@ -5,45 +5,42 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.exceptions import ConnectorParseError
 from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.types import OutboundMessage, RoomParticipant
+from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, RoomParticipant
 
 if TYPE_CHECKING:
-    from wazo_chatd.connectors.manager import DeliveryManager
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser
+
+
+class MessageQueue(Protocol):
+    def enqueue_message(
+        self,
+        message: OutboundMessage | InboundMessage,
+        delay: float | None = None,
+    ) -> None: ...
 
 logger = logging.getLogger(__name__)
 
 
 class ConnectorRouter:
-    """Routes messages between the Flask process and the async worker.
+    """Routes messages between the Flask thread and the delivery loop.
 
     Handles capability resolution and lightweight message forwarding.
     Heavy processing (alias lookup, delivery tracking, persistence)
-    happens in the worker process.
+    happens asynchronously in the delivery loop.
     """
 
     def __init__(self, registry: ConnectorRegistry) -> None:
         self._registry = registry
         self._instances: dict[str, Connector] = {}
-        self._manager: DeliveryManager | None = None
+        self._queue: MessageQueue | None = None
 
-    def set_manager(self, manager: DeliveryManager) -> None:
-        self._manager = manager
-
-    def sync_to_server(self) -> None:
-        """Send current provider configs to the server process.
-
-        If no providers are cached, sends an empty list so the worker
-        doesn't block waiting for initial config.
-        """
-        if not self._manager:
-            return
-        self._manager.sync_config([])
+    def set_manager(self, queue: MessageQueue) -> None:
+        self._queue = queue
 
     def invalidate_cache(self) -> None:
         """Mark the connector cache as stale.
@@ -107,8 +104,8 @@ class ConnectorRouter:
             metadata={'idempotency_key': str(message.uuid)},
         )
 
-        if self._manager:
-            self._manager.enqueue_message(outbound)
+        if self._queue:
+            self._queue.enqueue_message(outbound)
 
     @staticmethod
     def _extract_participants(
@@ -159,8 +156,8 @@ class ConnectorRouter:
                 continue
             inbound = instance.on_event('webhook', raw_data)
             if inbound is not None:
-                if self._manager:
-                    self._manager.enqueue_message(inbound)
+                if self._queue:
+                    self._queue.enqueue_message(inbound)
                 return
 
         raise ConnectorParseError('No connector matched the webhook payload')

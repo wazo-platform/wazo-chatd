@@ -3,20 +3,14 @@
 
 from __future__ import annotations
 
-import enum
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 
-class Sentinel(enum.Enum):
-    SHUTDOWN = enum.auto()
-    EMPTY = enum.auto()
-
-
 @dataclass(frozen=True)
 class RoomParticipant:
-    """A room participant extracted from ORM for cross-process transfer."""
+    """A room participant extracted from ORM for cross-thread transfer."""
 
     uuid: str
     identity: str | None
@@ -65,39 +59,15 @@ class InboundMessage:
 
 
 @dataclass(frozen=True)
-class PipeCommand:
-    """Base class for all commands sent between processes via pipe."""
-
-
-@dataclass(frozen=True)
-class Ping(PipeCommand):
-    """Sent via pipe to check worker health."""
-
-
-@dataclass(frozen=True)
-class Pong(PipeCommand):
-    """Sent via pipe in response to a Ping."""
-
-
-@dataclass(frozen=True)
-class Ready(PipeCommand):
-    """Sent via pipe by the worker after initialization is complete."""
-
-
-@dataclass(frozen=True)
-class ConfigSync(PipeCommand):
-    """Sent via pipe during server process initialization.
-
-    Contains the full list of provider configurations so the server
-    process can reconstruct connector instances without DB access.
-    """
+class ConnectorConfig:
+    """Full list of provider configurations for connector initialization."""
 
     providers: list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
-class ConfigUpdate(PipeCommand):
-    """Sent via pipe at runtime when a provider configuration changes."""
+class ConnectorConfigUpdate:
+    """A runtime configuration change for a single provider."""
 
     action: str
     """One of 'add', 'update', 'remove'."""

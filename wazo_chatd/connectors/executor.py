@@ -17,8 +17,8 @@ from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import (
-    ConfigSync,
-    ConfigUpdate,
+    ConnectorConfig,
+    ConnectorConfigUpdate,
     InboundMessage,
     OutboundMessage,
     RoomParticipant,
@@ -57,12 +57,8 @@ class DeliveryExecutor:
         self._room_dao = AsyncRoomDAO()
         self._user_alias_dao = AsyncUserAliasDAO()
 
-    def load_from_pipe(self, config_sync: ConfigSync) -> None:
-        """Reconstruct connector instances from serialized config.
-
-        Called during server process initialization with data received
-        from the main process via pipe.
-        """
+    def load_config(self, config_sync: ConnectorConfig) -> None:
+        """Reconstruct connector instances from provider configuration."""
         self.connectors.clear()
         for entry in config_sync.providers:
             name = entry['name']
@@ -86,8 +82,8 @@ class DeliveryExecutor:
             self.connectors[name] = instance
             logger.info('Loaded connector instance %r (backend=%r)', name, backend)
 
-    def handle_config_update(self, update: ConfigUpdate) -> None:
-        """Apply a runtime configuration change from the main process."""
+    def handle_config_update(self, update: ConnectorConfigUpdate) -> None:
+        """Apply a runtime configuration change."""
         name = update.provider.get('name', '')
 
         if update.action == 'remove':

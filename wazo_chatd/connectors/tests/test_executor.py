@@ -10,7 +10,7 @@ from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.executor import DeliveryExecutor
 from wazo_chatd.connectors.types import (
-    ConfigSync,
+    ConnectorConfig,
     InboundMessage,
     OutboundMessage,
     RoomParticipant,
@@ -57,8 +57,8 @@ class TestDeliveryExecutorLoadFromPipe(unittest.TestCase):
             notifier=Mock(),
         )
 
-    def test_load_from_pipe_creates_instances(self) -> None:
-        config_sync = ConfigSync(
+    def test_load_config_creates_instances(self) -> None:
+        config_sync = ConnectorConfig(
             providers=[
                 {
                     'name': 'twilio-sms',
@@ -69,13 +69,13 @@ class TestDeliveryExecutorLoadFromPipe(unittest.TestCase):
             ]
         )
 
-        self.executor.load_from_pipe(config_sync)
+        self.executor.load_config(config_sync)
 
         assert 'twilio-sms' in self.executor.connectors
         self.registry.get_backend.assert_called_with('twilio')
 
-    def test_load_from_pipe_multiple_providers(self) -> None:
-        config_sync = ConfigSync(
+    def test_load_config_multiple_providers(self) -> None:
+        config_sync = ConnectorConfig(
             providers=[
                 {
                     'name': 'twilio-sms',
@@ -92,7 +92,7 @@ class TestDeliveryExecutorLoadFromPipe(unittest.TestCase):
             ]
         )
 
-        self.executor.load_from_pipe(config_sync)
+        self.executor.load_config(config_sync)
 
         assert len(self.executor.connectors) == 2
 
