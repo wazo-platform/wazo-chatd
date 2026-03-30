@@ -108,7 +108,7 @@ class ConnectorRouter:
         )
 
         if self._manager:
-            self._manager.send_message(outbound)
+            self._manager.enqueue_message(outbound)
 
     @staticmethod
     def _extract_participants(
@@ -151,7 +151,7 @@ class ConnectorRouter:
             inbound = instance.on_event('webhook', raw_data)
             if inbound is not None:
                 if self._manager:
-                    self._manager.send_inbound(inbound)
+                    self._manager.enqueue_message(inbound)
                 return
 
     def _resolve_reachable_types(self, identity: str) -> set[str]:
