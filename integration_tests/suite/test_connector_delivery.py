@@ -43,7 +43,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
-    def test_webhook_creates_message_with_meta(self, alias, provider, user):
+    def test_webhook_creates_message_with_meta(self, user, provider, alias):
         self.reload_connectors()
 
         webhook_data = {
@@ -92,7 +92,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
-    def test_webhook_with_backend_hint(self, alias, provider, user):
+    def test_webhook_with_backend_hint(self, user, provider, alias):
         self.reload_connectors()
 
         webhook_data = {
@@ -133,7 +133,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
-    def test_webhook_duplicate_idempotency_skipped(self, alias, provider, user):
+    def test_webhook_duplicate_idempotency_skipped(self, user, provider, alias):
         self.reload_connectors()
 
         webhook_data = {
@@ -217,7 +217,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         ],
     )
     def test_message_in_external_room_creates_delivery_records(
-        self, room, alias, provider, user
+        self, user, provider, alias, room
     ):
         self.reload_connectors()
         self.connector_mock.reset()
@@ -255,7 +255,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         ],
     )
     def test_connector_mock_receives_sent_message(
-        self, room, alias, provider, user
+        self, user, provider, alias, room
     ):
         self.reload_connectors()
         self.connector_mock.reset()
@@ -294,7 +294,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         ],
     )
     def test_failed_delivery_creates_failed_record(
-        self, room, alias, provider, user
+        self, user, provider, alias, room
     ):
         self.reload_connectors()
         self.connector_mock.reset()

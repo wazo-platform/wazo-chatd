@@ -146,7 +146,12 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.execute(outbound, self.delivery)
 
-        statuses = [r.status for r in self.delivery.records]
+        added_records = [
+            call.args[0]
+            for call in self.session.add.call_args_list
+            if hasattr(call.args[0], 'status')
+        ]
+        statuses = [r.status for r in added_records]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
 
     async def test_execute_publishes_status_event(self) -> None:

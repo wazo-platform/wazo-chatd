@@ -17,8 +17,6 @@ if TYPE_CHECKING:
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser
     from wazo_chatd.database.queries import DAO
 
-    from wazo_chatd.database.queries import DAO
-
 
 class MessageQueue(Protocol):
     def enqueue_message(
@@ -144,7 +142,7 @@ class ConnectorRouter:
         )
 
         if self._queue:
-            self._queue.enqueue_message(outbound)
+            self._queue.enqueue_message(outbound, delay=0.1)
 
     @staticmethod
     def _extract_participants(
