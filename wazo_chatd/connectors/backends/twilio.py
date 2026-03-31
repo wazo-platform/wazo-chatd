@@ -17,6 +17,7 @@ import re
 from collections.abc import Callable, Mapping
 from typing import ClassVar
 
+from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
 
@@ -51,6 +52,12 @@ class TwilioConnector:
 
     backend: ClassVar[str] = 'twilio'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms', 'whatsapp', 'messenger')
+    status_map: ClassVar[dict[str, DeliveryStatus]] = {
+        'sent': DeliveryStatus.SENT,
+        'delivered': DeliveryStatus.DELIVERED,
+        'failed': DeliveryStatus.FAILED,
+        'undelivered': DeliveryStatus.FAILED,
+    }
 
     def __init__(self) -> None:
         self._type: str = ''

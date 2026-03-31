@@ -27,6 +27,7 @@ class InternalConnector:
 
     backend: ClassVar[str] = 'wazo'
     supported_types: ClassVar[tuple[str, ...]] = ('internal',)
+    status_map: ClassVar[dict[str, str]] = {}
 
     def configure(
         self,

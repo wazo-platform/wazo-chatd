@@ -216,18 +216,20 @@ class DeliveryExecutor:
             room.uuid,
         )
 
-    _PROVIDER_STATUS_MAP: dict[str, DeliveryStatus] = {
-        'sent': DeliveryStatus.SENT,
-        'delivered': DeliveryStatus.DELIVERED,
-        'failed': DeliveryStatus.FAILED,
-        'undelivered': DeliveryStatus.FAILED,
-    }
-
     async def route_status_update(self, update: StatusUpdate) -> None:
-        mapped_status = self._PROVIDER_STATUS_MAP.get(update.status)
+        connector = self._store.find_by_backend(update.backend)
+        if not connector:
+            logger.warning(
+                'No connector for backend %r, dropping status update',
+                update.backend,
+            )
+            return
+
+        status_map = getattr(connector, 'status_map', {})
+        mapped_status = status_map.get(update.status)
         if not mapped_status:
             logger.debug(
-                'Ignoring transient provider status %r for %s',
+                'Ignoring unmapped provider status %r for %s',
                 update.status,
                 update.external_id,
             )

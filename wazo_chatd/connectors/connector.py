@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar, Protocol
 
+from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
 
 
@@ -29,6 +30,22 @@ class Connector(Protocol):
 
     supported_types: ClassVar[tuple[str, ...]]
     """Connector types this backend can handle, e.g. ``("sms", "mms", "whatsapp")``."""
+
+    status_map: ClassVar[dict[str, DeliveryStatus]]
+    """Mapping of provider-specific status strings to internal DeliveryStatus.
+
+    Only statuses that should create a DeliveryRecord need to be mapped.
+    Transient statuses (e.g. ``"queued"``, ``"sending"``) should be
+    omitted — the executor ignores unmapped statuses.
+
+    Example::
+
+        status_map = {
+            'sent': DeliveryStatus.SENT,
+            'delivered': DeliveryStatus.DELIVERED,
+            'failed': DeliveryStatus.FAILED,
+        }
+    """
 
     def configure(
         self,
