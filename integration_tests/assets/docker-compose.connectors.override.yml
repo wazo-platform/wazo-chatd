@@ -1,0 +1,12 @@
+services:
+  chatd:
+    image: wazo-chatd-connectors-test
+    environment:
+      TEST_CONNECTOR_MOCK_URL: 'http://connector-mock:8080'
+    volumes:
+      - ./etc/wazo-chatd/conf.d/70-connectors.yml:/etc/wazo-chatd/conf.d/70-connectors.yml:ro
+
+  connector-mock:
+    image: connector-mock-test
+    ports:
+      - '8080'
