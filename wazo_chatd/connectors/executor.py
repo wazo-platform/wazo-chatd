@@ -24,6 +24,7 @@ from wazo_chatd.connectors.store import ConnectorStore
 from wazo_chatd.connectors.types import (
     InboundMessage,
     OutboundMessage,
+    StatusUpdate,
     RoomParticipant,
 )
 from wazo_chatd.database.models import (
@@ -213,6 +214,58 @@ class DeliveryExecutor:
             'Inbound message from %s persisted (room=%s)',
             inbound.sender,
             room.uuid,
+        )
+
+    _PROVIDER_STATUS_MAP: dict[str, DeliveryStatus] = {
+        'sent': DeliveryStatus.SENT,
+        'delivered': DeliveryStatus.DELIVERED,
+        'failed': DeliveryStatus.FAILED,
+        'undelivered': DeliveryStatus.FAILED,
+    }
+
+    async def route_status_update(self, update: StatusUpdate) -> None:
+        mapped_status = self._PROVIDER_STATUS_MAP.get(update.status)
+        if not mapped_status:
+            logger.debug(
+                'Ignoring transient provider status %r for %s',
+                update.status,
+                update.external_id,
+            )
+            return
+
+        meta = await self._room_dao.get_message_meta_by_external_id(
+            update.external_id
+        )
+        if not meta:
+            logger.warning(
+                'No MessageMeta found for external_id %s, dropping status update',
+                update.external_id,
+            )
+            return
+
+        record = DeliveryRecord(
+            message_uuid=meta.message_uuid,
+            status=mapped_status.value,
+            reason=update.error_code or None,
+        )
+        self._room_dao.session.add(record)
+        await self._room_dao.session.flush()
+
+        await self._notifier.delivery_status_updated(
+            message_uuid=str(meta.message_uuid),
+            status=mapped_status.value,
+            timestamp='',
+            backend=update.backend,
+            tenant_uuid='',
+            room_uuid='',
+            user_uuids=[],
+        )
+
+        logger.info(
+            'Status update: %s → %s (external_id=%s)',
+            update.status,
+            mapped_status.value,
+            update.external_id,
         )
 
     def _resolve_capabilities(

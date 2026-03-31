@@ -10,7 +10,7 @@ import pytest
 
 from wazo_chatd.connectors.backends.twilio import TwilioConnector
 from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
 
 
 class TestTwilioConnectorClassAttrs(unittest.TestCase):
@@ -183,6 +183,67 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
 
     def test_on_event_unknown_transport_returns_none(self) -> None:
         result = self.connector.on_event('unknown', {})
+
+        assert result is None
+
+
+class TestTwilioConnectorStatusUpdate(unittest.TestCase):
+    def setUp(self) -> None:
+        self.connector = TwilioConnector()
+        self.connector.configure(
+            'sms',
+            provider_config={'account_sid': 'AC123', 'auth_token': 'secret'},
+            connector_config={},
+        )
+
+    def test_status_callback_returns_status_update(self) -> None:
+        raw_data = {
+            'MessageSid': 'SM_ABC_123',
+            'MessageStatus': 'delivered',
+            'To': '+15551234',
+            'From': '+15559876',
+        }
+
+        result = self.connector.on_event('webhook', raw_data)
+
+        assert isinstance(result, StatusUpdate)
+        assert result.external_id == 'SM_ABC_123'
+        assert result.status == 'delivered'
+        assert result.backend == 'twilio'
+
+    def test_failed_status_includes_error_code(self) -> None:
+        raw_data = {
+            'MessageSid': 'SM_ABC_123',
+            'MessageStatus': 'failed',
+            'ErrorCode': '30003',
+        }
+
+        result = self.connector.on_event('webhook', raw_data)
+
+        assert isinstance(result, StatusUpdate)
+        assert result.status == 'failed'
+        assert result.error_code == '30003'
+
+    def test_message_with_body_returns_inbound_not_status(self) -> None:
+        raw_data = {
+            'MessageSid': 'SM_ABC_123',
+            'MessageStatus': 'received',
+            'Body': 'Hello!',
+            'From': '+15559876',
+            'To': '+15551234',
+        }
+
+        result = self.connector.on_event('webhook', raw_data)
+
+        assert isinstance(result, InboundMessage)
+        assert result.body == 'Hello!'
+
+    def test_no_body_no_status_returns_none(self) -> None:
+        raw_data = {
+            'MessageSid': 'SM_ABC_123',
+        }
+
+        result = self.connector.on_event('webhook', raw_data)
 
         assert result is None
 

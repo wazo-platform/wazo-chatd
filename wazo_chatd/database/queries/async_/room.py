@@ -33,6 +33,15 @@ class AsyncRoomDAO:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_message_meta_by_external_id(
+        self, external_id: str
+    ) -> MessageMeta | None:
+        stmt = select(MessageMeta).filter(
+            MessageMeta.external_id == external_id
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def add_delivery_record(
         self,
         meta: MessageMeta,

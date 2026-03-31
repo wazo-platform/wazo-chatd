@@ -18,7 +18,7 @@ from collections.abc import Callable, Mapping
 from typing import ClassVar
 
 from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ class TwilioConnector:
         self,
         transport: str,
         raw_data: Mapping[str, str],
-    ) -> InboundMessage | None:
+    ) -> InboundMessage | StatusUpdate | None:
         if transport == 'webhook':
             return self._parse_webhook(raw_data)
         elif transport == 'poll':
@@ -127,24 +127,34 @@ class TwilioConnector:
             return raw_identity
         raise ValueError(f'Not a valid E.164 phone number: {raw_identity}')
 
-    def _parse_webhook(self, raw_data: Mapping[str, str]) -> InboundMessage | None:
-        """Parse a Twilio webhook payload into an InboundMessage."""
-        sender = raw_data.get('From', '')
-        recipient = raw_data.get('To', '')
-        body = raw_data.get('Body')
+    def _parse_webhook(
+        self, raw_data: Mapping[str, str]
+    ) -> InboundMessage | StatusUpdate | None:
+        """Parse a Twilio webhook into an InboundMessage or StatusUpdate."""
         message_sid = raw_data.get('MessageSid', '')
+        body = raw_data.get('Body')
 
-        if not body:
-            return None
+        if body:
+            return InboundMessage(
+                sender=raw_data.get('From', ''),
+                recipient=raw_data.get('To', ''),
+                body=body,
+                backend=self.backend,
+                external_id=message_sid,
+                metadata=dict(raw_data),
+            )
 
-        return InboundMessage(
-            sender=sender,
-            recipient=recipient,
-            body=body,
-            backend=self.backend,
-            external_id=message_sid,
-            metadata=dict(raw_data),
-        )
+        message_status = raw_data.get('MessageStatus')
+        if message_status and message_sid:
+            return StatusUpdate(
+                external_id=message_sid,
+                status=message_status,
+                backend=self.backend,
+                error_code=raw_data.get('ErrorCode', ''),
+                metadata=dict(raw_data),
+            )
+
+        return None
 
     def _parse_poll_result(self, raw_data: Mapping[str, str]) -> InboundMessage | None:
         """Parse a Twilio API message resource into an InboundMessage."""

@@ -13,7 +13,7 @@ from wazo_chatd.connectors.executor import DeliveryExecutor
 from wazo_chatd.connectors.store import ConnectorStore
 from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
 from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
 
 logger = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ class DeliveryLoop:
 
     def enqueue_message(
         self,
-        message: OutboundMessage | InboundMessage,
+        message: OutboundMessage | InboundMessage | StatusUpdate,
         delay: float | None = None,
     ) -> None:
         if delay:
@@ -147,7 +147,9 @@ class DeliveryLoop:
         logger.info('Delivery loop restarted')
         self._run_loop()
 
-    def _schedule_task(self, message: OutboundMessage | InboundMessage) -> None:
+    def _schedule_task(
+        self, message: OutboundMessage | InboundMessage | StatusUpdate
+    ) -> None:
         assert self._loop is not None
 
         match message:
@@ -155,6 +157,8 @@ class DeliveryLoop:
                 task = self._loop.create_task(self._process_outbound(message))
             case InboundMessage():
                 task = self._loop.create_task(self._process_inbound(message))
+            case StatusUpdate():
+                task = self._loop.create_task(self._process_status_update(message))
             case _:
                 return
         self._in_flight.add(task)
@@ -197,6 +201,25 @@ class DeliveryLoop:
                 logger.exception(
                     'Failed to process inbound message (external_id=%s)',
                     message.external_id,
+                )
+
+    async def _process_status_update(self, update: StatusUpdate) -> None:
+        assert self._semaphore is not None
+        assert self._executor is not None
+
+        async with self._semaphore:
+            logger.debug(
+                'Processing status update (external_id=%s, status=%s)',
+                update.external_id,
+                update.status,
+            )
+            try:
+                async with async_session_scope(self._session_factory):
+                    await self._executor.route_status_update(update)
+            except Exception:
+                logger.exception(
+                    'Failed to process status update (external_id=%s)',
+                    update.external_id,
                 )
 
     async def _drain_and_stop(self) -> None:

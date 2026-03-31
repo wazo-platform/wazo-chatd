@@ -59,6 +59,25 @@ class InboundMessage:
 
 
 @dataclass(frozen=True)
+class StatusUpdate:
+    """A delivery status update received from an external system."""
+
+    external_id: str
+    """The backend's message ID that this status refers to."""
+
+    status: str
+    """Provider-specific status string (e.g. 'delivered', 'failed')."""
+
+    backend: str
+    """Which backend produced this update (e.g. 'twilio')."""
+
+    error_code: str = ''
+    """Provider error code if the delivery failed."""
+
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ConnectorConfig:
     """Full list of provider configurations for connector initialization."""
 

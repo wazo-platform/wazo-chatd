@@ -235,9 +235,9 @@ class ConnectorRouter:
         for instance in ordered:
             if not instance.can_handle('webhook', raw_data):
                 continue
-            inbound = instance.on_event('webhook', raw_data)
-            if inbound is not None:
-                self._delivery_loop.enqueue_message(inbound)
+            result = instance.on_event('webhook', raw_data)
+            if result is not None:
+                self._delivery_loop.enqueue_message(result)
                 return
 
         raise ConnectorParseError('No connector matched the webhook payload')

@@ -141,6 +141,11 @@ def upgrade() -> None:
         ['extra'],
         postgresql_using='gin',
     )
+    op.create_index(
+        'chatd_message_meta__idx__external_id',
+        'chatd_message_meta',
+        ['external_id'],
+    )
 
     # DeliveryRecord: append-only status updates from connectors
     op.create_table(

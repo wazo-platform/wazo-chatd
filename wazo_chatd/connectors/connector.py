@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar, Protocol
 
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
 
 
 class Connector(Protocol):
@@ -104,7 +104,7 @@ class Connector(Protocol):
         self,
         transport: str,
         raw_data: Mapping[str, Any],
-    ) -> InboundMessage | None:
+    ) -> InboundMessage | StatusUpdate | None:
         """Parse and validate an incoming event from any transport.
 
         Args:
