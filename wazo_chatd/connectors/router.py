@@ -129,6 +129,11 @@ class ConnectorRouter:
         happens in the worker process.
         """
         participants = self._extract_participants(room.users)
+        logger.debug(
+            'send: room=%s participants=%s',
+            room.uuid,
+            [(p.uuid, p.identity) for p in participants],
+        )
         if not any(p.identity for p in participants):
             return
 

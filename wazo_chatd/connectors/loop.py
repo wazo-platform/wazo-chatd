@@ -103,7 +103,9 @@ class DeliveryLoop:
         delay: float | None = None,
     ) -> None:
         if delay:
-            self.loop.call_later(delay, self._schedule_task, message)
+            self.loop.call_soon_threadsafe(
+                self.loop.call_later, delay, self._schedule_task, message
+            )
         else:
             self.loop.call_soon_threadsafe(self._schedule_task, message)
 
