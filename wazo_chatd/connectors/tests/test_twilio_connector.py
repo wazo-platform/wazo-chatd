@@ -10,7 +10,13 @@ import pytest
 
 from wazo_chatd.connectors.backends.twilio import TwilioConnector
 from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
+from wazo_chatd.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    StatusUpdate,
+    TransportData,
+    WebhookData,
+)
 
 
 class TestTwilioConnectorClassAttrs(unittest.TestCase):
@@ -120,27 +126,29 @@ class TestTwilioConnectorCanHandle(unittest.TestCase):
         self.connector = TwilioConnector()
 
     def test_webhook_with_twilio_signature(self) -> None:
-        raw_data = {
-            '_headers': {
+        data = WebhookData(
+            body={},
+            headers={
                 'X-Twilio-Signature': 'abc123',
                 'User-Agent': 'TwilioProxy/1.1',
             },
-        }
+        )
 
-        assert self.connector.can_handle('webhook', raw_data) is True
+        assert self.connector.can_handle(data) is True
 
     def test_webhook_without_signature(self) -> None:
-        raw_data = {
-            '_headers': {'User-Agent': 'SomeOtherAgent'},
-        }
+        data = WebhookData(
+            body={},
+            headers={'User-Agent': 'SomeOtherAgent'},
+        )
 
-        assert self.connector.can_handle('webhook', raw_data) is False
+        assert self.connector.can_handle(data) is False
 
     def test_webhook_no_headers(self) -> None:
-        assert self.connector.can_handle('webhook', {}) is False
+        assert self.connector.can_handle(WebhookData()) is False
 
     def test_non_webhook_transport(self) -> None:
-        assert self.connector.can_handle('poll', {}) is True
+        assert self.connector.can_handle(TransportData()) is True
 
 
 class TestTwilioConnectorOnEvent(unittest.TestCase):
@@ -153,14 +161,14 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
         )
 
     def test_on_event_webhook_returns_inbound_message(self) -> None:
-        raw_data = {
+        data = WebhookData(body={
             'From': '+15559876',
             'To': '+15551234',
             'Body': 'Hello!',
             'MessageSid': 'SM_ABC_123',
-        }
+        })
 
-        result = self.connector.on_event('webhook', raw_data)
+        result = self.connector.on_event(data)
 
         assert result is not None
         assert isinstance(result, InboundMessage)
@@ -171,18 +179,18 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
         assert result.external_id == 'SM_ABC_123'
 
     def test_on_event_webhook_missing_body_returns_none(self) -> None:
-        raw_data = {
+        data = WebhookData(body={
             'From': '+15559876',
             'To': '+15551234',
             'MessageSid': 'SM_ABC_123',
-        }
+        })
 
-        result = self.connector.on_event('webhook', raw_data)
+        result = self.connector.on_event(data)
 
         assert result is None
 
     def test_on_event_unknown_transport_returns_none(self) -> None:
-        result = self.connector.on_event('unknown', {})
+        result = self.connector.on_event(TransportData())
 
         assert result is None
 
@@ -197,14 +205,14 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         )
 
     def test_status_callback_returns_status_update(self) -> None:
-        raw_data = {
+        data = WebhookData(body={
             'MessageSid': 'SM_ABC_123',
             'MessageStatus': 'delivered',
             'To': '+15551234',
             'From': '+15559876',
-        }
+        })
 
-        result = self.connector.on_event('webhook', raw_data)
+        result = self.connector.on_event(data)
 
         assert isinstance(result, StatusUpdate)
         assert result.external_id == 'SM_ABC_123'
@@ -212,38 +220,38 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         assert result.backend == 'twilio'
 
     def test_failed_status_includes_error_code(self) -> None:
-        raw_data = {
+        data = WebhookData(body={
             'MessageSid': 'SM_ABC_123',
             'MessageStatus': 'failed',
             'ErrorCode': '30003',
-        }
+        })
 
-        result = self.connector.on_event('webhook', raw_data)
+        result = self.connector.on_event(data)
 
         assert isinstance(result, StatusUpdate)
         assert result.status == 'failed'
         assert result.error_code == '30003'
 
     def test_message_with_body_returns_inbound_not_status(self) -> None:
-        raw_data = {
+        data = WebhookData(body={
             'MessageSid': 'SM_ABC_123',
             'MessageStatus': 'received',
             'Body': 'Hello!',
             'From': '+15559876',
             'To': '+15551234',
-        }
+        })
 
-        result = self.connector.on_event('webhook', raw_data)
+        result = self.connector.on_event(data)
 
         assert isinstance(result, InboundMessage)
         assert result.body == 'Hello!'
 
     def test_no_body_no_status_returns_none(self) -> None:
-        raw_data = {
+        data = WebhookData(body={
             'MessageSid': 'SM_ABC_123',
-        }
+        })
 
-        result = self.connector.on_event('webhook', raw_data)
+        result = self.connector.on_event(data)
 
         assert result is None
 

@@ -4,14 +4,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from flask import request
 from flask_restful import Resource
 
-from typing import TYPE_CHECKING
-
 from wazo_chatd.connectors.exceptions import ConnectorParseError
+from wazo_chatd.connectors.types import WebhookData
 
 if TYPE_CHECKING:
     from wazo_chatd.connectors.router import ConnectorRouter
@@ -26,41 +25,35 @@ class ConnectorWebhookResource(Resource):
         ``POST /connectors/incoming`` — tries all connectors
         ``POST /connectors/incoming/<backend>`` — backend hint for fast path
 
-    Extracts raw data from the request (JSON or form-encoded),
-    includes headers as ``_headers`` for signature validation,
-    and dispatches to :meth:`ConnectorRouter.dispatch_webhook`.
+    Extracts the request body and HTTP metadata into a
+    :class:`WebhookData`, then dispatches to the router.
     """
 
     def __init__(self, router: ConnectorRouter) -> None:
         self._router = router
 
     def post(self, backend: str | None = None) -> tuple[dict[str, Any] | str, int]:
-        raw_data = self._extract_raw_data()
+        data = self._build_webhook_data()
 
         try:
-            self._router.dispatch_webhook(raw_data, backend=backend)
+            self._router.dispatch_webhook(data, backend=backend)
         except ConnectorParseError:
             logger.info('No connector matched webhook (backend=%s)', backend)
             return {'error': 'No connector matched the webhook'}, 404
 
         return '', 204
 
-    def _extract_raw_data(self) -> dict[str, Any]:
-        """Extract request body as a plain dict, with headers included.
-
-        Supports both JSON and form-encoded payloads.  Headers are
-        attached under the ``_headers`` key so connectors can validate
-        signatures without accessing Flask's request object.
-        """
+    def _build_webhook_data(self) -> WebhookData:
         if request.is_json:
-            data: dict[str, Any] = request.get_json(force=True) or {}
+            body: dict[str, Any] = request.get_json(force=True) or {}
         else:
-            data = request.form.to_dict()
+            body = request.form.to_dict()
 
-        data['_headers'] = dict(request.headers)
-        data['_content_type'] = request.content_type or ''
-
-        return data
+        return WebhookData(
+            body=body,
+            headers=dict(request.headers),
+            content_type=request.content_type or '',
+        )
 
 
 class ConnectorReloadResource(Resource):
@@ -78,5 +71,3 @@ class ConnectorReloadResource(Resource):
     def post(self) -> tuple[str, int]:
         self._router.load_providers()
         return '', 204
-
-

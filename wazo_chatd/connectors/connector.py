@@ -7,7 +7,12 @@ from collections.abc import Callable, Mapping
 from typing import Any, ClassVar, Protocol
 
 from wazo_chatd.connectors.delivery import DeliveryStatus
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
+from wazo_chatd.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    StatusUpdate,
+    TransportData,
+)
 
 
 class Connector(Protocol):
@@ -93,59 +98,46 @@ class Connector(Protocol):
         """
         ...
 
-    def can_handle(
-        self,
-        transport: str,
-        raw_data: Mapping[str, Any],
-    ) -> bool:
+    def can_handle(self, data: TransportData) -> bool:
         """Check whether this connector can handle the given event data.
 
         A lightweight pre-filter called before :meth:`on_event`.  Should
-        inspect headers, content-type, or other cheap signals without
-        doing full parsing or signature validation.
+        inspect transport-specific metadata (e.g. headers for webhooks)
+        without doing full parsing or signature validation.
 
-        Args:
-            transport: How the data arrived — ``'webhook'``, ``'poll'``, etc.
-            raw_data: Plain dict extracted by the caller.
+        Use structural pattern matching to dispatch by transport type::
+
+            match data:
+                case WebhookData(headers=headers):
+                    return 'X-My-Signature' in headers
+                case _:
+                    return True
 
         Returns:
             ``True`` if this connector should attempt to handle the event.
-
-        The default implementation returns ``True`` (accept everything).
-        Override to add discriminators such as checking for
-        provider-specific headers (e.g. ``X-Twilio-Signature``).
         """
         ...
 
-    def on_event(
-        self,
-        transport: str,
-        raw_data: Mapping[str, Any],
-    ) -> InboundMessage | StatusUpdate | None:
+    def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
         """Parse and validate an incoming event from any transport.
 
-        Args:
-            transport: How the data arrived — ``'webhook'``, ``'poll'``,
-                ``'websocket'``, etc.
-            raw_data: Plain dict extracted by the caller (no framework
-                types).
+        Use structural pattern matching to dispatch by transport type::
+
+            match data:
+                case WebhookData(body=body, headers=headers):
+                    ...validate signature, parse body...
+                case PollData(body=body):
+                    ...parse polled data...
 
         Returns:
-            An :class:`InboundMessage` if valid, or ``None`` to skip
-            (e.g. a status callback, not a message).
-
-        Called by:
-
-        - chatd's shared HTTP adapter for webhooks
-          (``POST /connectors/incoming/<backend>``)
-        - The connector itself inside :meth:`listen` for poll/websocket
-          results
+            An :class:`InboundMessage` for new messages, a
+            :class:`StatusUpdate` for delivery status changes,
+            or ``None`` to skip (e.g. irrelevant event).
 
         Auth/signature validation is the connector's responsibility.
 
         Idempotency (optional):
-            If the provider supplies an idempotency key (e.g. Twilio's
-            ``I-Twilio-Idempotency-Token`` header), include it in
+            If the provider supplies an idempotency key, include it in
             ``InboundMessage.metadata`` as ``idempotency_key``.  The
             router uses this to deduplicate inbound messages via a
             GIN-indexed JSONB lookup on ``MessageMeta.extra``.  If the
@@ -158,12 +150,8 @@ class Connector(Protocol):
         """Begin listening for incoming messages via connector-controlled transports.
 
         For polling:
-            Start a loop, call :meth:`on_event` with ``'poll'`` for each
-            result, forward non-None results to *on_message*.
-
-        For websocket:
-            Open a connection, call :meth:`on_event` with ``'websocket'``
-            for each frame, forward to *on_message*.
+            Start a loop, wrap results in :class:`PollData`, call
+            :meth:`on_event`, forward non-None results to *on_message*.
 
         For webhook-only connectors:
             No-op — chatd's HTTP adapter calls :meth:`on_event` directly.

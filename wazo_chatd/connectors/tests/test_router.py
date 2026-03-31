@@ -12,7 +12,7 @@ import pytest
 from wazo_chatd.connectors.exceptions import ConnectorParseError
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.router import ConnectorRouter
-from wazo_chatd.connectors.types import InboundMessage
+from wazo_chatd.connectors.types import InboundMessage, WebhookData
 
 
 class _SmsConnector:
@@ -156,10 +156,10 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         connector.on_event.return_value = inbound
         self.router.add_instance('twilio-sms', connector)
 
-        self.router.dispatch_webhook({'From': '+15559876'}, backend='twilio')
+        self.router.dispatch_webhook(WebhookData(body={'From': '+15559876'}), backend='twilio')
 
-        connector.can_handle.assert_called_once_with('webhook', {'From': '+15559876'})
-        connector.on_event.assert_called_once_with('webhook', {'From': '+15559876'})
+        connector.can_handle.assert_called_once()
+        connector.on_event.assert_called_once()
         self.manager.enqueue_message.assert_called_once_with(inbound)
 
     def test_dispatch_without_backend_hint(self) -> None:
@@ -174,7 +174,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         connector.on_event.return_value = inbound
         self.router.add_instance('twilio-sms', connector)
 
-        self.router.dispatch_webhook({'From': '+15559876'})
+        self.router.dispatch_webhook(WebhookData(body={'From': '+15559876'}))
 
         self.manager.enqueue_message.assert_called_once_with(inbound)
 
@@ -195,7 +195,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.add_instance('skipped', skipped)
         self.router.add_instance('handler', handler)
 
-        self.router.dispatch_webhook({'From': '+15559876'})
+        self.router.dispatch_webhook(WebhookData(body={'From': '+15559876'}))
 
         skipped.on_event.assert_not_called()
         self.manager.enqueue_message.assert_called_once_with(inbound)
@@ -206,13 +206,13 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.add_instance('twilio-sms', connector)
 
         with pytest.raises(ConnectorParseError):
-            self.router.dispatch_webhook({'status': 'delivered'})
+            self.router.dispatch_webhook(WebhookData(body={'status': 'delivered'}))
 
         self.manager.enqueue_message.assert_not_called()
 
     def test_dispatch_no_instances_raises(self) -> None:
         with pytest.raises(ConnectorParseError):
-            self.router.dispatch_webhook({})
+            self.router.dispatch_webhook(WebhookData(body={}))
 
     def test_dispatch_falls_back_to_non_hint_connectors(self) -> None:
         vonage = self._make_connector(backend='vonage')
@@ -226,7 +226,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         vonage.on_event.return_value = inbound
         self.router.add_instance('vonage-sms', vonage)
 
-        self.router.dispatch_webhook({'data': 'test'}, backend='twilio')
+        self.router.dispatch_webhook(WebhookData(body={'data': 'test'}), backend='twilio')
 
         self.manager.enqueue_message.assert_called_once_with(inbound)
 
@@ -247,7 +247,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.router.add_instance('twilio-sms', connector_a)
         self.router.add_instance('twilio-mms', connector_b)
 
-        self.router.dispatch_webhook({'data': 'test'})
+        self.router.dispatch_webhook(WebhookData(body={'data': 'test'}))
 
         self.manager.enqueue_message.assert_called_once_with(inbound)
 

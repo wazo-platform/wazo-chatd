@@ -19,7 +19,13 @@ from typing import ClassVar
 
 from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
+from wazo_chatd.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    StatusUpdate,
+    TransportData,
+    WebhookData,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,27 +105,19 @@ class TwilioConnector:
         except Exception as exc:
             raise ConnectorSendError(str(exc)) from exc
 
-    def can_handle(
-        self,
-        transport: str,
-        raw_data: Mapping[str, str],
-    ) -> bool:
-        if transport != 'webhook':
-            return True
+    def can_handle(self, data: TransportData) -> bool:
+        match data:
+            case WebhookData(headers=headers):
+                return 'X-Twilio-Signature' in headers
+            case _:
+                return True
 
-        headers = raw_data.get('_headers', {})
-        return 'X-Twilio-Signature' in headers
-
-    def on_event(
-        self,
-        transport: str,
-        raw_data: Mapping[str, str],
-    ) -> InboundMessage | StatusUpdate | None:
-        if transport == 'webhook':
-            return self._parse_webhook(raw_data)
-        elif transport == 'poll':
-            return self._parse_poll_result(raw_data)
-        return None
+    def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
+        match data:
+            case WebhookData(body=body):
+                return self._parse_webhook(body)
+            case _:
+                return None
 
     def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
         if self._mode == 'poll':
@@ -135,30 +133,30 @@ class TwilioConnector:
         raise ValueError(f'Not a valid E.164 phone number: {raw_identity}')
 
     def _parse_webhook(
-        self, raw_data: Mapping[str, str]
+        self, body: Mapping[str, Any]
     ) -> InboundMessage | StatusUpdate | None:
-        """Parse a Twilio webhook into an InboundMessage or StatusUpdate."""
-        message_sid = raw_data.get('MessageSid', '')
-        body = raw_data.get('Body')
+        """Parse a Twilio webhook body into an InboundMessage or StatusUpdate."""
+        message_sid = body.get('MessageSid', '')
+        content = body.get('Body')
 
-        if body:
+        if content:
             return InboundMessage(
-                sender=raw_data.get('From', ''),
-                recipient=raw_data.get('To', ''),
-                body=body,
+                sender=body.get('From', ''),
+                recipient=body.get('To', ''),
+                body=content,
                 backend=self.backend,
                 external_id=message_sid,
-                metadata=dict(raw_data),
+                metadata=dict(body),
             )
 
-        message_status = raw_data.get('MessageStatus')
+        message_status = body.get('MessageStatus')
         if message_status and message_sid:
             return StatusUpdate(
                 external_id=message_sid,
                 status=message_status,
                 backend=self.backend,
-                error_code=raw_data.get('ErrorCode', ''),
-                metadata=dict(raw_data),
+                error_code=body.get('ErrorCode', ''),
+                metadata=dict(body),
             )
 
         return None

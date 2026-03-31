@@ -11,6 +11,7 @@ from flask import Flask
 
 from wazo_chatd.connectors.exceptions import ConnectorParseError
 from wazo_chatd.connectors.http import ConnectorWebhookResource
+from wazo_chatd.connectors.types import WebhookData
 
 
 class TestConnectorWebhookResource(unittest.TestCase):
@@ -32,9 +33,10 @@ class TestConnectorWebhookResource(unittest.TestCase):
 
         self.router.dispatch_webhook.assert_called_once()
         call_args = self.router.dispatch_webhook.call_args
-        raw_data = call_args[0][0]
-        assert raw_data['Body'] == 'hello'
-        assert raw_data['From'] == '+15559876'
+        data = call_args[0][0]
+        assert isinstance(data, WebhookData)
+        assert data.body['Body'] == 'hello'
+        assert data.body['From'] == '+15559876'
         assert call_args[1]['backend'] == 'twilio'
         assert status_code == 204
 
@@ -50,10 +52,10 @@ class TestConnectorWebhookResource(unittest.TestCase):
             response, status_code = self.resource.post(backend='twilio')
 
         call_args = self.router.dispatch_webhook.call_args
-        raw_data = call_args[0][0]
-        assert raw_data['Body'] == 'hello'
-        assert raw_data['From'] == '+15559876'
-        assert call_args[1]['backend'] == 'twilio'
+        data = call_args[0][0]
+        assert isinstance(data, WebhookData)
+        assert data.body['Body'] == 'hello'
+        assert data.body['From'] == '+15559876'
         assert status_code == 204
 
     def test_post_without_backend_hint(self) -> None:
@@ -84,7 +86,7 @@ class TestConnectorWebhookResource(unittest.TestCase):
 
         assert status_code == 404
 
-    def test_raw_headers_passed_in_metadata(self) -> None:
+    def test_headers_passed_in_webhook_data(self) -> None:
         self.router.dispatch_webhook.return_value = None
 
         with self.app.test_request_context(
@@ -97,6 +99,7 @@ class TestConnectorWebhookResource(unittest.TestCase):
             self.resource.post(backend='twilio')
 
         call_args = self.router.dispatch_webhook.call_args
-        raw_data = call_args[0][0]
-        assert '_headers' in raw_data
-        assert raw_data['_headers']['X-Custom-Header'] == 'test-value'
+        data = call_args[0][0]
+        assert isinstance(data, WebhookData)
+        assert data.headers['X-Custom-Header'] == 'test-value'
+        assert data.content_type == 'application/json'

@@ -9,6 +9,35 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class TransportData:
+    """Base class for transport-specific event data.
+
+    Subclass this to define new transport types. wazo-chatd provides
+    :class:`WebhookData` for HTTP webhooks. Connector developers can
+    create their own subclasses for custom transports.
+
+    No required fields — each subclass defines its own structure.
+
+    Use structural pattern matching to dispatch::
+
+        match data:
+            case WebhookData(headers=headers, body=body):
+                ...validate signature using headers...
+            case MyCustomTransport(source=source):
+                ...handle custom transport...
+    """
+
+
+@dataclass(frozen=True)
+class WebhookData(TransportData):
+    """Data from an HTTP webhook request."""
+
+    body: Mapping[str, Any] = field(default_factory=dict)
+    headers: Mapping[str, str] = field(default_factory=dict)
+    content_type: str = ''
+
+
+@dataclass(frozen=True)
 class RoomParticipant:
     """A room participant extracted from ORM for cross-thread transfer."""
 

@@ -76,7 +76,7 @@ def configure(
 | Parameter | Source | Example |
 |-----------|--------|---------|
 | `type_` | `ChatProvider.type_` | `"sms"`, `"whatsapp"` |
-| `provider_config` | `ChatProvider.configuration` JSONB (per-tenant, managed by confd) | `{"api_key": "...", "sender_id": "+15551234"}` |
+| `provider_config` | `ChatProvider.configuration` JSONB (per-tenant, managed by confd) | `{"api_key": "..."}` |
 | `connector_config` | `/etc/wazo-chatd/conf.d/` (system-level) | `{"mode": "webhook", "polling_interval": 30}` |
 
 ### `send(message) -> str`
@@ -119,79 +119,82 @@ def send(self, message: OutboundMessage) -> str:
 
 ### Transport types
 
-The `transport` parameter in `can_handle` and `on_event` indicates how the data arrived:
+Instead of a transport string, wazo-chatd uses typed dataclasses to carry transport-specific metadata. The base class `TransportData` has no required fields — each subclass defines its own structure.
 
-| Transport | Description |
-|-----------|-------------|
-| `'webhook'` | HTTP POST from the provider to wazo-chatd's webhook endpoint |
-| `'poll'` | Data fetched by the connector's own polling loop |
-| `'websocket'` | Data received via a connector-managed websocket |
+wazo-chatd provides `WebhookData` for HTTP webhooks. Connector developers can subclass `TransportData` for custom transports (UDP, AMQP, etc.).
 
-Most connectors only need to handle `'webhook'`. The transport lets the same connector parse different payload formats depending on the source.
+| Type | Fields | Description |
+|------|--------|-------------|
+| `WebhookData` | `body`, `headers`, `content_type` | HTTP webhook request |
+| `TransportData` | *(none)* | Base class — subclass for custom transports |
 
-### `can_handle(transport, raw_data) -> bool`
-
-Cheap pre-filter called before `on_event()`. Inspect headers or content-type to quickly determine if this webhook is for your connector.
+Use structural pattern matching to dispatch by transport type:
 
 ```python
-def can_handle(self, transport: str, raw_data: Mapping[str, Any]) -> bool:
-    if transport != 'webhook':
-        return True
+match data:
+    case WebhookData(body=body, headers=headers):
+        ...handle HTTP webhook...
+    case MyCustomTransport(source=source):
+        ...handle custom transport...
+```
 
-    headers = raw_data.get('_headers', {})
-    return 'X-My-Provider-Signature' in headers
+### `can_handle(data) -> bool`
+
+Cheap pre-filter called before `on_event()`. Inspect transport-specific metadata to quickly determine if this event is for your connector.
+
+```python
+from wazo_chatd.connectors.types import TransportData, WebhookData
+
+def can_handle(self, data: TransportData) -> bool:
+    match data:
+        case WebhookData(headers=headers):
+            return 'X-My-Provider-Signature' in headers
+        case _:
+            return True
 ```
 
 **When called:** Before `on_event()`, during webhook dispatch. Multiple connectors may be registered; `can_handle` avoids calling `on_event()` on connectors that clearly don't match.
 
-**What to check:** Headers, user-agent, content-type, or any cheap signal. Do NOT do full parsing or signature validation here.
+**What to check:** Headers, content-type, or any cheap signal. Do NOT do full parsing or signature validation here.
 
-**The `raw_data` dict includes:**
-
-| Key | Description |
-|-----|-------------|
-| `_headers` | Dict of HTTP headers from the webhook request |
-| `_content_type` | Content-Type header value |
-| *(other keys)* | The actual request body (JSON or form-encoded) |
-
-### `on_event(transport, raw_data) -> InboundMessage | StatusUpdate | None`
+### `on_event(data) -> InboundMessage | StatusUpdate | None`
 
 Parse an incoming event into an `InboundMessage` (new message), `StatusUpdate` (delivery status change), or `None` (irrelevant event).
 
 Many providers send both message webhooks and status callbacks to the same URL. Your connector decides the type based on the payload.
 
 ```python
-from wazo_chatd.connectors.types import InboundMessage, StatusUpdate
+from wazo_chatd.connectors.types import InboundMessage, StatusUpdate, TransportData, WebhookData
 
-def on_event(
-    self,
-    transport: str,
-    raw_data: Mapping[str, Any],
-) -> InboundMessage | StatusUpdate | None:
-    if transport != 'webhook':
-        return None
+def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
+    match data:
+        case WebhookData(body=body):
+            return self._parse_webhook(body)
+        case _:
+            return None
 
-    body = raw_data.get('body')
-    if body:
+def _parse_webhook(self, body):
+    content = body.get('body')
+    if content:
         return InboundMessage(
-            sender=raw_data['from'],
-            recipient=raw_data['to'],
-            body=body,
+            sender=body['from'],
+            recipient=body['to'],
+            body=content,
             backend=self.backend,
-            external_id=raw_data['message_id'],
+            external_id=body['message_id'],
             metadata={
-                'idempotency_key': raw_data.get('idempotency_token', ''),
+                'idempotency_key': body.get('idempotency_token', ''),
             },
         )
 
-    status = raw_data.get('message_status')
-    message_id = raw_data.get('message_id')
+    status = body.get('message_status')
+    message_id = body.get('message_id')
     if status and message_id:
         return StatusUpdate(
             external_id=message_id,
             status=status,
             backend=self.backend,
-            error_code=raw_data.get('error_code', ''),
+            error_code=body.get('error_code', ''),
         )
 
     return None
@@ -362,8 +365,9 @@ wazo-chatd exposes two webhook endpoints for inbound messages:
 Configure your external provider to send webhooks to either URL. The `<backend>` path is a convenience hint that prioritizes matching connectors but falls back to trying all registered connectors if no match is found.
 
 The dispatch flow:
-1. `can_handle('webhook', raw_data)` is called on each connector (hint-matched first)
-2. First connector returning `True` gets `on_event('webhook', raw_data)` called
+1. HTTP request is extracted into a `WebhookData(body=..., headers=..., content_type=...)`
+2. `can_handle(data)` is called on each connector (hint-matched first)
+3. First connector returning `True` gets `on_event(data)` called
 3. If `on_event` returns an `InboundMessage`, it's enqueued for processing
 4. If it returns `None`, the next matching connector is tried
 
@@ -409,7 +413,13 @@ from typing import Any, ClassVar
 
 from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
+from wazo_chatd.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    StatusUpdate,
+    TransportData,
+    WebhookData,
+)
 
 _E164 = re.compile(r'^\+[1-9]\d{6,14}$')
 
@@ -450,42 +460,41 @@ class MySmsConnector:
         except Exception as exc:
             raise ConnectorSendError(str(exc)) from exc
 
-    def can_handle(
-        self,
-        transport: str,
-        raw_data: Mapping[str, Any],
-    ) -> bool:
-        if transport != 'webhook':
-            return True
-        headers = raw_data.get('_headers', {})
-        return 'X-My-Provider-Signature' in headers
+    def can_handle(self, data: TransportData) -> bool:
+        match data:
+            case WebhookData(headers=headers):
+                return 'X-My-Provider-Signature' in headers
+            case _:
+                return True
 
     def on_event(
-        self,
-        transport: str,
-        raw_data: Mapping[str, Any],
+        self, data: TransportData
     ) -> InboundMessage | StatusUpdate | None:
-        if transport != 'webhook':
-            return None
+        match data:
+            case WebhookData(body=body):
+                return self._parse_webhook(body)
+            case _:
+                return None
 
-        body = raw_data.get('text')
-        if body:
+    def _parse_webhook(self, body):
+        content = body.get('text')
+        if content:
             return InboundMessage(
-                sender=raw_data.get('from', ''),
-                recipient=raw_data.get('to', ''),
-                body=body,
+                sender=body.get('from', ''),
+                recipient=body.get('to', ''),
+                body=content,
                 backend=self.backend,
-                external_id=raw_data.get('message_id', ''),
+                external_id=body.get('message_id', ''),
             )
 
-        status = raw_data.get('status')
-        message_id = raw_data.get('message_id')
+        status = body.get('status')
+        message_id = body.get('message_id')
         if status and message_id:
             return StatusUpdate(
                 external_id=message_id,
                 status=status,
                 backend=self.backend,
-                error_code=raw_data.get('error_code', ''),
+                error_code=body.get('error_code', ''),
             )
 
         return None

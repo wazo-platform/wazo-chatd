@@ -15,7 +15,12 @@ from wazo_chatd.connectors.http import ConnectorReloadResource, ConnectorWebhook
 from wazo_chatd.connectors.loop import DeliveryLoop
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.store import ConnectorStore
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, RoomParticipant
+from wazo_chatd.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    RoomParticipant,
+    WebhookData,
+)
 from wazo_chatd.database.helpers import session_scope
 
 if TYPE_CHECKING:
@@ -202,17 +207,16 @@ class ConnectorRouter:
 
     def dispatch_webhook(
         self,
-        raw_data: Mapping[str, str],
+        data: WebhookData,
         backend: str | None = None,
     ) -> None:
-        """Parse an incoming webhook and enqueue the result for the worker.
+        """Parse an incoming webhook and enqueue the result.
 
         Uses a two-phase dispatch:
 
-        1. ``can_handle('webhook', raw_data)`` pre-filters connectors
-           cheaply (header/content-type checks).
-        2. ``on_event('webhook', raw_data)`` does full parsing on
-           candidates until one returns a non-None :class:`InboundMessage`.
+        1. ``can_handle(data)`` pre-filters connectors cheaply.
+        2. ``on_event(data)`` does full parsing on candidates until one
+           returns a non-None result.
 
         When *backend* is provided (from the URL path), matching instances
         are tried first as a fast path. Remaining instances are tried as
@@ -233,9 +237,9 @@ class ConnectorRouter:
             ordered = instances
 
         for instance in ordered:
-            if not instance.can_handle('webhook', raw_data):
+            if not instance.can_handle(data):
                 continue
-            result = instance.on_event('webhook', raw_data)
+            result = instance.on_event(data)
             if result is not None:
                 self._delivery_loop.enqueue_message(result)
                 return

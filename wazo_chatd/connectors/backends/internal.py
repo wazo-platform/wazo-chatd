@@ -19,7 +19,7 @@ import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, TransportData
 
 
 class InternalConnector:
@@ -45,19 +45,11 @@ class InternalConnector:
         """
         return ''
 
-    def can_handle(
-        self,
-        transport: str,
-        raw_data: Mapping[str, Any],
-    ) -> bool:
+    def can_handle(self, data: TransportData) -> bool:
         """Internal connector never handles external events."""
         return False
 
-    def on_event(
-        self,
-        transport: str,
-        raw_data: Mapping[str, Any],
-    ) -> InboundMessage | None:
+    def on_event(self, data: TransportData) -> None:
         """Internal connector has no external inbound events."""
         return None
 

@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from wazo_chatd.connectors.backends.internal import InternalConnector
-from wazo_chatd.connectors.types import OutboundMessage
+from wazo_chatd.connectors.types import OutboundMessage, WebhookData
 
 
 class TestInternalConnector(unittest.TestCase):
@@ -36,7 +36,7 @@ class TestInternalConnector(unittest.TestCase):
         assert result == ''
 
     def test_on_event_returns_none(self) -> None:
-        result = self.connector.on_event('webhook', {'data': 'test'})
+        result = self.connector.on_event(WebhookData(body={'data': 'test'}))
 
         assert result is None
 
