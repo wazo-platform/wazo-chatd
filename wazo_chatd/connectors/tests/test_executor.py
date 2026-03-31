@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, Mock, patch
 from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.executor import DeliveryExecutor
+from wazo_chatd.connectors.store import ConnectorStore
 from wazo_chatd.connectors.types import (
-    ConnectorConfig,
     InboundMessage,
     OutboundMessage,
     RoomParticipant,
@@ -47,56 +47,6 @@ class _FakeConnector:
         return self.send_return
 
 
-class TestDeliveryExecutorLoadFromPipe(unittest.TestCase):
-    def setUp(self) -> None:
-        self.registry = Mock()
-        self.registry.get_backend.return_value = _FakeConnector
-        self.executor = DeliveryExecutor(
-            config={'uuid': 'test-wazo-uuid'},
-            registry=self.registry,
-            notifier=Mock(),
-        )
-
-    def test_load_config_creates_instances(self) -> None:
-        config_sync = ConnectorConfig(
-            providers=[
-                {
-                    'name': 'twilio-sms',
-                    'type': 'sms',
-                    'backend': 'twilio',
-                    'configuration': {'account_sid': 'test'},
-                },
-            ]
-        )
-
-        self.executor.load_config(config_sync)
-
-        assert 'twilio-sms' in self.executor.connectors
-        self.registry.get_backend.assert_called_with('twilio')
-
-    def test_load_config_multiple_providers(self) -> None:
-        config_sync = ConnectorConfig(
-            providers=[
-                {
-                    'name': 'twilio-sms',
-                    'type': 'sms',
-                    'backend': 'twilio',
-                    'configuration': {},
-                },
-                {
-                    'name': 'twilio-mms',
-                    'type': 'mms',
-                    'backend': 'twilio',
-                    'configuration': {},
-                },
-            ]
-        )
-
-        self.executor.load_config(config_sync)
-
-        assert len(self.executor.connectors) == 2
-
-
 class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.session = AsyncMock()
@@ -110,8 +60,9 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
             config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
             notifier=self.notifier,
+            store=ConnectorStore(),
         )
-        self.executor.connectors['twilio-sms'] = self.connector  # type: ignore[assignment]
+        self.executor._store.register('twilio-sms', self.connector)
 
         self.delivery = Mock()
         self.delivery.message_uuid = 'delivery-1'
@@ -194,12 +145,14 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
         self.registry.get_backend.return_value = backend_cls
 
         self.connector = _FakeConnector()
+        self.store = ConnectorStore()
         self.executor = DeliveryExecutor(
             config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
             notifier=AsyncMock(),
+            store=self.store,
         )
-        self.executor.connectors['twilio-sms'] = self.connector  # type: ignore[assignment]
+        self.store.register('twilio-sms', self.connector)
 
     def tearDown(self) -> None:
         _current_session.reset(self.token)
@@ -264,6 +217,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
             config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
             notifier=self.notifier,
+            store=ConnectorStore(),
         )
 
     def tearDown(self) -> None:

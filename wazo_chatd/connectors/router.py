@@ -5,48 +5,63 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.exceptions import ConnectorParseError
+from wazo_chatd.connectors.loop import DeliveryLoop
 from wazo_chatd.connectors.registry import ConnectorRegistry
+from wazo_chatd.connectors.store import ConnectorStore
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, RoomParticipant
 from wazo_chatd.database.helpers import session_scope
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser
     from wazo_chatd.database.queries import DAO
-
-
-class MessageQueue(Protocol):
-    def enqueue_message(
-        self,
-        message: OutboundMessage | InboundMessage,
-        delay: float | None = None,
-    ) -> None: ...
-
-    def sync_connectors(
-        self, connectors: dict[str, Connector]
-    ) -> None: ...
 
 logger = logging.getLogger(__name__)
 
 
 class ConnectorRouter:
-    """Routes messages between the Flask thread and the delivery loop.
+    """Main entry point for the connector subsystem.
 
-    Handles capability resolution and lightweight message forwarding.
-    Heavy processing (alias lookup, delivery tracking, persistence)
-    happens asynchronously in the delivery loop.
+    Owns the delivery loop, manages connector instances, handles
+    capability resolution and message forwarding. Heavy processing
+    (alias lookup, delivery tracking, persistence) happens
+    asynchronously in the delivery loop.
     """
 
-    def __init__(self, registry: ConnectorRegistry) -> None:
+    def __init__(
+        self,
+        config: dict[str, str | bool],
+        registry: ConnectorRegistry,
+    ) -> None:
         self._registry = registry
-        self._instances: dict[str, Connector] = {}
-        self._queue: MessageQueue | None = None
+        self._store = ConnectorStore()
+        self._delivery_loop = DeliveryLoop(config, registry, self._store)
 
-    def set_manager(self, queue: MessageQueue) -> None:
-        self._queue = queue
+    def __enter__(self) -> ConnectorRouter:
+        self._delivery_loop.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._delivery_loop.shutdown()
+
+    def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
+        loop = self._delivery_loop
+        is_running = loop.is_running
+        status['connectors'] = {
+            'status': 'ok' if is_running else 'fail',
+            'in_flight': loop.in_flight_count,
+            'instances': len(self._store),
+        }
 
     def load_providers(self, dao: DAO) -> None:
         """Load connector instances from ChatProvider records.
@@ -55,7 +70,7 @@ class ConnectorRouter:
         supports chat_provider responses. Currently reads directly
         from chatd's own database.
         """
-        self._instances.clear()
+        self._store.clear()
 
         with session_scope():
             for provider in dao.provider.list_():
@@ -76,15 +91,12 @@ class ConnectorRouter:
                     dict(provider.configuration) if provider.configuration else {},
                     {},
                 )
-                self._instances[str(provider.name)] = instance
+                self._store.register(str(provider.name), instance)
                 logger.info(
                     'Loaded connector instance %r (backend=%r)',
                     provider.name,
                     backend,
                 )
-
-        if self._queue:
-            self._queue.sync_connectors(self._instances)
 
     def invalidate_cache(self) -> None:
         """Mark the connector cache as stale.
@@ -93,7 +105,7 @@ class ConnectorRouter:
         fresh fetch from confd.
         """
         logger.info('Connector cache invalidated')
-        self._instances.clear()
+        self._store.clear()
 
     def add_instance(self, name: str, connector: Connector) -> None:
         """Register a configured connector instance.
@@ -102,7 +114,7 @@ class ConnectorRouter:
             name: Unique name for this instance (e.g. provider name).
             connector: A configured connector instance.
         """
-        self._instances[name] = connector
+        self._store.register(name, connector)
 
     def list_capabilities(self, room: Room) -> set[str]:
         """Compute common connector types for the room participants.
@@ -153,8 +165,7 @@ class ConnectorRouter:
             metadata={'idempotency_key': str(message.uuid)},
         )
 
-        if self._queue:
-            self._queue.enqueue_message(outbound, delay=0.1)
+        self._delivery_loop.enqueue_message(outbound, delay=0.1)
 
     @staticmethod
     def _extract_participants(
@@ -189,7 +200,7 @@ class ConnectorRouter:
         Raises:
             ConnectorParseError: If no connector can handle the webhook.
         """
-        instances = list(self._instances.values())
+        instances = list(self._store)
         if not instances:
             raise ConnectorParseError('No connector instances registered')
 
@@ -205,8 +216,7 @@ class ConnectorRouter:
                 continue
             inbound = instance.on_event('webhook', raw_data)
             if inbound is not None:
-                if self._queue:
-                    self._queue.enqueue_message(inbound)
+                self._delivery_loop.enqueue_message(inbound)
                 return
 
         raise ConnectorParseError('No connector matched the webhook payload')

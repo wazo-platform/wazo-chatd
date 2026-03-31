@@ -61,7 +61,8 @@ def _build_registry() -> ConnectorRegistry:
 class TestConnectorRouterListCapabilities(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        self.router = ConnectorRouter(registry=self.registry)
+        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry)
 
     def test_all_internal_users(self) -> None:
         room = _make_room(
@@ -127,9 +128,9 @@ class TestConnectorRouterListCapabilities(unittest.TestCase):
 class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
-        self.router = ConnectorRouter(registry=self.registry)
-        self.manager = Mock()
-        self.router.set_manager(self.manager)
+        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry)
+        self.manager = self.router._delivery_loop
 
     def _make_connector(
         self, backend: str = 'twilio', can_handle: bool = True
@@ -250,9 +251,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 class TestConnectorRouterSend(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        self.manager = Mock()
-        self.router = ConnectorRouter(registry=self.registry)
-        self.router.set_manager(self.manager)
+        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry)
+        self.manager = self.router._delivery_loop
 
     def test_send_internal_room_is_noop(self) -> None:
         room = _make_room(

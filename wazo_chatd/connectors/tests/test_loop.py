@@ -48,7 +48,7 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
-        loop = DeliveryLoop(_make_config(), Mock())
+        loop = DeliveryLoop(_make_config(), Mock(), {})
         loop.start()
 
         try:
@@ -67,7 +67,7 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
-        loop = DeliveryLoop(_make_config(), Mock())
+        loop = DeliveryLoop(_make_config(), Mock(), {})
         loop.start()
         loop.shutdown()
 
@@ -81,7 +81,7 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
-        with DeliveryLoop(_make_config(), Mock()) as loop:
+        with DeliveryLoop(_make_config(), Mock(), {}) as loop:
             assert loop._loop.is_running()
 
         assert not loop._thread.is_alive()
@@ -90,29 +90,24 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
 class TestDeliveryLoopStatus(unittest.TestCase):
     @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
     @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
-    def test_provide_status_ok_when_running(
+    def test_is_running_when_started(
         self, mock_bus: Mock, mock_init_db: Mock
     ) -> None:
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
-        loop = DeliveryLoop(_make_config(), Mock())
+        loop = DeliveryLoop(_make_config(), Mock(), {})
         loop.start()
 
         try:
-            status: dict[str, dict[str, str | int]] = {}
-            loop.provide_status(status)
-            assert status['delivery_loop']['status'] == 'ok'
+            assert loop.is_running is True
         finally:
             loop.shutdown()
 
-    def test_provide_status_fail_when_not_started(self) -> None:
-        loop = DeliveryLoop(_make_config(), Mock())
+    def test_is_not_running_when_not_started(self) -> None:
+        loop = DeliveryLoop(_make_config(), Mock(), {})
 
-        status: dict[str, dict[str, str | int]] = {}
-        loop.provide_status(status)
-
-        assert status['delivery_loop']['status'] == 'fail'
+        assert loop.is_running is False
 
 
 class TestDeliveryLoopEnqueue(unittest.TestCase):
@@ -124,7 +119,7 @@ class TestDeliveryLoopEnqueue(unittest.TestCase):
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
-        with DeliveryLoop(_make_config(), Mock()) as loop:
+        with DeliveryLoop(_make_config(), Mock(), {}) as loop:
             loop.enqueue_message(_make_outbound())
             time.sleep(0.1)
 
@@ -138,7 +133,7 @@ class TestDeliveryLoopEnqueue(unittest.TestCase):
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
-        with DeliveryLoop(_make_config(), Mock()) as loop:
+        with DeliveryLoop(_make_config(), Mock(), {}) as loop:
             loop.enqueue_message(_make_inbound())
             time.sleep(0.1)
 

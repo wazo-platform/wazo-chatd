@@ -12,14 +12,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from typing import Any
+
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
+from wazo_chatd.connectors.store import ConnectorStore
 from wazo_chatd.connectors.types import (
-    ConnectorConfig,
-    ConnectorConfigUpdate,
     InboundMessage,
     OutboundMessage,
     RoomParticipant,
@@ -47,71 +48,18 @@ class DeliveryExecutor:
 
     def __init__(
         self,
-        config: dict[str, str | bool],
+        config: dict[str, Any],
         registry: ConnectorRegistry,
         notifier: AsyncNotifier,
+        store: ConnectorStore,
     ) -> None:
-        self._wazo_uuid = str(config.get('uuid', ''))
-        self._connector_config = dict(config.get('connectors', {}))
+        self._wazo_uuid: str = str(config.get('uuid', ''))
+        self._connector_config: dict[str, Any] = dict(config.get('connectors', {}))
         self._registry = registry
         self._notifier = notifier
-        self.connectors: dict[str, Connector] = {}
+        self._store = store
         self._room_dao = AsyncRoomDAO()
         self._user_alias_dao = AsyncUserAliasDAO()
-
-    def load_config(self, config_sync: ConnectorConfig) -> None:
-        """Reconstruct connector instances from provider configuration."""
-        self.connectors.clear()
-        for entry in config_sync.providers:
-            name = entry['name']
-            backend = entry['backend']
-            try:
-                cls = self._registry.get_backend(backend)
-            except KeyError:
-                logger.warning(
-                    'Backend %r not available, skipping provider %r',
-                    backend,
-                    name,
-                )
-                continue
-
-            instance = cls()
-            instance.configure(
-                entry['type'],
-                entry.get('configuration', {}),
-                self._connector_config,
-            )
-            self.connectors[name] = instance
-            logger.info('Loaded connector instance %r (backend=%r)', name, backend)
-
-    def handle_config_update(self, update: ConnectorConfigUpdate) -> None:
-        """Apply a runtime configuration change."""
-        name = update.provider.get('name', '')
-
-        if update.action == 'remove':
-            self.connectors.pop(name, None)
-            logger.info('Removed connector instance %r', name)
-            return
-
-        backend = update.provider.get('backend', '')
-        try:
-            cls = self._registry.get_backend(backend)
-        except KeyError:
-            logger.warning(
-                'Backend %r not available for config update on %r',
-                backend,
-                name,
-            )
-            return
-
-        instance = cls()
-        instance.configure(
-            update.provider.get('type', ''),
-            update.provider.get('configuration', {}),
-            self._connector_config,
-        )
-        self.connectors[name] = instance
-        logger.info('Updated connector instance %r (backend=%r)', name, backend)
 
     async def route_outbound(
         self,
@@ -342,13 +290,10 @@ class DeliveryExecutor:
         logger.debug(
             'Finding connector for backend=%r in %d instances: %s',
             backend,
-            len(self.connectors),
-            {k: getattr(v, 'backend', '?') for k, v in self.connectors.items()},
+            len(self._store),
+            self._store.backends(),
         )
-        for instance in self.connectors.values():
-            if getattr(instance, 'backend', None) == backend:
-                return instance
-        return None
+        return self._store.find_by_backend(backend)
 
     async def _send(
         self,

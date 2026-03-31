@@ -17,7 +17,6 @@ from . import auth
 from .asyncio_ import CoreAsyncio
 from .bus import BusConsumer, BusPublisher
 from .connectors.http import register_connector_endpoints
-from .connectors.loop import DeliveryLoop
 from .connectors.registry import ConnectorRegistry
 from .connectors.router import ConnectorRouter
 from .database.helpers import init_db
@@ -55,9 +54,7 @@ class Controller:
         connector_registry.discover(
             enabled_connectors=config.get('enabled_connectors', {}),
         )
-        self.connector_router = ConnectorRouter(registry=connector_registry)
-        self.delivery_loop = DeliveryLoop(config, connector_registry)
-        self.connector_router.set_manager(self.delivery_loop)
+        self.connector_router = ConnectorRouter(config, connector_registry)
         register_connector_endpoints(api, self.connector_router, dao)
 
         if not app.config['auth'].get('master_tenant_uuid'):
@@ -86,12 +83,12 @@ class Controller:
         logger.info('wazo-chatd starting...')
         self.status_aggregator.add_provider(self.bus_consumer.provide_status)
         self.status_aggregator.add_provider(auth.provide_status)
-        self.status_aggregator.add_provider(self.delivery_loop.provide_status)
+        self.status_aggregator.add_provider(self.connector_router.provide_status)
         signal.signal(signal.SIGTERM, partial(_signal_handler, self))
         signal.signal(signal.SIGINT, partial(_signal_handler, self))
 
         with ExitStack() as stack:
-            stack.enter_context(self.delivery_loop)
+            stack.enter_context(self.connector_router)
             stack.enter_context(self.thread_manager)
             stack.enter_context(self.token_renewer)
             stack.enter_context(self.bus_consumer)

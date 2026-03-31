@@ -111,6 +111,16 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         assert response.status_code == 204
 
+        def message_persisted():
+            message = (
+                self._session.query(RoomMessage)
+                .filter(RoomMessage.content == 'Hello with hint')
+                .first()
+            )
+            assert message is not None
+
+        until.assert_(message_persisted, timeout=5)
+
     def test_webhook_unknown_connector_returns_404(self):
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(

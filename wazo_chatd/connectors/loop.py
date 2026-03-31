@@ -9,8 +9,8 @@ import threading
 from types import TracebackType
 
 from wazo_chatd.bus import BusPublisher
-from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.executor import DeliveryExecutor
+from wazo_chatd.connectors.store import ConnectorStore
 from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
@@ -26,9 +26,11 @@ class DeliveryLoop:
         self,
         config: dict[str, str | bool],
         registry: ConnectorRegistry,
+        store: ConnectorStore,
     ) -> None:
         self._config = config
         self._registry = registry
+        self._store = store
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._executor: DeliveryExecutor | None = None
@@ -68,6 +70,7 @@ class DeliveryLoop:
             config=self._config,
             registry=self._registry,
             notifier=notifier,
+            store=self._store,
         )
 
     def start(self) -> None:
@@ -98,14 +101,6 @@ class DeliveryLoop:
 
         logger.info('Delivery loop stopped')
 
-    def sync_connectors(self, connectors: dict[str, Connector]) -> None:
-        if self._executor:
-            self._executor.connectors = dict(connectors)
-            logger.info(
-                'Synced %d connector instance(s) to executor',
-                len(connectors),
-            )
-
     def enqueue_message(
         self,
         message: OutboundMessage | InboundMessage,
@@ -118,15 +113,15 @@ class DeliveryLoop:
         else:
             self.loop.call_soon_threadsafe(self._schedule_task, message)
 
-    def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
+    @property
+    def is_running(self) -> bool:
         loop_running = self._loop is not None and self._loop.is_running()
         thread_running = self._thread is not None and self._thread.is_alive()
+        return loop_running and thread_running
 
-        is_running = loop_running and thread_running
-        status['delivery_loop'] = {
-            'status': 'ok' if is_running else 'fail',
-            'in_flight': len(self._in_flight),
-        }
+    @property
+    def in_flight_count(self) -> int:
+        return len(self._in_flight)
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
