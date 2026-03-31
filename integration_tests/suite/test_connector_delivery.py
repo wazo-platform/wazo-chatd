@@ -63,7 +63,8 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         assert response.status_code == 204
 
-        time.sleep(0.5)
+        time.sleep(1)
+        self._session.rollback()
 
         message = (
             self._session.query(RoomMessage)
@@ -152,7 +153,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
-        time.sleep(0.5)
+        time.sleep(1)
 
         response = requests.post(
             f'http://127.0.0.1:{port}/1.0/connectors/incoming',
@@ -160,7 +161,8 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
-        time.sleep(0.5)
+        time.sleep(1)
+        self._session.rollback()
 
         messages = (
             self._session.query(RoomMessage)
@@ -172,7 +174,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
 @use_asset('connectors')
 class TestOutboundDelivery(ConnectorIntegrationTest):
-    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.chat_provider(
         uuid=PROVIDER_UUID,
         name='Test Provider',
@@ -180,13 +182,13 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         backend='test',
     )
     @fixtures.db.user_alias(
-        user_uuid=USER_UUID_1,
+        user_uuid=TOKEN_USER_UUID,
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
     @fixtures.db.room(
         users=[
-            {'uuid': USER_UUID_1},
+            {'uuid': TOKEN_USER_UUID},
             {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
         ],
     )
@@ -196,12 +198,12 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         self.reload_connectors()
         self.connector_mock.reset()
 
-        with self.user_token(str(USER_UUID_1)):
-            message = self.chatd.rooms.create_message_from_user(
-                str(room.uuid), {'content': 'Hello external'}
-            )
+        message = self.chatd.rooms.create_message_from_user(
+            str(room.uuid), {'content': 'Hello external'}
+        )
 
         time.sleep(1)
+        self._session.rollback()
 
         meta = (
             self._session.query(MessageMeta)
@@ -221,7 +223,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         assert 'pending' in statuses
         assert 'sent' in statuses or 'sending' in statuses
 
-    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.chat_provider(
         uuid=PROVIDER_UUID,
         name='Test Provider',
@@ -229,13 +231,13 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         backend='test',
     )
     @fixtures.db.user_alias(
-        user_uuid=USER_UUID_1,
+        user_uuid=TOKEN_USER_UUID,
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
     @fixtures.db.room(
         users=[
-            {'uuid': USER_UUID_1},
+            {'uuid': TOKEN_USER_UUID},
             {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
         ],
     )
@@ -249,10 +251,9 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             external_id='mock-ext-123',
         )
 
-        with self.user_token(str(USER_UUID_1)):
-            self.chatd.rooms.create_message_from_user(
-                str(room.uuid), {'content': 'Check the mock'}
-            )
+        self.chatd.rooms.create_message_from_user(
+            str(room.uuid), {'content': 'Check the mock'}
+        )
 
         time.sleep(1)
 
@@ -260,7 +261,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         assert len(sent) >= 1
         assert sent[0]['body'] == 'Check the mock'
 
-    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.chat_provider(
         uuid=PROVIDER_UUID,
         name='Test Provider',
@@ -268,13 +269,13 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         backend='test',
     )
     @fixtures.db.user_alias(
-        user_uuid=USER_UUID_1,
+        user_uuid=TOKEN_USER_UUID,
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
     @fixtures.db.room(
         users=[
-            {'uuid': USER_UUID_1},
+            {'uuid': TOKEN_USER_UUID},
             {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
         ],
     )
@@ -285,12 +286,12 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         self.connector_mock.reset()
         self.connector_mock.set_config(send_behavior='fail', error_message='API down')
 
-        with self.user_token(str(USER_UUID_1)):
-            message = self.chatd.rooms.create_message_from_user(
-                str(room.uuid), {'content': 'Will fail'}
-            )
+        message = self.chatd.rooms.create_message_from_user(
+            str(room.uuid), {'content': 'Will fail'}
+        )
 
         time.sleep(1)
+        self._session.rollback()
 
         records = (
             self._session.query(DeliveryRecord)
@@ -306,14 +307,13 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
 class TestMessageSchemaFields(ConnectorIntegrationTest):
     @fixtures.db.room(
         users=[
-            {'uuid': USER_UUID_1},
+            {'uuid': TOKEN_USER_UUID},
             {'uuid': uuid.uuid4()},
         ],
-        messages=[{'content': 'internal message', 'user_uuid': USER_UUID_1}],
+        messages=[{'content': 'internal message', 'user_uuid': TOKEN_USER_UUID}],
     )
     def test_internal_message_has_type_internal(self, room):
-        with self.user_token(str(USER_UUID_1)):
-            messages = self.chatd.rooms.list_messages_from_user(str(room.uuid))
+        messages = self.chatd.rooms.list_messages_from_user(str(room.uuid))
 
         message = messages['items'][0]
         assert message['type'] == 'internal'

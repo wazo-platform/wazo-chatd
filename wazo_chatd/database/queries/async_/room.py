@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.orm import selectinload
 
 from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.models import (
@@ -30,7 +31,10 @@ class AsyncRoomDAO:
         meta: MessageMeta,
         record: DeliveryRecord,
     ) -> None:
-        meta.records.append(record)
+        # Set FK directly instead of meta.records.append() to avoid
+        # lazy-loading the records collection (MissingGreenlet in async)
+        record.message_uuid = meta.message_uuid
+        self.session.add(record)
         await self.session.flush()
 
     async def add_message(self, room: Room, message: RoomMessage) -> None:
@@ -84,9 +88,13 @@ class AsyncRoomDAO:
             )
         ).subquery()
 
-        stmt = select(Room).filter(
-            Room.tenant_uuid == tenant_uuid,
-            Room.uuid.in_(select(exact_match.c.room_uuid)),
+        stmt = (
+            select(Room)
+            .options(selectinload(Room.users))
+            .filter(
+                Room.tenant_uuid == tenant_uuid,
+                Room.uuid.in_(select(exact_match.c.room_uuid)),
+            )
         )
         result = await self.session.execute(stmt)
         existing = result.scalar_one_or_none()
