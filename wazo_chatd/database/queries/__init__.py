@@ -7,6 +7,7 @@ from ..helpers import Session
 from .channel import ChannelDAO
 from .endpoint import EndpointDAO
 from .line import LineDAO
+from .provider import ProviderDAO
 from .refresh_token import RefreshTokenDAO
 from .room import RoomDAO
 from .session import SessionDAO
@@ -19,6 +20,7 @@ class DAO:
     channel: ChannelDAO
     endpoint: EndpointDAO
     line: LineDAO
+    provider: ProviderDAO
     refresh_token: RefreshTokenDAO
     room: RoomDAO
     session: SessionDAO
@@ -29,6 +31,7 @@ class DAO:
         'channel': ChannelDAO,
         'endpoint': EndpointDAO,
         'line': LineDAO,
+        'provider': ProviderDAO,
         'refresh_token': RefreshTokenDAO,
         'room': RoomDAO,
         'session': SessionDAO,

@@ -469,6 +469,13 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
         super().reset_clients()
         cls.connector_mock = cls.asset_cls.make_connector_mock()
 
+    def reload_connectors(self) -> None:
+        port = self.asset_cls.service_port(9304, 'chatd')
+        requests.post(
+            f'http://127.0.0.1:{port}/1.0/connectors/reload',
+            headers={'X-Auth-Token': str(TOKEN_UUID)},
+        )
+
 
 class TeamsIntegrationTest(_BaseIntegrationTest):
     asset_cls = TeamsAssetLaunchingTestCase

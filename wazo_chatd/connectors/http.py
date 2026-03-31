@@ -11,6 +11,7 @@ from flask_restful import Resource
 
 from wazo_chatd.connectors.exceptions import ConnectorParseError
 from wazo_chatd.connectors.router import ConnectorRouter
+from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
 
@@ -57,3 +58,39 @@ class ConnectorWebhookResource(Resource):
         data['_content_type'] = request.content_type or ''
 
         return data
+
+
+class ConnectorReloadResource(Resource):
+    """Reload connector instances from the database.
+
+    Route: ``POST /connectors/reload``
+
+    TODO: Replace with confd client fetch once wazo-confd-mock
+    supports chat_provider responses.
+    """
+
+    def __init__(self, router: ConnectorRouter, dao: DAO) -> None:
+        self._router = router
+        self._dao = dao
+
+    def post(self) -> tuple[str, int]:
+        self._router.load_providers(self._dao)
+        return '', 204
+
+
+def register_connector_endpoints(
+    api: Any,
+    router: ConnectorRouter,
+    dao: DAO,
+) -> None:
+    api.add_resource(
+        ConnectorWebhookResource,
+        '/connectors/incoming',
+        '/connectors/incoming/<backend>',
+        resource_class_args=[router],
+    )
+    api.add_resource(
+        ConnectorReloadResource,
+        '/connectors/reload',
+        resource_class_args=[router, dao],
+    )

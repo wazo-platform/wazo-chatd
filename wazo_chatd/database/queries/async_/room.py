@@ -34,7 +34,11 @@ class AsyncRoomDAO:
         await self.session.flush()
 
     async def add_message(self, room: Room, message: RoomMessage) -> None:
-        room.messages.append(message)
+        # Set FK directly instead of room.messages.append() to avoid
+        # lazy-loading the messages collection (triggers MissingGreenlet
+        # in async context)
+        message.room_uuid = room.uuid
+        self.session.add(message)
         await self.session.flush()
 
     async def add_message_meta(

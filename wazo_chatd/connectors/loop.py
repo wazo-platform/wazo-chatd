@@ -64,8 +64,8 @@ class DeliveryLoop:
         notifier = AsyncNotifier(bus_publisher)
 
         self._executor = DeliveryExecutor(
+            config=self._config,
             registry=self._registry,
-            connector_config={},
             notifier=notifier,
         )
 

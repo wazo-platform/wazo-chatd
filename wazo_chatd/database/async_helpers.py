@@ -32,6 +32,7 @@ def init_async_db(
         async_uri,
         pool_size=pool_size,
         pool_pre_ping=True,
+        connect_args={'ssl': False},
     )
     factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     return engine, factory

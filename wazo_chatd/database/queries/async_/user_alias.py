@@ -28,7 +28,10 @@ class AsyncUserAliasDAO:
         stmt = (
             select(UserAlias)
             .join(ChatProvider)
-            .options(selectinload(UserAlias.provider))
+            .options(
+                selectinload(UserAlias.provider),
+                selectinload(UserAlias.user),
+            )
             .filter(UserAlias.identity == identity, ChatProvider.backend == backend)
         )
         result = await self.session.execute(stmt)

@@ -16,6 +16,7 @@ from xivo.token_renewer import TokenRenewer
 from . import auth
 from .asyncio_ import CoreAsyncio
 from .bus import BusConsumer, BusPublisher
+from .connectors.http import register_connector_endpoints
 from .connectors.loop import DeliveryLoop
 from .connectors.registry import ConnectorRegistry
 from .connectors.router import ConnectorRouter
@@ -57,6 +58,7 @@ class Controller:
         self.connector_router = ConnectorRouter(registry=connector_registry)
         self.delivery_loop = DeliveryLoop(config, connector_registry)
         self.connector_router.set_manager(self.delivery_loop)
+        register_connector_endpoints(api, self.connector_router, dao)
 
         if not app.config['auth'].get('master_tenant_uuid'):
             self.token_renewer.subscribe_to_next_token_details_change(

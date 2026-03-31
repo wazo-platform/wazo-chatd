@@ -11,9 +11,13 @@ from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.exceptions import ConnectorParseError
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, RoomParticipant
+from wazo_chatd.database.helpers import session_scope
 
 if TYPE_CHECKING:
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser
+    from wazo_chatd.database.queries import DAO
+
+    from wazo_chatd.database.queries import DAO
 
 
 class MessageQueue(Protocol):
@@ -41,6 +45,41 @@ class ConnectorRouter:
 
     def set_manager(self, queue: MessageQueue) -> None:
         self._queue = queue
+
+    def load_providers(self, dao: DAO) -> None:
+        """Load connector instances from ChatProvider records.
+
+        TODO: Replace with confd client fetch once wazo-confd-mock
+        supports chat_provider responses. Currently reads directly
+        from chatd's own database.
+        """
+        self._instances.clear()
+
+        with session_scope():
+            for provider in dao.provider.list_():
+                backend = str(provider.backend)
+                try:
+                    cls = self._registry.get_backend(backend)
+                except KeyError:
+                    logger.warning(
+                        'Backend %r not available, skipping provider %r',
+                        backend,
+                        provider.name,
+                    )
+                    continue
+
+                instance = cls()
+                instance.configure(
+                    str(provider.type_),
+                    dict(provider.configuration) if provider.configuration else {},
+                    {},
+                )
+                self._instances[str(provider.name)] = instance
+                logger.info(
+                    'Loaded connector instance %r (backend=%r)',
+                    provider.name,
+                    backend,
+                )
 
     def invalidate_cache(self) -> None:
         """Mark the connector cache as stale.

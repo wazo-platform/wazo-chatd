@@ -52,8 +52,8 @@ class TestDeliveryExecutorLoadFromPipe(unittest.TestCase):
         self.registry = Mock()
         self.registry.get_backend.return_value = _FakeConnector
         self.executor = DeliveryExecutor(
+            config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
-            connector_config={},
             notifier=Mock(),
         )
 
@@ -107,8 +107,8 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.connector = _FakeConnector()
         self.notifier = AsyncMock()
         self.executor = DeliveryExecutor(
+            config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
-            connector_config={},
             notifier=self.notifier,
         )
         self.executor.connectors['twilio-sms'] = self.connector  # type: ignore[assignment]
@@ -190,8 +190,8 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
 
         self.connector = _FakeConnector()
         self.executor = DeliveryExecutor(
+            config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
-            connector_config={},
             notifier=AsyncMock(),
         )
         self.executor.connectors['twilio-sms'] = self.connector  # type: ignore[assignment]
@@ -256,8 +256,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.registry = Mock()
         self.notifier = AsyncMock()
         self.executor = DeliveryExecutor(
+            config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
-            connector_config={},
             notifier=self.notifier,
         )
 

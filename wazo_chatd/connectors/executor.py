@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
@@ -46,12 +47,13 @@ class DeliveryExecutor:
 
     def __init__(
         self,
+        config: dict[str, str | bool],
         registry: ConnectorRegistry,
-        connector_config: dict[str, str],
         notifier: AsyncNotifier,
     ) -> None:
+        self._wazo_uuid = str(config.get('uuid', ''))
+        self._connector_config = dict(config.get('connectors', {}))
         self._registry = registry
-        self._connector_config = connector_config
         self._notifier = notifier
         self.connectors: dict[str, Connector] = {}
         self._room_dao = AsyncRoomDAO()
@@ -193,10 +195,13 @@ class DeliveryExecutor:
         tenant_uuid = str(recipient_alias.tenant_uuid)
         user = recipient_alias.user
         user_uuid = str(user.uuid)
-        wazo_uuid = str(user.wazo_uuid)
+        wazo_uuid = self._wazo_uuid
+        sender_uuid = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, f'{tenant_uuid}:{inbound.sender}')
+        )
 
         sender_participant = RoomUser(
-            uuid=user_uuid,
+            uuid=sender_uuid,
             tenant_uuid=tenant_uuid,
             wazo_uuid=wazo_uuid,
             identity=inbound.sender,

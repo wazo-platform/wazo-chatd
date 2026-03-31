@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
+
+import requests
 
 from wazo_chatd.database.models import (
     DeliveryRecord,
@@ -42,25 +45,14 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         identity='test:+15551234',
     )
     def test_webhook_creates_message_with_meta(self, alias, provider, user):
+        self.reload_connectors()
+
         webhook_data = {
             'from': EXTERNAL_IDENTITY,
             'to': 'test:+15551234',
             'body': 'Hello from outside',
             'message_id': 'ext-msg-001',
         }
-
-        response = self._make_http_request(
-            'post',
-            'connectors/incoming',
-            body=None,
-            headers={
-                'Content-Type': 'application/json',
-                'X-Test-Connector': 'true',
-            },
-        )
-        # POST with json body
-        import json
-        import requests
 
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(
@@ -101,14 +93,14 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         identity='test:+15551234',
     )
     def test_webhook_with_backend_hint(self, alias, provider, user):
+        self.reload_connectors()
+
         webhook_data = {
             'from': EXTERNAL_IDENTITY,
             'to': 'test:+15551234',
             'body': 'Hello with hint',
             'message_id': 'ext-msg-002',
         }
-
-        import requests
 
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(
@@ -120,8 +112,6 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         assert response.status_code == 204
 
     def test_webhook_unknown_connector_returns_404(self):
-        import requests
-
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(
             f'http://127.0.0.1:{port}/1.0/connectors/incoming',
@@ -144,6 +134,8 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         identity='test:+15551234',
     )
     def test_webhook_duplicate_idempotency_skipped(self, alias, provider, user):
+        self.reload_connectors()
+
         webhook_data = {
             'from': EXTERNAL_IDENTITY,
             'to': 'test:+15551234',
@@ -151,8 +143,6 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             'message_id': 'ext-msg-dedup',
             'idempotency_key': 'unique-key-001',
         }
-
-        import requests
 
         port = self.asset_cls.service_port(9304, 'chatd')
 
@@ -203,6 +193,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
     def test_message_in_external_room_creates_delivery_records(
         self, room, alias, provider, user
     ):
+        self.reload_connectors()
         self.connector_mock.reset()
 
         with self.user_token(str(USER_UUID_1)):
@@ -251,6 +242,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
     def test_connector_mock_receives_sent_message(
         self, room, alias, provider, user
     ):
+        self.reload_connectors()
         self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed',
@@ -289,6 +281,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
     def test_failed_delivery_creates_failed_record(
         self, room, alias, provider, user
     ):
+        self.reload_connectors()
         self.connector_mock.reset()
         self.connector_mock.set_config(send_behavior='fail', error_message='API down')
 
