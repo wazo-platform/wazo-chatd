@@ -13,7 +13,7 @@
   * `identity`
 
 * New parameters have been added to the message creation endpoint:
-  * `user_alias_uuid`
+  * `sender_alias_uuid`
 
 * New configuration: `enabled_connectors` to control which connector backends are loaded
 

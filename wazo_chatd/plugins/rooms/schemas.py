@@ -37,7 +37,7 @@ class MessageSchema(Schema):
     tenant_uuid = fields.UUID(dump_only=True)
     wazo_uuid = fields.UUID(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
-    user_alias_uuid = fields.UUID(load_only=True, allow_none=True)
+    sender_alias_uuid = fields.UUID(load_only=True, allow_none=True)
 
     room = fields.Nested('RoomSchema', dump_only=True, only=['uuid'])
 

@@ -42,9 +42,11 @@ class AsyncNotifier:
             return
 
         user_uuids = [str(u.uuid) for u in room.users]
+        latest_record = delivery.records[-1] if delivery.records else None
         delivery_data = {
             'message_uuid': str(delivery.message_uuid),
-            'status': str(delivery.records[-1].status) if delivery.records else '',
+            'status': str(latest_record.status) if latest_record else '',
+            'timestamp': latest_record.timestamp.isoformat() if latest_record else '',
             'backend': str(delivery.backend),
         }
         event = MessageDeliveryStatusEvent(
