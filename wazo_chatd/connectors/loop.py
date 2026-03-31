@@ -177,6 +177,10 @@ class DeliveryLoop:
             try:
                 async with async_session_scope(self._session_factory):
                     await self._executor.route_outbound(message)
+                logger.debug(
+                    'Outbound message processed (message=%s)',
+                    message.message_uuid,
+                )
             except Exception:
                 logger.exception(
                     'Failed to process outbound message %s', message.message_uuid

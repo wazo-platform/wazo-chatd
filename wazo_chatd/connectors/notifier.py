@@ -32,29 +32,28 @@ class AsyncNotifier:
             )
             await self._publish(event)
 
-    async def delivery_status_updated(self, delivery: MessageMeta) -> None:
-        message = delivery.message
-        if not message:
-            return
-
-        room = message.room
-        if not room:
-            return
-
-        user_uuids = [str(u.uuid) for u in room.users]
-        latest_record = delivery.records[-1] if delivery.records else None
+    async def delivery_status_updated(
+        self,
+        message_uuid: str,
+        status: str,
+        timestamp: str,
+        backend: str,
+        tenant_uuid: str,
+        room_uuid: str,
+        user_uuids: list[str],
+    ) -> None:
         delivery_data = {
-            'message_uuid': str(delivery.message_uuid),
-            'status': str(latest_record.status) if latest_record else '',
-            'timestamp': latest_record.timestamp.isoformat() if latest_record else '',
-            'backend': str(delivery.backend),
+            'message_uuid': message_uuid,
+            'status': status,
+            'timestamp': timestamp,
+            'backend': backend,
         }
         event = MessageDeliveryStatusEvent(
             delivery_data=delivery_data,
-            tenant_uuid=str(room.tenant_uuid),
+            tenant_uuid=tenant_uuid,
             user_uuids=user_uuids,
-            room_uuid=str(room.uuid),
-            message_uuid=str(delivery.message_uuid),
+            room_uuid=room_uuid,
+            message_uuid=message_uuid,
         )
         await self._publish(event)
 

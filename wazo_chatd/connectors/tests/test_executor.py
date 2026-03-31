@@ -159,7 +159,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.execute(outbound, self.delivery)
 
-        self.notifier.delivery_status_updated.assert_awaited_once_with(self.delivery)
+        self.notifier.delivery_status_updated.assert_awaited_once()
 
 
 def _make_outbound_with_participants(

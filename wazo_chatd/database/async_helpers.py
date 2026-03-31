@@ -8,7 +8,7 @@ from contextvars import ContextVar
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import raiseload, sessionmaker
 
 _current_session: ContextVar[AsyncSession] = ContextVar('_current_session')
 

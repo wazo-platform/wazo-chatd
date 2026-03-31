@@ -6,6 +6,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock
 
+import pytest
+
 from wazo_chatd.connectors.backends.internal import InternalConnector
 from wazo_chatd.connectors.types import OutboundMessage
 
@@ -48,9 +50,13 @@ class TestInternalConnector(unittest.TestCase):
     def test_stop_does_not_raise(self) -> None:
         self.connector.stop()
 
-    def test_normalize_identity_returns_unchanged(self) -> None:
-        identity = 'some-uuid-value'
+    def test_normalize_identity_accepts_uuid(self) -> None:
+        identity = '00000000-0000-0000-0000-000000000001'
 
         result = self.connector.normalize_identity(identity)
 
         assert result == identity
+
+    def test_normalize_identity_rejects_non_uuid(self) -> None:
+        with pytest.raises(ValueError):
+            self.connector.normalize_identity('test:+15551234')

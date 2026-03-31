@@ -54,50 +54,29 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         self.notifier = AsyncNotifier(self.bus)
 
     async def test_publishes_delivery_status_event(self) -> None:
-        delivery = Mock()
-        delivery.message_uuid = 'msg-uuid'
-        delivery.backend = 'twilio'
-        delivery.records = [Mock(status='sent')]
-        delivery.message = Mock()
-        delivery.message.room = Mock()
-        delivery.message.room.uuid = 'room-uuid'
-        delivery.message.room.tenant_uuid = 'tenant-uuid'
-        delivery.message.room.users = [Mock(uuid='user-1')]
-
-        await self.notifier.delivery_status_updated(delivery)
+        await self.notifier.delivery_status_updated(
+            message_uuid='msg-uuid',
+            status='sent',
+            timestamp='2026-03-30T14:00:00+00:00',
+            backend='twilio',
+            tenant_uuid='tenant-uuid',
+            room_uuid='room-uuid',
+            user_uuids=['user-1'],
+        )
 
         self.bus.publish.assert_called_once()
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_message_delivery_status'
 
-    async def test_skips_when_no_message(self) -> None:
-        delivery = Mock()
-        delivery.message = None
-
-        await self.notifier.delivery_status_updated(delivery)
-
-        self.bus.publish.assert_not_called()
-
-    async def test_skips_when_no_room(self) -> None:
-        delivery = Mock()
-        delivery.message = Mock()
-        delivery.message.room = None
-
-        await self.notifier.delivery_status_updated(delivery)
-
-        self.bus.publish.assert_not_called()
-
     async def test_publish_error_does_not_propagate(self) -> None:
         self.bus.publish.side_effect = RuntimeError('connection lost')
 
-        delivery = Mock()
-        delivery.message_uuid = 'msg-uuid'
-        delivery.backend = 'twilio'
-        delivery.records = [Mock(status='sent')]
-        delivery.message = Mock()
-        delivery.message.room = Mock()
-        delivery.message.room.uuid = 'room-uuid'
-        delivery.message.room.tenant_uuid = 'tenant-uuid'
-        delivery.message.room.users = [Mock(uuid='user-1')]
-
-        await self.notifier.delivery_status_updated(delivery)
+        await self.notifier.delivery_status_updated(
+            message_uuid='msg-uuid',
+            status='sent',
+            timestamp='',
+            backend='twilio',
+            tenant_uuid='tenant-uuid',
+            room_uuid='room-uuid',
+            user_uuids=['user-1'],
+        )

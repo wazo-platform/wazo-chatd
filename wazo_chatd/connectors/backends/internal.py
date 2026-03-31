@@ -15,6 +15,7 @@ way it does.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
@@ -67,5 +68,11 @@ class InternalConnector:
         """Nothing to clean up."""
 
     def normalize_identity(self, raw_identity: str) -> str:
-        """Wazo identities are UUIDs — no normalization needed."""
+        """Wazo identities are UUIDs — reject non-UUID formats."""
+        try:
+            uuid.UUID(raw_identity)
+        except ValueError:
+            raise ValueError(
+                f'Internal connector only handles UUID identities: {raw_identity}'
+            )
         return raw_identity

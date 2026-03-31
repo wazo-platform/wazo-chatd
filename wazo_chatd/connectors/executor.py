@@ -163,7 +163,14 @@ class DeliveryExecutor:
             recipient_alias=recipient_identity,
             metadata=outbound.metadata,
         )
-        await self.execute(resolved, meta)
+        tenant_uuid = str(aliases[0].tenant_uuid) if aliases else ''
+        user_uuids = [p.uuid for p in outbound.participants]
+        await self.execute(
+            resolved, meta,
+            tenant_uuid=tenant_uuid,
+            room_uuid=outbound.room_uuid,
+            user_uuids=user_uuids,
+        )
 
     async def route_inbound(
         self,
@@ -277,45 +284,67 @@ class DeliveryExecutor:
         self,
         outbound: OutboundMessage,
         delivery: MessageMeta,
+        tenant_uuid: str = '',
+        room_uuid: str = '',
+        user_uuids: list[str] | None = None,
     ) -> None:
         backend = str(delivery.backend)
+        last_status = DeliveryStatus.PENDING
         connector = self._find_connector(backend)
         if connector is None:
+            last_status = DeliveryStatus.DEAD_LETTER
             await self._add_record(
                 delivery,
-                DeliveryStatus.DEAD_LETTER,
+                last_status,
                 reason=f'Backend {backend!r} not available',
             )
-            return
+        else:
+            await self._add_record(delivery, DeliveryStatus.SENDING)
 
-        await self._add_record(delivery, DeliveryStatus.SENDING)
+            try:
+                external_id = await self._send(connector, outbound)
+                delivery.external_id = external_id  # type: ignore[assignment]
+                last_status = DeliveryStatus.SENT
+                await self._add_record(delivery, last_status)
 
-        try:
-            external_id = await self._send(connector, outbound)
-            delivery.external_id = external_id  # type: ignore[assignment]
-            await self._add_record(delivery, DeliveryStatus.SENT)
-
-        except ConnectorSendError as exc:
-            delivery.retry_count += 1  # type: ignore[assignment]
-            await self._add_record(
-                delivery,
-                DeliveryStatus.FAILED,
-                reason=str(exc),
-            )
-
-            if delivery.retry_count >= MAX_RETRIES:  # type: ignore[operator]
+            except ConnectorSendError as exc:
+                delivery.retry_count += 1  # type: ignore[assignment]
+                last_status = DeliveryStatus.FAILED
                 await self._add_record(
                     delivery,
-                    DeliveryStatus.DEAD_LETTER,
-                    reason=f'Max retries ({MAX_RETRIES}) exceeded',
+                    last_status,
+                    reason=str(exc),
                 )
-            else:
-                await self._add_record(delivery, DeliveryStatus.RETRYING)
 
-        await self._notifier.delivery_status_updated(delivery)
+                if delivery.retry_count >= MAX_RETRIES:  # type: ignore[operator]
+                    last_status = DeliveryStatus.DEAD_LETTER
+                    await self._add_record(
+                        delivery,
+                        last_status,
+                        reason=f'Max retries ({MAX_RETRIES}) exceeded',
+                    )
+                else:
+                    last_status = DeliveryStatus.RETRYING
+                    await self._add_record(delivery, last_status)
+
+        await self._notifier.delivery_status_updated(
+            message_uuid=str(delivery.message_uuid),
+            status=last_status.value,
+            timestamp='',
+            backend=backend,
+            tenant_uuid=tenant_uuid,
+            room_uuid=room_uuid,
+            user_uuids=user_uuids or [],
+        )
 
     def _find_connector(self, backend: str) -> Connector | None:
         """Find a connector instance matching the given backend name."""
+        logger.debug(
+            'Finding connector for backend=%r in %d instances: %s',
+            backend,
+            len(self.connectors),
+            {k: getattr(v, 'backend', '?') for k, v in self.connectors.items()},
+        )
         for instance in self.connectors.values():
             if getattr(instance, 'backend', None) == backend:
                 return instance
