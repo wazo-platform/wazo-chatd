@@ -318,6 +318,193 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
 
 
 @use_asset('connectors')
+class TestStatusUpdate(ConnectorIntegrationTest):
+    def _assert_delivery_status(
+        self, message_uuid: str, expected_status: str
+    ) -> None:
+        def check():
+            records = (
+                self._session.query(DeliveryRecord)
+                .filter(DeliveryRecord.message_uuid == message_uuid)
+                .order_by(DeliveryRecord.timestamp)
+                .all()
+            )
+            statuses = [r.status for r in records]
+            assert expected_status in statuses
+
+        until.assert_(check, timeout=5)
+
+    def _get_external_id(self, message_uuid: str) -> str:
+        def check():
+            meta = (
+                self._session.query(MessageMeta)
+                .filter(MessageMeta.message_uuid == message_uuid)
+                .first()
+            )
+            assert meta is not None
+            assert meta.external_id is not None
+            return meta.external_id
+
+        return until.return_(check, timeout=5)
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.chat_provider(
+        uuid=PROVIDER_UUID,
+        name='Test Provider',
+        type_='test',
+        backend='test',
+    )
+    @fixtures.db.user_alias(
+        user_uuid=TOKEN_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15551234',
+    )
+    @fixtures.db.room(
+        users=[
+            {'uuid': TOKEN_USER_UUID},
+            {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
+        ],
+    )
+    def test_delivered_status_creates_record(self, user, provider, alias, room):
+        self.reload_connectors()
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-status-001'
+        )
+
+        message = self.chatd.rooms.create_message_from_user(
+            str(room.uuid), {'content': 'Track this'}
+        )
+
+        self._assert_delivery_status(message['uuid'], 'sent')
+
+        port = self.asset_cls.service_port(9304, 'chatd')
+        response = requests.post(
+            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+            json={
+                'external_id': 'ext-status-001',
+                'status': 'delivered',
+            },
+            headers={'X-Test-Connector': 'true'},
+        )
+        assert response.status_code == 204
+
+        self._assert_delivery_status(message['uuid'], 'delivered')
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.chat_provider(
+        uuid=PROVIDER_UUID,
+        name='Test Provider',
+        type_='test',
+        backend='test',
+    )
+    @fixtures.db.user_alias(
+        user_uuid=TOKEN_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15551234',
+    )
+    @fixtures.db.room(
+        users=[
+            {'uuid': TOKEN_USER_UUID},
+            {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
+        ],
+    )
+    def test_failed_status_creates_record_with_reason(
+        self, user, provider, alias, room
+    ):
+        self.reload_connectors()
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-status-002'
+        )
+
+        message = self.chatd.rooms.create_message_from_user(
+            str(room.uuid), {'content': 'Will get failed status'}
+        )
+
+        self._assert_delivery_status(message['uuid'], 'sent')
+
+        port = self.asset_cls.service_port(9304, 'chatd')
+        response = requests.post(
+            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+            json={
+                'external_id': 'ext-status-002',
+                'status': 'failed',
+                'error_code': '30003',
+            },
+            headers={'X-Test-Connector': 'true'},
+        )
+        assert response.status_code == 204
+
+        def has_failed_with_reason():
+            records = (
+                self._session.query(DeliveryRecord)
+                .filter(DeliveryRecord.message_uuid == message['uuid'])
+                .order_by(DeliveryRecord.timestamp)
+                .all()
+            )
+            failed = [r for r in records if r.status == 'failed']
+            assert len(failed) >= 1
+            assert failed[0].reason == '30003'
+
+        until.assert_(has_failed_with_reason, timeout=5)
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.chat_provider(
+        uuid=PROVIDER_UUID,
+        name='Test Provider',
+        type_='test',
+        backend='test',
+    )
+    @fixtures.db.user_alias(
+        user_uuid=TOKEN_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15551234',
+    )
+    @fixtures.db.room(
+        users=[
+            {'uuid': TOKEN_USER_UUID},
+            {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
+        ],
+    )
+    def test_transient_status_is_ignored(self, user, provider, alias, room):
+        self.reload_connectors()
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-status-003'
+        )
+
+        message = self.chatd.rooms.create_message_from_user(
+            str(room.uuid), {'content': 'Transient status'}
+        )
+
+        self._assert_delivery_status(message['uuid'], 'sent')
+
+        port = self.asset_cls.service_port(9304, 'chatd')
+        response = requests.post(
+            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+            json={
+                'external_id': 'ext-status-003',
+                'status': 'queued',
+            },
+            headers={'X-Test-Connector': 'true'},
+        )
+        assert response.status_code == 204
+
+        def no_queued_record():
+            records = (
+                self._session.query(DeliveryRecord)
+                .filter(DeliveryRecord.message_uuid == message['uuid'])
+                .order_by(DeliveryRecord.timestamp)
+                .all()
+            )
+            statuses = [r.status for r in records]
+            assert 'queued' not in statuses
+
+        until.assert_(no_queued_record, timeout=3)
+
+
+@use_asset('connectors')
 class TestMessageSchemaFields(ConnectorIntegrationTest):
     @fixtures.db.room(
         users=[

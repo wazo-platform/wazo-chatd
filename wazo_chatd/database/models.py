@@ -368,7 +368,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         'UserAlias', uselist=False, viewonly=True
     )
     message: RelationshipProperty[RoomMessage] = relationship(
-        'RoomMessage', uselist=False
+        'RoomMessage', uselist=False, overlaps='meta'
     )
     records: RelationshipProperty[list[DeliveryRecord]] = relationship(
         'DeliveryRecord',
