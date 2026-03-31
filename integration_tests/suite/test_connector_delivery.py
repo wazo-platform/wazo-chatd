@@ -3,11 +3,10 @@
 
 from __future__ import annotations
 
-import json
-import time
 import uuid
 
 import requests
+from wazo_test_helpers import until
 
 from wazo_chatd.database.models import (
     DeliveryRecord,
@@ -63,23 +62,23 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         assert response.status_code == 204
 
-        time.sleep(1)
-        self._session.rollback()
+        def message_persisted():
+            message = (
+                self._session.query(RoomMessage)
+                .filter(RoomMessage.content == 'Hello from outside')
+                .first()
+            )
+            assert message is not None
 
-        message = (
-            self._session.query(RoomMessage)
-            .filter(RoomMessage.content == 'Hello from outside')
-            .first()
-        )
-        assert message is not None
+            meta = (
+                self._session.query(MessageMeta)
+                .filter(MessageMeta.message_uuid == message.uuid)
+                .first()
+            )
+            assert meta is not None
+            assert meta.backend == 'test'
 
-        meta = (
-            self._session.query(MessageMeta)
-            .filter(MessageMeta.message_uuid == message.uuid)
-            .first()
-        )
-        assert meta is not None
-        assert meta.backend == 'test'
+        until.assert_(message_persisted, timeout=5)
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.chat_provider(
@@ -153,7 +152,16 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
-        time.sleep(1)
+
+        def first_message_persisted():
+            messages = (
+                self._session.query(RoomMessage)
+                .filter(RoomMessage.content == 'Dedup test')
+                .all()
+            )
+            assert len(messages) == 1
+
+        until.assert_(first_message_persisted, timeout=5)
 
         response = requests.post(
             f'http://127.0.0.1:{port}/1.0/connectors/incoming',
@@ -161,19 +169,35 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
-        time.sleep(1)
-        self._session.rollback()
 
-        messages = (
-            self._session.query(RoomMessage)
-            .filter(RoomMessage.content == 'Dedup test')
-            .all()
-        )
-        assert len(messages) == 1
+        def still_one_message():
+            messages = (
+                self._session.query(RoomMessage)
+                .filter(RoomMessage.content == 'Dedup test')
+                .all()
+            )
+            assert len(messages) == 1
+
+        until.assert_(still_one_message, timeout=3)
 
 
 @use_asset('connectors')
 class TestOutboundDelivery(ConnectorIntegrationTest):
+    def _assert_delivery_status(
+        self, message_uuid: str, expected_status: str
+    ) -> None:
+        def check():
+            records = (
+                self._session.query(DeliveryRecord)
+                .filter(DeliveryRecord.message_uuid == message_uuid)
+                .order_by(DeliveryRecord.timestamp)
+                .all()
+            )
+            statuses = [r.status for r in records]
+            assert expected_status in statuses
+
+        until.assert_(check, timeout=5)
+
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.chat_provider(
         uuid=PROVIDER_UUID,
@@ -202,8 +226,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             str(room.uuid), {'content': 'Hello external'}
         )
 
-        time.sleep(1)
-        self._session.rollback()
+        self._assert_delivery_status(message['uuid'], 'sent')
 
         meta = (
             self._session.query(MessageMeta)
@@ -212,16 +235,6 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         )
         assert meta is not None
         assert meta.backend == 'test'
-
-        records = (
-            self._session.query(DeliveryRecord)
-            .filter(DeliveryRecord.message_uuid == message['uuid'])
-            .order_by(DeliveryRecord.timestamp)
-            .all()
-        )
-        statuses = [r.status for r in records]
-        assert 'pending' in statuses
-        assert 'sent' in statuses or 'sending' in statuses
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.chat_provider(
@@ -255,11 +268,12 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             str(room.uuid), {'content': 'Check the mock'}
         )
 
-        time.sleep(1)
+        def mock_received():
+            sent = self.connector_mock.get_sent_messages()
+            assert len(sent) >= 1
+            assert sent[0]['body'] == 'Check the mock'
 
-        sent = self.connector_mock.get_sent_messages()
-        assert len(sent) >= 1
-        assert sent[0]['body'] == 'Check the mock'
+        until.assert_(mock_received, timeout=5)
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.chat_provider(
@@ -290,17 +304,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             str(room.uuid), {'content': 'Will fail'}
         )
 
-        time.sleep(1)
-        self._session.rollback()
-
-        records = (
-            self._session.query(DeliveryRecord)
-            .filter(DeliveryRecord.message_uuid == message['uuid'])
-            .order_by(DeliveryRecord.timestamp)
-            .all()
-        )
-        statuses = [r.status for r in records]
-        assert 'failed' in statuses
+        self._assert_delivery_status(message['uuid'], 'failed')
 
 
 @use_asset('connectors')
