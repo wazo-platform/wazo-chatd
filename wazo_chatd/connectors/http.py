@@ -9,9 +9,12 @@ from typing import Any
 from flask import request
 from flask_restful import Resource
 
+from typing import TYPE_CHECKING
+
 from wazo_chatd.connectors.exceptions import ConnectorParseError
-from wazo_chatd.connectors.router import ConnectorRouter
-from wazo_chatd.database.queries import DAO
+
+if TYPE_CHECKING:
+    from wazo_chatd.connectors.router import ConnectorRouter
 
 logger = logging.getLogger(__name__)
 
@@ -69,28 +72,11 @@ class ConnectorReloadResource(Resource):
     supports chat_provider responses.
     """
 
-    def __init__(self, router: ConnectorRouter, dao: DAO) -> None:
+    def __init__(self, router: ConnectorRouter) -> None:
         self._router = router
-        self._dao = dao
 
     def post(self) -> tuple[str, int]:
-        self._router.load_providers(self._dao)
+        self._router.load_providers()
         return '', 204
 
 
-def register_connector_endpoints(
-    api: Any,
-    router: ConnectorRouter,
-    dao: DAO,
-) -> None:
-    api.add_resource(
-        ConnectorWebhookResource,
-        '/connectors/incoming',
-        '/connectors/incoming/<backend>',
-        resource_class_args=[router],
-    )
-    api.add_resource(
-        ConnectorReloadResource,
-        '/connectors/reload',
-        resource_class_args=[router, dao],
-    )

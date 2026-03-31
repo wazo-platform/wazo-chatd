@@ -8,8 +8,10 @@ from sqlalchemy.sql.functions import ReturnTypeFromArgs
 
 from wazo_chatd.database.helpers import get_query_main_entity
 
+from wazo_chatd.connectors.delivery import DeliveryStatus
+
 from ...exceptions import UnknownRoomException
-from ..models import Room, RoomMessage, RoomUser
+from ..models import DeliveryRecord, MessageMeta, Room, RoomMessage, RoomUser
 
 
 class unaccent(ReturnTypeFromArgs):
@@ -79,6 +81,15 @@ class RoomDAO:
         self.session.add(meta)
         self.session.add(initial_record)
         self.session.flush()
+
+    def create_pending_delivery(self, message: RoomMessage) -> MessageMeta:
+        meta = MessageMeta(message=message)
+        meta.records.append(
+            DeliveryRecord(status=DeliveryStatus.PENDING.value)
+        )
+        self.session.add(meta)
+        self.session.flush()
+        return meta
 
     def list_messages(self, room, **filter_parameters):
         query = self._build_messages_query(room.uuid)

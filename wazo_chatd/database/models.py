@@ -351,7 +351,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         primary_key=True,
     )
     type_ = Column('type', String, nullable=True)
-    backend = Column(String, nullable=False, default='internal')
+    backend = Column(String, nullable=True)
     identity_uuid: UUIDType = Column(
         UUIDType(),
         ForeignKey('chatd_user_alias.uuid', ondelete='SET NULL'),
@@ -367,7 +367,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         'UserAlias', uselist=False, viewonly=True
     )
     message: RelationshipProperty[RoomMessage] = relationship(
-        'RoomMessage', viewonly=True, uselist=False
+        'RoomMessage', uselist=False
     )
     records: RelationshipProperty[list[DeliveryRecord]] = relationship(
         'DeliveryRecord',

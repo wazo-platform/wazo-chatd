@@ -26,6 +26,13 @@ class AsyncRoomDAO:
     def session(self) -> AsyncSession:
         return get_async_session()
 
+    async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
+        stmt = select(MessageMeta).filter(
+            MessageMeta.message_uuid == message_uuid
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def add_delivery_record(
         self,
         meta: MessageMeta,

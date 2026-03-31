@@ -15,6 +15,7 @@ import uuid
 from typing import Any
 
 from wazo_chatd.connectors.connector import Connector
+from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.notifier import AsyncNotifier
@@ -90,17 +91,29 @@ class DeliveryExecutor:
             else chosen_type
         )
 
-        meta = MessageMeta(
-            message_uuid=outbound.message_uuid,
-            type_=chosen_type,
-            backend=backend_name,
-            extra={'outbound_idempotency_key': outbound.message_uuid},
-        )
-        initial_record = DeliveryRecord(
-            message_uuid=outbound.message_uuid,
-            status=DeliveryStatus.PENDING.value,
-        )
-        await self._room_dao.add_message_meta(meta, initial_record)
+        # TODO: review — retry handles race between sync commit and
+        # async pickup. The meta is created by the sync side in the
+        # same transaction as the RoomMessage.
+        meta = None
+        for attempt in range(5):
+            meta = await self._room_dao.get_message_meta(
+                outbound.message_uuid
+            )
+            if meta:
+                break
+            await asyncio.sleep(0.2)
+
+        if not meta:
+            logger.error(
+                'No MessageMeta found for message %s after retries, skipping',
+                outbound.message_uuid,
+            )
+            return
+
+        meta.type_ = chosen_type  # type: ignore[assignment]
+        meta.backend = backend_name  # type: ignore[assignment]
+        meta.extra = {'outbound_idempotency_key': outbound.message_uuid}  # type: ignore[assignment]
+        await get_async_session().flush()
 
         resolved = OutboundMessage(
             room_uuid=outbound.room_uuid,

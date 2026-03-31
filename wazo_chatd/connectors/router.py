@@ -7,8 +7,11 @@ import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+from flask_restful import Api
+
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.exceptions import ConnectorParseError
+from wazo_chatd.connectors.http import ConnectorReloadResource, ConnectorWebhookResource
 from wazo_chatd.connectors.loop import DeliveryLoop
 from wazo_chatd.connectors.registry import ConnectorRegistry
 from wazo_chatd.connectors.store import ConnectorStore
@@ -19,7 +22,8 @@ if TYPE_CHECKING:
     from types import TracebackType
 
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser
-    from wazo_chatd.database.queries import DAO
+
+from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +41,25 @@ class ConnectorRouter:
         self,
         config: dict[str, str | bool],
         registry: ConnectorRegistry,
+        dao: DAO,
     ) -> None:
         self._registry = registry
+        self._dao = dao
         self._store = ConnectorStore()
         self._delivery_loop = DeliveryLoop(config, registry, self._store)
+
+    def register_http_endpoints(self, api: Api) -> None:
+        api.add_resource(
+            ConnectorWebhookResource,
+            '/connectors/incoming',
+            '/connectors/incoming/<backend>',
+            resource_class_args=[self],
+        )
+        api.add_resource(
+            ConnectorReloadResource,
+            '/connectors/reload',
+            resource_class_args=[self],
+        )
 
     def __enter__(self) -> ConnectorRouter:
         self._delivery_loop.start()
@@ -63,7 +82,7 @@ class ConnectorRouter:
             'instances': len(self._store),
         }
 
-    def load_providers(self, dao: DAO) -> None:
+    def load_providers(self) -> None:
         """Load connector instances from ChatProvider records.
 
         TODO: Replace with confd client fetch once wazo-confd-mock
@@ -73,7 +92,7 @@ class ConnectorRouter:
         self._store.clear()
 
         with session_scope():
-            for provider in dao.provider.list_():
+            for provider in self._dao.provider.list_():
                 backend = str(provider.backend)
                 try:
                     cls = self._registry.get_backend(backend)
@@ -156,6 +175,8 @@ class ConnectorRouter:
         if not any(p.identity for p in participants):
             return
 
+        self._dao.room.create_pending_delivery(message)
+
         outbound = OutboundMessage(
             room_uuid=str(room.uuid),
             message_uuid=str(message.uuid),
@@ -165,7 +186,7 @@ class ConnectorRouter:
             metadata={'idempotency_key': str(message.uuid)},
         )
 
-        self._delivery_loop.enqueue_message(outbound, delay=0.1)
+        self._delivery_loop.enqueue_message(outbound)
 
     @staticmethod
     def _extract_participants(

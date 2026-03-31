@@ -119,7 +119,7 @@ def upgrade() -> None:
             primary_key=True,
         ),
         sa.Column('type', sa.String, nullable=True),
-        sa.Column('backend', sa.String, nullable=False, server_default='internal'),
+        sa.Column('backend', sa.String, nullable=True),
         sa.Column(
             'identity_uuid',
             UUIDType(),

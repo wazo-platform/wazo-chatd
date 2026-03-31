@@ -160,17 +160,26 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
     async def test_route_outbound_resolves_alias_and_enqueues(self) -> None:
         alias = Mock()
         alias.identity = '+15551234'
+        alias.tenant_uuid = 'tenant-uuid'
         alias.provider = Mock(backend='twilio')
+
+        meta = Mock()
+        meta.message_uuid = 'msg-uuid'
 
         outbound = _make_outbound_with_participants()
 
         self.executor._user_alias_dao.list_by_user_and_types = AsyncMock(
             return_value=[alias]
         )
+        self.executor._room_dao.get_message_meta = AsyncMock(
+            return_value=meta
+        )
 
         await self.executor.route_outbound(outbound)
 
-        self.session.flush.assert_awaited()
+        self.executor._room_dao.get_message_meta.assert_awaited_once()
+        assert meta.type_ == 'sms'
+        assert meta.backend == 'twilio'
 
     async def test_route_outbound_internal_only_is_noop(self) -> None:
         outbound = OutboundMessage(

@@ -62,7 +62,9 @@ class TestConnectorRouterListCapabilities(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry)
+            self.router = ConnectorRouter(
+                config={}, registry=self.registry, dao=Mock()
+            )
 
     def test_all_internal_users(self) -> None:
         room = _make_room(
@@ -129,7 +131,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
         with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry)
+            self.router = ConnectorRouter(
+                config={}, registry=self.registry, dao=Mock()
+            )
         self.manager = self.router._delivery_loop
 
     def _make_connector(
@@ -252,7 +256,9 @@ class TestConnectorRouterSend(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry)
+            self.router = ConnectorRouter(
+                config={}, registry=self.registry, dao=Mock()
+            )
         self.manager = self.router._delivery_loop
 
     def test_send_internal_room_is_noop(self) -> None:
