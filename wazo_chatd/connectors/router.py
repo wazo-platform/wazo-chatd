@@ -25,6 +25,10 @@ class MessageQueue(Protocol):
         delay: float | None = None,
     ) -> None: ...
 
+    def sync_connectors(
+        self, connectors: dict[str, Connector]
+    ) -> None: ...
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +82,9 @@ class ConnectorRouter:
                     provider.name,
                     backend,
                 )
+
+        if self._queue:
+            self._queue.sync_connectors(self._instances)
 
     def invalidate_cache(self) -> None:
         """Mark the connector cache as stale.

@@ -9,6 +9,7 @@ import threading
 from types import TracebackType
 
 from wazo_chatd.bus import BusPublisher
+from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.connectors.executor import DeliveryExecutor
 from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
@@ -96,6 +97,14 @@ class DeliveryLoop:
             self._thread.join(timeout=timeout)
 
         logger.info('Delivery loop stopped')
+
+    def sync_connectors(self, connectors: dict[str, Connector]) -> None:
+        if self._executor:
+            self._executor.connectors = dict(connectors)
+            logger.info(
+                'Synced %d connector instance(s) to executor',
+                len(connectors),
+            )
 
     def enqueue_message(
         self,
