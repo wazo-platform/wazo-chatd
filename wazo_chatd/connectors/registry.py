@@ -80,6 +80,24 @@ class ConnectorRegistry:
         """Return names of all registered backends."""
         return list(self._backends.keys())
 
+    def resolve_reachable_types(self, identity: str) -> set[str]:
+        """Return connector types that can reach the given identity.
+
+        Iterates all registered backends, calling
+        ``normalize_identity()`` on each. If it succeeds, the
+        backend's supported types can reach the identity.
+        """
+        reachable: set[str] = set()
+        for backend_name in self._backends:
+            cls = self._backends[backend_name]
+            instance = cls()
+            try:
+                instance.normalize_identity(identity)
+            except (ValueError, TypeError):
+                continue
+            reachable.update(cls.supported_types)
+        return reachable
+
     @staticmethod
     def _on_load_failure(
         manager: ExtensionManager,

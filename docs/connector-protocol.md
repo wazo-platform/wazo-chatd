@@ -8,19 +8,24 @@ Connectors are discovered at startup via [stevedore](https://docs.openstack.org/
 
 ### How it works
 
-```
-  Outbound (user sends):
-    Flask API → ConnectorRouter → DeliveryLoop → DeliveryExecutor → YourConnector.send()
-
-  Inbound (external message arrives):
-    Webhook/Poll → ConnectorRouter → YourConnector.can_handle() → YourConnector.on_event()
-        ↓                                                                ↓
-   InboundMessage                                              DeliveryLoop → DeliveryExecutor
-
-  Status callback (delivery update from provider):
-    Webhook → ConnectorRouter → YourConnector.on_event() → StatusUpdate
-                                                                ↓
-                                              DeliveryLoop → DeliveryExecutor (updates DeliveryRecord)
+```mermaid
+flowchart TD
+    subgraph Outbound
+        A[Flask API] --> B[ConnectorRouter]
+        B --> C[DeliveryLoop]
+        C --> D[DeliveryExecutor]
+        D --> E["send()"]
+        E --> F[External API]
+    end
+    subgraph Inbound
+        G[External API] --> H[Webhook]
+        H --> I[ConnectorRouter]
+        I --> J["can_handle()"]
+        J --> K["on_event()"]
+        K -->|InboundMessage| L[DeliveryLoop]
+        K -->|StatusUpdate| L
+        L --> M[DeliveryExecutor]
+    end
 ```
 
 Your connector handles three things:
@@ -163,6 +168,8 @@ Parse an incoming event into an `InboundMessage` (new message), `StatusUpdate` (
 
 Many providers send both message webhooks and status callbacks to the same URL. Your connector decides the type based on the payload.
 
+**Using structural pattern matching (recommended):**
+
 ```python
 from wazo_chatd.connectors.types import InboundMessage, StatusUpdate, TransportData, WebhookData
 
@@ -172,6 +179,22 @@ def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
             return self._parse_webhook(body)
         case _:
             return None
+```
+
+**Using isinstance (alternative):**
+
+```python
+def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
+    if isinstance(data, WebhookData):
+        return self._parse_webhook(data.body)
+    return None
+```
+
+Both approaches are equivalent. Pattern matching is more expressive when handling multiple transport types.
+
+**Parsing example:**
+
+```py
 
 def _parse_webhook(self, body):
     content = body.get('body')
@@ -198,7 +221,9 @@ def _parse_webhook(self, body):
         )
 
     return None
+
 ```
+
 
 **Signature validation** is your responsibility. Verify the webhook signature inside `on_event()` and return `None` if invalid.
 
@@ -247,24 +272,37 @@ Raise `ValueError` if the identity doesn't match your connector's expected forma
 For connectors that use polling or websockets instead of webhooks.
 
 ```python
+from wazo_chatd.connectors.types import PollData
+
 def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
     # For webhook-only connectors: no-op
     pass
 
-    # For polling connectors:
+def stop(self) -> None:
+    pass
+```
+
+For polling connectors, `listen()` runs a loop that wraps polled data in the appropriate `TransportData` subclass:
+
+```python
+@dataclass(frozen=True)
+class PollData(TransportData):
+    body: Mapping[str, Any]
+
+def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
     while not self._stopped:
         messages = self._client.poll_new_messages()
         for msg in messages:
-            inbound = self.on_event('poll', msg)
-            if inbound:
-                on_message(inbound)
+            result = self.on_event(PollData(body=msg))
+            if isinstance(result, InboundMessage):
+                on_message(result)
         time.sleep(self._polling_interval)
 
 def stop(self) -> None:
     self._stopped = True
 ```
 
-For webhook-only connectors, both methods are no-ops.
+For webhook-only connectors, both methods are no-ops. The connector defines its own `TransportData` subclass for non-webhook transports.
 
 ## Packaging and Discovery
 
@@ -282,7 +320,7 @@ The entry point name should match your `backend` class attribute.
 
 ### Package structure
 
-```
+```text
 wazo-chatd-connector-myprovider/
     pyproject.toml
     wazo_chatd_connector_myprovider/
@@ -368,24 +406,26 @@ The dispatch flow:
 1. HTTP request is extracted into a `WebhookData(body=..., headers=..., content_type=...)`
 2. `can_handle(data)` is called on each connector (hint-matched first)
 3. First connector returning `True` gets `on_event(data)` called
-3. If `on_event` returns an `InboundMessage`, it's enqueued for processing
-4. If it returns `None`, the next matching connector is tried
+4. If `on_event` returns an `InboundMessage` or `StatusUpdate`, it's enqueued for processing
+5. If it returns `None`, the next matching connector is tried
 
 ## Delivery Lifecycle
 
 Understanding the delivery lifecycle helps when implementing `send()` and `status_map`:
 
-```
-PENDING → SENDING → SENT → DELIVERED
-              │        ↑         ↑
-              ▼        │         │
-           FAILED ─── provider confirms via status callback
-              │
-              ▼
-         RETRYING → SENDING (retry loop, max 3 attempts)
-              │
-              ▼
-         DEAD_LETTER (terminal, requires manual intervention)
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> SENDING
+    SENDING --> SENT
+    SENT --> DELIVERED : provider confirms
+    SENDING --> FAILED
+    SENT --> FAILED : provider reports failure
+    FAILED --> RETRYING
+    RETRYING --> SENDING : retry (max 3)
+    FAILED --> DEAD_LETTER : max retries exceeded
+    DELIVERED --> [*]
+    DEAD_LETTER --> [*]
 ```
 
 **Outbound flow:**
@@ -402,7 +442,8 @@ PENDING → SENDING → SENT → DELIVERED
 
 ## Complete Example
 
-> **Note:** This example is for reference only and has not been tested. It illustrates the expected structure and method signatures for a connector implementation.
+> [!NOTE]
+> This example is for reference only and has not been tested. It illustrates the expected structure and method signatures for a connector implementation.
 
 ```python
 from __future__ import annotations

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable, Mapping
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError

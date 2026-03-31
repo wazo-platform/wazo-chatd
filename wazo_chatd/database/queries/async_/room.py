@@ -36,8 +36,14 @@ class AsyncRoomDAO:
     async def get_message_meta_by_external_id(
         self, external_id: str
     ) -> MessageMeta | None:
-        stmt = select(MessageMeta).filter(
-            MessageMeta.external_id == external_id
+        stmt = (
+            select(MessageMeta)
+            .options(
+                selectinload(MessageMeta.message)
+                .selectinload(RoomMessage.room)
+                .selectinload(Room.users)
+            )
+            .filter(MessageMeta.external_id == external_id)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

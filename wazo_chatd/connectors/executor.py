@@ -85,10 +85,18 @@ class DeliveryExecutor:
         aliases = await self._user_alias_dao.list_by_user_and_types(
             outbound.sender_uuid, [chosen_type]
         )
-        sender_alias = str(aliases[0].identity) if aliases else ''
+        if not aliases:
+            logger.warning(
+                'No alias found for user %s with type %s, skipping',
+                outbound.sender_uuid,
+                chosen_type,
+            )
+            return
+
+        sender_alias = str(aliases[0].identity)
         backend_name = (
             str(aliases[0].provider.backend)
-            if aliases and aliases[0].provider
+            if aliases[0].provider
             else chosen_type
         )
 
@@ -113,7 +121,7 @@ class DeliveryExecutor:
 
         meta.type_ = chosen_type  # type: ignore[assignment]
         meta.backend = backend_name  # type: ignore[assignment]
-        meta.extra = {'outbound_idempotency_key': outbound.message_uuid}  # type: ignore[assignment]
+        meta.extra = {**(meta.extra or {}), 'outbound_idempotency_key': outbound.message_uuid}  # type: ignore[assignment]
         await get_async_session().flush()
 
         resolved = OutboundMessage(
@@ -253,14 +261,15 @@ class DeliveryExecutor:
         self._room_dao.session.add(record)
         await self._room_dao.session.flush()
 
+        room = meta.message.room
         await self._notifier.delivery_status_updated(
             message_uuid=str(meta.message_uuid),
             status=mapped_status.value,
             timestamp='',
             backend=update.backend,
-            tenant_uuid='',
-            room_uuid='',
-            user_uuids=[],
+            tenant_uuid=str(room.tenant_uuid),
+            room_uuid=str(room.uuid),
+            user_uuids=[str(u.uuid) for u in room.users],
         )
 
         logger.info(
@@ -277,24 +286,12 @@ class DeliveryExecutor:
         reachable_types: set[str] = set()
         for participant in external_participants:
             identity = str(participant.identity)
-            user_types = self._resolve_reachable_types(identity)
+            user_types = self._registry.resolve_reachable_types(identity)
             if not reachable_types:
                 reachable_types = user_types
             else:
                 reachable_types &= user_types
         return reachable_types
-
-    def _resolve_reachable_types(self, identity: str) -> set[str]:
-        reachable: set[str] = set()
-        for backend_name in self._registry.available_backends():
-            cls = self._registry.get_backend(backend_name)
-            instance = cls()
-            try:
-                instance.normalize_identity(identity)
-            except (ValueError, TypeError):
-                continue
-            reachable.update(cls.supported_types)
-        return reachable
 
     async def execute(
         self,

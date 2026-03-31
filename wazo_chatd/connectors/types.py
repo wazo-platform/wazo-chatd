@@ -104,20 +104,3 @@ class StatusUpdate:
     """Provider error code if the delivery failed."""
 
     metadata: Mapping[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class ConnectorConfig:
-    """Full list of provider configurations for connector initialization."""
-
-    providers: list[dict[str, Any]]
-
-
-@dataclass(frozen=True)
-class ConnectorConfigUpdate:
-    """A runtime configuration change for a single provider."""
-
-    action: str
-    """One of 'add', 'update', 'remove'."""
-
-    provider: dict[str, Any]

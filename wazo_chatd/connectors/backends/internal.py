@@ -19,6 +19,7 @@ import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
+from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, TransportData
 
 
@@ -27,7 +28,7 @@ class InternalConnector:
 
     backend: ClassVar[str] = 'wazo'
     supported_types: ClassVar[tuple[str, ...]] = ('internal',)
-    status_map: ClassVar[dict[str, str]] = {}
+    status_map: ClassVar[dict[str, DeliveryStatus]] = {}
 
     def configure(
         self,

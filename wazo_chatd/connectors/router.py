@@ -247,17 +247,4 @@ class ConnectorRouter:
         raise ConnectorParseError('No connector matched the webhook payload')
 
     def _resolve_reachable_types(self, identity: str) -> set[str]:
-        """Ask each registered connector backend if it can normalize
-        the given identity.  Returns the set of connector types that
-        can reach this identity.
-        """
-        reachable: set[str] = set()
-        for backend_name in self._registry.available_backends():
-            cls = self._registry.get_backend(backend_name)
-            instance = cls()
-            try:
-                instance.normalize_identity(identity)
-            except (ValueError, TypeError):
-                continue
-            reachable.update(cls.supported_types)
-        return reachable
+        return self._registry.resolve_reachable_types(identity)

@@ -136,13 +136,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
         self.token = _current_session.set(self.session)
 
         self.registry = Mock()
-        self.registry.available_backends.return_value = ['twilio']
-        backend_cls = Mock()
-        backend_cls.supported_types = ('sms',)
-        instance = Mock()
-        instance.normalize_identity.return_value = '+15559876'
-        backend_cls.return_value = instance
-        self.registry.get_backend.return_value = backend_cls
+        self.registry.resolve_reachable_types.return_value = {'sms'}
 
         self.connector = _FakeConnector()
         self.store = ConnectorStore()
@@ -165,6 +159,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
 
         meta = Mock()
         meta.message_uuid = 'msg-uuid'
+        meta.extra = {}
 
         outbound = _make_outbound_with_participants()
 
