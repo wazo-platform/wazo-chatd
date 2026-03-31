@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 from types import TracebackType
 
 from wazo_chatd.bus import BusPublisher
@@ -18,7 +19,8 @@ from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
 
 logger = logging.getLogger(__name__)
 
-_MAX_CONCURRENT_TASKS = 100
+_DEFAULT_MAX_CONCURRENT_TASKS = 100
+_RESTART_BACKOFF_MAX = 32
 
 
 class DeliveryLoop:
@@ -34,8 +36,12 @@ class DeliveryLoop:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._executor: DeliveryExecutor | None = None
+        self._max_tasks = int(
+            config.get('max_concurrent_tasks', _DEFAULT_MAX_CONCURRENT_TASKS)
+        )
         self._in_flight: set[asyncio.Task[None]] = set()
         self._semaphore: asyncio.Semaphore | None = None
+        self._restart_count: int = 0
 
     def __enter__(self) -> DeliveryLoop:
         self.start()
@@ -78,7 +84,7 @@ class DeliveryLoop:
         self.initialize()
 
         self._loop = asyncio.new_event_loop()
-        self._semaphore = asyncio.Semaphore(_MAX_CONCURRENT_TASKS)
+        self._semaphore = asyncio.Semaphore(self._max_tasks)
 
         self._thread = threading.Thread(
             target=self._run_loop,
@@ -123,6 +129,10 @@ class DeliveryLoop:
     def in_flight_count(self) -> int:
         return len(self._in_flight)
 
+    @property
+    def restart_count(self) -> int:
+        return self._restart_count
+
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
         assert self._loop is not None
@@ -141,10 +151,18 @@ class DeliveryLoop:
             old_loop.run_until_complete(old_loop.shutdown_asyncgens())
             old_loop.close()
 
+        delay = min(2**self._restart_count, _RESTART_BACKOFF_MAX)
+        self._restart_count += 1
+        logger.warning(
+            'Restarting delivery loop in %ds (attempt #%d)',
+            delay,
+            self._restart_count,
+        )
+        time.sleep(delay)
+
         self._in_flight.clear()
         self._loop = asyncio.new_event_loop()
-        self._semaphore = asyncio.Semaphore(_MAX_CONCURRENT_TASKS)
-        logger.info('Delivery loop restarted')
+        self._semaphore = asyncio.Semaphore(self._max_tasks)
         self._run_loop()
 
     def _schedule_task(

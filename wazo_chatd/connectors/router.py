@@ -84,6 +84,7 @@ class ConnectorRouter:
         status['connectors'] = {
             'status': 'ok' if is_running else 'fail',
             'in_flight': loop.in_flight_count,
+            'restart_count': loop.restart_count,
             'instances': len(self._store),
         }
 
@@ -94,7 +95,7 @@ class ConnectorRouter:
         supports chat_provider responses. Currently reads directly
         from chatd's own database.
         """
-        self._store.clear()
+        new_instances: dict[str, Connector] = {}
 
         with session_scope():
             for provider in self._dao.provider.list_():
@@ -115,12 +116,14 @@ class ConnectorRouter:
                     dict(provider.configuration) if provider.configuration else {},
                     {},
                 )
-                self._store.register(str(provider.name), instance)
+                new_instances[str(provider.name)] = instance
                 logger.info(
                     'Loaded connector instance %r (backend=%r)',
                     provider.name,
                     backend,
                 )
+
+        self._store.set(new_instances)
 
     def invalidate_cache(self) -> None:
         """Mark the connector cache as stale.
@@ -129,7 +132,7 @@ class ConnectorRouter:
         fresh fetch from confd.
         """
         logger.info('Connector cache invalidated')
-        self._store.clear()
+        self._store.set({})
 
     def add_instance(self, name: str, connector: Connector) -> None:
         """Register a configured connector instance.

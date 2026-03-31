@@ -28,8 +28,8 @@ class ConnectorStore:
     def register(self, name: str, connector: Connector) -> None:
         self._instances[name] = connector
 
-    def clear(self) -> None:
-        self._instances.clear()
+    def set(self, instances: dict[str, Connector]) -> None:
+        self._instances = instances
 
     def find_by_backend(self, backend: str) -> Connector | None:
         for instance in self._instances.values():

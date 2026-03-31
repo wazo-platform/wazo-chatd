@@ -8,24 +8,21 @@ Connectors are discovered at startup via [stevedore](https://docs.openstack.org/
 
 ### How it works
 
+**Outbound** (user sends a message):
+
 ```mermaid
-flowchart TD
-    subgraph Outbound
-        A[Flask API] --> B[ConnectorRouter]
-        B --> C[DeliveryLoop]
-        C --> D[DeliveryExecutor]
-        D --> E["send()"]
-        E --> F[External API]
-    end
-    subgraph Inbound
-        G[External API] --> H[Webhook]
-        H --> I[ConnectorRouter]
-        I --> J["can_handle()"]
-        J --> K["on_event()"]
-        K -->|InboundMessage| L[DeliveryLoop]
-        K -->|StatusUpdate| L
-        L --> M[DeliveryExecutor]
-    end
+flowchart LR
+    A[Flask API] --> B[Router] --> C[DeliveryLoop] --> D[Executor] --> E["send()"] --> F[External API]
+```
+
+**Inbound** (external message or status callback arrives):
+
+```mermaid
+flowchart LR
+    G[External API] --> H[Webhook] --> I[Router] --> J["can_handle()"] --> K["on_event()"]
+    K -->|InboundMessage| L[DeliveryLoop]
+    K -->|StatusUpdate| L
+    L --> M[Executor]
 ```
 
 Your connector handles three things:
@@ -194,8 +191,7 @@ Both approaches are equivalent. Pattern matching is more expressive when handlin
 
 **Parsing example:**
 
-```py
-
+```python
 def _parse_webhook(self, body):
     content = body.get('body')
     if content:
@@ -221,9 +217,7 @@ def _parse_webhook(self, body):
         )
 
     return None
-
 ```
-
 
 **Signature validation** is your responsibility. Verify the webhook signature inside `on_event()` and return `None` if invalid.
 

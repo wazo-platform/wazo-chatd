@@ -173,8 +173,16 @@ class DeliveryExecutor:
         user = recipient_alias.user
         user_uuid = str(user.uuid)
         wazo_uuid = self._wazo_uuid
+
+        sender_identity = inbound.sender
+        if connector := self._store.find_by_backend(inbound.backend):
+            try:
+                sender_identity = connector.normalize_identity(sender_identity)
+            except (ValueError, TypeError):
+                pass
+
         sender_uuid = str(
-            uuid.uuid5(uuid.NAMESPACE_URL, f'{tenant_uuid}:{inbound.sender}')
+            uuid.uuid5(uuid.NAMESPACE_URL, f'{tenant_uuid}:{sender_identity}')
         )
 
         sender_participant = RoomUser(
