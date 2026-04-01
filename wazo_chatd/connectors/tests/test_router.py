@@ -278,7 +278,11 @@ class TestConnectorRouterSend(unittest.TestCase):
 
         self.manager.enqueue_message.assert_not_called()
 
-    def test_send_external_room_enqueues_with_participants(self) -> None:
+    @unittest.mock.patch(
+        'wazo_chatd.connectors.router.register_post_commit_callback',
+        side_effect=lambda cb: cb(),
+    )
+    def test_send_external_room_enqueues_with_participants(self, _) -> None:
         room = _make_room(
             [
                 _make_room_user('user-a'),

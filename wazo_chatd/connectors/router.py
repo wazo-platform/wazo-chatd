@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 from flask_restful import Api
 
+from functools import partial
+
 from wazo_chatd.connectors.connector import Connector
+from wazo_chatd.http_hooks import register_post_commit_callback
 from wazo_chatd.connectors.exceptions import ConnectorParseError
 from wazo_chatd.connectors.http import ConnectorReloadResource, ConnectorWebhookResource
 from wazo_chatd.connectors.loop import DeliveryLoop
@@ -197,7 +200,9 @@ class ConnectorRouter:
             metadata={'idempotency_key': str(message.uuid)},
         )
 
-        self._delivery_loop.enqueue_message(outbound)
+        register_post_commit_callback(
+            partial(self._delivery_loop.enqueue_message, outbound)
+        )
 
     @staticmethod
     def _extract_participants(

@@ -100,21 +100,10 @@ class DeliveryExecutor:
             else chosen_type
         )
 
-        # TODO: review — retry handles race between sync commit and
-        # async pickup. The meta is created by the sync side in the
-        # same transaction as the RoomMessage.
-        meta = None
-        for attempt in range(5):
-            meta = await self._room_dao.get_message_meta(
-                outbound.message_uuid
-            )
-            if meta:
-                break
-            await asyncio.sleep(0.2)
-
+        meta = await self._room_dao.get_message_meta(outbound.message_uuid)
         if not meta:
             logger.error(
-                'No MessageMeta found for message %s after retries, skipping',
+                'No MessageMeta found for message %s, skipping',
                 outbound.message_uuid,
             )
             return
