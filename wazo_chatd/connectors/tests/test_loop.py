@@ -143,11 +143,14 @@ class TestDeliveryLoopEnqueue(unittest.TestCase):
 
 
 class TestDeliveryLoopRestart(unittest.TestCase):
-    def _make_loop(self) -> DeliveryLoop:
+    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
+    def _make_loop(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryLoop:
+        mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
+        mock_bus.from_config.return_value = Mock()
         loop = DeliveryLoop(_make_config(), Mock(), {})
         loop._loop = asyncio.new_event_loop()
         loop._semaphore = asyncio.Semaphore(100)
-        loop._max_tasks = 100
         return loop
 
     def test_restart_increments_count(self) -> None:

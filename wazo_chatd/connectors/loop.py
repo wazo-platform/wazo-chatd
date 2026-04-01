@@ -9,6 +9,7 @@ import logging
 import threading
 import time
 from types import TracebackType
+from collections.abc import Coroutine
 from typing import Any
 
 from wazo_chatd.bus import BusPublisher
@@ -36,13 +37,27 @@ class DeliveryLoop:
         self._config = config
         self._registry = registry
         self._store = store
+        self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
+
+        engine, session_factory = init_async_db(str(config.get('db_uri', '')))
+        self._engine = engine
+        self._session_factory = session_factory
+
+        bus_publisher = BusPublisher.from_config(
+            service_uuid=config.get('uuid', ''),
+            bus_config=config.get('bus', {}),
+        )
+        self._executor = DeliveryExecutor(
+            config=config,
+            registry=registry,
+            notifier=AsyncNotifier(bus_publisher),
+            store=store,
+        )
 
         self._backoff = _backoff()
         self._healthy: bool = False  # cross-thread, atomic under GIL
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
-        self._executor: DeliveryExecutor | None = None
-        self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
         self._in_flight: set[asyncio.Task[None]] = set()
         self._semaphore: asyncio.Semaphore | None = None
         self._restart_count: int = 0
@@ -65,28 +80,14 @@ class DeliveryLoop:
             raise RuntimeError('DeliveryLoop has not been started')
         return self._loop
 
-    def initialize(self) -> None:
-        engine, session_factory = init_async_db(str(self._config.get('db_uri', '')))
-        self._engine = engine
-        self._session_factory = session_factory
-
-        bus_publisher = BusPublisher.from_config(
-            service_uuid=self._config.get('uuid', ''),
-            bus_config=self._config.get('bus', {}),
-        )
-        notifier = AsyncNotifier(bus_publisher)
-
-        self._executor = DeliveryExecutor(
-            config=self._config,
-            registry=self._registry,
-            notifier=notifier,
-            store=self._store,
-        )
+    @property
+    def semaphore(self) -> asyncio.Semaphore:
+        if self._semaphore is None:
+            raise RuntimeError('DeliveryLoop has not been started')
+        return self._semaphore
 
     def start(self) -> None:
         logger.info('Starting delivery loop')
-        self.initialize()
-
         self._loop = asyncio.new_event_loop()
         self._semaphore = asyncio.Semaphore(self._max_tasks)
 
@@ -100,6 +101,7 @@ class DeliveryLoop:
 
     def shutdown(self, timeout: float = 10) -> None:
         logger.info('Stopping delivery loop')
+
         if self._loop and self._loop.is_running():
             future = asyncio.run_coroutine_threadsafe(
                 self._drain_and_stop(), self._loop
@@ -140,8 +142,8 @@ class DeliveryLoop:
     def _run_loop(self) -> None:
         loop = self._loop
         assert loop is not None
-        asyncio.set_event_loop(loop)
 
+        asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(self._recover())
             loop.run_forever()
@@ -157,6 +159,7 @@ class DeliveryLoop:
         if self._in_flight:
             logger.warning('%d in-flight task(s) dropped', len(self._in_flight))
             self._in_flight.clear()
+
         if not loop.is_closed():
             loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
@@ -180,9 +183,6 @@ class DeliveryLoop:
         self._run_loop()
 
     async def _recover(self) -> None:
-        assert self._executor is not None
-        assert self._session_factory is not None
-
         try:
             async with async_session_scope(self._session_factory):
                 recoverable = await self._executor.recover_pending_deliveries()
@@ -230,13 +230,10 @@ class DeliveryLoop:
 
     async def _process(
         self,
-        coro: asyncio.coroutines,
+        coro: Coroutine[Any, Any, None],
         message: OutboundMessage | InboundMessage | StatusUpdate,
     ) -> None:
-        assert self._semaphore is not None
-        assert self._executor is not None
-
-        async with self._semaphore:
+        async with self.semaphore:
             logger.debug('Processing %s', message)
             try:
                 async with async_session_scope(self._session_factory):
