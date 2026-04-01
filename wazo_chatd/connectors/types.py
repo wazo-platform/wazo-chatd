@@ -58,6 +58,9 @@ class OutboundMessage:
     recipient_alias: str = ''
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
+    def __str__(self) -> str:
+        return f'OutboundMessage(message={self.message_uuid})'
+
 
 @dataclass(frozen=True)
 class InboundMessage:
@@ -86,6 +89,9 @@ class InboundMessage:
     messages via a GIN-indexed JSONB lookup on MessageMeta.extra.
     """
 
+    def __str__(self) -> str:
+        return f'InboundMessage(backend={self.backend}, external_id={self.external_id})'
+
 
 @dataclass(frozen=True)
 class StatusUpdate:
@@ -104,3 +110,6 @@ class StatusUpdate:
     """Provider error code if the delivery failed."""
 
     metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __str__(self) -> str:
+        return f'StatusUpdate(backend={self.backend}, external_id={self.external_id}, status={self.status})'

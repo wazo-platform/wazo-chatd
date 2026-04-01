@@ -16,7 +16,7 @@ from typing import Any
 
 from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.database.async_helpers import get_async_session
-from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
+from wazo_chatd.connectors.delivery import MAX_RETRIES, RETRY_DELAYS, DeliveryStatus
 from wazo_chatd.connectors.exceptions import ConnectorSendError
 from wazo_chatd.connectors.notifier import AsyncNotifier
 from wazo_chatd.connectors.registry import ConnectorRegistry
@@ -275,6 +275,62 @@ class DeliveryExecutor:
             mapped_status.value,
             update.external_id,
         )
+
+    async def recover_pending_deliveries(
+        self,
+    ) -> list[tuple[OutboundMessage, float]]:
+        metas = await self._room_dao.get_recoverable_messages()
+        if not metas:
+            return []
+
+        recoverable: list[tuple[OutboundMessage, float]] = []
+        for meta, status in metas:
+            message = meta.message
+            if not message:
+                logger.warning(
+                    'Recovery: meta %s has no message, skipping',
+                    meta.message_uuid,
+                )
+                continue
+
+            room = message.room
+            if not room:
+                logger.warning(
+                    'Recovery: meta %s has no room, skipping',
+                    meta.message_uuid,
+                )
+                continue
+
+            participants = tuple(
+                RoomParticipant(
+                    uuid=str(u.uuid),
+                    identity=str(u.identity) if u.identity else None,
+                )
+                for u in room.users
+            )
+
+            if status == DeliveryStatus.RETRYING.value:
+                retry_idx = min(int(meta.retry_count or 0), len(RETRY_DELAYS) - 1)
+                delay = float(RETRY_DELAYS[retry_idx])
+            else:
+                delay = 0.0
+
+            idempotency_key = (meta.extra or {}).get(
+                'outbound_idempotency_key', str(meta.message_uuid)
+            )
+
+            outbound = OutboundMessage(
+                room_uuid=str(room.uuid),
+                message_uuid=str(meta.message_uuid),
+                sender_uuid=str(message.user_uuid),
+                body=str(message.content or ''),
+                participants=participants,
+                metadata={'idempotency_key': idempotency_key},
+            )
+            recoverable.append((outbound, delay))
+
+        logger.info('Recovery: %d message(s) to re-enqueue', len(recoverable))
+        return recoverable
 
     def _resolve_capabilities(
         self,

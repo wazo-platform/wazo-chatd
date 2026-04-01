@@ -9,6 +9,7 @@ import logging
 import threading
 import time
 from types import TracebackType
+from typing import Any
 
 from wazo_chatd.bus import BusPublisher
 from wazo_chatd.connectors.executor import DeliveryExecutor
@@ -20,6 +21,7 @@ from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
 
 logger = logging.getLogger(__name__)
 
+
 def _backoff() -> itertools.chain[int]:
     return itertools.chain([1, 2, 4, 8, 16, 32], itertools.repeat(32))
 
@@ -27,13 +29,16 @@ def _backoff() -> itertools.chain[int]:
 class DeliveryLoop:
     def __init__(
         self,
-        config: dict[str, str | bool],
+        config: dict[str, Any],
         registry: ConnectorRegistry,
         store: ConnectorStore,
     ) -> None:
         self._config = config
         self._registry = registry
         self._store = store
+
+        self._backoff = _backoff()
+        self._healthy: bool = False  # cross-thread, atomic under GIL
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._executor: DeliveryExecutor | None = None
@@ -41,8 +46,6 @@ class DeliveryLoop:
         self._in_flight: set[asyncio.Task[None]] = set()
         self._semaphore: asyncio.Semaphore | None = None
         self._restart_count: int = 0
-        self._backoff = _backoff()
-        self._healthy: bool = False  # cross-thread, atomic under GIL
 
     def __enter__(self) -> DeliveryLoop:
         self.start()
@@ -135,24 +138,30 @@ class DeliveryLoop:
         return self._restart_count
 
     def _run_loop(self) -> None:
-        asyncio.set_event_loop(self._loop)
-        assert self._loop is not None
+        loop = self._loop
+        assert loop is not None
+        asyncio.set_event_loop(loop)
 
-        self._backoff = _backoff()
         try:
-            self._loop.run_forever()
+            loop.run_until_complete(self._recover())
+            loop.run_forever()
         except Exception:
             logger.exception('Delivery loop crashed, restarting')
+            self._teardown_loop(loop)
             self._restart()
-        finally:
-            self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-            self._loop.close()
+            return
+
+        self._teardown_loop(loop)
+
+    def _teardown_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        if self._in_flight:
+            logger.warning('%d in-flight task(s) dropped', len(self._in_flight))
+            self._in_flight.clear()
+        if not loop.is_closed():
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
 
     def _restart(self) -> None:
-        if (old_loop := self._loop) and not old_loop.is_closed():
-            old_loop.run_until_complete(old_loop.shutdown_asyncgens())
-            old_loop.close()
-
         if self._healthy:
             self._backoff = _backoff()
             self._healthy = False
@@ -166,10 +175,34 @@ class DeliveryLoop:
         )
         time.sleep(delay)
 
-        self._in_flight.clear()
         self._loop = asyncio.new_event_loop()
         self._semaphore = asyncio.Semaphore(self._max_tasks)
         self._run_loop()
+
+    async def _recover(self) -> None:
+        assert self._executor is not None
+        assert self._session_factory is not None
+
+        try:
+            async with async_session_scope(self._session_factory):
+                recoverable = await self._executor.recover_pending_deliveries()
+        except Exception:
+            logger.exception('Recovery scan failed, continuing without recovery')
+            return
+
+        for outbound, delay in recoverable:
+            if delay > 0:
+                logger.info('Recovery: re-enqueuing %s with %.0fs delay', outbound, delay)
+                self._schedule_delayed(outbound, delay)
+            else:
+                logger.info('Recovery: re-enqueuing %s immediately', outbound)
+                self._schedule_task(outbound)
+
+    def _schedule_delayed(
+        self, message: OutboundMessage, delay: float
+    ) -> None:
+        assert self._loop is not None
+        self._loop.call_later(delay, self._schedule_task, message)
 
     def _schedule_task(
         self, message: OutboundMessage | InboundMessage | StatusUpdate
@@ -178,13 +211,15 @@ class DeliveryLoop:
 
         match message:
             case OutboundMessage():
-                task = self._loop.create_task(self._process_outbound(message))
+                coro = self._executor.route_outbound(message)
             case InboundMessage():
-                task = self._loop.create_task(self._process_inbound(message))
+                coro = self._executor.route_inbound(message)
             case StatusUpdate():
-                task = self._loop.create_task(self._process_status_update(message))
+                coro = self._executor.route_status_update(message)
             case _:
                 return
+
+        task = self._loop.create_task(self._process(coro, message))
         self._in_flight.add(task)
         task.add_done_callback(self._task_done)
 
@@ -193,63 +228,21 @@ class DeliveryLoop:
         if task.exception() is None:
             self._healthy = True
 
-    async def _process_outbound(self, message: OutboundMessage) -> None:
+    async def _process(
+        self,
+        coro: asyncio.coroutines,
+        message: OutboundMessage | InboundMessage | StatusUpdate,
+    ) -> None:
         assert self._semaphore is not None
         assert self._executor is not None
 
         async with self._semaphore:
-            logger.debug(
-                'Processing outbound message (message=%s)',
-                message.message_uuid,
-            )
+            logger.debug('Processing %s', message)
             try:
                 async with async_session_scope(self._session_factory):
-                    await self._executor.route_outbound(message)
-                logger.debug(
-                    'Outbound message processed (message=%s)',
-                    message.message_uuid,
-                )
+                    await coro
             except Exception:
-                logger.exception(
-                    'Failed to process outbound message %s', message.message_uuid
-                )
-
-    async def _process_inbound(self, message: InboundMessage) -> None:
-        assert self._semaphore is not None
-        assert self._executor is not None
-
-        async with self._semaphore:
-            logger.debug(
-                'Processing inbound message (backend=%s)',
-                message.backend,
-            )
-            try:
-                async with async_session_scope(self._session_factory):
-                    await self._executor.route_inbound(message)
-            except Exception:
-                logger.exception(
-                    'Failed to process inbound message (external_id=%s)',
-                    message.external_id,
-                )
-
-    async def _process_status_update(self, update: StatusUpdate) -> None:
-        assert self._semaphore is not None
-        assert self._executor is not None
-
-        async with self._semaphore:
-            logger.debug(
-                'Processing status update (external_id=%s, status=%s)',
-                update.external_id,
-                update.status,
-            )
-            try:
-                async with async_session_scope(self._session_factory):
-                    await self._executor.route_status_update(update)
-            except Exception:
-                logger.exception(
-                    'Failed to process status update (external_id=%s)',
-                    update.external_id,
-                )
+                logger.exception('Failed to process %s', message)
 
     async def _drain_and_stop(self) -> None:
         if self._in_flight:

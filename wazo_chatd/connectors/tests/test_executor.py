@@ -414,3 +414,103 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_status_update(_make_status_update())
 
         self.notifier.delivery_status_updated.assert_awaited_once()
+
+
+class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.session = AsyncMock()
+        self.token = _current_session.set(self.session)
+        self.executor = DeliveryExecutor(
+            config={'uuid': 'test-wazo-uuid'},
+            registry=Mock(),
+            notifier=AsyncMock(),
+            store=ConnectorStore(),
+        )
+
+    def tearDown(self) -> None:
+        _current_session.reset(self.token)
+
+    def _make_meta(
+        self,
+        message_uuid: str = 'msg-1',
+        retry_count: int = 0,
+        extra: dict | None = None,
+    ) -> Mock:
+        user = Mock(uuid='user-uuid')
+        room = Mock(uuid='room-uuid')
+        room.users = [user, Mock(uuid='ext-uuid', identity='test:+1555')]
+        message = Mock(
+            uuid=message_uuid, user_uuid='user-uuid', content='hello', room=room
+        )
+        meta = Mock()
+        meta.message_uuid = message_uuid
+        meta.message = message
+        meta.retry_count = retry_count
+        meta.extra = extra or {}
+        return meta
+
+    async def test_no_recoverable_messages(self) -> None:
+        self.executor._room_dao.get_recoverable_messages = AsyncMock(
+            return_value=[]
+        )
+
+        result = await self.executor.recover_pending_deliveries()
+
+        assert result == []
+
+    async def test_pending_message_recovered_immediately(self) -> None:
+        self.executor._room_dao.get_recoverable_messages = AsyncMock(
+            return_value=[(self._make_meta(), 'pending')]
+        )
+
+        result = await self.executor.recover_pending_deliveries()
+
+        assert len(result) == 1
+        outbound, delay = result[0]
+        assert outbound.message_uuid == 'msg-1'
+        assert delay == 0.0
+
+    async def test_retrying_message_recovered_with_delay(self) -> None:
+        self.executor._room_dao.get_recoverable_messages = AsyncMock(
+            return_value=[(self._make_meta(retry_count=1), 'retrying')]
+        )
+
+        result = await self.executor.recover_pending_deliveries()
+
+        assert len(result) == 1
+        _, delay = result[0]
+        assert delay == 120.0
+
+    async def test_sending_recovered_with_idempotency_key(self) -> None:
+        meta = self._make_meta(extra={'outbound_idempotency_key': 'idem-123'})
+        self.executor._room_dao.get_recoverable_messages = AsyncMock(
+            return_value=[(meta, 'sending')]
+        )
+
+        result = await self.executor.recover_pending_deliveries()
+
+        assert len(result) == 1
+        outbound, _ = result[0]
+        assert outbound.metadata['idempotency_key'] == 'idem-123'
+
+    async def test_skips_meta_with_no_message(self) -> None:
+        meta = self._make_meta()
+        meta.message = None
+        self.executor._room_dao.get_recoverable_messages = AsyncMock(
+            return_value=[(meta, 'pending')]
+        )
+
+        result = await self.executor.recover_pending_deliveries()
+
+        assert result == []
+
+    async def test_skips_meta_with_no_room(self) -> None:
+        meta = self._make_meta()
+        meta.message.room = None
+        self.executor._room_dao.get_recoverable_messages = AsyncMock(
+            return_value=[(meta, 'pending')]
+        )
+
+        result = await self.executor.recover_pending_deliveries()
+
+        assert result == []

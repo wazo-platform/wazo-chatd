@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import selectinload
 
+from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.models import (
     DeliveryRecord,
@@ -127,3 +128,41 @@ class AsyncRoomDAO:
         self.session.add(room)
         await self.session.flush()
         return room
+
+    async def get_recoverable_messages(
+        self,
+    ) -> list[tuple[MessageMeta, str]]:
+        latest_record = (
+            select(
+                DeliveryRecord.message_uuid,
+                func.max(DeliveryRecord.id).label('max_id'),
+            )
+            .group_by(DeliveryRecord.message_uuid)
+            .subquery()
+        )
+
+        stmt = (
+            select(MessageMeta, DeliveryRecord.status)
+            .join(
+                latest_record,
+                MessageMeta.message_uuid == latest_record.c.message_uuid,
+            )
+            .join(
+                DeliveryRecord,
+                DeliveryRecord.id == latest_record.c.max_id,
+            )
+            .options(
+                selectinload(MessageMeta.message)
+                .selectinload(RoomMessage.room)
+                .selectinload(Room.users)
+            )
+            .filter(
+                DeliveryRecord.status.in_([
+                    DeliveryStatus.PENDING.value,
+                    DeliveryStatus.SENDING.value,
+                    DeliveryStatus.RETRYING.value,
+                ])
+            )
+        )
+        result = await self.session.execute(stmt)
+        return [(row[0], row[1]) for row in result.all()]
