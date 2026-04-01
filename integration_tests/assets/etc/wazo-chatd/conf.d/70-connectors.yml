@@ -1,3 +1,5 @@
-enabled_connectors:
-  internal: true
-  test: true
+connectors:
+  internal:
+    enabled: true
+  test:
+    enabled: true

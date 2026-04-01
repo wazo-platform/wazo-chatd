@@ -27,7 +27,7 @@ class ConnectorRegistry:
 
     def discover(
         self,
-        enabled_connectors: dict[str, bool] | None = None,
+        connectors_config: dict[str, dict[str, str | bool]] | None = None,
     ) -> None:
         """Auto-discover installed connector backends via stevedore.
 
@@ -35,19 +35,20 @@ class ConnectorRegistry:
         installed packages that provide connector backends.
 
         Args:
-            enabled_connectors: If provided, only register backends whose
-                name is in this dict with a True value.
+            connectors_config: If provided, only register backends that
+                have ``enabled: true`` in their config entry.
         """
-        mgr = ExtensionManager(
+        connectors_config = connectors_config or {}
+        manager = ExtensionManager(
             namespace=NAMESPACE,
             invoke_on_load=False,
             on_load_failure_callback=self._on_load_failure,
         )
-        for ext in mgr:
-            if enabled_connectors and not enabled_connectors.get(ext.name, False):
-                logger.debug('Connector backend %r is disabled, skipping', ext.name)
+        for extension in manager:
+            if not connectors_config.get(extension.name, {}).get('enabled', False):
+                logger.debug('Connector backend %r is disabled, skipping', extension.name)
                 continue
-            self.register_backend(ext.plugin)
+            self.register_backend(extension.plugin)
 
     def register_backend(self, cls: type[Connector]) -> None:
         """Register a connector backend class.

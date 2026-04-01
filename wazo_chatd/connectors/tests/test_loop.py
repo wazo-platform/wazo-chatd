@@ -17,6 +17,7 @@ def _make_config() -> dict[str, str | bool]:
         'db_uri': 'postgresql://localhost/test',
         'uuid': 'svc-uuid',
         'bus': {},
+        'delivery': {'max_concurrent_tasks': 100},
     }
 
 

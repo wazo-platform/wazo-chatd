@@ -60,9 +60,11 @@ class TestConnectorRegistry(unittest.TestCase):
         assert self.registry.get_backend('fake_a') is _DuplicateConnector
 
     def test_discover(self) -> None:
-        mock_ext_a = Mock()
+        mock_ext_a = Mock(spec=['name', 'plugin'])
+        mock_ext_a.name = 'fake_a'
         mock_ext_a.plugin = _FakeConnectorA
-        mock_ext_b = Mock()
+        mock_ext_b = Mock(spec=['name', 'plugin'])
+        mock_ext_b.name = 'fake_b'
         mock_ext_b.plugin = _FakeConnectorB
 
         mock_manager = MagicMock()
@@ -72,6 +74,9 @@ class TestConnectorRegistry(unittest.TestCase):
             'wazo_chatd.connectors.registry.ExtensionManager',
             return_value=mock_manager,
         ):
-            self.registry.discover()
+            self.registry.discover(connectors_config={
+                'fake_a': {'enabled': True},
+                'fake_b': {'enabled': True},
+            })
 
         assert sorted(self.registry.available_backends()) == ['fake_a', 'fake_b']

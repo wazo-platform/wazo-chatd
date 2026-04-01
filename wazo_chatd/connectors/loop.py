@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import threading
 import time
@@ -19,8 +20,8 @@ from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MAX_CONCURRENT_TASKS = 100
-_RESTART_BACKOFF_MAX = 32
+def _backoff() -> itertools.chain[int]:
+    return itertools.chain([1, 2, 4, 8, 16, 32], itertools.repeat(32))
 
 
 class DeliveryLoop:
@@ -36,12 +37,12 @@ class DeliveryLoop:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._executor: DeliveryExecutor | None = None
-        self._max_tasks = int(
-            config.get('max_concurrent_tasks', _DEFAULT_MAX_CONCURRENT_TASKS)
-        )
+        self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
         self._in_flight: set[asyncio.Task[None]] = set()
         self._semaphore: asyncio.Semaphore | None = None
         self._restart_count: int = 0
+        self._backoff = _backoff()
+        self._healthy: bool = False  # cross-thread, atomic under GIL
 
     def __enter__(self) -> DeliveryLoop:
         self.start()
@@ -137,6 +138,7 @@ class DeliveryLoop:
         asyncio.set_event_loop(self._loop)
         assert self._loop is not None
 
+        self._backoff = _backoff()
         try:
             self._loop.run_forever()
         except Exception:
@@ -151,7 +153,11 @@ class DeliveryLoop:
             old_loop.run_until_complete(old_loop.shutdown_asyncgens())
             old_loop.close()
 
-        delay = min(2**self._restart_count, _RESTART_BACKOFF_MAX)
+        if self._healthy:
+            self._backoff = _backoff()
+            self._healthy = False
+
+        delay = next(self._backoff)
         self._restart_count += 1
         logger.warning(
             'Restarting delivery loop in %ds (attempt #%d)',
@@ -180,7 +186,12 @@ class DeliveryLoop:
             case _:
                 return
         self._in_flight.add(task)
-        task.add_done_callback(self._in_flight.discard)
+        task.add_done_callback(self._task_done)
+
+    def _task_done(self, task: asyncio.Task[None]) -> None:
+        self._in_flight.discard(task)
+        if task.exception() is None:
+            self._healthy = True
 
     async def _process_outbound(self, message: OutboundMessage) -> None:
         assert self._semaphore is not None

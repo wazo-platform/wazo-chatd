@@ -70,11 +70,14 @@ _DEFAULT_CONFIG = {
         'status': True,
         'teams_presence': False,
     },
-    'enabled_connectors': {
-        'internal': True,
-        'twilio': False,
+    'connectors': {
+        'internal': {
+            'enabled': True,
+        },
     },
-    'connectors': {},
+    'delivery': {
+        'max_concurrent_tasks': 100,
+    },
     'initialization': {
         'enabled': True,
         'token_expiration': 600,

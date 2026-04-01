@@ -67,6 +67,20 @@ enabled_plugins:
   config: true
   status: true
   presences: true
+  rooms: true
+
+# Connector backends configuration
+# Each key is a backend name (discovered via stevedore entry points).
+# Set enabled: true to activate. Additional keys are passed to
+# connector.configure() as connector_config.
+connectors:
+  internal:
+    enabled: true
+# Example:
+#   twilio:
+#     enabled: true
+#     mode: webhook
+#     polling_interval: 30
 
 service_discovery:
   enabled: false

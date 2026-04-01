@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from flask_restful import Api
 
@@ -50,6 +50,9 @@ class ConnectorRouter:
     ) -> None:
         self._registry = registry
         self._dao = dao
+        self._connectors_config: dict[str, Any] = dict(
+            config.get('connectors', {})
+        )
         self._store = ConnectorStore()
         self._delivery_loop = DeliveryLoop(config, registry, self._store)
 
@@ -114,7 +117,7 @@ class ConnectorRouter:
                 instance.configure(
                     str(provider.type_),
                     dict(provider.configuration) if provider.configuration else {},
-                    {},
+                    self._connectors_config.get(backend, {}),
                 )
                 new_instances[str(provider.name)] = instance
                 logger.info(

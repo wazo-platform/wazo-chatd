@@ -51,7 +51,7 @@ class Controller:
 
         connector_registry = ConnectorRegistry()
         connector_registry.discover(
-            enabled_connectors=config.get('enabled_connectors', {}),
+            connectors_config=config.get('connectors', {}),
         )
         self.connector_router = ConnectorRouter(config, connector_registry, dao)
         self.connector_router.register_http_endpoints(api)
