@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 import unittest
 import unittest.mock
@@ -139,3 +140,49 @@ class TestDeliveryLoopEnqueue(unittest.TestCase):
             time.sleep(0.1)
 
             assert loop._executor is not None
+
+
+class TestDeliveryLoopRestart(unittest.TestCase):
+    def _make_loop(self) -> DeliveryLoop:
+        loop = DeliveryLoop(_make_config(), Mock(), {})
+        loop._loop = asyncio.new_event_loop()
+        loop._semaphore = asyncio.Semaphore(100)
+        loop._max_tasks = 100
+        return loop
+
+    def test_restart_increments_count(self) -> None:
+        loop = self._make_loop()
+        with unittest.mock.patch.object(loop, '_run_loop'):
+            with unittest.mock.patch('wazo_chatd.connectors.loop.time.sleep'):
+                loop._restart()
+                assert loop.restart_count == 1
+                loop._restart()
+                assert loop.restart_count == 2
+
+    def test_restart_backoff_increases(self) -> None:
+        loop = self._make_loop()
+        delays: list[int] = []
+        with unittest.mock.patch.object(loop, '_run_loop'):
+            with unittest.mock.patch(
+                'wazo_chatd.connectors.loop.time.sleep',
+                side_effect=lambda d: delays.append(d),
+            ):
+                for _ in range(4):
+                    loop._restart()
+        assert delays == [1, 2, 4, 8]
+
+    def test_restart_resets_backoff_when_healthy(self) -> None:
+        loop = self._make_loop()
+        delays: list[int] = []
+        with unittest.mock.patch.object(loop, '_run_loop'):
+            with unittest.mock.patch(
+                'wazo_chatd.connectors.loop.time.sleep',
+                side_effect=lambda d: delays.append(d),
+            ):
+                loop._restart()
+                loop._restart()
+                assert delays == [1, 2]
+
+                loop._healthy = True
+                loop._restart()
+                assert delays[-1] == 1

@@ -19,6 +19,9 @@ class _SmsConnector:
     backend: ClassVar[str] = 'twilio'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
+    def configure(self, type_, provider_config, connector_config) -> None:
+        pass
+
     def normalize_identity(self, raw_identity: str) -> str:
         if raw_identity.startswith('+'):
             return raw_identity
@@ -297,3 +300,84 @@ class TestConnectorRouterSend(unittest.TestCase):
         external = [p for p in outbound.participants if p.identity]
         assert len(external) == 1
         assert external[0].identity == '+15559876'
+
+
+class TestConnectorRouterLoadProviders(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = ConnectorRegistry()
+        self.registry.register_backend(_SmsConnector)
+        self.dao = Mock()
+        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(
+                config={'connectors': {'twilio': {'mode': 'webhook'}}},
+                registry=self.registry,
+                dao=self.dao,
+            )
+
+    def _make_provider(
+        self,
+        name: str = 'my-provider',
+        type_: str = 'sms',
+        backend: str = 'twilio',
+        configuration: dict | None = None,
+    ) -> Mock:
+        provider = Mock()
+        provider.name = name
+        provider.type_ = type_
+        provider.backend = backend
+        provider.configuration = configuration or {}
+        return provider
+
+    def test_loads_single_provider(self) -> None:
+        self.dao.provider.list_.return_value = [self._make_provider()]
+
+        self.router.load_providers()
+
+        assert len(self.router._store) == 1
+
+    def test_loads_multiple_providers(self) -> None:
+        self.dao.provider.list_.return_value = [
+            self._make_provider(name='provider-a'),
+            self._make_provider(name='provider-b'),
+        ]
+
+        self.router.load_providers()
+
+        assert len(self.router._store) == 2
+
+    def test_skips_unknown_backend(self) -> None:
+        self.dao.provider.list_.return_value = [
+            self._make_provider(backend='nonexistent'),
+        ]
+
+        self.router.load_providers()
+
+        assert len(self.router._store) == 0
+
+    def test_replaces_previous_instances(self) -> None:
+        self.dao.provider.list_.return_value = [self._make_provider()]
+        self.router.load_providers()
+        assert len(self.router._store) == 1
+
+        self.dao.provider.list_.return_value = []
+        self.router.load_providers()
+        assert len(self.router._store) == 0
+
+    def test_passes_connector_config_to_configure(self) -> None:
+        provider = self._make_provider(
+            configuration={'api_key': 'secret'}
+        )
+        self.dao.provider.list_.return_value = [provider]
+
+        self.router.load_providers()
+
+        instance = self.router._store.find_by_backend('twilio')
+        assert instance is not None
+
+    def test_handles_none_configuration(self) -> None:
+        provider = self._make_provider(configuration=None)
+        self.dao.provider.list_.return_value = [provider]
+
+        self.router.load_providers()
+
+        assert len(self.router._store) == 1

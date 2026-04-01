@@ -14,6 +14,7 @@ from wazo_chatd.connectors.types import (
     InboundMessage,
     OutboundMessage,
     RoomParticipant,
+    StatusUpdate,
 )
 from wazo_chatd.database.async_helpers import _current_session
 
@@ -311,3 +312,105 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_inbound(inbound)
 
         self.notifier.message_created.assert_awaited_once()
+
+
+def _make_status_update(
+    external_id: str = 'ext-123',
+    status: str = 'delivered',
+    backend: str = 'test',
+    error_code: str = '',
+) -> StatusUpdate:
+    return StatusUpdate(
+        external_id=external_id,
+        status=status,
+        backend=backend,
+        error_code=error_code,
+    )
+
+
+class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.session = AsyncMock()
+        self.session.add = Mock()
+        self.token = _current_session.set(self.session)
+
+        self.store = ConnectorStore()
+        self.notifier = AsyncMock()
+        self.executor = DeliveryExecutor(
+            config={'uuid': 'test-wazo-uuid'},
+            registry=Mock(),
+            notifier=self.notifier,
+            store=self.store,
+        )
+
+    def tearDown(self) -> None:
+        _current_session.reset(self.token)
+
+    def _register_connector(self, status_map: dict) -> None:
+        connector = Mock()
+        connector.backend = 'test'
+        connector.status_map = status_map
+        self.store.register('test-provider', connector)
+
+    def _mock_meta(self) -> Mock:
+        meta = Mock()
+        meta.message_uuid = 'msg-uuid'
+        meta.message = Mock()
+        meta.message.room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        meta.message.room.users = [Mock(uuid='user-1')]
+        self.executor._room_dao.get_message_meta_by_external_id = AsyncMock(
+            return_value=meta
+        )
+        return meta
+
+    async def test_creates_delivery_record(self) -> None:
+        self._register_connector({'delivered': DeliveryStatus.DELIVERED})
+        self._mock_meta()
+
+        await self.executor.route_status_update(_make_status_update())
+
+        record = self.session.add.call_args[0][0]
+        assert record.status == 'delivered'
+
+    async def test_ignores_unmapped_status(self) -> None:
+        self._register_connector({'delivered': DeliveryStatus.DELIVERED})
+
+        await self.executor.route_status_update(
+            _make_status_update(status='queued')
+        )
+
+        self.session.add.assert_not_called()
+
+    async def test_drops_when_no_connector(self) -> None:
+        await self.executor.route_status_update(_make_status_update())
+
+        self.session.add.assert_not_called()
+
+    async def test_drops_when_no_meta(self) -> None:
+        self._register_connector({'delivered': DeliveryStatus.DELIVERED})
+        self.executor._room_dao.get_message_meta_by_external_id = AsyncMock(
+            return_value=None
+        )
+
+        await self.executor.route_status_update(_make_status_update())
+
+        self.session.add.assert_not_called()
+
+    async def test_passes_error_code_as_reason(self) -> None:
+        self._register_connector({'failed': DeliveryStatus.FAILED})
+        self._mock_meta()
+
+        await self.executor.route_status_update(
+            _make_status_update(status='failed', error_code='30003')
+        )
+
+        record = self.session.add.call_args[0][0]
+        assert record.reason == '30003'
+
+    async def test_publishes_notification(self) -> None:
+        self._register_connector({'delivered': DeliveryStatus.DELIVERED})
+        self._mock_meta()
+
+        await self.executor.route_status_update(_make_status_update())
+
+        self.notifier.delivery_status_updated.assert_awaited_once()
