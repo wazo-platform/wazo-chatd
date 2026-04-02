@@ -18,8 +18,6 @@ from .schemas import (
     MessageSchema,
     RoomListRequestSchema,
     RoomSchema,
-    UserAliasListRequestSchema,
-    UserAliasSchema,
 )
 
 
@@ -137,23 +135,4 @@ class UserRoomMessageListResource(AuthResource):
             'items': MessageSchema().dump(messages, many=True),
             'filtered': filtered,
             'total': total,
-        }
-
-
-class UserAliasListResource(AuthResource):
-    def __init__(self, dao):
-        self._dao = dao
-
-    @required_acl('chatd.users.me.aliases.read')
-    def get(self):
-        params = UserAliasListRequestSchema().load(request.args)
-        types = params.get('types', [])
-
-        aliases = self._dao.user_alias.list_by_user_and_types(
-            str(token.user_uuid), types
-        )
-
-        return {
-            'items': UserAliasSchema().dump(aliases, many=True),
-            'total': len(aliases),
         }

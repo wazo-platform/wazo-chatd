@@ -71,11 +71,7 @@ _DEFAULT_CONFIG = {
         'status': True,
         'teams_presence': False,
     },
-    'connectors': {
-        'internal': {
-            'enabled': True,
-        },
-    },
+    'connectors': {},
     'delivery': {
         'max_concurrent_tasks': 100,
     },

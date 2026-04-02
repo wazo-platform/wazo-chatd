@@ -24,7 +24,6 @@ class RoomSchema(Schema):
     name = fields.String(allow_none=True)
 
     users = fields.Nested('RoomUserSchema', many=True, load_default=list)
-    capabilities = fields.List(fields.String(), dump_only=True)
 
 
 class MessageSchema(Schema):
@@ -75,29 +74,6 @@ class MessageListRequestSchema(_ListSchema):
     def search_or_distinct(self, data, **kwargs):
         if not data.get('search') and not data.get('distinct'):
             raise ValidationError('Missing search or distinct')
-
-
-class UserAliasSchema(Schema):
-    uuid = fields.UUID(dump_only=True)
-    type = fields.String(dump_only=True, attribute='provider.type_')
-    backend = fields.String(dump_only=True, attribute='provider.backend')
-    identity = fields.String(dump_only=True)
-
-
-class UserAliasListRequestSchema(Schema):
-    type = fields.String(load_default='', attribute='_raw_type')
-    types = fields.List(fields.String(), dump_default=list)
-
-    @pre_load
-    def split_types(self, data, **kwargs):
-        result = {}
-        raw_type = data.get('type', '')
-        if raw_type:
-            result['type'] = raw_type
-            result['types'] = [t.strip() for t in raw_type.split(',') if t.strip()]
-        else:
-            result['types'] = []
-        return result
 
 
 class RoomListRequestSchema(Schema):

@@ -28,7 +28,6 @@ setup(
             'teams_presence = wazo_chatd.plugins.teams_presence.plugin:Plugin',
         ],
         'wazo_chatd.connectors': [
-            'internal = wazo_chatd.plugins.connectors.backends.internal:InternalConnector',
             'twilio = wazo_chatd.plugins.connectors.backends.twilio:TwilioConnector',
         ],
     },

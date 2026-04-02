@@ -145,30 +145,6 @@ class ConnectorRouter:
         """
         self._store.register(name, connector)
 
-    def list_capabilities(self, room: Room) -> set[str]:
-        """Compute common connector types for the room participants.
-
-        For rooms with only internal Wazo users, returns ``{"internal"}``.
-        For rooms with external participants, determines reachable types
-        by calling :meth:`~Connector.normalize_identity` on each
-        registered connector.  ``"internal"`` is excluded when any
-        external participant is present.
-        """
-        external_users = [u for u in room.users if u.identity is not None]
-
-        if not external_users:
-            return {'internal'}
-
-        reachable_types: set[str] = set()
-        for external_user in external_users:
-            user_types = self._resolve_reachable_types(external_user.identity)
-            if not reachable_types:
-                reachable_types = user_types
-            else:
-                reachable_types &= user_types
-
-        return reachable_types
-
     def send(self, room: Room, message: RoomMessage) -> None:
         """Extract participant data and enqueue an outbound message.
 

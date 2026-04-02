@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from .http import (
-    UserAliasListResource,
     UserMessageListResource,
     UserRoomListResource,
     UserRoomMessageListResource,
@@ -34,9 +33,4 @@ class Plugin:
             UserRoomMessageListResource,
             '/users/me/rooms/<uuid:room_uuid>/messages',
             resource_class_args=[service],
-        )
-        api.add_resource(
-            UserAliasListResource,
-            '/users/me/aliases',
-            resource_class_args=[dao],
         )
