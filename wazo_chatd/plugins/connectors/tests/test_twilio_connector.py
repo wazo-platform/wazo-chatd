@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import unittest
+from urllib.parse import urlencode
 from unittest.mock import Mock, patch
 
 import pytest
@@ -161,14 +165,12 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
         )
 
     def test_on_event_webhook_returns_inbound_message(self) -> None:
-        data = WebhookData(
-            body={
-                'From': '+15559876',
-                'To': '+15551234',
-                'Body': 'Hello!',
-                'MessageSid': 'SM_ABC_123',
-            }
-        )
+        data = _signed_webhook({
+            'From': '+15559876',
+            'To': '+15551234',
+            'Body': 'Hello!',
+            'MessageSid': 'SM_ABC_123',
+        })
 
         result = self.connector.on_event(data)
 
@@ -181,13 +183,11 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
         assert result.external_id == 'SM_ABC_123'
 
     def test_on_event_webhook_missing_body_returns_none(self) -> None:
-        data = WebhookData(
-            body={
-                'From': '+15559876',
-                'To': '+15551234',
-                'MessageSid': 'SM_ABC_123',
-            }
-        )
+        data = _signed_webhook({
+            'From': '+15559876',
+            'To': '+15551234',
+            'MessageSid': 'SM_ABC_123',
+        })
 
         result = self.connector.on_event(data)
 
@@ -209,14 +209,12 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         )
 
     def test_status_callback_returns_status_update(self) -> None:
-        data = WebhookData(
-            body={
-                'MessageSid': 'SM_ABC_123',
-                'MessageStatus': 'delivered',
-                'To': '+15551234',
-                'From': '+15559876',
-            }
-        )
+        data = _signed_webhook({
+            'MessageSid': 'SM_ABC_123',
+            'MessageStatus': 'delivered',
+            'To': '+15551234',
+            'From': '+15559876',
+        })
 
         result = self.connector.on_event(data)
 
@@ -226,13 +224,11 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         assert result.backend == 'twilio'
 
     def test_failed_status_includes_error_code(self) -> None:
-        data = WebhookData(
-            body={
-                'MessageSid': 'SM_ABC_123',
-                'MessageStatus': 'failed',
-                'ErrorCode': '30003',
-            }
-        )
+        data = _signed_webhook({
+            'MessageSid': 'SM_ABC_123',
+            'MessageStatus': 'failed',
+            'ErrorCode': '30003',
+        })
 
         result = self.connector.on_event(data)
 
@@ -241,15 +237,13 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         assert result.error_code == '30003'
 
     def test_message_with_body_returns_inbound_not_status(self) -> None:
-        data = WebhookData(
-            body={
-                'MessageSid': 'SM_ABC_123',
-                'MessageStatus': 'received',
-                'Body': 'Hello!',
-                'From': '+15559876',
-                'To': '+15551234',
-            }
-        )
+        data = _signed_webhook({
+            'MessageSid': 'SM_ABC_123',
+            'MessageStatus': 'received',
+            'Body': 'Hello!',
+            'From': '+15559876',
+            'To': '+15551234',
+        })
 
         result = self.connector.on_event(data)
 
@@ -257,13 +251,97 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         assert result.body == 'Hello!'
 
     def test_no_body_no_status_returns_none(self) -> None:
+        data = _signed_webhook({
+            'MessageSid': 'SM_ABC_123',
+        })
+
+        result = self.connector.on_event(data)
+
+        assert result is None
+
+
+_TEST_URL = 'https://chatd.example.com/1.0/connectors/incoming/twilio'
+_TEST_AUTH_TOKEN = 'secret'
+
+
+def _compute_twilio_signature(auth_token: str, url: str, params: dict[str, str]) -> str:
+    data = url + ''.join(f'{k}{v}' for k, v in sorted(params.items()))
+    mac = hmac.new(auth_token.encode(), data.encode(), hashlib.sha1)
+    return base64.b64encode(mac.digest()).decode()
+
+
+def _signed_webhook(body: dict[str, str], url: str = _TEST_URL) -> WebhookData:
+    signature = _compute_twilio_signature(_TEST_AUTH_TOKEN, url, body)
+    return WebhookData(
+        body=body,
+        headers={'X-Twilio-Signature': signature},
+        url=url,
+    )
+
+
+class TestTwilioConnectorSignatureValidation(unittest.TestCase):
+    def setUp(self) -> None:
+        self.connector = TwilioConnector()
+        self.connector.configure(
+            'sms',
+            provider_config={'account_sid': 'AC123', 'auth_token': 'secret'},
+            connector_config={},
+        )
+        self.url = 'https://chatd.example.com/1.0/connectors/incoming/twilio'
+        self.body = {
+            'From': '+15559876',
+            'To': '+15551234',
+            'Body': 'Hello!',
+            'MessageSid': 'SM_ABC_123',
+        }
+
+    def test_valid_signature_returns_message(self) -> None:
+        signature = _compute_twilio_signature('secret', self.url, self.body)
         data = WebhookData(
-            body={
-                'MessageSid': 'SM_ABC_123',
-            }
+            body=self.body,
+            headers={'X-Twilio-Signature': signature},
+            url=self.url,
         )
 
         result = self.connector.on_event(data)
+
+        assert isinstance(result, InboundMessage)
+        assert result.body == 'Hello!'
+
+    def test_invalid_signature_returns_none(self) -> None:
+        data = WebhookData(
+            body=self.body,
+            headers={'X-Twilio-Signature': 'forged-signature'},
+            url=self.url,
+        )
+
+        result = self.connector.on_event(data)
+
+        assert result is None
+
+    def test_missing_signature_returns_none(self) -> None:
+        data = WebhookData(
+            body=self.body,
+            headers={},
+            url=self.url,
+        )
+
+        result = self.connector.on_event(data)
+
+        assert result is None
+
+    def test_unconfigured_auth_token_returns_none(self) -> None:
+        connector = TwilioConnector()
+        connector.configure('sms', provider_config={}, connector_config={})
+
+        signature = _compute_twilio_signature('', self.url, self.body)
+        data = WebhookData(
+            body=self.body,
+            headers={'X-Twilio-Signature': signature},
+            url=self.url,
+        )
+
+        result = connector.on_event(data)
 
         assert result is None
 

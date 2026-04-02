@@ -35,6 +35,7 @@ class WebhookData(TransportData):
     body: Mapping[str, Any] = field(default_factory=dict)
     headers: Mapping[str, str] = field(default_factory=dict)
     content_type: str = ''
+    url: str = ''
 
 
 @dataclass(frozen=True)

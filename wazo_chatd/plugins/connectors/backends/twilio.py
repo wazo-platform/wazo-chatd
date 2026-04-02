@@ -12,6 +12,9 @@ Requires the ``twilio`` Python package at runtime.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import logging
 import re
 from collections.abc import Callable, Mapping
@@ -114,10 +117,30 @@ class TwilioConnector:
 
     def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
         match data:
-            case WebhookData(body=body):
+            case WebhookData(body=body, headers=headers, url=url):
+                if not self._verify_signature(url, dict(body), headers):
+                    return None
                 return self._parse_webhook(body)
             case _:
                 return None
+
+    def _verify_signature(
+        self,
+        url: str,
+        params: dict[str, str],
+        headers: Mapping[str, str],
+    ) -> bool:
+        signature = headers.get('X-Twilio-Signature', '')
+        if not signature or not self._auth_token:
+            logger.warning('Missing Twilio signature or auth token')
+            return False
+
+        data = url + ''.join(f'{k}{v}' for k, v in sorted(params.items()))
+        expected = base64.b64encode(
+            hmac.new(self._auth_token.encode(), data.encode(), hashlib.sha1).digest()
+        ).decode()
+
+        return hmac.compare_digest(expected, signature)
 
     def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
         if self._mode == 'poll':

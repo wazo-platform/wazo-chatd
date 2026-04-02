@@ -58,10 +58,11 @@ class ConnectorWebhookResource(Resource):
             body=body,
             headers=dict(request.headers),
             content_type=request.content_type or '',
+            url=request.url,
         )
 
 
-class ConnectorReloadResource(Resource):
+class ConnectorReloadResource(AuthResource):
     """Reload connector instances from the database.
 
     Route: ``POST /connectors/reload``
@@ -73,6 +74,7 @@ class ConnectorReloadResource(Resource):
     def __init__(self, router: ConnectorRouter) -> None:
         self._router = router
 
+    @required_acl('chatd.connectors.reload')
     def post(self) -> tuple[str, int]:
         self._router.load_providers()
         return '', 204
