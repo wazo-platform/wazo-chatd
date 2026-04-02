@@ -1,5 +1,3 @@
 connectors:
-  internal:
-    enabled: true
   test:
     enabled: true
