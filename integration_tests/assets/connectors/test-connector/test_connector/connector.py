@@ -22,9 +22,7 @@ from wazo_chatd.plugins.connectors.types import (
 
 logger = logging.getLogger(__name__)
 
-MOCK_URL = os.environ.get(
-    'TEST_CONNECTOR_MOCK_URL', 'http://connector-mock:8080'
-)
+MOCK_URL = os.environ.get('TEST_CONNECTOR_MOCK_URL', 'http://connector-mock:8080')
 
 
 class TestConnector:

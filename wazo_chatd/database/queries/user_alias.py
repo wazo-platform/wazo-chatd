@@ -31,3 +31,20 @@ class UserAliasDAO:
             query = query.join(ChatProvider).filter(ChatProvider.type_.in_(types))
 
         return query.all()
+
+    def list_types_by_user(self, user_uuid: str) -> list[str]:
+        return [
+            row[0]
+            for row in (
+                self.session.query(ChatProvider.type_)
+                .join(UserAlias)
+                .filter(UserAlias.user_uuid == user_uuid)
+                .distinct()
+                .all()
+            )
+        ]
+
+    def is_identity_bound(self, identity: str) -> bool:
+        return (
+            self.session.query(UserAlias).filter(UserAlias.identity == identity).first()
+        ) is not None

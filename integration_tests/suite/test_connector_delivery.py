@@ -193,9 +193,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
 @use_asset('connectors')
 class TestOutboundDelivery(ConnectorIntegrationTest):
-    def _assert_delivery_status(
-        self, message_uuid: str, expected_status: str
-    ) -> None:
+    def _assert_delivery_status(self, message_uuid: str, expected_status: str) -> None:
         def check():
             records = (
                 self._session.query(DeliveryRecord)
@@ -264,9 +262,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
         ],
     )
-    def test_connector_mock_receives_sent_message(
-        self, user, provider, alias, room
-    ):
+    def test_connector_mock_receives_sent_message(self, user, provider, alias, room):
         self.reload_connectors()
         self.connector_mock.reset()
         self.connector_mock.set_config(
@@ -303,9 +299,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
         ],
     )
-    def test_failed_delivery_creates_failed_record(
-        self, user, provider, alias, room
-    ):
+    def test_failed_delivery_creates_failed_record(self, user, provider, alias, room):
         self.reload_connectors()
         self.connector_mock.reset()
         self.connector_mock.set_config(send_behavior='fail', error_message='API down')
@@ -319,9 +313,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
 
 @use_asset('connectors')
 class TestStatusUpdate(ConnectorIntegrationTest):
-    def _assert_delivery_status(
-        self, message_uuid: str, expected_status: str
-    ) -> None:
+    def _assert_delivery_status(self, message_uuid: str, expected_status: str) -> None:
         def check():
             records = (
                 self._session.query(DeliveryRecord)

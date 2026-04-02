@@ -7,8 +7,10 @@ import logging
 
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
 from wazo_chatd.plugins.connectors.bus_consume import ConnectorBusEventHandler
+from wazo_chatd.plugins.connectors.http import RoomAliasListResource
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
+from wazo_chatd.plugins.connectors.services import ConnectorService
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,13 @@ class Plugin:
 
         bus_handler = ConnectorBusEventHandler(bus_consumer, router)
         bus_handler.subscribe()
+
+        service = ConnectorService(dao, registry)
+        api.add_resource(
+            RoomAliasListResource,
+            '/users/me/rooms/<uuid:room_uuid>/aliases',
+            resource_class_args=[service],
+        )
 
         thread_manager.manage(router)
         status_aggregator.add_provider(router.provide_status)

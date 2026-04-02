@@ -43,11 +43,13 @@ def report_sent():
 @app.route('/reset', methods=['POST'])
 def reset():
     _config.clear()
-    _config.update({
-        'send_behavior': 'succeed',
-        'external_id': '',
-        'error_message': 'Test connector failure',
-    })
+    _config.update(
+        {
+            'send_behavior': 'succeed',
+            'external_id': '',
+            'error_message': 'Test connector failure',
+        }
+    )
     _sent_messages.clear()
     return '', 204
 

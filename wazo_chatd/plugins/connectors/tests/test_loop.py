@@ -69,8 +69,10 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
 
         loop = DeliveryLoop(_make_config(), Mock(), {})
         loop.start()
-        loop.shutdown()
+        loop.shutdown(timeout=10)
 
+        assert loop._thread is not None
+        loop._thread.join(timeout=5)
         assert not loop._thread.is_alive()
 
     @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')

@@ -8,8 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 from flask import request
 from flask_restful import Resource
+from xivo.auth_verifier import required_acl
+from xivo.tenant_flask_helpers import token
 
+from wazo_chatd.http import AuthResource
 from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.schemas import UserAliasSchema
+from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.types import WebhookData
 
 if TYPE_CHECKING:
@@ -71,3 +76,18 @@ class ConnectorReloadResource(Resource):
     def post(self) -> tuple[str, int]:
         self._router.load_providers()
         return '', 204
+
+
+class RoomAliasListResource(AuthResource):
+    def __init__(self, service: ConnectorService) -> None:
+        self._service = service
+
+    @required_acl('chatd.users.me.rooms.{room_uuid}.aliases.read')
+    def get(self, room_uuid: str) -> tuple[dict[str, Any], int]:
+        aliases = self._service.list_room_aliases(
+            [token.tenant_uuid], room_uuid, str(token.user_uuid)
+        )
+        return {
+            'items': UserAliasSchema().dump(aliases, many=True),
+            'total': len(aliases),
+        }, 200

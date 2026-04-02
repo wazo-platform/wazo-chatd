@@ -1,10 +1,12 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from wazo_test_helpers.wait_strategy import (
     ComponentsWaitStrategy as _ComponentsWaitStrategy,
 )
-from wazo_test_helpers.wait_strategy import NoWaitStrategy
+from wazo_test_helpers.wait_strategy import (
+    NoWaitStrategy,
+)
 
 __all__ = ['NoWaitStrategy']
 
