@@ -10,7 +10,7 @@ from wazo_chatd.exceptions import UnknownRoomException
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 if TYPE_CHECKING:
-    from wazo_chatd.database.models import UserAlias
+    from wazo_chatd.database.models import RoomUser, UserAlias
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
@@ -51,14 +51,14 @@ class ConnectorService:
             user_uuid, sorted(reachable_types)
         )
 
-    def _resolve_participant_types(self, participant: object) -> set[str]:
-        identity = getattr(participant, 'identity', None)
+    def _resolve_participant_types(self, participant: RoomUser) -> set[str]:
+        identity = participant.identity
 
         if identity is not None:
-            if self._dao.user_alias.is_identity_bound(str(identity)):
+            if self._dao.user_alias.is_identity_bound(identity):
                 return set(
                     self._dao.user_alias.list_types_by_user(str(participant.uuid))
                 )
-            return self._registry.resolve_reachable_types(str(identity))
+            return self._registry.resolve_reachable_types(identity)
 
         return set(self._dao.user_alias.list_types_by_user(str(participant.uuid)))
