@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from xivo.pubsub import Pubsub
+from wazo_chatd.plugin_helpers.hooks import Hooks
 
 
 class RoomService:
@@ -12,15 +12,16 @@ class RoomService:
         wazo_uuid: str,
         dao: object,
         notifier: object,
-        pubsub: Pubsub,
+        hooks: Hooks,
     ) -> None:
         self._dao = dao
         self._notifier = notifier
         self._wazo_uuid = wazo_uuid
-        self._pubsub = pubsub
+        self._hooks = hooks
 
     def create(self, room):
         self._set_default_room_values(room)
+        self._hooks.dispatch('room_creating', room, propagate_errors=True)
         self._dao.room.create(room)
         self._notifier.created(room)
         return room
@@ -43,8 +44,11 @@ class RoomService:
 
     def create_message(self, room, message):
         self._set_default_message_values(message)
+        self._hooks.dispatch(
+            'room_message_creating', (room, message), propagate_errors=True
+        )
         self._dao.room.add_message(room, message)
-        self._pubsub.publish('room_message_created', (room, message))
+        self._hooks.dispatch('room_message_created', (room, message))
         self._notifier.message_created(room, message)
         return message
 

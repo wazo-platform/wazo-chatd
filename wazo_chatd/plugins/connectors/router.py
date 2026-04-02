@@ -13,7 +13,11 @@ from flask_restful import Api
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.http_hooks import register_post_commit_callback
 from wazo_chatd.plugins.connectors.connector import Connector
-from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorParseError,
+    MessageAliasRequiredError,
+    UnreachableParticipantError,
+)
 from wazo_chatd.plugins.connectors.http import (
     ConnectorReloadResource,
     ConnectorWebhookResource,
@@ -75,6 +79,20 @@ class ConnectorRouter:
 
     def stop(self) -> None:
         self._delivery_loop.shutdown()
+
+    def validate_room_creation(self, room: Room) -> None:
+        for user in room.users:
+            if not user.identity:
+                continue
+            reachable = self._registry.resolve_reachable_types(str(user.identity))
+            if not reachable:
+                raise UnreachableParticipantError(str(user.identity))
+
+    def validate_outbound(self, event: tuple[Room, RoomMessage]) -> None:
+        room, message = event
+        has_external = any(u.identity for u in room.users)
+        if has_external and not message.alias:
+            raise MessageAliasRequiredError()
 
     def on_room_message_created(self, event: tuple[Room, RoomMessage]) -> None:
         room, message = event

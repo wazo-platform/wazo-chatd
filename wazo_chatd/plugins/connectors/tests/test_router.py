@@ -9,7 +9,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorParseError,
+    MessageAliasRequiredError,
+    UnreachableParticipantError,
+)
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
 from wazo_chatd.plugins.connectors.types import InboundMessage, WebhookData
@@ -249,6 +253,105 @@ class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
         self.router.on_room_message_created((room, message))
 
         self.router.send.assert_called_once_with(room, message)
+
+
+class TestConnectorRouterValidateOutbound(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = _build_registry()
+        with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
+
+    def test_internal_room_without_alias_passes(self) -> None:
+        room = _make_room(
+            [_make_room_user('user-a'), _make_room_user('user-b')]
+        )
+        message = Mock(alias=None)
+
+        self.router.validate_outbound((room, message))
+
+    def test_external_room_with_alias_passes(self) -> None:
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='+15559876'),
+            ]
+        )
+        message = Mock(alias='John')
+
+        self.router.validate_outbound((room, message))
+
+    def test_external_room_without_alias_raises_409(self) -> None:
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='+15559876'),
+            ]
+        )
+        message = Mock(alias=None)
+
+        with pytest.raises(MessageAliasRequiredError):
+            self.router.validate_outbound((room, message))
+
+    def test_external_room_with_empty_alias_raises_409(self) -> None:
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='+15559876'),
+            ]
+        )
+        message = Mock(alias='')
+
+        with pytest.raises(MessageAliasRequiredError):
+            self.router.validate_outbound((room, message))
+
+
+class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = _build_registry()
+        with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(
+                config={}, registry=self.registry, dao=Mock()
+            )
+
+    def test_internal_only_room_passes(self) -> None:
+        room = _make_room(
+            [_make_room_user('user-a'), _make_room_user('user-b')]
+        )
+
+        self.router.validate_room_creation(room)
+
+    def test_external_participant_reachable_passes(self) -> None:
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='+15559876'),
+            ]
+        )
+
+        self.router.validate_room_creation(room)
+
+    def test_external_participant_unreachable_raises_409(self) -> None:
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-uuid', identity='not-a-phone-or-email'),
+            ]
+        )
+
+        with pytest.raises(UnreachableParticipantError):
+            self.router.validate_room_creation(room)
+
+    def test_multiple_external_one_unreachable_raises_409(self) -> None:
+        room = _make_room(
+            [
+                _make_room_user('user-a'),
+                _make_room_user('ext-1', identity='+15559876'),
+                _make_room_user('ext-2', identity='not-reachable'),
+            ]
+        )
+
+        with pytest.raises(UnreachableParticipantError):
+            self.router.validate_room_creation(room)
 
 
 class TestConnectorRouterLoadProviders(unittest.TestCase):

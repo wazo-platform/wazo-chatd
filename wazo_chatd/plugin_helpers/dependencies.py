@@ -7,12 +7,12 @@ from collections.abc import Callable
 from typing import Any, TypedDict
 
 from flask_restful import Api
-from xivo.pubsub import Pubsub
 from xivo.status import StatusAggregator
 
 from wazo_chatd.asyncio_ import CoreAsyncio
 from wazo_chatd.bus import BusConsumer, BusPublisher
 from wazo_chatd.database.queries import DAO
+from wazo_chatd.plugin_helpers.hooks import Hooks
 from wazo_chatd.thread_manager import ThreadManager
 
 
@@ -27,4 +27,4 @@ class PluginDependencies(TypedDict):
     thread_manager: ThreadManager
     token_changed_subscribe: Callable[[Callable[..., None]], None]
     next_token_changed_subscribe: Callable[[Callable[..., None]], None]
-    pubsub: Pubsub
+    hooks: Hooks

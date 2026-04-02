@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from xivo.rest_api_helpers import APIException
+
 
 class ConnectorError(Exception):
     """Base exception for all connector-related errors."""
@@ -21,3 +23,25 @@ class NoCommonConnectorError(ConnectorError):
 
     This typically results in a 409 Conflict HTTP response.
     """
+
+
+class MessageAliasRequiredError(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            409,
+            'Messages in rooms with external participants require an alias',
+            'message-alias-required',
+            {},
+            'messages',
+        )
+
+
+class UnreachableParticipantError(APIException):
+    def __init__(self, identity: str) -> None:
+        super().__init__(
+            409,
+            f'No connector can reach participant with identity {identity!r}',
+            'unreachable-participant',
+            {'identity': identity},
+            'rooms',
+        )

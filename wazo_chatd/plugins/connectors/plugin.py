@@ -21,7 +21,7 @@ class Plugin:
         api = dependencies['api']
         dao = dependencies['dao']
         bus_consumer = dependencies['bus_consumer']
-        pubsub = dependencies['pubsub']
+        hooks = dependencies['hooks']
         status_aggregator = dependencies['status_aggregator']
         thread_manager = dependencies['thread_manager']
 
@@ -31,7 +31,9 @@ class Plugin:
         router = ConnectorRouter(config, registry, dao)
         router.register_http_endpoints(api)
 
-        pubsub.subscribe('room_message_created', router.on_room_message_created)
+        hooks.register('room_creating', router.validate_room_creation)
+        hooks.register('room_message_creating', router.validate_outbound)
+        hooks.register('room_message_created', router.on_room_message_created)
 
         bus_handler = ConnectorBusEventHandler(bus_consumer, router)
         bus_handler.subscribe()

@@ -10,12 +10,12 @@ from functools import partial
 from wazo_auth_client import Client as AuthClient
 from xivo import plugin_helpers
 from xivo.consul_helpers import ServiceCatalogRegistration
-from xivo.pubsub import Pubsub
 from xivo.status import StatusAggregator
 from xivo.token_renewer import TokenRenewer
 
 from . import auth
 from .asyncio_ import CoreAsyncio
+from .plugin_helpers.hooks import Hooks
 from .bus import BusConsumer, BusPublisher
 from .database.helpers import init_db
 from .database.queries import DAO
@@ -42,7 +42,7 @@ class Controller:
         self.bus_consumer = BusConsumer.from_config(config['bus'])
         self.bus_publisher = BusPublisher.from_config(config['uuid'], config['bus'])
         self.thread_manager = ThreadManager()
-        self.pubsub = Pubsub()
+        self.hooks = Hooks()
         auth_client = AuthClient(**config['auth'])
         self.token_renewer = TokenRenewer(auth_client)
         self._stopping_thread = None
@@ -67,7 +67,7 @@ class Controller:
                 'thread_manager': self.thread_manager,
                 'token_changed_subscribe': self.token_renewer.subscribe_to_token_change,
                 'next_token_changed_subscribe': self.token_renewer.subscribe_to_next_token_change,
-                'pubsub': self.pubsub,
+                'hooks': self.hooks,
             },
         )
 
