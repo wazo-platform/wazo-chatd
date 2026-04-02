@@ -3,7 +3,7 @@
 
 """Internal wazo-to-wazo chat connector.
 
-This is the simplest possible :class:`~wazo_chatd.connectors.connector.Connector`
+This is the simplest possible :class:`~wazo_chatd.plugins.connectors.connector.Connector`
 implementation.  It handles messages between Wazo users where no
 external API is involved — the bus event published by
 :class:`RoomService` **is** the delivery mechanism.
@@ -19,8 +19,12 @@ import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
-from wazo_chatd.connectors.delivery import DeliveryStatus
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, TransportData
+from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    TransportData,
+)
 
 
 class InternalConnector:

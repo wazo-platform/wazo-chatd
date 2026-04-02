@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock, patch
+from datetime import datetime, timezone
+from unittest.mock import Mock
 
-from wazo_chatd.connectors.notifier import AsyncNotifier
+from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 
 
 class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
@@ -14,19 +15,25 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         self.bus = Mock()
         self.notifier = AsyncNotifier(self.bus)
 
+    def _make_message(self) -> Mock:
+        message = Mock()
+        message.uuid = 'msg-uuid'
+        message.content = 'hello'
+        message.alias = None
+        message.user_uuid = 'user-uuid'
+        message.tenant_uuid = 'tenant-uuid'
+        message.wazo_uuid = 'wazo-uuid'
+        message.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        message.room = Mock(uuid='room-uuid')
+        return message
+
     async def test_publishes_event_per_user(self) -> None:
         room = Mock()
         room.uuid = 'room-uuid'
         room.tenant_uuid = 'tenant-uuid'
         room.users = [Mock(uuid='user-1'), Mock(uuid='user-2')]
 
-        message = Mock()
-
-        with patch(
-            'wazo_chatd.connectors.notifier.MessageSchema'
-        ) as mock_schema:
-            mock_schema.return_value.dump.return_value = {'uuid': 'msg-uuid'}
-            await self.notifier.message_created(room, message)
+        await self.notifier.message_created(room, self._make_message())
 
         assert self.bus.publish.call_count == 2
 
@@ -36,13 +43,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         room.tenant_uuid = 'tenant-uuid'
         room.users = [Mock(uuid='user-1')]
 
-        message = Mock()
-
-        with patch(
-            'wazo_chatd.connectors.notifier.MessageSchema'
-        ) as mock_schema:
-            mock_schema.return_value.dump.return_value = {'uuid': 'msg-uuid'}
-            await self.notifier.message_created(room, message)
+        await self.notifier.message_created(room, self._make_message())
 
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_user_room_message_created'

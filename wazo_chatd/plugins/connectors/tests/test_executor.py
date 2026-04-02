@@ -4,19 +4,31 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock, patch
 
-from wazo_chatd.connectors.delivery import MAX_RETRIES, DeliveryStatus
-from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.executor import DeliveryExecutor
-from wazo_chatd.connectors.store import ConnectorStore
-from wazo_chatd.connectors.types import (
+from wazo_chatd.database.async_helpers import _current_session
+from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.executor import MAX_RETRIES, DeliveryExecutor
+from wazo_chatd.plugins.connectors.store import ConnectorStore
+from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
     RoomParticipant,
     StatusUpdate,
 )
-from wazo_chatd.database.async_helpers import _current_session
+
+FIXED_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def _mock_add_delivery_record() -> AsyncMock:
+    async def _side_effect(meta, record):
+        record.message_uuid = meta.message_uuid
+        record.timestamp = FIXED_NOW
+        return record
+
+    return AsyncMock(side_effect=_side_effect)
 
 
 def _make_outbound(message_uuid: str = 'delivery-1') -> OutboundMessage:
@@ -64,6 +76,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
             store=ConnectorStore(),
         )
         self.executor._store.register('twilio-sms', self.connector)
+        self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
         self.delivery = Mock()
         self.delivery.message_uuid = 'delivery-1'
@@ -98,12 +111,8 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.execute(outbound, self.delivery)
 
-        added_records = [
-            call.args[0]
-            for call in self.session.add.call_args_list
-            if hasattr(call.args[0], 'status')
-        ]
-        statuses = [r.status for r in added_records]
+        dao_mock = self.executor._room_dao.add_delivery_record
+        statuses = [call.args[1].status for call in dao_mock.call_args_list]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
 
     async def test_execute_publishes_status_event(self) -> None:
@@ -148,6 +157,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
             store=self.store,
         )
         self.store.register('twilio-sms', self.connector)
+        self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
     def tearDown(self) -> None:
         _current_session.reset(self.token)
@@ -167,9 +177,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_alias_dao.list_by_user_and_types = AsyncMock(
             return_value=[alias]
         )
-        self.executor._room_dao.get_message_meta = AsyncMock(
-            return_value=meta
-        )
+        self.executor._room_dao.get_message_meta = AsyncMock(return_value=meta)
 
         await self.executor.route_outbound(outbound)
 
@@ -342,6 +350,7 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
             notifier=self.notifier,
             store=self.store,
         )
+        self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
     def tearDown(self) -> None:
         _current_session.reset(self.token)
@@ -369,22 +378,20 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.route_status_update(_make_status_update())
 
-        record = self.session.add.call_args[0][0]
+        record = self.executor._room_dao.add_delivery_record.call_args[0][1]
         assert record.status == 'delivered'
 
     async def test_ignores_unmapped_status(self) -> None:
         self._register_connector({'delivered': DeliveryStatus.DELIVERED})
 
-        await self.executor.route_status_update(
-            _make_status_update(status='queued')
-        )
+        await self.executor.route_status_update(_make_status_update(status='queued'))
 
-        self.session.add.assert_not_called()
+        self.executor._room_dao.add_delivery_record.assert_not_awaited()
 
     async def test_drops_when_no_connector(self) -> None:
         await self.executor.route_status_update(_make_status_update())
 
-        self.session.add.assert_not_called()
+        self.executor._room_dao.add_delivery_record.assert_not_awaited()
 
     async def test_drops_when_no_meta(self) -> None:
         self._register_connector({'delivered': DeliveryStatus.DELIVERED})
@@ -394,7 +401,7 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.route_status_update(_make_status_update())
 
-        self.session.add.assert_not_called()
+        self.executor._room_dao.add_delivery_record.assert_not_awaited()
 
     async def test_passes_error_code_as_reason(self) -> None:
         self._register_connector({'failed': DeliveryStatus.FAILED})
@@ -404,7 +411,7 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
             _make_status_update(status='failed', error_code='30003')
         )
 
-        record = self.session.add.call_args[0][0]
+        record = self.executor._room_dao.add_delivery_record.call_args[0][1]
         assert record.reason == '30003'
 
     async def test_publishes_notification(self) -> None:
@@ -450,9 +457,7 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         return meta
 
     async def test_no_recoverable_messages(self) -> None:
-        self.executor._room_dao.get_recoverable_messages = AsyncMock(
-            return_value=[]
-        )
+        self.executor._room_dao.get_recoverable_messages = AsyncMock(return_value=[])
 
         result = await self.executor.recover_pending_deliveries()
 

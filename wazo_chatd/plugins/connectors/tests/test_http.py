@@ -9,9 +9,9 @@ from unittest.mock import Mock
 
 from flask import Flask
 
-from wazo_chatd.connectors.exceptions import ConnectorParseError
-from wazo_chatd.connectors.http import ConnectorWebhookResource
-from wazo_chatd.connectors.types import WebhookData
+from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.http import ConnectorWebhookResource
+from wazo_chatd.plugins.connectors.types import WebhookData
 
 
 class TestConnectorWebhookResource(unittest.TestCase):

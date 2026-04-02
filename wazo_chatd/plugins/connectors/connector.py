@@ -6,8 +6,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar, Protocol
 
-from wazo_chatd.connectors.delivery import DeliveryStatus
-from wazo_chatd.connectors.types import (
+from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
     StatusUpdate,
@@ -26,7 +26,7 @@ class Connector(Protocol):
     Transport-agnostic: works with webhooks, polling, websockets, or any
     other inbound mechanism.
 
-    See ``wazo_chatd.connectors.backends.internal`` for a self-documenting
+    See ``wazo_chatd.plugins.connectors.backends.internal`` for a self-documenting
     reference implementation.
     """
 

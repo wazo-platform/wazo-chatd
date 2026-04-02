@@ -8,9 +8,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from wazo_chatd.connectors.backends.twilio import TwilioConnector
-from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import (
+from wazo_chatd.plugins.connectors.backends.twilio import TwilioConnector
+from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
     StatusUpdate,
@@ -75,7 +75,7 @@ class TestTwilioConnectorSend(unittest.TestCase):
             connector_config={},
         )
 
-    @patch('wazo_chatd.connectors.backends.twilio.TwilioRestClient')
+    @patch('wazo_chatd.plugins.connectors.backends.twilio.TwilioRestClient')
     def test_send_creates_message(self, mock_client_cls: Mock) -> None:
         mock_client = Mock()
         mock_client.messages.create.return_value = Mock(sid='SM_MSG_123')
@@ -101,7 +101,7 @@ class TestTwilioConnectorSend(unittest.TestCase):
         )
         assert result == 'SM_MSG_123'
 
-    @patch('wazo_chatd.connectors.backends.twilio.TwilioRestClient')
+    @patch('wazo_chatd.plugins.connectors.backends.twilio.TwilioRestClient')
     def test_send_raises_on_failure(self, mock_client_cls: Mock) -> None:
         mock_client = Mock()
         mock_client.messages.create.side_effect = Exception('Twilio error')
@@ -161,12 +161,14 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
         )
 
     def test_on_event_webhook_returns_inbound_message(self) -> None:
-        data = WebhookData(body={
-            'From': '+15559876',
-            'To': '+15551234',
-            'Body': 'Hello!',
-            'MessageSid': 'SM_ABC_123',
-        })
+        data = WebhookData(
+            body={
+                'From': '+15559876',
+                'To': '+15551234',
+                'Body': 'Hello!',
+                'MessageSid': 'SM_ABC_123',
+            }
+        )
 
         result = self.connector.on_event(data)
 
@@ -179,11 +181,13 @@ class TestTwilioConnectorOnEvent(unittest.TestCase):
         assert result.external_id == 'SM_ABC_123'
 
     def test_on_event_webhook_missing_body_returns_none(self) -> None:
-        data = WebhookData(body={
-            'From': '+15559876',
-            'To': '+15551234',
-            'MessageSid': 'SM_ABC_123',
-        })
+        data = WebhookData(
+            body={
+                'From': '+15559876',
+                'To': '+15551234',
+                'MessageSid': 'SM_ABC_123',
+            }
+        )
 
         result = self.connector.on_event(data)
 
@@ -205,12 +209,14 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         )
 
     def test_status_callback_returns_status_update(self) -> None:
-        data = WebhookData(body={
-            'MessageSid': 'SM_ABC_123',
-            'MessageStatus': 'delivered',
-            'To': '+15551234',
-            'From': '+15559876',
-        })
+        data = WebhookData(
+            body={
+                'MessageSid': 'SM_ABC_123',
+                'MessageStatus': 'delivered',
+                'To': '+15551234',
+                'From': '+15559876',
+            }
+        )
 
         result = self.connector.on_event(data)
 
@@ -220,11 +226,13 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         assert result.backend == 'twilio'
 
     def test_failed_status_includes_error_code(self) -> None:
-        data = WebhookData(body={
-            'MessageSid': 'SM_ABC_123',
-            'MessageStatus': 'failed',
-            'ErrorCode': '30003',
-        })
+        data = WebhookData(
+            body={
+                'MessageSid': 'SM_ABC_123',
+                'MessageStatus': 'failed',
+                'ErrorCode': '30003',
+            }
+        )
 
         result = self.connector.on_event(data)
 
@@ -233,13 +241,15 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         assert result.error_code == '30003'
 
     def test_message_with_body_returns_inbound_not_status(self) -> None:
-        data = WebhookData(body={
-            'MessageSid': 'SM_ABC_123',
-            'MessageStatus': 'received',
-            'Body': 'Hello!',
-            'From': '+15559876',
-            'To': '+15551234',
-        })
+        data = WebhookData(
+            body={
+                'MessageSid': 'SM_ABC_123',
+                'MessageStatus': 'received',
+                'Body': 'Hello!',
+                'From': '+15559876',
+                'To': '+15551234',
+            }
+        )
 
         result = self.connector.on_event(data)
 
@@ -247,9 +257,11 @@ class TestTwilioConnectorStatusUpdate(unittest.TestCase):
         assert result.body == 'Hello!'
 
     def test_no_body_no_status_returns_none(self) -> None:
-        data = WebhookData(body={
-            'MessageSid': 'SM_ABC_123',
-        })
+        data = WebhookData(
+            body={
+                'MessageSid': 'SM_ABC_123',
+            }
+        )
 
         result = self.connector.on_event(data)
 

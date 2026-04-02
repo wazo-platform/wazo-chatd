@@ -3,24 +3,21 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from wazo_chatd.connectors.router import ConnectorRouter
+from xivo.pubsub import Pubsub
 
 
 class RoomService:
     def __init__(
         self,
-        wazo_uuid,
-        dao,
-        notifier,
-        connector_router: ConnectorRouter | None = None,
-    ):
+        wazo_uuid: str,
+        dao: object,
+        notifier: object,
+        pubsub: Pubsub,
+    ) -> None:
         self._dao = dao
         self._notifier = notifier
         self._wazo_uuid = wazo_uuid
-        self._connector_router = connector_router
+        self._pubsub = pubsub
 
     def create(self, room):
         self._set_default_room_values(room)
@@ -47,10 +44,7 @@ class RoomService:
     def create_message(self, room, message):
         self._set_default_message_values(message)
         self._dao.room.add_message(room, message)
-
-        if self._connector_router:
-            self._connector_router.send(room, message)
-
+        self._pubsub.publish('room_message_created', (room, message))
         self._notifier.message_created(room, message)
         return message
 

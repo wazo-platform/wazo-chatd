@@ -10,14 +10,13 @@ from functools import partial
 from wazo_auth_client import Client as AuthClient
 from xivo import plugin_helpers
 from xivo.consul_helpers import ServiceCatalogRegistration
+from xivo.pubsub import Pubsub
 from xivo.status import StatusAggregator
 from xivo.token_renewer import TokenRenewer
 
 from . import auth
 from .asyncio_ import CoreAsyncio
 from .bus import BusConsumer, BusPublisher
-from .connectors.registry import ConnectorRegistry
-from .connectors.router import ConnectorRouter
 from .database.helpers import init_db
 from .database.queries import DAO
 from .http_server import CoreRestApi, api, app
@@ -43,18 +42,12 @@ class Controller:
         self.bus_consumer = BusConsumer.from_config(config['bus'])
         self.bus_publisher = BusPublisher.from_config(config['uuid'], config['bus'])
         self.thread_manager = ThreadManager()
+        self.pubsub = Pubsub()
         auth_client = AuthClient(**config['auth'])
         self.token_renewer = TokenRenewer(auth_client)
         self._stopping_thread = None
 
         dao = DAO()
-
-        connector_registry = ConnectorRegistry()
-        connector_registry.discover(
-            connectors_config=config.get('connectors', {}),
-        )
-        self.connector_router = ConnectorRouter(config, connector_registry, dao)
-        self.connector_router.register_http_endpoints(api)
 
         if not app.config['auth'].get('master_tenant_uuid'):
             self.token_renewer.subscribe_to_next_token_details_change(
@@ -74,7 +67,7 @@ class Controller:
                 'thread_manager': self.thread_manager,
                 'token_changed_subscribe': self.token_renewer.subscribe_to_token_change,
                 'next_token_changed_subscribe': self.token_renewer.subscribe_to_next_token_change,
-                'connector_router': self.connector_router,
+                'pubsub': self.pubsub,
             },
         )
 
@@ -82,12 +75,10 @@ class Controller:
         logger.info('wazo-chatd starting...')
         self.status_aggregator.add_provider(self.bus_consumer.provide_status)
         self.status_aggregator.add_provider(auth.provide_status)
-        self.status_aggregator.add_provider(self.connector_router.provide_status)
         signal.signal(signal.SIGTERM, partial(_signal_handler, self))
         signal.signal(signal.SIGINT, partial(_signal_handler, self))
 
         with ExitStack() as stack:
-            stack.enter_context(self.connector_router)
             stack.enter_context(self.thread_manager)
             stack.enter_context(self.token_renewer)
             stack.enter_context(self.bus_consumer)

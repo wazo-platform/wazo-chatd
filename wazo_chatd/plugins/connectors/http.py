@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Any
 from flask import request
 from flask_restful import Resource
 
-from wazo_chatd.connectors.exceptions import ConnectorParseError
-from wazo_chatd.connectors.types import WebhookData
+from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.types import WebhookData
 
 if TYPE_CHECKING:
-    from wazo_chatd.connectors.router import ConnectorRouter
+    from wazo_chatd.plugins.connectors.router import ConnectorRouter
 
 logger = logging.getLogger(__name__)
 

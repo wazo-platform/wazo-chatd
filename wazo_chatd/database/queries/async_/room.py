@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import selectinload
 
-from wazo_chatd.connectors.delivery import DeliveryStatus
 from wazo_chatd.database.async_helpers import get_async_session
+from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageMeta,
@@ -28,9 +28,7 @@ class AsyncRoomDAO:
         return get_async_session()
 
     async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
-        stmt = select(MessageMeta).filter(
-            MessageMeta.message_uuid == message_uuid
-        )
+        stmt = select(MessageMeta).filter(MessageMeta.message_uuid == message_uuid)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -53,29 +51,27 @@ class AsyncRoomDAO:
         self,
         meta: MessageMeta,
         record: DeliveryRecord,
-    ) -> None:
-        # Set FK directly instead of meta.records.append() to avoid
-        # lazy-loading the records collection (MissingGreenlet in async)
+    ) -> DeliveryRecord:
         record.message_uuid = meta.message_uuid
         self.session.add(record)
         await self.session.flush()
+        return record
 
-    async def add_message(self, room: Room, message: RoomMessage) -> None:
-        # Set FK directly instead of room.messages.append() to avoid
-        # lazy-loading the messages collection (triggers MissingGreenlet
-        # in async context)
+    async def add_message(self, room: Room, message: RoomMessage) -> RoomMessage:
         message.room_uuid = room.uuid
         self.session.add(message)
         await self.session.flush()
+        return message
 
     async def add_message_meta(
         self,
         meta: MessageMeta,
         initial_record: DeliveryRecord,
-    ) -> None:
+    ) -> MessageMeta:
         self.session.add(meta)
         self.session.add(initial_record)
         await self.session.flush()
+        return meta
 
     async def check_duplicate_idempotency_key(
         self,
@@ -103,9 +99,7 @@ class AsyncRoomDAO:
             .having(
                 and_(
                     func.count() == n,
-                    func.count(
-                        func.nullif(RoomUser.uuid.in_(participant_uuids), False)
-                    )
+                    func.count(func.nullif(RoomUser.uuid.in_(participant_uuids), False))
                     == n,
                 )
             )
@@ -157,11 +151,13 @@ class AsyncRoomDAO:
                 .selectinload(Room.users)
             )
             .filter(
-                DeliveryRecord.status.in_([
-                    DeliveryStatus.PENDING.value,
-                    DeliveryStatus.SENDING.value,
-                    DeliveryStatus.RETRYING.value,
-                ])
+                DeliveryRecord.status.in_(
+                    [
+                        DeliveryStatus.PENDING.value,
+                        DeliveryStatus.SENDING.value,
+                        DeliveryStatus.RETRYING.value,
+                    ]
+                )
             )
         )
         result = await self.session.execute(stmt)

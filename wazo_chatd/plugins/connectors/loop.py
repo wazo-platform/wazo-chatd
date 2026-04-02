@@ -8,17 +8,21 @@ import itertools
 import logging
 import threading
 import time
-from types import TracebackType
 from collections.abc import Coroutine
+from types import TracebackType
 from typing import Any
 
 from wazo_chatd.bus import BusPublisher
-from wazo_chatd.connectors.executor import DeliveryExecutor
-from wazo_chatd.connectors.store import ConnectorStore
-from wazo_chatd.connectors.notifier import AsyncNotifier
-from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage, StatusUpdate
 from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
+from wazo_chatd.plugins.connectors.executor import DeliveryExecutor
+from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.store import ConnectorStore
+from wazo_chatd.plugins.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    StatusUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,15 +196,15 @@ class DeliveryLoop:
 
         for outbound, delay in recoverable:
             if delay > 0:
-                logger.info('Recovery: re-enqueuing %s with %.0fs delay', outbound, delay)
+                logger.info(
+                    'Recovery: re-enqueuing %s with %.0fs delay', outbound, delay
+                )
                 self._schedule_delayed(outbound, delay)
             else:
                 logger.info('Recovery: re-enqueuing %s immediately', outbound)
                 self._schedule_task(outbound)
 
-    def _schedule_delayed(
-        self, message: OutboundMessage, delay: float
-    ) -> None:
+    def _schedule_delayed(self, message: OutboundMessage, delay: float) -> None:
         assert self._loop is not None
         self._loop.call_later(delay, self._schedule_task, message)
 

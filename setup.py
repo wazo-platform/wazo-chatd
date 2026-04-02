@@ -21,14 +21,15 @@ setup(
         'wazo_chatd.plugins': [
             'api = wazo_chatd.plugins.api.plugin:Plugin',
             'config = wazo_chatd.plugins.config.plugin:Plugin',
+            'connectors = wazo_chatd.plugins.connectors.plugin:Plugin',
             'presences = wazo_chatd.plugins.presences.plugin:Plugin',
             'rooms = wazo_chatd.plugins.rooms.plugin:Plugin',
             'status = wazo_chatd.plugins.status.plugin:Plugin',
             'teams_presence = wazo_chatd.plugins.teams_presence.plugin:Plugin',
         ],
         'wazo_chatd.connectors': [
-            'internal = wazo_chatd.connectors.backends.internal:InternalConnector',
-            'twilio = wazo_chatd.connectors.backends.twilio:TwilioConnector',
+            'internal = wazo_chatd.plugins.connectors.backends.internal:InternalConnector',
+            'twilio = wazo_chatd.plugins.connectors.backends.twilio:TwilioConnector',
         ],
     },
 )

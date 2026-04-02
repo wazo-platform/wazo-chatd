@@ -10,23 +10,13 @@ Sync connector implementations are wrapped with ``asyncio.to_thread()``.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import uuid
 from typing import Any
 
-from wazo_chatd.connectors.connector import Connector
 from wazo_chatd.database.async_helpers import get_async_session
-from wazo_chatd.connectors.delivery import MAX_RETRIES, RETRY_DELAYS, DeliveryStatus
-from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.notifier import AsyncNotifier
-from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.store import ConnectorStore
-from wazo_chatd.connectors.types import (
-    InboundMessage,
-    OutboundMessage,
-    StatusUpdate,
-    RoomParticipant,
-)
+from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageMeta,
@@ -35,9 +25,22 @@ from wazo_chatd.database.models import (
 )
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
 from wazo_chatd.database.queries.async_.user_alias import AsyncUserAliasDAO
-
+from wazo_chatd.plugins.connectors.connector import Connector
+from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.store import ConnectorStore
+from wazo_chatd.plugins.connectors.types import (
+    InboundMessage,
+    OutboundMessage,
+    RoomParticipant,
+    StatusUpdate,
+)
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRIES: int = 3
+RETRY_DELAYS: list[int] = [30, 120, 300]
 
 
 class DeliveryExecutor:
@@ -95,9 +98,7 @@ class DeliveryExecutor:
 
         sender_alias = str(aliases[0].identity)
         backend_name = (
-            str(aliases[0].provider.backend)
-            if aliases[0].provider
-            else chosen_type
+            str(aliases[0].provider.backend) if aliases[0].provider else chosen_type
         )
 
         meta = await self._room_dao.get_message_meta(outbound.message_uuid)
@@ -125,7 +126,8 @@ class DeliveryExecutor:
         tenant_uuid = str(aliases[0].tenant_uuid) if aliases else ''
         user_uuids = [p.uuid for p in outbound.participants]
         await self.execute(
-            resolved, meta,
+            resolved,
+            meta,
             tenant_uuid=tenant_uuid,
             room_uuid=outbound.room_uuid,
             user_uuids=user_uuids,
@@ -240,9 +242,7 @@ class DeliveryExecutor:
             )
             return
 
-        meta = await self._room_dao.get_message_meta_by_external_id(
-            update.external_id
-        )
+        meta = await self._room_dao.get_message_meta_by_external_id(update.external_id)
         if not meta:
             logger.warning(
                 'No MessageMeta found for external_id %s, dropping status update',
@@ -251,18 +251,16 @@ class DeliveryExecutor:
             return
 
         record = DeliveryRecord(
-            message_uuid=meta.message_uuid,
             status=mapped_status.value,
             reason=update.error_code or None,
         )
-        self._room_dao.session.add(record)
-        await self._room_dao.session.flush()
+        await self._room_dao.add_delivery_record(meta, record)
 
         room = meta.message.room
         await self._notifier.delivery_status_updated(
             message_uuid=str(meta.message_uuid),
             status=mapped_status.value,
-            timestamp='',
+            timestamp=record.timestamp.isoformat(),
             backend=update.backend,
             tenant_uuid=str(room.tenant_uuid),
             room_uuid=str(room.uuid),
@@ -359,7 +357,7 @@ class DeliveryExecutor:
         connector = self._find_connector(backend)
         if connector is None:
             last_status = DeliveryStatus.DEAD_LETTER
-            await self._add_record(
+            last_record = await self._add_record(
                 delivery,
                 last_status,
                 reason=f'Backend {backend!r} not available',
@@ -371,7 +369,7 @@ class DeliveryExecutor:
                 external_id = await self._send(connector, outbound)
                 delivery.external_id = external_id  # type: ignore[assignment]
                 last_status = DeliveryStatus.SENT
-                await self._add_record(delivery, last_status)
+                last_record = await self._add_record(delivery, last_status)
 
             except ConnectorSendError as exc:
                 delivery.retry_count += 1  # type: ignore[assignment]
@@ -384,19 +382,19 @@ class DeliveryExecutor:
 
                 if delivery.retry_count >= MAX_RETRIES:  # type: ignore[operator]
                     last_status = DeliveryStatus.DEAD_LETTER
-                    await self._add_record(
+                    last_record = await self._add_record(
                         delivery,
                         last_status,
                         reason=f'Max retries ({MAX_RETRIES}) exceeded',
                     )
                 else:
                     last_status = DeliveryStatus.RETRYING
-                    await self._add_record(delivery, last_status)
+                    last_record = await self._add_record(delivery, last_status)
 
         await self._notifier.delivery_status_updated(
             message_uuid=str(delivery.message_uuid),
             status=last_status.value,
-            timestamp='',
+            timestamp=last_record.timestamp.isoformat(),
             backend=backend,
             tenant_uuid=tenant_uuid,
             room_uuid=room_uuid,
@@ -419,7 +417,7 @@ class DeliveryExecutor:
         outbound: OutboundMessage,
     ) -> str:
         """Call connector.send(), wrapping sync implementations."""
-        if asyncio.iscoroutinefunction(connector.send):
+        if inspect.iscoroutinefunction(connector.send):
             return await connector.send(outbound)  # type: ignore[misc]
         return await asyncio.to_thread(connector.send, outbound)
 
@@ -428,9 +426,10 @@ class DeliveryExecutor:
         delivery: MessageMeta,
         status: DeliveryStatus,
         reason: str | None = None,
-    ) -> None:
+    ) -> DeliveryRecord:
         record = DeliveryRecord(
             status=status.value,
             reason=reason,
         )
         await self._room_dao.add_delivery_record(delivery, record)
+        return record

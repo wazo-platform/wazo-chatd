@@ -17,9 +17,9 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
-from wazo_chatd.connectors.delivery import DeliveryStatus
-from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import (
+from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
     StatusUpdate,
@@ -52,7 +52,7 @@ TwilioRestClient = _get_twilio_client_class
 class TwilioConnector:
     """Twilio messaging connector.
 
-    Implements the :class:`~wazo_chatd.connectors.connector.Connector`
+    Implements the :class:`~wazo_chatd.plugins.connectors.connector.Connector`
     protocol for Twilio's REST API.
     """
 

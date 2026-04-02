@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from wazo_bus.resources.chatd.events import UserRoomMessageCreatedEvent
 from wazo_bus.resources.common.event import ServiceEvent
 
-from wazo_chatd.connectors.events import MessageDeliveryStatusEvent
-from wazo_chatd.database.models import MessageMeta, Room, RoomMessage
-from wazo_chatd.plugins.rooms.schemas import MessageSchema
+from wazo_chatd.database.models import Room, RoomMessage
+from wazo_chatd.plugins.connectors.events import MessageDeliveryStatusEvent
 
 if TYPE_CHECKING:
     from wazo_chatd.bus import BusPublisher
@@ -20,12 +19,36 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class _RoomRef(TypedDict):
+    uuid: str
+
+
+class MessageEventData(TypedDict):
+    uuid: str
+    content: str | None
+    alias: str | None
+    user_uuid: str
+    tenant_uuid: str
+    wazo_uuid: str
+    created_at: str
+    room: _RoomRef
+
+
 class AsyncNotifier:
     def __init__(self, bus_publisher: BusPublisher) -> None:
         self._bus = bus_publisher
 
     async def message_created(self, room: Room, message: RoomMessage) -> None:
-        message_data = MessageSchema().dump(message)
+        message_data: MessageEventData = {
+            'uuid': str(message.uuid),
+            'content': message.content,
+            'alias': message.alias,
+            'user_uuid': str(message.user_uuid),
+            'tenant_uuid': str(message.tenant_uuid),
+            'wazo_uuid': str(message.wazo_uuid),
+            'created_at': message.created_at.isoformat(),
+            'room': {'uuid': str(message.room.uuid)},
+        }
         for user in room.users:
             event = UserRoomMessageCreatedEvent(
                 message_data, room.uuid, room.tenant_uuid, user.uuid

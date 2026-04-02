@@ -8,8 +8,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from wazo_chatd.connectors.backends.internal import InternalConnector
-from wazo_chatd.connectors.types import OutboundMessage, WebhookData
+from wazo_chatd.plugins.connectors.backends.internal import InternalConnector
+from wazo_chatd.plugins.connectors.types import OutboundMessage, WebhookData
 
 
 class TestInternalConnector(unittest.TestCase):

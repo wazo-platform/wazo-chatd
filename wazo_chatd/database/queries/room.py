@@ -6,9 +6,8 @@ from sqlalchemy.dialects.postgresql import array_agg
 from sqlalchemy.orm import Query, aliased
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
 
+from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.helpers import get_query_main_entity
-
-from wazo_chatd.connectors.delivery import DeliveryStatus
 
 from ...exceptions import UnknownRoomException
 from ..models import DeliveryRecord, MessageMeta, Room, RoomMessage, RoomUser
@@ -76,17 +75,17 @@ class RoomDAO:
     def add_message(self, room, message):
         room.messages.append(message)
         self.session.flush()
+        return message
 
     def add_message_meta(self, meta, initial_record):
         self.session.add(meta)
         self.session.add(initial_record)
         self.session.flush()
+        return meta
 
     def create_pending_delivery(self, message: RoomMessage) -> MessageMeta:
         meta = MessageMeta(message=message)
-        meta.records.append(
-            DeliveryRecord(status=DeliveryStatus.PENDING.value)
-        )
+        meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
         self.session.add(meta)
         self.session.flush()
         return meta

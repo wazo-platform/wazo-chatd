@@ -7,7 +7,7 @@ import logging
 
 from stevedore import ExtensionManager
 
-from wazo_chatd.connectors.connector import Connector
+from wazo_chatd.plugins.connectors.connector import Connector
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,9 @@ class ConnectorRegistry:
         )
         for extension in manager:
             if not connectors_config.get(extension.name, {}).get('enabled', False):
-                logger.debug('Connector backend %r is disabled, skipping', extension.name)
+                logger.debug(
+                    'Connector backend %r is disabled, skipping', extension.name
+                )
                 continue
             self.register_backend(extension.plugin)
 

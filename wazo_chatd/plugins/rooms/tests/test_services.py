@@ -15,12 +15,12 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
     def setUp(self) -> None:
         self.dao = Mock()
         self.notifier = Mock()
-        self.connector_router = Mock()
+        self.pubsub = Mock()
         self.service = RoomService(
             WAZO_UUID,
             self.dao,
             self.notifier,
-            self.connector_router,
+            self.pubsub,
         )
         self.room = Mock()
         self.message = Mock(wazo_uuid=None)
@@ -33,22 +33,15 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
         assert result is self.message
         assert self.message.wazo_uuid == WAZO_UUID
 
-    def test_create_message_routes_through_connector(self) -> None:
+    def test_create_message_publishes_to_pubsub(self) -> None:
         self.service.create_message(self.room, self.message)
 
-        self.connector_router.send.assert_called_once_with(self.room, self.message)
+        self.pubsub.publish.assert_called_once_with(
+            'room_message_created', (self.room, self.message)
+        )
 
-    def test_create_message_without_connector_router(self) -> None:
-        service = RoomService(WAZO_UUID, self.dao, self.notifier)
-
-        result = service.create_message(self.room, self.message)
-
-        self.dao.room.add_message.assert_called_once()
-        self.notifier.message_created.assert_called_once()
-        assert result is self.message
-
-    def test_create_message_notifies_even_when_routing(self) -> None:
+    def test_create_message_notifies_even_when_publishing(self) -> None:
         self.service.create_message(self.room, self.message)
 
-        self.connector_router.send.assert_called_once()
+        self.pubsub.publish.assert_called_once()
         self.notifier.message_created.assert_called_once_with(self.room, self.message)

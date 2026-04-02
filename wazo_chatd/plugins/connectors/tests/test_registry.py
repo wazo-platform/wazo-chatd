@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from wazo_chatd.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 
 class _FakeConnectorA:
@@ -71,12 +71,14 @@ class TestConnectorRegistry(unittest.TestCase):
         mock_manager.__iter__.return_value = iter([mock_ext_a, mock_ext_b])
 
         with unittest.mock.patch(
-            'wazo_chatd.connectors.registry.ExtensionManager',
+            'wazo_chatd.plugins.connectors.registry.ExtensionManager',
             return_value=mock_manager,
         ):
-            self.registry.discover(connectors_config={
-                'fake_a': {'enabled': True},
-                'fake_b': {'enabled': True},
-            })
+            self.registry.discover(
+                connectors_config={
+                    'fake_a': {'enabled': True},
+                    'fake_b': {'enabled': True},
+                }
+            )
 
         assert sorted(self.registry.available_backends()) == ['fake_a', 'fake_b']

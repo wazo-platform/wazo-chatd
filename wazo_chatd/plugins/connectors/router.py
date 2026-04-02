@@ -5,30 +5,30 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from flask_restful import Api
 
-from functools import partial
-
-from wazo_chatd.connectors.connector import Connector
+from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.http_hooks import register_post_commit_callback
-from wazo_chatd.connectors.exceptions import ConnectorParseError
-from wazo_chatd.connectors.http import ConnectorReloadResource, ConnectorWebhookResource
-from wazo_chatd.connectors.loop import DeliveryLoop
-from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.store import ConnectorStore
-from wazo_chatd.connectors.types import (
+from wazo_chatd.plugins.connectors.connector import Connector
+from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.http import (
+    ConnectorReloadResource,
+    ConnectorWebhookResource,
+)
+from wazo_chatd.plugins.connectors.loop import DeliveryLoop
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.store import ConnectorStore
+from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
     RoomParticipant,
     WebhookData,
 )
-from wazo_chatd.database.helpers import session_scope
 
 if TYPE_CHECKING:
-    from types import TracebackType
-
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser
 
 from wazo_chatd.database.queries import DAO
@@ -53,9 +53,7 @@ class ConnectorRouter:
     ) -> None:
         self._registry = registry
         self._dao = dao
-        self._connectors_config: dict[str, Any] = dict(
-            config.get('connectors', {})
-        )
+        self._connectors_config: dict[str, Any] = dict(config.get('connectors', {}))
         self._store = ConnectorStore()
         self._delivery_loop = DeliveryLoop(config, registry, self._store)
 
@@ -72,17 +70,15 @@ class ConnectorRouter:
             resource_class_args=[self],
         )
 
-    def __enter__(self) -> ConnectorRouter:
+    def start(self) -> None:
         self._delivery_loop.start()
-        return self
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
+    def stop(self) -> None:
         self._delivery_loop.shutdown()
+
+    def on_room_message_created(self, event: tuple[Room, RoomMessage]) -> None:
+        room, message = event
+        self.send(room, message)
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
         loop = self._delivery_loop
@@ -241,7 +237,9 @@ class ConnectorRouter:
             raise ConnectorParseError('No connector instances registered')
 
         if backend:
-            hint_match = [i for i in instances if getattr(i, 'backend', None) == backend]
+            hint_match = [
+                i for i in instances if getattr(i, 'backend', None) == backend
+            ]
             rest = [i for i in instances if i not in hint_match]
             ordered = hint_match + rest
         else:

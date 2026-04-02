@@ -9,10 +9,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from wazo_chatd.connectors.exceptions import ConnectorParseError
-from wazo_chatd.connectors.registry import ConnectorRegistry
-from wazo_chatd.connectors.router import ConnectorRouter
-from wazo_chatd.connectors.types import InboundMessage, WebhookData
+from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.router import ConnectorRouter
+from wazo_chatd.plugins.connectors.types import InboundMessage, WebhookData
 
 
 class _SmsConnector:
@@ -64,10 +64,8 @@ def _build_registry() -> ConnectorRegistry:
 class TestConnectorRouterListCapabilities(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(
-                config={}, registry=self.registry, dao=Mock()
-            )
+        with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
 
     def test_all_internal_users(self) -> None:
         room = _make_room(
@@ -133,15 +131,11 @@ class TestConnectorRouterListCapabilities(unittest.TestCase):
 class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
-        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(
-                config={}, registry=self.registry, dao=Mock()
-            )
+        with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
         self.manager = self.router._delivery_loop
 
-    def _make_connector(
-        self, backend: str = 'twilio', can_handle: bool = True
-    ) -> Mock:
+    def _make_connector(self, backend: str = 'twilio', can_handle: bool = True) -> Mock:
         connector = Mock()
         connector.backend = backend
         connector.can_handle.return_value = can_handle
@@ -159,7 +153,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         connector.on_event.return_value = inbound
         self.router.add_instance('twilio-sms', connector)
 
-        self.router.dispatch_webhook(WebhookData(body={'From': '+15559876'}), backend='twilio')
+        self.router.dispatch_webhook(
+            WebhookData(body={'From': '+15559876'}), backend='twilio'
+        )
 
         connector.can_handle.assert_called_once()
         connector.on_event.assert_called_once()
@@ -229,7 +225,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         vonage.on_event.return_value = inbound
         self.router.add_instance('vonage-sms', vonage)
 
-        self.router.dispatch_webhook(WebhookData(body={'data': 'test'}), backend='twilio')
+        self.router.dispatch_webhook(
+            WebhookData(body={'data': 'test'}), backend='twilio'
+        )
 
         self.manager.enqueue_message.assert_called_once_with(inbound)
 
@@ -258,10 +256,8 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 class TestConnectorRouterSend(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
-        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(
-                config={}, registry=self.registry, dao=Mock()
-            )
+        with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
         self.manager = self.router._delivery_loop
 
     def test_send_internal_room_is_noop(self) -> None:
@@ -279,7 +275,7 @@ class TestConnectorRouterSend(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     @unittest.mock.patch(
-        'wazo_chatd.connectors.router.register_post_commit_callback',
+        'wazo_chatd.plugins.connectors.router.register_post_commit_callback',
         side_effect=lambda cb: cb(),
     )
     def test_send_external_room_enqueues_with_participants(self, _) -> None:
@@ -306,12 +302,28 @@ class TestConnectorRouterSend(unittest.TestCase):
         assert external[0].identity == '+15559876'
 
 
+class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = _build_registry()
+        with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
+        self.router.send = Mock()  # type: ignore[assignment]
+
+    def test_unpacks_event_and_calls_send(self) -> None:
+        room = _make_room()
+        message = Mock()
+
+        self.router.on_room_message_created((room, message))
+
+        self.router.send.assert_called_once_with(room, message)
+
+
 class TestConnectorRouterLoadProviders(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
         self.registry.register_backend(_SmsConnector)
         self.dao = Mock()
-        with unittest.mock.patch('wazo_chatd.connectors.router.DeliveryLoop'):
+        with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
             self.router = ConnectorRouter(
                 config={'connectors': {'twilio': {'mode': 'webhook'}}},
                 registry=self.registry,
@@ -368,9 +380,7 @@ class TestConnectorRouterLoadProviders(unittest.TestCase):
         assert len(self.router._store) == 0
 
     def test_passes_connector_config_to_configure(self) -> None:
-        provider = self._make_provider(
-            configuration={'api_key': 'secret'}
-        )
+        provider = self._make_provider(configuration={'api_key': 'secret'})
         self.dao.provider.list_.return_value = [provider]
 
         self.router.load_providers()

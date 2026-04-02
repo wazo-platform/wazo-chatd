@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import unittest
 
-from wazo_chatd.connectors.events import MessageDeliveryStatusEvent
+from wazo_chatd.plugins.connectors.events import MessageDeliveryStatusEvent
 
 
 class TestMessageDeliveryStatusEvent(unittest.TestCase):

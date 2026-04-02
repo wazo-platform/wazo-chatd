@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from wazo_chatd.connectors.connector import Connector
+from wazo_chatd.plugins.connectors.connector import Connector
 
 
 class ConnectorStore:

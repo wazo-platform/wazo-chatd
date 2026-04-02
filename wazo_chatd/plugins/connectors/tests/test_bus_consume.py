@@ -6,7 +6,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock
 
-from wazo_chatd.connectors.bus_consume import ConnectorBusEventHandler
+from wazo_chatd.plugins.connectors.bus_consume import ConnectorBusEventHandler
 
 
 class TestConnectorBusEventHandler(unittest.TestCase):

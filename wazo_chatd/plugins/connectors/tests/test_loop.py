@@ -9,8 +9,8 @@ import unittest
 import unittest.mock
 from unittest.mock import AsyncMock, Mock
 
-from wazo_chatd.connectors.loop import DeliveryLoop
-from wazo_chatd.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.plugins.connectors.loop import DeliveryLoop
+from wazo_chatd.plugins.connectors.types import InboundMessage, OutboundMessage
 
 
 def _make_config() -> dict[str, str | bool]:
@@ -42,8 +42,8 @@ def _make_inbound() -> InboundMessage:
 
 
 class TestDeliveryLoopLifecycle(unittest.TestCase):
-    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
-    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
     def test_start_creates_loop_thread(
         self, mock_bus: Mock, mock_init_db: Mock
     ) -> None:
@@ -61,11 +61,9 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         finally:
             loop.shutdown()
 
-    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
-    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
-    def test_shutdown_stops_loop(
-        self, mock_bus: Mock, mock_init_db: Mock
-    ) -> None:
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
+    def test_shutdown_stops_loop(self, mock_bus: Mock, mock_init_db: Mock) -> None:
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
@@ -75,11 +73,9 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
 
         assert not loop._thread.is_alive()
 
-    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
-    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
-    def test_context_manager(
-        self, mock_bus: Mock, mock_init_db: Mock
-    ) -> None:
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
+    def test_context_manager(self, mock_bus: Mock, mock_init_db: Mock) -> None:
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
@@ -90,11 +86,9 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
 
 
 class TestDeliveryLoopStatus(unittest.TestCase):
-    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
-    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
-    def test_is_running_when_started(
-        self, mock_bus: Mock, mock_init_db: Mock
-    ) -> None:
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
+    def test_is_running_when_started(self, mock_bus: Mock, mock_init_db: Mock) -> None:
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
 
@@ -113,8 +107,8 @@ class TestDeliveryLoopStatus(unittest.TestCase):
 
 
 class TestDeliveryLoopEnqueue(unittest.TestCase):
-    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
-    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
     def test_enqueue_outbound_creates_task(
         self, mock_bus: Mock, mock_init_db: Mock
     ) -> None:
@@ -127,8 +121,8 @@ class TestDeliveryLoopEnqueue(unittest.TestCase):
 
             assert loop._executor is not None
 
-    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
-    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
     def test_enqueue_inbound_creates_task(
         self, mock_bus: Mock, mock_init_db: Mock
     ) -> None:
@@ -143,8 +137,8 @@ class TestDeliveryLoopEnqueue(unittest.TestCase):
 
 
 class TestDeliveryLoopRestart(unittest.TestCase):
-    @unittest.mock.patch('wazo_chatd.connectors.loop.init_async_db')
-    @unittest.mock.patch('wazo_chatd.connectors.loop.BusPublisher')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
     def _make_loop(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryLoop:
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
@@ -156,7 +150,7 @@ class TestDeliveryLoopRestart(unittest.TestCase):
     def test_restart_increments_count(self) -> None:
         loop = self._make_loop()
         with unittest.mock.patch.object(loop, '_run_loop'):
-            with unittest.mock.patch('wazo_chatd.connectors.loop.time.sleep'):
+            with unittest.mock.patch('wazo_chatd.plugins.connectors.loop.time.sleep'):
                 loop._restart()
                 assert loop.restart_count == 1
                 loop._restart()
@@ -167,7 +161,7 @@ class TestDeliveryLoopRestart(unittest.TestCase):
         delays: list[int] = []
         with unittest.mock.patch.object(loop, '_run_loop'):
             with unittest.mock.patch(
-                'wazo_chatd.connectors.loop.time.sleep',
+                'wazo_chatd.plugins.connectors.loop.time.sleep',
                 side_effect=lambda d: delays.append(d),
             ):
                 for _ in range(4):
@@ -179,7 +173,7 @@ class TestDeliveryLoopRestart(unittest.TestCase):
         delays: list[int] = []
         with unittest.mock.patch.object(loop, '_run_loop'):
             with unittest.mock.patch(
-                'wazo_chatd.connectors.loop.time.sleep',
+                'wazo_chatd.plugins.connectors.loop.time.sleep',
                 side_effect=lambda d: delays.append(d),
             ):
                 loop._restart()

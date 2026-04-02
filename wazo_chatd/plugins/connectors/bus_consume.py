@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from wazo_chatd.bus import BusConsumer
-    from wazo_chatd.connectors.router import ConnectorRouter
+    from wazo_chatd.plugins.connectors.router import ConnectorRouter
 
 logger = logging.getLogger(__name__)
 

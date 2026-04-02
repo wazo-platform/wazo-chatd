@@ -17,11 +17,10 @@ class Plugin:
         config = dependencies['config']
         dao = dependencies['dao']
         bus_publisher = dependencies['bus_publisher']
-
-        connector_router = dependencies.get('connector_router')
+        pubsub = dependencies['pubsub']
 
         notifier = RoomNotifier(bus_publisher)
-        service = RoomService(config['uuid'], dao, notifier, connector_router)
+        service = RoomService(config['uuid'], dao, notifier, pubsub)
 
         api.add_resource(
             UserRoomListResource, '/users/me/rooms', resource_class_args=[service]
@@ -41,4 +40,3 @@ class Plugin:
             '/users/me/aliases',
             resource_class_args=[dao],
         )
-
