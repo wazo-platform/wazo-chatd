@@ -21,12 +21,13 @@ class Hooks:
     def has_subscribers(self, name: str) -> bool:
         return bool(self._subscribers[name])
 
-    def dispatch(self, name: str, payload: Any, *, propagate_errors: bool = False) -> None:
+    def dispatch(self, name: str, payload: Any, *, allow_raise: bool = False) -> None:
         for callback in self._subscribers[name]:
-            if propagate_errors:
+            if allow_raise:
+                callback(payload)  # exits on first exception
+                continue
+
+            try:
                 callback(payload)
-            else:
-                try:
-                    callback(payload)
-                except Exception:
-                    logger.exception('Hook subscriber %s failed', callback)
+            except Exception:
+                logger.exception('Hook subscriber %s failed', callback)

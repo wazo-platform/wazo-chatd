@@ -243,7 +243,7 @@ class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
         message = Mock()
         ctx = MessageContext(room, message, sender_alias_uuid=None)
 
-        self.router.on_room_message_created(ctx)
+        self.router.on_message_created(ctx)
 
         self.router.send.assert_called_once_with(ctx)
 

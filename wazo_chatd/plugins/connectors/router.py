@@ -97,7 +97,7 @@ class ConnectorRouter:
                 context.sender_alias_uuid,
             )
 
-    def on_room_message_created(self, context: MessageContext) -> None:
+    def on_message_created(self, context: MessageContext) -> None:
         self.send(context)
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:

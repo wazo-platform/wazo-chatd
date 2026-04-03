@@ -24,7 +24,7 @@ class RoomService:
 
     def create(self, room):
         self._set_default_room_values(room)
-        self._hooks.dispatch('room_creating', room, propagate_errors=True)
+        self._hooks.dispatch('before_room_creation', room, allow_raise=True)
         self._dao.room.create(room)
         self._notifier.created(room)
         return room
@@ -37,7 +37,7 @@ class RoomService:
                 user.wazo_uuid = self._wazo_uuid
 
     def has_delivery_pipeline(self) -> bool:
-        return self._hooks.has_subscribers('room_message_creating')
+        return self._hooks.has_subscribers('before_message_creation')
 
     def list_(self, tenant_uuids, **filter_parameters):
         return self._dao.room.list_(tenant_uuids, **filter_parameters)
@@ -56,9 +56,9 @@ class RoomService:
     ) -> object:
         self._set_default_message_values(message)
         context = MessageContext(room, message, sender_alias_uuid=sender_alias_uuid)
-        self._hooks.dispatch('room_message_creating', context, propagate_errors=True)
+        self._hooks.dispatch('before_message_creation', context, allow_raise=True)
         self._dao.room.add_message(room, message)
-        self._hooks.dispatch('room_message_created', context)
+        self._hooks.dispatch('after_message_creation', context)
         self._notifier.message_created(room, message)
         return message
 

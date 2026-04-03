@@ -32,18 +32,18 @@ class TestRoomServiceCreate(unittest.TestCase):
             users=[Mock(tenant_uuid=None, wazo_uuid=None)],
         )
 
-    def test_create_dispatches_room_creating_before_persist(self) -> None:
+    def test_create_dispatches_before_room_creation_before_persist(self) -> None:
         call_order: list[str] = []
-        self.hooks.register('room_creating', lambda _: call_order.append('creating'))
+        self.hooks.register('before_room_creation', lambda _: call_order.append('creating'))
         self.dao.room.create.side_effect = lambda *a: call_order.append('persist')
 
         self.service.create(self.room)
 
         assert call_order == ['creating', 'persist']
 
-    def test_create_room_creating_hook_rejects(self) -> None:
+    def test_create_before_room_creation_hook_rejects(self) -> None:
         self.hooks.register(
-            'room_creating', Mock(side_effect=ValueError('rejected'))
+            'before_room_creation', Mock(side_effect=ValueError('rejected'))
         )
 
         with pytest.raises(ValueError, match='rejected'):
@@ -78,7 +78,7 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
 
     def test_create_message_dispatches_context_to_created_hook(self) -> None:
         callback = Mock()
-        self.hooks.register('room_message_created', callback)
+        self.hooks.register('after_message_creation', callback)
 
         self.service.create_message(
             self.room, self.message, sender_alias_uuid=self.sender_alias_uuid
@@ -91,7 +91,7 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
         assert ctx.sender_alias_uuid == self.sender_alias_uuid
 
     def test_create_message_notifies_even_when_created_hook_fails(self) -> None:
-        self.hooks.register('room_message_created', Mock(side_effect=RuntimeError))
+        self.hooks.register('after_message_creation', Mock(side_effect=RuntimeError))
 
         self.service.create_message(self.room, self.message)
 
@@ -100,7 +100,7 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
     def test_create_message_dispatches_creating_hook_before_persist(self) -> None:
         call_order: list[str] = []
         self.hooks.register(
-            'room_message_creating', lambda _: call_order.append('creating')
+            'before_message_creation', lambda _: call_order.append('creating')
         )
         self.dao.room.add_message.side_effect = lambda *a: call_order.append('persist')
 
@@ -110,7 +110,7 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
 
     def test_create_message_creating_hook_rejects(self) -> None:
         self.hooks.register(
-            'room_message_creating', Mock(side_effect=ValueError('rejected'))
+            'before_message_creation', Mock(side_effect=ValueError('rejected'))
         )
 
         with pytest.raises(ValueError, match='rejected'):
@@ -121,7 +121,7 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
 
     def test_create_message_without_sender_alias_uuid(self) -> None:
         callback = Mock()
-        self.hooks.register('room_message_created', callback)
+        self.hooks.register('after_message_creation', callback)
 
         self.service.create_message(self.room, self.message)
 

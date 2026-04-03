@@ -65,15 +65,15 @@ class TestHooksDispatch(unittest.TestCase):
 
         surviving.assert_called_once_with('payload')
 
-    def test_dispatch_propagate_errors(self) -> None:
+    def test_dispatch_allow_raise(self) -> None:
         failing = Mock(side_effect=RuntimeError('boom'))
 
         self.hooks.register('some_event', failing)
 
         with pytest.raises(RuntimeError, match='boom'):
-            self.hooks.dispatch('some_event', 'payload', propagate_errors=True)
+            self.hooks.dispatch('some_event', 'payload', allow_raise=True)
 
-    def test_dispatch_propagate_errors_stops_on_first_failure(self) -> None:
+    def test_dispatch_allow_raise_stops_on_first_failure(self) -> None:
         failing = Mock(side_effect=RuntimeError('boom'))
         second = Mock()
 
@@ -81,7 +81,7 @@ class TestHooksDispatch(unittest.TestCase):
         self.hooks.register('some_event', second)
 
         with pytest.raises(RuntimeError, match='boom'):
-            self.hooks.dispatch('some_event', 'payload', propagate_errors=True)
+            self.hooks.dispatch('some_event', 'payload', allow_raise=True)
 
         second.assert_not_called()
 
