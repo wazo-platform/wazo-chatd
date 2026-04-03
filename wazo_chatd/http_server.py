@@ -12,7 +12,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from xivo import http_helpers, wsgi
 
 from .database.helpers import Session
-from .http_hooks import run_post_commit_callbacks
 
 VERSION = 1.0
 
@@ -24,7 +23,6 @@ api = Api(app, prefix=f'/{VERSION}')
 def teardown_appcontext(exception):
     if exception is None:
         commit_database()
-        run_post_commit_callbacks()
     else:
         rollback_database()
 
