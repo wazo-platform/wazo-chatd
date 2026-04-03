@@ -16,6 +16,7 @@ from wazo_chatd.database.models import (
     Room,
     RoomMessage,
     RoomUser,
+    UserAlias,
 )
 
 if TYPE_CHECKING:
@@ -33,7 +34,9 @@ class AsyncRoomDAO:
             .options(
                 joinedload(MessageMeta.message)
                 .joinedload(RoomMessage.room)
-                .joinedload(Room.users)
+                .joinedload(Room.users),
+                joinedload(MessageMeta.sender_alias)
+                .joinedload(UserAlias.provider),
             )
             .filter(MessageMeta.message_uuid == message_uuid)
         )

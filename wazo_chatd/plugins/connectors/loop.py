@@ -24,12 +24,7 @@ from wazo_chatd.plugins.connectors.executor import DeliveryExecutor
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
-from wazo_chatd.plugins.connectors.types import (
-    InboundMessage,
-    OutboundMessage,
-    RoomParticipant,
-    StatusUpdate,
-)
+from wazo_chatd.plugins.connectors.types import InboundMessage, StatusUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +127,7 @@ class DeliveryLoop:
 
     def enqueue_message(
         self,
-        message: OutboundMessage | InboundMessage | StatusUpdate,
+        message: InboundMessage | StatusUpdate,
         delay: float | None = None,
     ) -> None:
         if delay:
@@ -236,6 +231,9 @@ class DeliveryLoop:
     ) -> None:
         message_uuid = payload
         logger.debug('Received delivery notification for message %s', message_uuid)
+        self._schedule_outbound_notification(message_uuid)
+
+    def _schedule_outbound_notification(self, message_uuid: str) -> None:
         assert self._loop is not None
         task = self._loop.create_task(
             self._process_outbound_notification(message_uuid)
@@ -255,31 +253,14 @@ class DeliveryLoop:
                         )
                         return
 
-                    message = meta.message
-                    if not message or not message.room:
-                        logger.error(
-                            'Notified message %s has no message or room', message_uuid
+                    if not meta.message or not meta.message.room:
+                        logger.warning(
+                            'Message %s or its room was deleted before delivery',
+                            message_uuid,
                         )
                         return
 
-                    room = message.room
-                    participants = tuple(
-                        RoomParticipant(
-                            uuid=str(u.uuid),
-                            identity=str(u.identity) if u.identity else None,
-                        )
-                        for u in room.users
-                    )
-
-                    outbound = OutboundMessage(
-                        room_uuid=str(room.uuid),
-                        message_uuid=str(meta.message_uuid),
-                        sender_uuid=str(message.user_uuid),
-                        body=str(message.content or ''),
-                        participants=participants,
-                        metadata={'idempotency_key': str(meta.message_uuid)},
-                    )
-                    await self._executor.route_outbound(outbound)
+                    await self._executor.route_outbound(meta)
             except Exception:
                 logger.exception(
                     'Failed to process delivery notification for %s', message_uuid
@@ -293,28 +274,29 @@ class DeliveryLoop:
             logger.exception('Recovery scan failed, continuing without recovery')
             return
 
-        for outbound, delay in recoverable:
+        assert self._loop is not None
+        for meta, delay in recoverable:
+            message_uuid = str(meta.message_uuid)
+
             if delay > 0:
                 logger.info(
-                    'Recovery: re-enqueuing %s with %.0fs delay', outbound, delay
+                    'Recovery: re-enqueuing %s with %.0fs delay',
+                    message_uuid,
+                    delay,
                 )
-                self._schedule_delayed(outbound, delay)
+                self._loop.call_later(
+                    delay, self._schedule_outbound_notification, message_uuid
+                )
             else:
-                logger.info('Recovery: re-enqueuing %s immediately', outbound)
-                self._schedule_task(outbound)
-
-    def _schedule_delayed(self, message: OutboundMessage, delay: float) -> None:
-        assert self._loop is not None
-        self._loop.call_later(delay, self._schedule_task, message)
+                logger.info('Recovery: re-enqueuing %s immediately', message_uuid)
+                self._schedule_outbound_notification(message_uuid)
 
     def _schedule_task(
-        self, message: OutboundMessage | InboundMessage | StatusUpdate
+        self, message: InboundMessage | StatusUpdate
     ) -> None:
         assert self._loop is not None
 
         match message:
-            case OutboundMessage():
-                coro = self._executor.route_outbound(message)
             case InboundMessage():
                 coro = self._executor.route_inbound(message)
             case StatusUpdate():
@@ -334,7 +316,7 @@ class DeliveryLoop:
     async def _process(
         self,
         coro: Coroutine[Any, Any, None],
-        message: OutboundMessage | InboundMessage | StatusUpdate,
+        message: InboundMessage | StatusUpdate,
     ) -> None:
         async with self.semaphore:
             logger.debug('Processing %s', message)

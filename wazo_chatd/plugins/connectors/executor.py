@@ -33,7 +33,6 @@ from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
-    RoomParticipant,
     StatusUpdate,
 )
 
@@ -66,70 +65,62 @@ class DeliveryExecutor:
         self._room_dao = AsyncRoomDAO()
         self._user_alias_dao = AsyncUserAliasDAO()
 
-    async def route_outbound(
-        self,
-        outbound: OutboundMessage,
-    ) -> None:
-        external = [p for p in outbound.participants if p.identity]
-        if not external:
+    async def route_outbound(self, meta: MessageMeta) -> None:
+        sender_alias = meta.sender_alias
+        assert sender_alias and sender_alias.provider
+
+        message = meta.message
+        room = message.room
+        sender_identity = str(sender_alias.identity)
+        alias_type = str(sender_alias.provider.type_)
+        backend_name = str(sender_alias.provider.backend)
+
+        recipients = [u for u in room.users if u.uuid != message.user_uuid]
+        if not recipients:
             return
 
-        capabilities = self._resolve_capabilities(external)
-        if not capabilities:
-            logger.warning(
-                'No common connector type for message %s',
-                outbound.message_uuid,
+        recipient = recipients[0]
+        if recipient.identity:
+            recipient_identity = str(recipient.identity)
+        else:
+            recipient_aliases = await self._user_alias_dao.list_by_user_and_types(
+                str(recipient.uuid), [alias_type]
             )
-            return
+            if not recipient_aliases:
+                logger.warning(
+                    'No %s alias for recipient %s, skipping',
+                    alias_type,
+                    recipient.uuid,
+                )
+                return
+            recipient_identity = str(recipient_aliases[0].identity)
 
-        chosen_type = next(iter(capabilities))
-        recipient_identity = str(external[0].identity)
-
-        aliases = await self._user_alias_dao.list_by_user_and_types(
-            outbound.sender_uuid, [chosen_type]
-        )
-        if not aliases:
-            logger.warning(
-                'No alias found for user %s with type %s, skipping',
-                outbound.sender_uuid,
-                chosen_type,
-            )
-            return
-
-        sender_alias = str(aliases[0].identity)
-        backend_name = (
-            str(aliases[0].provider.backend) if aliases[0].provider else chosen_type
-        )
-
-        meta = await self._room_dao.get_message_meta(outbound.message_uuid)
-        if not meta:
-            logger.error(
-                'No MessageMeta found for message %s, skipping',
-                outbound.message_uuid,
-            )
-            return
-
-        meta.type_ = chosen_type  # type: ignore[assignment]
-        meta.backend = backend_name  # type: ignore[assignment]
-        meta.extra = {**(meta.extra or {}), 'outbound_idempotency_key': outbound.message_uuid}  # type: ignore[assignment]
+        meta.type_ = alias_type
+        meta.backend = backend_name
+        meta.extra = {
+            **(meta.extra or {}),
+            'outbound_idempotency_key': str(meta.message_uuid),
+        }
         await get_async_session().flush()
 
-        resolved = OutboundMessage(
-            room_uuid=outbound.room_uuid,
-            message_uuid=outbound.message_uuid,
-            sender_uuid=outbound.sender_uuid,
-            body=outbound.body,
-            sender_alias=sender_alias,
+        outbound = OutboundMessage(
+            room_uuid=str(room.uuid),
+            message_uuid=str(meta.message_uuid),
+            sender_uuid=str(message.user_uuid),
+            body=str(message.content or ''),
+            sender_alias=sender_identity,
             recipient_alias=recipient_identity,
-            metadata=outbound.metadata,
+            metadata={'idempotency_key': str(meta.message_uuid)},
         )
-        tenant_uuid = str(aliases[0].tenant_uuid) if aliases else ''
-        user_uuids = [p.uuid for p in outbound.participants]
+
+        tenant_uuid = str(sender_alias.tenant_uuid)
+        user_uuids = [str(u.uuid) for u in room.users]
+
         await self.execute(
-            resolved,
+            outbound,
             meta,
             tenant_uuid=tenant_uuid,
-            room_uuid=outbound.room_uuid,
+            room_uuid=str(room.uuid),
             user_uuids=user_uuids,
         )
 
@@ -283,36 +274,19 @@ class DeliveryExecutor:
 
     async def recover_pending_deliveries(
         self,
-    ) -> list[tuple[OutboundMessage, float]]:
+    ) -> list[tuple[MessageMeta, float]]:
         metas = await self._room_dao.get_recoverable_messages()
         if not metas:
             return []
 
-        recoverable: list[tuple[OutboundMessage, float]] = []
+        recoverable: list[tuple[MessageMeta, float]] = []
         for meta, status in metas:
-            message = meta.message
-            if not message:
+            if not meta.message or not meta.message.room:
                 logger.warning(
-                    'Recovery: meta %s has no message, skipping',
+                    'Recovery: meta %s has no message or room, skipping',
                     meta.message_uuid,
                 )
                 continue
-
-            room = message.room
-            if not room:
-                logger.warning(
-                    'Recovery: meta %s has no room, skipping',
-                    meta.message_uuid,
-                )
-                continue
-
-            participants = tuple(
-                RoomParticipant(
-                    uuid=str(u.uuid),
-                    identity=str(u.identity) if u.identity else None,
-                )
-                for u in room.users
-            )
 
             if status == DeliveryStatus.RETRYING.value:
                 retry_idx = min(int(meta.retry_count or 0), len(RETRY_DELAYS) - 1)
@@ -320,36 +294,10 @@ class DeliveryExecutor:
             else:
                 delay = 0.0
 
-            idempotency_key = (meta.extra or {}).get(
-                'outbound_idempotency_key', str(meta.message_uuid)
-            )
-
-            outbound = OutboundMessage(
-                room_uuid=str(room.uuid),
-                message_uuid=str(meta.message_uuid),
-                sender_uuid=str(message.user_uuid),
-                body=str(message.content or ''),
-                participants=participants,
-                metadata={'idempotency_key': idempotency_key},
-            )
-            recoverable.append((outbound, delay))
+            recoverable.append((meta, delay))
 
         logger.info('Recovery: %d message(s) to re-enqueue', len(recoverable))
         return recoverable
-
-    def _resolve_capabilities(
-        self,
-        external_participants: list[RoomParticipant],
-    ) -> set[str]:
-        reachable_types: set[str] = set()
-        for participant in external_participants:
-            identity = str(participant.identity)
-            user_types = self._registry.resolve_reachable_types(identity)
-            if not reachable_types:
-                reachable_types = user_types
-            else:
-                reachable_types &= user_types
-        return reachable_types
 
     async def execute(
         self,

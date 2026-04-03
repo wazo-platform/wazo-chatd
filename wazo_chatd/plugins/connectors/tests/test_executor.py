@@ -15,7 +15,6 @@ from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
-    RoomParticipant,
     StatusUpdate,
 )
 
@@ -123,20 +122,6 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.notifier.delivery_status_updated.assert_awaited_once()
 
 
-def _make_outbound_with_participants(
-    external_identity: str = '+15559876',
-) -> OutboundMessage:
-    return OutboundMessage(
-        room_uuid='room-uuid',
-        message_uuid='msg-uuid',
-        sender_uuid='user-uuid',
-        body='hello',
-        participants=(
-            RoomParticipant(uuid='user-a', identity=None),
-            RoomParticipant(uuid='ext-uuid', identity=external_identity),
-        ),
-        metadata={'idempotency_key': 'msg-uuid'},
-    )
 
 
 class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
@@ -162,44 +147,33 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         _current_session.reset(self.token)
 
-    async def test_route_outbound_resolves_alias_and_enqueues(self) -> None:
-        alias = Mock()
-        alias.identity = '+15551234'
-        alias.tenant_uuid = 'tenant-uuid'
-        alias.provider = Mock(backend='twilio')
+    async def test_route_outbound_resolves_alias_and_sends(self) -> None:
+        sender_alias = Mock(
+            identity='+15551234',
+            tenant_uuid='tenant-uuid',
+            provider=Mock(type_='sms', backend='twilio'),
+        )
+        recipient_user = Mock(uuid='recipient-uuid', identity=None)
+        sender_user = Mock(uuid='sender-uuid', identity=None)
+        room = Mock(uuid='room-uuid', users=[sender_user, recipient_user])
+        message = Mock(uuid='msg-uuid', user_uuid='sender-uuid', content='hello')
 
         meta = Mock()
         meta.message_uuid = 'msg-uuid'
+        meta.sender_alias = sender_alias
+        meta.message = message
+        meta.message.room = room
         meta.extra = {}
 
-        outbound = _make_outbound_with_participants()
-
+        recipient_alias = Mock(identity='+15559876')
         self.executor._user_alias_dao.list_by_user_and_types = AsyncMock(
-            return_value=[alias]
+            return_value=[recipient_alias]
         )
-        self.executor._room_dao.get_message_meta = AsyncMock(return_value=meta)
 
-        await self.executor.route_outbound(outbound)
+        await self.executor.route_outbound(meta)
 
-        self.executor._room_dao.get_message_meta.assert_awaited_once()
         assert meta.type_ == 'sms'
         assert meta.backend == 'twilio'
-
-    async def test_route_outbound_internal_only_is_noop(self) -> None:
-        outbound = OutboundMessage(
-            room_uuid='room-uuid',
-            message_uuid='msg-uuid',
-            sender_uuid='user-uuid',
-            body='hello',
-            participants=(
-                RoomParticipant(uuid='user-a', identity=None),
-                RoomParticipant(uuid='user-b', identity=None),
-            ),
-        )
-
-        await self.executor.route_outbound(outbound)
-
-        self.session.add.assert_not_called()
 
 
 def _make_inbound(
@@ -518,8 +492,8 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         _, delay = result[0]
         assert delay == 120.0
 
-    async def test_sending_recovered_with_idempotency_key(self) -> None:
-        meta = self._make_meta(extra={'outbound_idempotency_key': 'idem-123'})
+    async def test_sending_recovered(self) -> None:
+        meta = self._make_meta()
         self.executor._room_dao.get_recoverable_messages = AsyncMock(
             return_value=[(meta, 'sending')]
         )
@@ -527,8 +501,9 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         result = await self.executor.recover_pending_deliveries()
 
         assert len(result) == 1
-        outbound, _ = result[0]
-        assert outbound.metadata['idempotency_key'] == 'idem-123'
+        recovered_meta, delay = result[0]
+        assert recovered_meta is meta
+        assert delay == 0.0
 
     async def test_skips_meta_with_no_message(self) -> None:
         meta = self._make_meta()
