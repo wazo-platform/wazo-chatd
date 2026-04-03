@@ -13,6 +13,8 @@ from types import TracebackType
 from typing import Any
 
 import asyncpg
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 
 from wazo_chatd.bus import BusPublisher
 from wazo_chatd.database.async_helpers import (
@@ -261,6 +263,11 @@ class DeliveryLoop:
                         return
 
                     await self._executor.route_outbound(meta)
+            except (StaleDataError, IntegrityError):
+                logger.warning(
+                    'Message %s was deleted during delivery, skipping',
+                    message_uuid,
+                )
             except Exception:
                 logger.exception(
                     'Failed to process delivery notification for %s', message_uuid
