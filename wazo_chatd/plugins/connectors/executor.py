@@ -20,6 +20,7 @@ from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageMeta,
+    Room,
     RoomMessage,
     RoomUser,
 )
@@ -66,34 +67,21 @@ class DeliveryExecutor:
         self._user_alias_dao = AsyncUserAliasDAO()
 
     async def route_outbound(self, meta: MessageMeta) -> None:
-        sender_alias = meta.sender_alias
-        assert sender_alias and sender_alias.provider
+        assert (sender_alias := meta.sender_alias) and sender_alias.provider
 
+        session = get_async_session()
         message = meta.message
         room = message.room
+
         sender_identity = str(sender_alias.identity)
         alias_type = str(sender_alias.provider.type_)
         backend_name = str(sender_alias.provider.backend)
 
-        recipients = [u for u in room.users if u.uuid != message.user_uuid]
-        if not recipients:
+        recipient_identity = await self._resolve_recipient_identity(
+            room, message, alias_type
+        )
+        if not recipient_identity:
             return
-
-        recipient = recipients[0]
-        if recipient.identity:
-            recipient_identity = str(recipient.identity)
-        else:
-            recipient_aliases = await self._user_alias_dao.list_by_user_and_types(
-                str(recipient.uuid), [alias_type]
-            )
-            if not recipient_aliases:
-                logger.warning(
-                    'No %s alias for recipient %s, skipping',
-                    alias_type,
-                    recipient.uuid,
-                )
-                return
-            recipient_identity = str(recipient_aliases[0].identity)
 
         meta.type_ = alias_type
         meta.backend = backend_name
@@ -101,7 +89,7 @@ class DeliveryExecutor:
             **(meta.extra or {}),
             'outbound_idempotency_key': str(meta.message_uuid),
         }
-        await get_async_session().flush()
+        await session.flush()
 
         outbound = OutboundMessage(
             room_uuid=str(room.uuid),
@@ -113,16 +101,41 @@ class DeliveryExecutor:
             metadata={'idempotency_key': str(meta.message_uuid)},
         )
 
-        tenant_uuid = str(sender_alias.tenant_uuid)
-        user_uuids = [str(u.uuid) for u in room.users]
-
         await self.execute(
             outbound,
             meta,
-            tenant_uuid=tenant_uuid,
+            tenant_uuid=str(sender_alias.tenant_uuid),
             room_uuid=str(room.uuid),
-            user_uuids=user_uuids,
+            user_uuids=[str(u.uuid) for u in room.users],
         )
+
+    async def _resolve_recipient_identity(
+        self,
+        room: Room,
+        message: RoomMessage,
+        alias_type: str,
+    ) -> str | None:
+        recipients = [u for u in room.users if u.uuid != message.user_uuid]
+        if not recipients:
+            return None
+
+        recipient = recipients[0]
+
+        if recipient.identity:
+            return str(recipient.identity)
+
+        aliases = await self._user_alias_dao.list_by_user_and_types(
+            str(recipient.uuid), [alias_type]
+        )
+        if not aliases:
+            logger.warning(
+                'No %s alias for recipient %s, skipping',
+                alias_type,
+                recipient.uuid,
+            )
+            return None
+
+        return str(aliases[0].identity)
 
     async def route_inbound(
         self,
@@ -178,9 +191,7 @@ class DeliveryExecutor:
             )
         else:
             sender_participant = RoomUser(
-                uuid=uuid.uuid5(
-                    uuid.NAMESPACE_URL, f'{tenant_uuid}:{sender_identity}'
-                ),
+                uuid=uuid.uuid5(uuid.NAMESPACE_URL, f'{tenant_uuid}:{sender_identity}'),
                 tenant_uuid=tenant_uuid,
                 wazo_uuid=wazo_uuid,
                 identity=sender_identity,
