@@ -160,13 +160,12 @@ class ConnectorRouter:
         no-op.  Uses PostgreSQL NOTIFY to signal the async loop after
         the transaction commits, guaranteeing data visibility.
         """
-        room, message = context.room, context.message
-        has_external = any(u.identity for u in room.users)
-        if not has_external:
+        if not context.sender_alias_uuid:
             return
 
-        assert context.sender_alias_uuid is not None
-        self._service.create_outbound_delivery(message, context.sender_alias_uuid)
+        self._service.create_outbound_delivery(
+            context.message, context.sender_alias_uuid
+        )
 
     def dispatch_webhook(
         self,

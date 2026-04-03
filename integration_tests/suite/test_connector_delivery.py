@@ -522,17 +522,33 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
             {'uuid': str(USER_UUID_1)},
         ],
     )
-    def test_inbound_sms_reply_lands_in_existing_internal_room(
+    def test_full_multichannel_flow(
         self, user_a, user_b, provider, alias_a, alias_b, room
     ):
         self.reload_connectors()
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-outbound-001'
+        )
+
         room_uuid = room['uuid']
+        port = self.asset_cls.service_port(9304, 'chatd')
 
         self.chatd.rooms.create_message_from_user(
             room_uuid, {'content': 'Internal hello'}
         )
 
-        port = self.asset_cls.service_port(9304, 'chatd')
+        outbound = self.chatd.rooms.create_message_from_user(
+            room_uuid,
+            {'content': 'Sending by SMS', 'sender_alias_uuid': str(alias_a.uuid)},
+        )
+
+        def mock_received_outbound():
+            sent = self.connector_mock.get_sent_messages()
+            assert any(m['body'] == 'Sending by SMS' for m in sent)
+
+        until.assert_(mock_received_outbound, timeout=5)
+
         response = requests.post(
             f'http://127.0.0.1:{port}/1.0/connectors/incoming',
             json={
@@ -545,7 +561,7 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         )
         assert response.status_code == 204
 
-        def sms_reply_in_same_room():
+        def all_messages_in_same_room():
             messages = (
                 self._session.query(RoomMessage)
                 .filter(RoomMessage.room_uuid == room_uuid)
@@ -553,9 +569,10 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
             )
             contents = [m.content for m in messages]
             assert 'Internal hello' in contents
+            assert 'Sending by SMS' in contents
             assert 'SMS reply from user B' in contents
 
-        until.assert_(sms_reply_in_same_room, timeout=5)
+        until.assert_(all_messages_in_same_room, timeout=5)
 
 
 @use_asset('connectors')
