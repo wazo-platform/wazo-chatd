@@ -5,15 +5,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from flask_restful import Api
+from sqlalchemy import text
 
 from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.http_hooks import register_post_commit_callback
-from wazo_chatd.plugins.connectors.connector import Connector
+from wazo_chatd.database.queries import DAO
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
+from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageAliasRequiredError,
@@ -26,17 +26,10 @@ from wazo_chatd.plugins.connectors.http import (
 from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
-from wazo_chatd.plugins.connectors.types import (
-    InboundMessage,
-    OutboundMessage,
-    RoomParticipant,
-    WebhookData,
-)
+from wazo_chatd.plugins.connectors.types import WebhookData
 
 if TYPE_CHECKING:
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser
-
-from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
 
@@ -163,49 +156,24 @@ class ConnectorRouter:
         self._store.register(name, connector)
 
     def send(self, context: MessageContext) -> None:
-        """Extract participant data and enqueue an outbound message.
+        """Create delivery metadata and notify the async delivery loop.
 
         For internal-only rooms (no external participants), this is a
-        no-op.  All heavy processing (alias lookup, delivery tracking)
-        happens in the worker process.
+        no-op.  Uses PostgreSQL NOTIFY to signal the async loop after
+        the transaction commits, guaranteeing data visibility.
         """
         room, message = context.room, context.message
-        participants = self._extract_participants(room.users)
-        logger.debug(
-            'send: room=%s participants=%s',
-            room.uuid,
-            [(p.uuid, p.identity) for p in participants],
-        )
-        if not any(p.identity for p in participants):
+        has_external = any(u.identity for u in room.users)
+        if not has_external:
             return
 
         assert context.sender_alias_uuid is not None
         meta = self._dao.room.create_pending_delivery(message)
         meta.sender_alias_uuid = context.sender_alias_uuid
 
-        outbound = OutboundMessage(
-            room_uuid=str(room.uuid),
-            message_uuid=str(message.uuid),
-            sender_uuid=str(message.user_uuid),
-            body=str(message.content),
-            participants=participants,
-            metadata={'idempotency_key': str(message.uuid)},
-        )
-
-        register_post_commit_callback(
-            partial(self._delivery_loop.enqueue_message, outbound)
-        )
-
-    @staticmethod
-    def _extract_participants(
-        users: list[RoomUser],
-    ) -> tuple[RoomParticipant, ...]:
-        return tuple(
-            RoomParticipant(
-                uuid=str(u.uuid),
-                identity=str(u.identity) if u.identity else None,
-            )
-            for u in users
+        self._dao.room.session.execute(
+            text("SELECT pg_notify('connector_delivery', :payload)"),
+            {'payload': str(message.uuid)},
         )
 
     def dispatch_webhook(

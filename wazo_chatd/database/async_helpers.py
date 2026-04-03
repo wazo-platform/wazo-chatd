@@ -25,7 +25,7 @@ def make_async_uri(sync_uri: str) -> str:
     return sync_uri.replace('postgresql://', 'postgresql+asyncpg://', 1)
 
 
-def _parse_ssl_from_uri(uri: str) -> bool:
+def parse_ssl_from_uri(uri: str) -> bool:
     """Extract sslmode from a PostgreSQL URI.
 
     Returns True if SSL is requested, False otherwise (default).
@@ -48,7 +48,7 @@ def init_async_db(
     db_uri: str,
     pool_size: int = 5,
 ) -> tuple[AsyncEngine, sessionmaker]:
-    ssl = _parse_ssl_from_uri(db_uri)
+    ssl = parse_ssl_from_uri(db_uri)
     async_uri = make_async_uri(_strip_sslmode_from_uri(db_uri))
     engine = create_async_engine(
         async_uri,

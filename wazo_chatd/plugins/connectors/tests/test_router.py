@@ -197,7 +197,6 @@ class TestConnectorRouterSend(unittest.TestCase):
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
             self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
-        self.manager = self.router._delivery_loop
 
     def test_send_internal_room_is_noop(self) -> None:
         room = _make_room(
@@ -206,42 +205,30 @@ class TestConnectorRouterSend(unittest.TestCase):
                 _make_room_user('user-b'),
             ]
         )
-        room.uuid = 'room-uuid'
-        message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hi')
+        message = Mock(uuid='msg-uuid')
         context = MessageContext(room, message)
 
         self.router.send(context)
 
-        self.manager.enqueue_message.assert_not_called()
+        self.router._dao.room.create_pending_delivery.assert_not_called()
 
-    @unittest.mock.patch(
-        'wazo_chatd.plugins.connectors.router.register_post_commit_callback',
-        side_effect=lambda cb: cb(),
-    )
-    def test_send_external_room_enqueues_with_participants(self, _) -> None:
+    def test_send_external_room_creates_meta_and_notifies(self) -> None:
         room = _make_room(
             [
                 _make_room_user('user-a'),
                 _make_room_user('ext-uuid', identity='+15559876'),
             ]
         )
-        room.uuid = 'room-uuid'
-        message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hello')
+        message = Mock(uuid='msg-uuid')
         alias_uuid = uuid.uuid4()
         context = MessageContext(room, message, sender_alias_uuid=alias_uuid)
 
         self.router.send(context)
 
-        self.manager.enqueue_message.assert_called_once()
-        outbound = self.manager.enqueue_message.call_args[0][0]
-        assert outbound.room_uuid == 'room-uuid'
-        assert outbound.message_uuid == 'msg-uuid'
-        assert outbound.sender_uuid == 'user-a'
-        assert outbound.body == 'hello'
-        assert len(outbound.participants) == 2
-        external = [p for p in outbound.participants if p.identity]
-        assert len(external) == 1
-        assert external[0].identity == '+15559876'
+        self.router._dao.room.create_pending_delivery.assert_called_once_with(message)
+        meta = self.router._dao.room.create_pending_delivery.return_value
+        assert meta.sender_alias_uuid == alias_uuid
+        self.router._dao.room.session.execute.assert_called_once()
 
 
 class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):

@@ -12,8 +12,14 @@ from collections.abc import Coroutine
 from types import TracebackType
 from typing import Any
 
+import asyncpg
+
 from wazo_chatd.bus import BusPublisher
-from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
+from wazo_chatd.database.async_helpers import (
+    async_session_scope,
+    init_async_db,
+    parse_ssl_from_uri,
+)
 from wazo_chatd.plugins.connectors.executor import DeliveryExecutor
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -21,6 +27,7 @@ from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
+    RoomParticipant,
     StatusUpdate,
 )
 
@@ -43,7 +50,8 @@ class DeliveryLoop:
         self._store = store
         self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
 
-        engine, session_factory = init_async_db(str(config.get('db_uri', '')))
+        self._db_uri = str(config.get('db_uri', ''))
+        engine, session_factory = init_async_db(self._db_uri)
         self._engine = engine
         self._session_factory = session_factory
 
@@ -59,12 +67,18 @@ class DeliveryLoop:
         )
 
         self._backoff = _backoff()
-        self._healthy: bool = False  # cross-thread, atomic under GIL
+        self._healthy: bool = False
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._shutdown: asyncio.Future[None] | None = None
         self._thread: threading.Thread | None = None
         self._in_flight: set[asyncio.Task[None]] = set()
         self._semaphore: asyncio.Semaphore | None = None
         self._restart_count: int = 0
+
+    def _init_loop(self) -> None:
+        self._loop = asyncio.new_event_loop()
+        self._semaphore = asyncio.Semaphore(self._max_tasks)
+        self._shutdown = self._loop.create_future()
 
     def __enter__(self) -> DeliveryLoop:
         self.start()
@@ -92,8 +106,7 @@ class DeliveryLoop:
 
     def start(self) -> None:
         logger.info('Starting delivery loop')
-        self._loop = asyncio.new_event_loop()
-        self._semaphore = asyncio.Semaphore(self._max_tasks)
+        self._init_loop()
 
         self._thread = threading.Thread(
             target=self._run_loop,
@@ -150,6 +163,7 @@ class DeliveryLoop:
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(self._recover())
+            loop.create_task(self._listen_for_deliveries())
             loop.run_forever()
         except Exception:
             logger.exception('Delivery loop crashed, restarting')
@@ -182,9 +196,75 @@ class DeliveryLoop:
         )
         time.sleep(delay)
 
-        self._loop = asyncio.new_event_loop()
-        self._semaphore = asyncio.Semaphore(self._max_tasks)
+        self._init_loop()
         self._run_loop()
+
+    async def _listen_for_deliveries(self) -> None:
+        ssl = parse_ssl_from_uri(self._db_uri)
+        conn = await asyncpg.connect(self._db_uri, ssl=ssl)
+        await conn.add_listener('connector_delivery', self._on_delivery_notify)
+        logger.info('Listening for connector_delivery notifications')
+        try:
+            assert self._shutdown is not None
+            await self._shutdown
+        finally:
+            await conn.remove_listener('connector_delivery', self._on_delivery_notify)
+            await conn.close()
+            logger.info('Stopped listening for connector_delivery notifications')
+
+    def _on_delivery_notify(
+        self,
+        connection: asyncpg.Connection,
+        pid: int,
+        channel: str,
+        payload: str,
+    ) -> None:
+        message_uuid = payload
+        logger.debug('Received delivery notification for message %s', message_uuid)
+        assert self._loop is not None
+        self._loop.create_task(self._process_outbound_notification(message_uuid))
+
+    async def _process_outbound_notification(self, message_uuid: str) -> None:
+        async with self.semaphore:
+            try:
+                async with async_session_scope(self._session_factory):
+                    meta = await self._executor._room_dao.get_message_meta(message_uuid)
+                    if not meta:
+                        logger.error(
+                            'No MessageMeta found for notified message %s',
+                            message_uuid,
+                        )
+                        return
+
+                    message = meta.message
+                    if not message or not message.room:
+                        logger.error(
+                            'Notified message %s has no message or room', message_uuid
+                        )
+                        return
+
+                    room = message.room
+                    participants = tuple(
+                        RoomParticipant(
+                            uuid=str(u.uuid),
+                            identity=str(u.identity) if u.identity else None,
+                        )
+                        for u in room.users
+                    )
+
+                    outbound = OutboundMessage(
+                        room_uuid=str(room.uuid),
+                        message_uuid=str(meta.message_uuid),
+                        sender_uuid=str(message.user_uuid),
+                        body=str(message.content or ''),
+                        participants=participants,
+                        metadata={'idempotency_key': str(meta.message_uuid)},
+                    )
+                    await self._executor.route_outbound(outbound)
+            except Exception:
+                logger.exception(
+                    'Failed to process delivery notification for %s', message_uuid
+                )
 
     async def _recover(self) -> None:
         try:
@@ -246,6 +326,9 @@ class DeliveryLoop:
                 logger.exception('Failed to process %s', message)
 
     async def _drain_and_stop(self) -> None:
+        if self._shutdown and not self._shutdown.done():
+            self._shutdown.set_result(None)
+
         if self._in_flight:
             logger.info(
                 'Waiting for %d in-flight task(s) to complete',

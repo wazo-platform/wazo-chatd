@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.delivery import DeliveryStatus
@@ -28,9 +28,17 @@ class AsyncRoomDAO:
         return get_async_session()
 
     async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
-        stmt = select(MessageMeta).filter(MessageMeta.message_uuid == message_uuid)
+        stmt = (
+            select(MessageMeta)
+            .options(
+                joinedload(MessageMeta.message)
+                .joinedload(RoomMessage.room)
+                .joinedload(Room.users)
+            )
+            .filter(MessageMeta.message_uuid == message_uuid)
+        )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def get_message_meta_by_external_id(
         self, external_id: str
