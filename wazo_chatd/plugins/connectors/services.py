@@ -5,12 +5,17 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from wazo_chatd.exceptions import UnknownRoomException
+from wazo_chatd.plugins.connectors.exceptions import (
+    InvalidAliasError,
+    UnreachableParticipantError,
+)
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 if TYPE_CHECKING:
-    from wazo_chatd.database.models import RoomUser, UserAlias
+    from wazo_chatd.database.models import Room, RoomUser, UserAlias
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
@@ -50,6 +55,37 @@ class ConnectorService:
         return self._dao.user_alias.list_by_user_and_types(
             user_uuid, sorted(reachable_types)
         )
+
+    def validate_alias_reachability(
+        self,
+        room: Room,
+        sender_uuid: str,
+        sender_alias_uuid: UUID,
+    ) -> None:
+        alias = self._dao.user_alias.get(str(sender_alias_uuid))
+        if not alias:
+            raise InvalidAliasError(str(sender_alias_uuid))
+
+        alias_type = str(alias.provider.type_)
+        others = [u for u in room.users if str(u.uuid) != sender_uuid]
+
+        internal = [u for u in others if not u.identity]
+        external = [u for u in others if u.identity]
+
+        if internal:
+            reachable = self._dao.user_alias.users_reachable_by_type(
+                [str(u.uuid) for u in internal], alias_type
+            )
+            for user in internal:
+                if str(user.uuid) not in reachable:
+                    raise UnreachableParticipantError(str(user.uuid))
+
+        for user in external:
+            reachable_types = self._registry.resolve_reachable_types(
+                str(user.identity)
+            )
+            if alias_type not in reachable_types:
+                raise UnreachableParticipantError(str(user.identity))
 
     def _resolve_participant_types(self, participant: RoomUser) -> set[str]:
         identity = participant.identity

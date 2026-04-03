@@ -28,7 +28,9 @@ class Plugin:
         registry = ConnectorRegistry()
         registry.discover(connectors_config=config.get('connectors', {}))
 
-        router = ConnectorRouter(config, registry, dao)
+        service = ConnectorService(dao, registry)
+
+        router = ConnectorRouter(config, registry, dao, service)
         router.register_http_endpoints(api)
 
         hooks.register('room_creating', router.validate_room_creation)
@@ -37,8 +39,6 @@ class Plugin:
 
         bus_handler = ConnectorBusEventHandler(bus_consumer, router)
         bus_handler.subscribe()
-
-        service = ConnectorService(dao, registry)
         api.add_resource(
             RoomAliasListResource,
             '/users/me/rooms/<uuid:room_uuid>/aliases',

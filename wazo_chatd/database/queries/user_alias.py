@@ -16,6 +16,14 @@ class UserAliasDAO:
     def session(self):  # type: ignore[no-untyped-def]
         return self._session()
 
+    def get(self, alias_uuid: str) -> UserAlias | None:
+        return (
+            self.session.query(UserAlias)
+            .options(joinedload(UserAlias.provider))
+            .filter(UserAlias.uuid == alias_uuid)
+            .first()
+        )
+
     def list_by_user_and_types(
         self,
         user_uuid: str,
@@ -43,6 +51,23 @@ class UserAliasDAO:
                 .all()
             )
         ]
+
+    def users_reachable_by_type(
+        self,
+        user_uuids: list[str],
+        type_: str,
+    ) -> set[str]:
+        rows = (
+            self.session.query(UserAlias.user_uuid)
+            .join(ChatProvider)
+            .filter(
+                UserAlias.user_uuid.in_(user_uuids),
+                ChatProvider.type_ == type_,
+            )
+            .distinct()
+            .all()
+        )
+        return {str(row[0]) for row in rows}
 
     def is_identity_bound(self, identity: str) -> bool:
         return (

@@ -4,9 +4,16 @@
 from __future__ import annotations
 
 import unittest
+import uuid
 from typing import ClassVar
 from unittest.mock import Mock
 
+import pytest
+
+from wazo_chatd.plugins.connectors.exceptions import (
+    InvalidAliasError,
+    UnreachableParticipantError,
+)
 from wazo_chatd.plugins.connectors.services import ConnectorService
 
 
@@ -182,3 +189,86 @@ class TestListRoomAliases(unittest.TestCase):
 
         with self.assertRaises(UnknownRoomException):
             service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+
+
+def _make_alias(type_: str = 'sms') -> Mock:
+    alias = Mock()
+    alias.provider = Mock(type_=type_)
+    return alias
+
+
+class TestValidateAliasReachability(unittest.TestCase):
+    def test_both_internal_users_share_type_passes(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        recipient = _make_room_user(uuid='recipient-uuid')
+        room = _make_room(users=[sender, recipient])
+
+        alias = _make_alias('sms')
+        service = _build_service(room=room)
+        service._dao.user_alias.get.return_value = alias
+        service._dao.user_alias.users_reachable_by_type.return_value = {
+            'recipient-uuid'
+        }
+
+        service.validate_alias_reachability(
+            room, SENDER_UUID, uuid.uuid4()
+        )
+
+    def test_recipient_missing_type_raises(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        recipient = _make_room_user(uuid='recipient-uuid')
+        room = _make_room(users=[sender, recipient])
+
+        alias = _make_alias('sms')
+        service = _build_service(room=room)
+        service._dao.user_alias.get.return_value = alias
+        service._dao.user_alias.users_reachable_by_type.return_value = set()
+
+        with pytest.raises(UnreachableParticipantError):
+            service.validate_alias_reachability(
+                room, SENDER_UUID, uuid.uuid4()
+            )
+
+    def test_recipient_has_no_types_raises(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        recipient = _make_room_user(uuid='recipient-uuid')
+        room = _make_room(users=[sender, recipient])
+
+        alias = _make_alias('sms')
+        service = _build_service(room=room)
+        service._dao.user_alias.get.return_value = alias
+        service._dao.user_alias.users_reachable_by_type.return_value = set()
+
+        with pytest.raises(UnreachableParticipantError):
+            service.validate_alias_reachability(
+                room, SENDER_UUID, uuid.uuid4()
+            )
+
+    def test_external_participant_reachable_passes(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = _make_room(users=[sender, external])
+
+        alias = _make_alias('sms')
+        service = _build_service(
+            room=room,
+            identity_bound={'+15559876': False},
+        )
+        service._dao.user_alias.get.return_value = alias
+
+        service.validate_alias_reachability(
+            room, SENDER_UUID, uuid.uuid4()
+        )
+
+    def test_invalid_alias_uuid_raises(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        recipient = _make_room_user(uuid='recipient-uuid')
+        room = _make_room(users=[sender, recipient])
+
+        service = _build_service(room=room)
+        service._dao.user_alias.get.return_value = None
+
+        with pytest.raises(InvalidAliasError):
+            service.validate_alias_reachability(
+                room, SENDER_UUID, uuid.uuid4()
+            )

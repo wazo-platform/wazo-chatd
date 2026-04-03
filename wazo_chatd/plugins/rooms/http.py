@@ -122,7 +122,8 @@ class UserRoomMessageListResource(AuthResource):
         message = self._service.create_message(
             room, message, sender_alias_uuid=sender_alias_uuid
         )
-        return MessageSchema().dump(message), 201
+        status_code = 202 if sender_alias_uuid else 201
+        return MessageSchema().dump(message), status_code
 
     @required_acl('chatd.users.me.rooms.{room_uuid}.messages.read')
     def get(self, room_uuid):

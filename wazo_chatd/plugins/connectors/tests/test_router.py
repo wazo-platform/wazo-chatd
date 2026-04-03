@@ -71,7 +71,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock(), service=Mock())
         self.manager = self.router._delivery_loop
 
     def _make_connector(self, backend: str = 'twilio', can_handle: bool = True) -> Mock:
@@ -196,7 +196,7 @@ class TestConnectorRouterSend(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock(), service=Mock())
 
     def test_send_internal_room_is_noop(self) -> None:
         room = _make_room(
@@ -235,7 +235,7 @@ class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
+            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock(), service=Mock())
         self.router.send = Mock()  # type: ignore[assignment]
 
     def test_unpacks_context_and_calls_send(self) -> None:
@@ -251,8 +251,11 @@ class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
 class TestConnectorRouterValidateOutbound(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
+        self.service = Mock()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
+            self.router = ConnectorRouter(
+                config={}, registry=self.registry, dao=Mock(), service=self.service
+            )
 
     def test_internal_room_without_sender_alias_uuid_passes(self) -> None:
         room = _make_room(
@@ -262,16 +265,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
 
         self.router.validate_outbound(ctx)
 
-    def test_external_room_with_sender_alias_uuid_passes(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='+15559876'),
-            ]
-        )
-        ctx = MessageContext(room, Mock(), sender_alias_uuid=uuid.uuid4())
-
-        self.router.validate_outbound(ctx)
+        self.service.validate_alias_reachability.assert_not_called()
 
     def test_external_room_without_sender_alias_uuid_raises_409(self) -> None:
         room = _make_room(
@@ -285,13 +279,27 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         with pytest.raises(MessageAliasRequiredError):
             self.router.validate_outbound(ctx)
 
+    def test_sender_alias_uuid_delegates_to_service(self) -> None:
+        room = _make_room(
+            [_make_room_user('user-a'), _make_room_user('user-b')]
+        )
+        alias_uuid = uuid.uuid4()
+        message = Mock(user_uuid='user-a')
+        ctx = MessageContext(room, message, sender_alias_uuid=alias_uuid)
+
+        self.router.validate_outbound(ctx)
+
+        self.service.validate_alias_reachability.assert_called_once_with(
+            room, 'user-a', alias_uuid
+        )
+
 
 class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
             self.router = ConnectorRouter(
-                config={}, registry=self.registry, dao=Mock()
+                config={}, registry=self.registry, dao=Mock(), service=Mock()
             )
 
     def test_internal_only_room_passes(self) -> None:
@@ -345,6 +353,7 @@ class TestConnectorRouterLoadProviders(unittest.TestCase):
                 config={'connectors': {'twilio': {'mode': 'webhook'}}},
                 registry=self.registry,
                 dao=self.dao,
+                service=Mock(),
             )
 
     def _make_provider(

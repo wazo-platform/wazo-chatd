@@ -36,6 +36,17 @@ class MessageAliasRequiredError(APIException):
         )
 
 
+class InvalidAliasError(APIException):
+    def __init__(self, alias_uuid: str) -> None:
+        super().__init__(
+            400,
+            f'No alias found with UUID {alias_uuid!r}',
+            'invalid-alias',
+            {'alias_uuid': alias_uuid},
+            'messages',
+        )
+
+
 class UnreachableParticipantError(APIException):
     def __init__(self, identity: str) -> None:
         super().__init__(

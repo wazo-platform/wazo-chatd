@@ -25,6 +25,7 @@ from wazo_chatd.plugins.connectors.http import (
 )
 from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import WebhookData
 
@@ -48,9 +49,11 @@ class ConnectorRouter:
         config: dict[str, str | bool],
         registry: ConnectorRegistry,
         dao: DAO,
+        service: ConnectorService,
     ) -> None:
         self._registry = registry
         self._dao = dao
+        self._service = service
         self._connectors_config: dict[str, Any] = dict(config.get('connectors', {}))
         self._store = ConnectorStore()
         self._delivery_loop = DeliveryLoop(config, registry, self._store)
@@ -86,6 +89,13 @@ class ConnectorRouter:
         has_external = any(u.identity for u in context.room.users)
         if has_external and not context.sender_alias_uuid:
             raise MessageAliasRequiredError()
+
+        if context.sender_alias_uuid:
+            self._service.validate_alias_reachability(
+                context.room,
+                str(context.message.user_uuid),
+                context.sender_alias_uuid,
+            )
 
     def on_room_message_created(self, context: MessageContext) -> None:
         self.send(context)

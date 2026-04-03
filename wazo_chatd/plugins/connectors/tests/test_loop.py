@@ -61,11 +61,16 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         finally:
             loop.shutdown()
 
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.asyncpg')
     @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
     @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
-    def test_shutdown_stops_loop(self, mock_bus: Mock, mock_init_db: Mock) -> None:
+    def test_shutdown_stops_loop(
+        self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
+    ) -> None:
         mock_init_db.return_value = (AsyncMock(), Mock(return_value=AsyncMock()))
         mock_bus.from_config.return_value = Mock()
+        mock_conn = AsyncMock()
+        mock_asyncpg.connect = AsyncMock(return_value=mock_conn)
 
         loop = DeliveryLoop(_make_config(), Mock(), {})
         loop.start()
