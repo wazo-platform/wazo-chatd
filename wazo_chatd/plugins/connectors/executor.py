@@ -149,22 +149,6 @@ class DeliveryExecutor:
                 )
                 return
 
-        recipient_alias = await self._user_alias_dao.find_by_identity_and_backend(
-            inbound.recipient, inbound.backend
-        )
-        if not recipient_alias:
-            logger.warning(
-                'No user alias found for recipient %s (backend=%s), dropping',
-                inbound.recipient,
-                inbound.backend,
-            )
-            return
-
-        tenant_uuid = str(recipient_alias.tenant_uuid)
-        user = recipient_alias.user
-        user_uuid = str(user.uuid)
-        wazo_uuid = self._wazo_uuid
-
         sender_identity = inbound.sender
         if connector := self._store.find_by_backend(inbound.backend):
             try:
@@ -172,21 +156,44 @@ class DeliveryExecutor:
             except (ValueError, TypeError):
                 pass
 
-        sender_uuid = str(
-            uuid.uuid5(uuid.NAMESPACE_URL, f'{tenant_uuid}:{sender_identity}')
+        resolved = await self._user_alias_dao.resolve_users_by_identities(
+            [inbound.recipient, sender_identity]
         )
 
-        sender_participant = RoomUser(
-            uuid=sender_uuid,
-            tenant_uuid=tenant_uuid,
-            wazo_uuid=wazo_uuid,
-            identity=inbound.sender,
-        )
+        recipient_user = resolved.get(inbound.recipient)
+        if not recipient_user:
+            logger.warning(
+                'No wazo user found for recipient %s (backend=%s), dropping',
+                inbound.recipient,
+                inbound.backend,
+            )
+            return
+
+        tenant_uuid = str(recipient_user.tenant_uuid)
+        wazo_uuid = self._wazo_uuid
+
         recipient_participant = RoomUser(
-            uuid=user_uuid,
+            uuid=recipient_user.uuid,
             tenant_uuid=tenant_uuid,
             wazo_uuid=wazo_uuid,
         )
+
+        sender_user = resolved.get(sender_identity)
+        if sender_user:
+            sender_participant = RoomUser(
+                uuid=sender_user.uuid,
+                tenant_uuid=tenant_uuid,
+                wazo_uuid=wazo_uuid,
+            )
+        else:
+            sender_participant = RoomUser(
+                uuid=uuid.uuid5(
+                    uuid.NAMESPACE_URL, f'{tenant_uuid}:{sender_identity}'
+                ),
+                tenant_uuid=tenant_uuid,
+                wazo_uuid=wazo_uuid,
+                identity=sender_identity,
+            )
         room = await self._room_dao.find_or_create_room(
             tenant_uuid=tenant_uuid,
             participants=[sender_participant, recipient_participant],
@@ -195,7 +202,7 @@ class DeliveryExecutor:
         message = RoomMessage(
             room_uuid=room.uuid,
             content=inbound.body,
-            user_uuid=user_uuid,
+            user_uuid=sender_participant.uuid,
             tenant_uuid=tenant_uuid,
             wazo_uuid=wazo_uuid,
         )
