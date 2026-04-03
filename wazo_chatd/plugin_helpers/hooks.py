@@ -18,6 +18,9 @@ class Hooks:
     def register(self, name: str, callback: Callable[..., None]) -> None:
         self._subscribers[name].append(callback)
 
+    def has_subscribers(self, name: str) -> bool:
+        return bool(self._subscribers[name])
+
     def dispatch(self, name: str, payload: Any, *, propagate_errors: bool = False) -> None:
         for callback in self._subscribers[name]:
             if propagate_errors:

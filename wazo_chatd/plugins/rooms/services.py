@@ -36,6 +36,9 @@ class RoomService:
             if user.wazo_uuid is None:
                 user.wazo_uuid = self._wazo_uuid
 
+    def has_delivery_pipeline(self) -> bool:
+        return self._hooks.has_subscribers('room_message_creating')
+
     def list_(self, tenant_uuids, **filter_parameters):
         return self._dao.room.list_(tenant_uuids, **filter_parameters)
 

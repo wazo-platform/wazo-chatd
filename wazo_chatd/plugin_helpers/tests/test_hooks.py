@@ -35,6 +35,19 @@ class TestHooksRegister(unittest.TestCase):
         second.assert_called_once_with('payload')
 
 
+class TestHooksHasSubscribers(unittest.TestCase):
+    def setUp(self) -> None:
+        self.hooks = Hooks()
+
+    def test_no_subscribers(self) -> None:
+        assert self.hooks.has_subscribers('nonexistent') is False
+
+    def test_with_subscriber(self) -> None:
+        self.hooks.register('some_event', Mock())
+
+        assert self.hooks.has_subscribers('some_event') is True
+
+
 class TestHooksDispatch(unittest.TestCase):
     def setUp(self) -> None:
         self.hooks = Hooks()
