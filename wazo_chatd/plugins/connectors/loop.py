@@ -163,7 +163,7 @@ class DeliveryLoop:
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(self._recover())
-            loop.create_task(self._listen_for_deliveries())
+            self._listener_task = loop.create_task(self._listen_for_deliveries())
             loop.run_forever()
         except Exception:
             logger.exception('Delivery loop crashed, restarting')
@@ -200,17 +200,32 @@ class DeliveryLoop:
         self._run_loop()
 
     async def _listen_for_deliveries(self) -> None:
+        assert self._shutdown is not None
         ssl = parse_ssl_from_uri(self._db_uri)
-        conn = await asyncpg.connect(self._db_uri, ssl=ssl)
-        await conn.add_listener('connector_delivery', self._on_delivery_notify)
-        logger.info('Listening for connector_delivery notifications')
-        try:
-            assert self._shutdown is not None
-            await self._shutdown
-        finally:
-            await conn.remove_listener('connector_delivery', self._on_delivery_notify)
-            await conn.close()
-            logger.info('Stopped listening for connector_delivery notifications')
+        backoff = _backoff()
+
+        while not self._shutdown.done():
+            connection: asyncpg.Connection | None = None
+            try:
+                connection = await asyncpg.connect(self._db_uri, ssl=ssl)
+                await connection.add_listener(
+                    'connector_delivery', self._on_delivery_notify
+                )
+                logger.info('Listening for connector_delivery notifications')
+                backoff = _backoff()
+
+                await self._shutdown
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                delay = next(backoff)
+                logger.exception('Listener connection lost, reconnecting in %ds', delay)
+                await asyncio.sleep(delay)
+            finally:
+                if connection and not connection.is_closed():
+                    await connection.close()
+
+        logger.info('Stopped listening for connector_delivery notifications')
 
     def _on_delivery_notify(
         self,
@@ -222,7 +237,11 @@ class DeliveryLoop:
         message_uuid = payload
         logger.debug('Received delivery notification for message %s', message_uuid)
         assert self._loop is not None
-        self._loop.create_task(self._process_outbound_notification(message_uuid))
+        task = self._loop.create_task(
+            self._process_outbound_notification(message_uuid)
+        )
+        self._in_flight.add(task)
+        task.add_done_callback(self._task_done)
 
     async def _process_outbound_notification(self, message_uuid: str) -> None:
         async with self.semaphore:
