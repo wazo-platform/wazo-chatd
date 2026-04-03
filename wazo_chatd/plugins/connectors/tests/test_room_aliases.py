@@ -276,49 +276,14 @@ class TestValidateAliasReachability(unittest.TestCase):
 
 
 class TestValidateRoomReachability(unittest.TestCase):
-    def test_two_internal_users_with_common_type_passes(self) -> None:
+    def test_internal_only_room_skips_validation(self) -> None:
         user_a = _make_room_user(uuid='user-a')
         user_b = _make_room_user(uuid='user-b')
         room = _make_room(users=[user_a, user_b])
 
         service = _build_service(room=room)
-        service._dao.user_alias.list_bound_identities.return_value = set()
-        service._dao.user_alias.list_types_by_users.return_value = {
-            'user-a': {'sms'},
-            'user-b': {'sms'},
-        }
 
         service.validate_room_reachability(room)
-
-    def test_two_internal_users_no_common_type_raises(self) -> None:
-        user_a = _make_room_user(uuid='user-a')
-        user_b = _make_room_user(uuid='user-b')
-        room = _make_room(users=[user_a, user_b])
-
-        service = _build_service(room=room)
-        service._dao.user_alias.list_bound_identities.return_value = set()
-        service._dao.user_alias.list_types_by_users.return_value = {
-            'user-a': {'sms'},
-            'user-b': {'email'},
-        }
-
-        with pytest.raises(NoCommonConnectorError):
-            service.validate_room_reachability(room)
-
-    def test_internal_user_without_any_type_raises(self) -> None:
-        user_a = _make_room_user(uuid='user-a')
-        user_b = _make_room_user(uuid='user-b')
-        room = _make_room(users=[user_a, user_b])
-
-        service = _build_service(room=room)
-        service._dao.user_alias.list_bound_identities.return_value = set()
-        service._dao.user_alias.list_types_by_users.return_value = {
-            'user-a': {'sms'},
-            'user-b': set(),
-        }
-
-        with pytest.raises(UnreachableParticipantError):
-            service.validate_room_reachability(room)
 
     def test_external_participant_reachable_passes(self) -> None:
         user_a = _make_room_user(uuid='user-a')

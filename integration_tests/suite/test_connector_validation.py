@@ -53,7 +53,14 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
         type_='test',
         backend='test',
     )
-    def test_room_with_reachable_external_participant_succeeds(self, user, provider):
+    @fixtures.db.user_alias(
+        user_uuid=TOKEN_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15551234',
+    )
+    def test_room_with_reachable_external_participant_succeeds(
+        self, user, provider, alias
+    ):
         self.reload_connectors()
 
         room = self.chatd.rooms.create_from_user({
@@ -72,7 +79,14 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
         type_='test',
         backend='test',
     )
-    def test_room_with_multiple_reachable_external_participants(self, user, provider):
+    @fixtures.db.user_alias(
+        user_uuid=TOKEN_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15551234',
+    )
+    def test_room_with_multiple_reachable_external_participants(
+        self, user, provider, alias
+    ):
         self.reload_connectors()
 
         room = self.chatd.rooms.create_from_user({

@@ -73,6 +73,9 @@ class ConnectorService:
             return
 
         external = [u for u in participants if u.identity]
+        if not external:
+            return
+
         needs_db_lookup: list[RoomUser] = []
 
         external_identities = [str(u.identity) for u in external]
