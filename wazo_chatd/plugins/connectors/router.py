@@ -13,6 +13,7 @@ from flask_restful import Api
 from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.http_hooks import register_post_commit_callback
 from wazo_chatd.plugins.connectors.connector import Connector
+from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageAliasRequiredError,
@@ -88,15 +89,13 @@ class ConnectorRouter:
             if not reachable:
                 raise UnreachableParticipantError(str(user.identity))
 
-    def validate_outbound(self, event: tuple[Room, RoomMessage]) -> None:
-        room, message = event
-        has_external = any(u.identity for u in room.users)
-        if has_external and not message.alias:
+    def validate_outbound(self, context: MessageContext) -> None:
+        has_external = any(u.identity for u in context.room.users)
+        if has_external and not context.sender_alias_uuid:
             raise MessageAliasRequiredError()
 
-    def on_room_message_created(self, event: tuple[Room, RoomMessage]) -> None:
-        room, message = event
-        self.send(room, message)
+    def on_room_message_created(self, context: MessageContext) -> None:
+        self.send(context)
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
         loop = self._delivery_loop
@@ -163,13 +162,14 @@ class ConnectorRouter:
         """
         self._store.register(name, connector)
 
-    def send(self, room: Room, message: RoomMessage) -> None:
+    def send(self, context: MessageContext) -> None:
         """Extract participant data and enqueue an outbound message.
 
         For internal-only rooms (no external participants), this is a
         no-op.  All heavy processing (alias lookup, delivery tracking)
         happens in the worker process.
         """
+        room, message = context.room, context.message
         participants = self._extract_participants(room.users)
         logger.debug(
             'send: room=%s participants=%s',
@@ -179,7 +179,9 @@ class ConnectorRouter:
         if not any(p.identity for p in participants):
             return
 
-        self._dao.room.create_pending_delivery(message)
+        assert context.sender_alias_uuid is not None
+        meta = self._dao.room.create_pending_delivery(message)
+        meta.sender_alias_uuid = context.sender_alias_uuid
 
         outbound = OutboundMessage(
             room_uuid=str(room.uuid),
@@ -248,6 +250,3 @@ class ConnectorRouter:
                 return
 
         raise ConnectorParseError('No connector matched the webhook payload')
-
-    def _resolve_reachable_types(self, identity: str) -> set[str]:
-        return self._registry.resolve_reachable_types(identity)

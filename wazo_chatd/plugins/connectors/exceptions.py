@@ -29,7 +29,7 @@ class MessageAliasRequiredError(APIException):
     def __init__(self) -> None:
         super().__init__(
             409,
-            'Messages in rooms with external participants require an alias',
+            'Messages in rooms with external participants require a sender_alias_uuid',
             'message-alias-required',
             {},
             'messages',

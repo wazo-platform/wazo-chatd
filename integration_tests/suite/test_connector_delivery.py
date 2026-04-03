@@ -231,7 +231,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         self.connector_mock.reset()
 
         message = self.chatd.rooms.create_message_from_user(
-            str(room.uuid), {'content': 'Hello external'}
+            str(room.uuid), {'content': 'Hello external', 'alias': 'Test User'}
         )
 
         self._assert_delivery_status(message['uuid'], 'sent')
@@ -271,7 +271,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         )
 
         self.chatd.rooms.create_message_from_user(
-            str(room.uuid), {'content': 'Check the mock'}
+            str(room.uuid), {'content': 'Check the mock', 'alias': 'Test User'}
         )
 
         def mock_received():
@@ -305,7 +305,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         self.connector_mock.set_config(send_behavior='fail', error_message='API down')
 
         message = self.chatd.rooms.create_message_from_user(
-            str(room.uuid), {'content': 'Will fail'}
+            str(room.uuid), {'content': 'Will fail', 'alias': 'Test User'}
         )
 
         self._assert_delivery_status(message['uuid'], 'failed')
@@ -365,7 +365,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         )
 
         message = self.chatd.rooms.create_message_from_user(
-            str(room.uuid), {'content': 'Track this'}
+            str(room.uuid), {'content': 'Track this', 'alias': 'Test User'}
         )
 
         self._assert_delivery_status(message['uuid'], 'sent')
@@ -411,7 +411,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         )
 
         message = self.chatd.rooms.create_message_from_user(
-            str(room.uuid), {'content': 'Will get failed status'}
+            str(room.uuid), {'content': 'Will get failed status', 'alias': 'Test User'}
         )
 
         self._assert_delivery_status(message['uuid'], 'sent')
@@ -467,7 +467,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         )
 
         message = self.chatd.rooms.create_message_from_user(
-            str(room.uuid), {'content': 'Transient status'}
+            str(room.uuid), {'content': 'Transient status', 'alias': 'Test User'}
         )
 
         self._assert_delivery_status(message['uuid'], 'sent')

@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import unittest
+import uuid
 from typing import ClassVar
 from unittest.mock import Mock
 
 import pytest
 
+from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageAliasRequiredError,
@@ -206,8 +208,9 @@ class TestConnectorRouterSend(unittest.TestCase):
         )
         room.uuid = 'room-uuid'
         message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hi')
+        context = MessageContext(room, message)
 
-        self.router.send(room, message)
+        self.router.send(context)
 
         self.manager.enqueue_message.assert_not_called()
 
@@ -224,8 +227,10 @@ class TestConnectorRouterSend(unittest.TestCase):
         )
         room.uuid = 'room-uuid'
         message = Mock(uuid='msg-uuid', user_uuid='user-a', content='hello')
+        alias_uuid = uuid.uuid4()
+        context = MessageContext(room, message, sender_alias_uuid=alias_uuid)
 
-        self.router.send(room, message)
+        self.router.send(context)
 
         self.manager.enqueue_message.assert_called_once()
         outbound = self.manager.enqueue_message.call_args[0][0]
@@ -246,13 +251,14 @@ class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
             self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
         self.router.send = Mock()  # type: ignore[assignment]
 
-    def test_unpacks_event_and_calls_send(self) -> None:
+    def test_unpacks_context_and_calls_send(self) -> None:
         room = _make_room()
         message = Mock()
+        ctx = MessageContext(room, message, sender_alias_uuid=None)
 
-        self.router.on_room_message_created((room, message))
+        self.router.on_room_message_created(ctx)
 
-        self.router.send.assert_called_once_with(room, message)
+        self.router.send.assert_called_once_with(ctx)
 
 
 class TestConnectorRouterValidateOutbound(unittest.TestCase):
@@ -261,48 +267,36 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
             self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock())
 
-    def test_internal_room_without_alias_passes(self) -> None:
+    def test_internal_room_without_sender_alias_uuid_passes(self) -> None:
         room = _make_room(
             [_make_room_user('user-a'), _make_room_user('user-b')]
         )
-        message = Mock(alias=None)
+        ctx = MessageContext(room, Mock(), sender_alias_uuid=None)
 
-        self.router.validate_outbound((room, message))
+        self.router.validate_outbound(ctx)
 
-    def test_external_room_with_alias_passes(self) -> None:
+    def test_external_room_with_sender_alias_uuid_passes(self) -> None:
         room = _make_room(
             [
                 _make_room_user('user-a'),
                 _make_room_user('ext-uuid', identity='+15559876'),
             ]
         )
-        message = Mock(alias='John')
+        ctx = MessageContext(room, Mock(), sender_alias_uuid=uuid.uuid4())
 
-        self.router.validate_outbound((room, message))
+        self.router.validate_outbound(ctx)
 
-    def test_external_room_without_alias_raises_409(self) -> None:
+    def test_external_room_without_sender_alias_uuid_raises_409(self) -> None:
         room = _make_room(
             [
                 _make_room_user('user-a'),
                 _make_room_user('ext-uuid', identity='+15559876'),
             ]
         )
-        message = Mock(alias=None)
+        ctx = MessageContext(room, Mock(), sender_alias_uuid=None)
 
         with pytest.raises(MessageAliasRequiredError):
-            self.router.validate_outbound((room, message))
-
-    def test_external_room_with_empty_alias_raises_409(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='+15559876'),
-            ]
-        )
-        message = Mock(alias='')
-
-        with pytest.raises(MessageAliasRequiredError):
-            self.router.validate_outbound((room, message))
+            self.router.validate_outbound(ctx)
 
 
 class TestConnectorRouterValidateRoomCreation(unittest.TestCase):

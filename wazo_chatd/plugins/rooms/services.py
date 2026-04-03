@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
+from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugin_helpers.hooks import Hooks
 
 
@@ -42,13 +45,17 @@ class RoomService:
     def get(self, tenant_uuids, room_uuid):
         return self._dao.room.get(tenant_uuids, room_uuid)
 
-    def create_message(self, room, message):
+    def create_message(
+        self,
+        room: object,
+        message: object,
+        sender_alias_uuid: UUID | None = None,
+    ) -> object:
         self._set_default_message_values(message)
-        self._hooks.dispatch(
-            'room_message_creating', (room, message), propagate_errors=True
-        )
+        context = MessageContext(room, message, sender_alias_uuid=sender_alias_uuid)
+        self._hooks.dispatch('room_message_creating', context, propagate_errors=True)
         self._dao.room.add_message(room, message)
-        self._hooks.dispatch('room_message_created', (room, message))
+        self._hooks.dispatch('room_message_created', context)
         self._notifier.message_created(room, message)
         return message
 

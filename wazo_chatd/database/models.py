@@ -353,7 +353,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
     )
     type_ = Column('type', String, nullable=True)
     backend = Column(String, nullable=True)
-    identity_uuid: UUIDType = Column(
+    sender_alias_uuid: UUIDType = Column(
         UUIDType(),
         ForeignKey('chatd_user_alias.uuid', ondelete='SET NULL'),
         nullable=True,
@@ -364,7 +364,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
 
-    identity: RelationshipProperty[UserAlias | None] = relationship(
+    sender_alias: RelationshipProperty[UserAlias | None] = relationship(
         'UserAlias', uselist=False, viewonly=True
     )
     message: RelationshipProperty[RoomMessage] = relationship(

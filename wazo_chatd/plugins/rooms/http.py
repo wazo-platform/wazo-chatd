@@ -114,11 +114,14 @@ class UserRoomMessageListResource(AuthResource):
     def post(self, room_uuid):
         room = self._service.get([token.tenant_uuid], room_uuid)
         message_args = MessageSchema().load(request.get_json(force=True))
+        sender_alias_uuid = message_args.pop('sender_alias_uuid', None)
         message_args['user_uuid'] = token.user_uuid
         message_args['tenant_uuid'] = token.tenant_uuid
         message = RoomMessage(**message_args)
 
-        message = self._service.create_message(room, message)
+        message = self._service.create_message(
+            room, message, sender_alias_uuid=sender_alias_uuid
+        )
         return MessageSchema().dump(message), 201
 
     @required_acl('chatd.users.me.rooms.{room_uuid}.messages.read')

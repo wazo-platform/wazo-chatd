@@ -121,7 +121,7 @@ def upgrade() -> None:
         sa.Column('type', sa.String, nullable=True),
         sa.Column('backend', sa.String, nullable=True),
         sa.Column(
-            'identity_uuid',
+            'sender_alias_uuid',
             UUIDType(),
             sa.ForeignKey('chatd_user_alias.uuid', ondelete='SET NULL'),
             nullable=True,

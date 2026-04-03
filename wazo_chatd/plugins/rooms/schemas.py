@@ -14,7 +14,7 @@ class RoomUserSchema(Schema):
     uuid = fields.UUID()
     tenant_uuid = fields.UUID()
     wazo_uuid = fields.UUID()
-    identity = fields.String(dump_only=True, allow_none=True)
+    identity = fields.String(allow_none=True)
 
 
 class RoomSchema(Schema):

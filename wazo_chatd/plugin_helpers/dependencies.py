@@ -4,7 +4,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypedDict
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, TypedDict
+from uuid import UUID
+
+if TYPE_CHECKING:
+    from wazo_chatd.database.models import Room, RoomMessage
 
 from flask_restful import Api
 from xivo.status import StatusAggregator
@@ -28,3 +33,10 @@ class PluginDependencies(TypedDict):
     token_changed_subscribe: Callable[[Callable[..., None]], None]
     next_token_changed_subscribe: Callable[[Callable[..., None]], None]
     hooks: Hooks
+
+
+@dataclass
+class MessageContext:
+    room: Room
+    message: RoomMessage
+    sender_alias_uuid: UUID | None = None
