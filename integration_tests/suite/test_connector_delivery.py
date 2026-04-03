@@ -497,6 +497,68 @@ class TestStatusUpdate(ConnectorIntegrationTest):
 
 
 @use_asset('connectors')
+class TestMultiChannelRoom(ConnectorIntegrationTest):
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.chat_provider(
+        uuid=PROVIDER_UUID,
+        name='Test Provider',
+        type_='test',
+        backend='test',
+    )
+    @fixtures.db.user_alias(
+        user_uuid=TOKEN_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15551234',
+    )
+    @fixtures.db.user_alias(
+        user_uuid=USER_UUID_1,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15559876',
+    )
+    @fixtures.http.room(
+        users=[
+            {'uuid': str(TOKEN_USER_UUID)},
+            {'uuid': str(USER_UUID_1)},
+        ],
+    )
+    def test_inbound_sms_reply_lands_in_existing_internal_room(
+        self, user_a, user_b, provider, alias_a, alias_b, room
+    ):
+        self.reload_connectors()
+        room_uuid = room['uuid']
+
+        self.chatd.rooms.create_message_from_user(
+            room_uuid, {'content': 'Internal hello'}
+        )
+
+        port = self.asset_cls.service_port(9304, 'chatd')
+        response = requests.post(
+            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+            json={
+                'from': 'test:+15559876',
+                'to': 'test:+15551234',
+                'body': 'SMS reply from user B',
+                'message_id': 'ext-msg-multichannel',
+            },
+            headers={'X-Test-Connector': 'true'},
+        )
+        assert response.status_code == 204
+
+        def sms_reply_in_same_room():
+            messages = (
+                self._session.query(RoomMessage)
+                .filter(RoomMessage.room_uuid == room_uuid)
+                .all()
+            )
+            contents = [m.content for m in messages]
+            assert 'Internal hello' in contents
+            assert 'SMS reply from user B' in contents
+
+        until.assert_(sms_reply_in_same_room, timeout=5)
+
+
+@use_asset('connectors')
 class TestMessageSchemaFields(ConnectorIntegrationTest):
     @fixtures.db.room(
         users=[
