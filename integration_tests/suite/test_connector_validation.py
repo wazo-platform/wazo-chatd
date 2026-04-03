@@ -20,6 +20,7 @@ EXTERNAL_IDENTITY = 'test:+15559876'
 EXTERNAL_IDENTITY_2 = 'test:+15558765'
 UNREACHABLE_IDENTITY = 'unreachable:+15559876'
 INTERNAL_USER_UUID = uuid.uuid4()
+RECIPIENT_USER_UUID = uuid.uuid4()
 
 
 @use_asset('connectors')
@@ -193,6 +194,7 @@ class TestMessageValidation(ConnectorIntegrationTest):
         assert message['content'] == 'Internal message'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=RECIPIENT_USER_UUID)
     @fixtures.db.chat_provider(
         uuid=PROVIDER_UUID,
         name='Test Provider',
@@ -204,18 +206,25 @@ class TestMessageValidation(ConnectorIntegrationTest):
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
+    @fixtures.db.user_alias(
+        user_uuid=RECIPIENT_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15559999',
+    )
     @fixtures.db.room(
         users=[
             {'uuid': TOKEN_USER_UUID},
-            {'uuid': uuid.uuid4()},
+            {'uuid': RECIPIENT_USER_UUID},
         ],
     )
     def test_internal_room_with_sender_alias_uuid_succeeds(
-        self, user, provider, alias, room
+        self, user, recipient, provider, sender_alias, recipient_alias, room
     ):
+        self.reload_connectors()
+
         message = self.chatd.rooms.create_message_from_user(
             str(room.uuid),
-            {'content': 'Internal with alias', 'sender_alias_uuid': str(alias.uuid)},
+            {'content': 'Internal with alias', 'sender_alias_uuid': str(sender_alias.uuid)},
         )
 
         assert message['content'] == 'Internal with alias'
@@ -252,6 +261,7 @@ class TestMessageValidation(ConnectorIntegrationTest):
         assert exc_info.value.status_code == 409
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=INTERNAL_USER_UUID)
     @fixtures.db.chat_provider(
         uuid=PROVIDER_UUID,
         name='Test Provider',
@@ -263,6 +273,11 @@ class TestMessageValidation(ConnectorIntegrationTest):
         provider_uuid=PROVIDER_UUID,
         identity='test:+15551234',
     )
+    @fixtures.db.user_alias(
+        user_uuid=INTERNAL_USER_UUID,
+        provider_uuid=PROVIDER_UUID,
+        identity='test:+15558888',
+    )
     @fixtures.db.room(
         users=[
             {'uuid': TOKEN_USER_UUID},
@@ -271,13 +286,13 @@ class TestMessageValidation(ConnectorIntegrationTest):
         ],
     )
     def test_mixed_room_with_sender_alias_uuid_succeeds(
-        self, user, provider, alias, room
+        self, user, internal_user, provider, sender_alias, internal_alias, room
     ):
         self.reload_connectors()
 
         message = self.chatd.rooms.create_message_from_user(
             str(room.uuid),
-            {'content': 'Mixed room with alias', 'sender_alias_uuid': str(alias.uuid)},
+            {'content': 'Mixed room with alias', 'sender_alias_uuid': str(sender_alias.uuid)},
         )
 
         assert message['content'] == 'Mixed room with alias'

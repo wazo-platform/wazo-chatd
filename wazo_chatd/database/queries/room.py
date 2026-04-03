@@ -83,11 +83,20 @@ class RoomDAO:
         self.session.flush()
         return meta
 
-    def create_pending_delivery(self, message: RoomMessage) -> MessageMeta:
-        meta = MessageMeta(message=message)
+    def create_pending_delivery(
+        self,
+        message: RoomMessage,
+        sender_alias_uuid: object | None = None,
+    ) -> MessageMeta:
+        meta = MessageMeta(message=message, sender_alias_uuid=sender_alias_uuid)
         meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
         self.session.add(meta)
         self.session.flush()
+
+        self.session.execute(
+            text("SELECT pg_notify('connector_delivery', :payload)"),
+            {'payload': str(message.uuid)},
+        )
         return meta
 
     def list_messages(self, room, **filter_parameters):

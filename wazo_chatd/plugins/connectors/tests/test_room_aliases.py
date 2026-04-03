@@ -12,6 +12,7 @@ import pytest
 
 from wazo_chatd.plugins.connectors.exceptions import (
     InvalidAliasError,
+    NoCommonConnectorError,
     UnreachableParticipantError,
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService
@@ -272,3 +273,91 @@ class TestValidateAliasReachability(unittest.TestCase):
             service.validate_alias_reachability(
                 room, SENDER_UUID, uuid.uuid4()
             )
+
+
+class TestValidateRoomReachability(unittest.TestCase):
+    def test_two_internal_users_with_common_type_passes(self) -> None:
+        user_a = _make_room_user(uuid='user-a')
+        user_b = _make_room_user(uuid='user-b')
+        room = _make_room(users=[user_a, user_b])
+
+        service = _build_service(room=room)
+        service._dao.user_alias.list_bound_identities.return_value = set()
+        service._dao.user_alias.list_types_by_users.return_value = {
+            'user-a': {'sms'},
+            'user-b': {'sms'},
+        }
+
+        service.validate_room_reachability(room)
+
+    def test_two_internal_users_no_common_type_raises(self) -> None:
+        user_a = _make_room_user(uuid='user-a')
+        user_b = _make_room_user(uuid='user-b')
+        room = _make_room(users=[user_a, user_b])
+
+        service = _build_service(room=room)
+        service._dao.user_alias.list_bound_identities.return_value = set()
+        service._dao.user_alias.list_types_by_users.return_value = {
+            'user-a': {'sms'},
+            'user-b': {'email'},
+        }
+
+        with pytest.raises(NoCommonConnectorError):
+            service.validate_room_reachability(room)
+
+    def test_internal_user_without_any_type_raises(self) -> None:
+        user_a = _make_room_user(uuid='user-a')
+        user_b = _make_room_user(uuid='user-b')
+        room = _make_room(users=[user_a, user_b])
+
+        service = _build_service(room=room)
+        service._dao.user_alias.list_bound_identities.return_value = set()
+        service._dao.user_alias.list_types_by_users.return_value = {
+            'user-a': {'sms'},
+            'user-b': set(),
+        }
+
+        with pytest.raises(UnreachableParticipantError):
+            service.validate_room_reachability(room)
+
+    def test_external_participant_reachable_passes(self) -> None:
+        user_a = _make_room_user(uuid='user-a')
+        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = _make_room(users=[user_a, external])
+
+        service = _build_service(
+            room=room,
+            identity_bound={'+15559876': False},
+        )
+        service._dao.user_alias.list_bound_identities.return_value = set()
+        service._dao.user_alias.list_types_by_users.return_value = {
+            'user-a': {'sms'},
+        }
+
+        service.validate_room_reachability(room)
+
+    def test_external_participant_unreachable_raises(self) -> None:
+        user_a = _make_room_user(uuid='user-a')
+        external = _make_room_user(uuid='ext-uuid', identity='not-reachable')
+        room = _make_room(users=[user_a, external])
+
+        service = _build_service(room=room)
+        service._dao.user_alias.list_bound_identities.return_value = set()
+
+        with pytest.raises(UnreachableParticipantError):
+            service.validate_room_reachability(room)
+
+    def test_mixed_room_with_common_type_passes(self) -> None:
+        user_a = _make_room_user(uuid='user-a')
+        user_b = _make_room_user(uuid='user-b')
+        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = _make_room(users=[user_a, user_b, external])
+
+        service = _build_service(room=room)
+        service._dao.user_alias.list_bound_identities.return_value = set()
+        service._dao.user_alias.list_types_by_users.return_value = {
+            'user-a': {'sms'},
+            'user-b': {'sms'},
+        }
+
+        service.validate_room_reachability(room)

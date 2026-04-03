@@ -52,6 +52,22 @@ class UserAliasDAO:
             )
         ]
 
+    def list_types_by_users(
+        self,
+        user_uuids: list[str],
+    ) -> dict[str, set[str]]:
+        rows = (
+            self.session.query(UserAlias.user_uuid, ChatProvider.type_)
+            .join(ChatProvider)
+            .filter(UserAlias.user_uuid.in_(user_uuids))
+            .distinct()
+            .all()
+        )
+        result: dict[str, set[str]] = {uid: set() for uid in user_uuids}
+        for user_uuid, type_ in rows:
+            result[str(user_uuid)].add(type_)
+        return result
+
     def users_reachable_by_type(
         self,
         user_uuids: list[str],
@@ -68,6 +84,15 @@ class UserAliasDAO:
             .all()
         )
         return {str(row[0]) for row in rows}
+
+    def list_bound_identities(self, identities: list[str]) -> set[str]:
+        rows = (
+            self.session.query(UserAlias.identity)
+            .filter(UserAlias.identity.in_(identities))
+            .distinct()
+            .all()
+        )
+        return {row[0] for row in rows}
 
     def is_identity_bound(self, identity: str) -> bool:
         return (

@@ -8,16 +8,12 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from flask_restful import Api
-from sqlalchemy import text
 
-from wazo_chatd.database.helpers import session_scope
-from wazo_chatd.database.queries import DAO
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageAliasRequiredError,
-    UnreachableParticipantError,
 )
 from wazo_chatd.plugins.connectors.http import (
     ConnectorReloadResource,
@@ -48,11 +44,9 @@ class ConnectorRouter:
         self,
         config: dict[str, str | bool],
         registry: ConnectorRegistry,
-        dao: DAO,
         service: ConnectorService,
     ) -> None:
         self._registry = registry
-        self._dao = dao
         self._service = service
         self._connectors_config: dict[str, Any] = dict(config.get('connectors', {}))
         self._store = ConnectorStore()
@@ -78,12 +72,7 @@ class ConnectorRouter:
         self._delivery_loop.shutdown()
 
     def validate_room_creation(self, room: Room) -> None:
-        for user in room.users:
-            if not user.identity:
-                continue
-            reachable = self._registry.resolve_reachable_types(str(user.identity))
-            if not reachable:
-                raise UnreachableParticipantError(str(user.identity))
+        self._service.validate_room_reachability(room)
 
     def validate_outbound(self, context: MessageContext) -> None:
         has_external = any(u.identity for u in context.room.users)
@@ -119,31 +108,30 @@ class ConnectorRouter:
         """
         new_instances: dict[str, Connector] = {}
 
-        with session_scope():
-            for provider in self._dao.provider.list_():
-                backend = str(provider.backend)
-                try:
-                    cls = self._registry.get_backend(backend)
-                except KeyError:
-                    logger.warning(
-                        'Backend %r not available, skipping provider %r',
-                        backend,
-                        provider.name,
-                    )
-                    continue
-
-                instance = cls()
-                instance.configure(
-                    str(provider.type_),
-                    dict(provider.configuration) if provider.configuration else {},
-                    self._connectors_config.get(backend, {}),
-                )
-                new_instances[str(provider.name)] = instance
-                logger.info(
-                    'Loaded connector instance %r (backend=%r)',
-                    provider.name,
+        for provider in self._service.list_providers():
+            backend = str(provider.backend)
+            try:
+                cls = self._registry.get_backend(backend)
+            except KeyError:
+                logger.warning(
+                    'Backend %r not available, skipping provider %r',
                     backend,
+                    provider.name,
                 )
+                continue
+
+            instance = cls()
+            instance.configure(
+                str(provider.type_),
+                dict(provider.configuration) if provider.configuration else {},
+                self._connectors_config.get(backend, {}),
+            )
+            new_instances[str(provider.name)] = instance
+            logger.info(
+                'Loaded connector instance %r (backend=%r)',
+                provider.name,
+                backend,
+            )
 
         self._store.set(new_instances)
 
@@ -178,13 +166,7 @@ class ConnectorRouter:
             return
 
         assert context.sender_alias_uuid is not None
-        meta = self._dao.room.create_pending_delivery(message)
-        meta.sender_alias_uuid = context.sender_alias_uuid
-
-        self._dao.room.session.execute(
-            text("SELECT pg_notify('connector_delivery', :payload)"),
-            {'payload': str(message.uuid)},
-        )
+        self._service.create_outbound_delivery(message, context.sender_alias_uuid)
 
     def dispatch_webhook(
         self,

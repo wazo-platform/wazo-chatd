@@ -14,7 +14,6 @@ from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageAliasRequiredError,
-    UnreachableParticipantError,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
@@ -71,7 +70,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock(), service=Mock())
+            self.router = ConnectorRouter(config={}, registry=self.registry, service=Mock())
         self.manager = self.router._delivery_loop
 
     def _make_connector(self, backend: str = 'twilio', can_handle: bool = True) -> Mock:
@@ -196,7 +195,7 @@ class TestConnectorRouterSend(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock(), service=Mock())
+            self.router = ConnectorRouter(config={}, registry=self.registry, service=Mock())
 
     def test_send_internal_room_is_noop(self) -> None:
         room = _make_room(
@@ -210,9 +209,9 @@ class TestConnectorRouterSend(unittest.TestCase):
 
         self.router.send(context)
 
-        self.router._dao.room.create_pending_delivery.assert_not_called()
+        self.router._service.create_outbound_delivery.assert_not_called()
 
-    def test_send_external_room_creates_meta_and_notifies(self) -> None:
+    def test_send_external_room_creates_delivery(self) -> None:
         room = _make_room(
             [
                 _make_room_user('user-a'),
@@ -225,17 +224,16 @@ class TestConnectorRouterSend(unittest.TestCase):
 
         self.router.send(context)
 
-        self.router._dao.room.create_pending_delivery.assert_called_once_with(message)
-        meta = self.router._dao.room.create_pending_delivery.return_value
-        assert meta.sender_alias_uuid == alias_uuid
-        self.router._dao.room.session.execute.assert_called_once()
+        self.router._service.create_outbound_delivery.assert_called_once_with(
+            message, alias_uuid
+        )
 
 
 class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
-            self.router = ConnectorRouter(config={}, registry=self.registry, dao=Mock(), service=Mock())
+            self.router = ConnectorRouter(config={}, registry=self.registry, service=Mock())
         self.router.send = Mock()  # type: ignore[assignment]
 
     def test_unpacks_context_and_calls_send(self) -> None:
@@ -254,7 +252,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         self.service = Mock()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
             self.router = ConnectorRouter(
-                config={}, registry=self.registry, dao=Mock(), service=self.service
+                config={}, registry=self.registry, service=self.service
             )
 
     def test_internal_room_without_sender_alias_uuid_passes(self) -> None:
@@ -297,63 +295,32 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
 class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
+        self.service = Mock()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
             self.router = ConnectorRouter(
-                config={}, registry=self.registry, dao=Mock(), service=Mock()
+                config={}, registry=self.registry, service=self.service
             )
 
-    def test_internal_only_room_passes(self) -> None:
+    def test_delegates_to_service(self) -> None:
         room = _make_room(
             [_make_room_user('user-a'), _make_room_user('user-b')]
         )
 
         self.router.validate_room_creation(room)
 
-    def test_external_participant_reachable_passes(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='+15559876'),
-            ]
-        )
-
-        self.router.validate_room_creation(room)
-
-    def test_external_participant_unreachable_raises_409(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='not-a-phone-or-email'),
-            ]
-        )
-
-        with pytest.raises(UnreachableParticipantError):
-            self.router.validate_room_creation(room)
-
-    def test_multiple_external_one_unreachable_raises_409(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-1', identity='+15559876'),
-                _make_room_user('ext-2', identity='not-reachable'),
-            ]
-        )
-
-        with pytest.raises(UnreachableParticipantError):
-            self.router.validate_room_creation(room)
+        self.service.validate_room_reachability.assert_called_once_with(room)
 
 
 class TestConnectorRouterLoadProviders(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
         self.registry.register_backend(_SmsConnector)
-        self.dao = Mock()
+        self.service = Mock()
         with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
             self.router = ConnectorRouter(
                 config={'connectors': {'twilio': {'mode': 'webhook'}}},
                 registry=self.registry,
-                dao=self.dao,
-                service=Mock(),
+                service=self.service,
             )
 
     def _make_provider(
@@ -371,14 +338,14 @@ class TestConnectorRouterLoadProviders(unittest.TestCase):
         return provider
 
     def test_loads_single_provider(self) -> None:
-        self.dao.provider.list_.return_value = [self._make_provider()]
+        self.service.list_providers.return_value = [self._make_provider()]
 
         self.router.load_providers()
 
         assert len(self.router._store) == 1
 
     def test_loads_multiple_providers(self) -> None:
-        self.dao.provider.list_.return_value = [
+        self.service.list_providers.return_value = [
             self._make_provider(name='provider-a'),
             self._make_provider(name='provider-b'),
         ]
@@ -388,7 +355,7 @@ class TestConnectorRouterLoadProviders(unittest.TestCase):
         assert len(self.router._store) == 2
 
     def test_skips_unknown_backend(self) -> None:
-        self.dao.provider.list_.return_value = [
+        self.service.list_providers.return_value = [
             self._make_provider(backend='nonexistent'),
         ]
 
@@ -397,17 +364,17 @@ class TestConnectorRouterLoadProviders(unittest.TestCase):
         assert len(self.router._store) == 0
 
     def test_replaces_previous_instances(self) -> None:
-        self.dao.provider.list_.return_value = [self._make_provider()]
+        self.service.list_providers.return_value = [self._make_provider()]
         self.router.load_providers()
         assert len(self.router._store) == 1
 
-        self.dao.provider.list_.return_value = []
+        self.service.list_providers.return_value = []
         self.router.load_providers()
         assert len(self.router._store) == 0
 
     def test_passes_connector_config_to_configure(self) -> None:
         provider = self._make_provider(configuration={'api_key': 'secret'})
-        self.dao.provider.list_.return_value = [provider]
+        self.service.list_providers.return_value = [provider]
 
         self.router.load_providers()
 
@@ -416,7 +383,7 @@ class TestConnectorRouterLoadProviders(unittest.TestCase):
 
     def test_handles_none_configuration(self) -> None:
         provider = self._make_provider(configuration=None)
-        self.dao.provider.list_.return_value = [provider]
+        self.service.list_providers.return_value = [provider]
 
         self.router.load_providers()
 

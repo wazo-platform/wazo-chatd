@@ -18,11 +18,15 @@ class ConnectorParseError(ConnectorError):
     """Raised when a connector fails to parse an incoming event."""
 
 
-class NoCommonConnectorError(ConnectorError):
-    """Raised when room participants share no common connector type.
-
-    This typically results in a 409 Conflict HTTP response.
-    """
+class NoCommonConnectorError(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            409,
+            'Room participants share no common connector type',
+            'no-common-connector',
+            {},
+            'rooms',
+        )
 
 
 class MessageAliasRequiredError(APIException):
@@ -48,11 +52,14 @@ class InvalidAliasError(APIException):
 
 
 class UnreachableParticipantError(APIException):
-    def __init__(self, identity: str) -> None:
+    def __init__(self, participant: str, connector_type: str = '') -> None:
+        detail = f'participant {participant!r}'
+        if connector_type:
+            detail += f' via {connector_type!r}'
         super().__init__(
             409,
-            f'No connector can reach participant with identity {identity!r}',
+            f'No connector can reach {detail}',
             'unreachable-participant',
-            {'identity': identity},
+            {'participant': participant, 'connector_type': connector_type},
             'rooms',
         )
