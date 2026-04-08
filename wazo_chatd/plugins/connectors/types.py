@@ -39,14 +39,6 @@ class WebhookData(TransportData):
 
 
 @dataclass(frozen=True)
-class RoomParticipant:
-    """A room participant extracted from ORM for cross-thread transfer."""
-
-    uuid: str
-    identity: str | None
-
-
-@dataclass(frozen=True)
 class OutboundMessage:
     """A message to be sent through a connector to an external system."""
 
@@ -55,7 +47,6 @@ class OutboundMessage:
     sender_uuid: str
     body: str
     message_type: str
-    participants: tuple[RoomParticipant, ...] = ()
     sender_identity: str = ''
     recipient_identity: str = ''
     metadata: Mapping[str, Any] = field(default_factory=dict)

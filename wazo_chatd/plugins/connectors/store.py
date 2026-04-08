@@ -55,9 +55,6 @@ class ConnectorStore:
     def find_by_backend(self, backend: str, tenant_uuid: str) -> Connector | None:
         return self._cache.get((tenant_uuid, backend))
 
-    def backends(self) -> dict[CacheKey, str]:
-        return {key: key[1] for key in self._cache}
-
     async def refresh(self, backend: str, tenant_uuid: str) -> Connector | None:
         key = (tenant_uuid, backend)
         ts = self._timestamps.get(key, 0.0)

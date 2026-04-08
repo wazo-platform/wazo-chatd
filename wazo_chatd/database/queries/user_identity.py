@@ -73,21 +73,6 @@ class UserIdentityDAO:
         self.session.delete(identity)
         self.session.flush()
 
-    def list_backends_by_users(
-        self,
-        user_uuids: list[str],
-    ) -> dict[str, set[str]]:
-        stmt = (
-            select(UserIdentity.user_uuid, UserIdentity.backend)
-            .where(UserIdentity.user_uuid.in_(user_uuids))
-            .distinct()
-        )
-        rows = self.session.execute(stmt).all()
-        result: dict[str, set[str]] = {uid: set() for uid in user_uuids}
-        for user_uuid_val, backend in rows:
-            result[str(user_uuid_val)].add(backend)
-        return result
-
     def list_types_by_users(
         self,
         user_uuids: list[str],
@@ -105,21 +90,6 @@ class UserIdentityDAO:
             result[str(user_uuid_val)].add(type_)
 
         return result
-
-    def users_reachable_by_backend(
-        self,
-        user_uuids: Iterable[str],
-        backend: str,
-    ) -> set[str]:
-        stmt = (
-            select(UserIdentity.user_uuid)
-            .where(
-                UserIdentity.user_uuid.in_(user_uuids),
-                UserIdentity.backend == backend,
-            )
-            .distinct()
-        )
-        return {str(row[0]) for row in self.session.execute(stmt).all()}
 
     def list_bound_identities(self, identities: Iterable[str]) -> set[str]:
         stmt = (

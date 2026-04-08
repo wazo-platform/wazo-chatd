@@ -93,6 +93,7 @@ class RoomDAO:
         self.session.add(meta)
         self.session.flush()
 
+        # On commit, signal the async delivery loop from the sync Flask path
         self.session.execute(
             text("SELECT pg_notify('connector_delivery', :payload)"),
             {'payload': str(message.uuid)},
