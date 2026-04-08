@@ -70,7 +70,13 @@ class ConnectorService:
         message: RoomMessage,
         sender_identity_uuid: UUID,
     ) -> None:
-        self._dao.room.create_pending_delivery(message, sender_identity_uuid)
+        identity = self._dao.user_identity.find(str(sender_identity_uuid))
+        backend = identity.backend if identity else None
+        message_type = identity.type_ if identity else None
+
+        self._dao.room.create_pending_delivery(
+            message, sender_identity_uuid, backend=backend, type_=message_type
+        )
 
     def list_room_identities(
         self,

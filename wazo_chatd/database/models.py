@@ -263,6 +263,7 @@ class RoomMessage(Base):  # type: ignore[misc, valid-type]
         'MessageMeta',
         uselist=False,
         cascade='all,delete-orphan',
+        back_populates='message',
     )
 
 
@@ -333,7 +334,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         'UserIdentity', uselist=False, viewonly=True
     )
     message: RelationshipProperty[RoomMessage] = relationship(
-        'RoomMessage', uselist=False, overlaps='meta'
+        'RoomMessage', uselist=False, back_populates='meta'
     )
     records: RelationshipProperty[list[DeliveryRecord]] = relationship(
         'DeliveryRecord',

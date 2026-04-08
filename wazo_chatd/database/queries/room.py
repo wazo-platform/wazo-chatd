@@ -87,8 +87,15 @@ class RoomDAO:
         self,
         message: RoomMessage,
         sender_identity_uuid: object | None = None,
+        backend: str | None = None,
+        type_: str | None = None,
     ) -> MessageMeta:
-        meta = MessageMeta(message=message, sender_identity_uuid=sender_identity_uuid)
+        meta = MessageMeta(
+            message=message,
+            sender_identity_uuid=sender_identity_uuid,
+            backend=backend,
+            type_=type_,
+        )
         meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
         self.session.add(meta)
         self.session.flush()

@@ -83,8 +83,6 @@ class DeliveryExecutor:
         if not recipient_identity:
             return
 
-        meta.backend = backend_name
-        meta.type_ = message_type
         meta.extra = {
             **(meta.extra or {}),
             'outbound_idempotency_key': str(meta.message_uuid),

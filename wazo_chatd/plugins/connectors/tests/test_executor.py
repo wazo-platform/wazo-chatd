@@ -173,8 +173,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.route_outbound(meta)
 
-        assert meta.backend == 'twilio'
-        assert meta.type_ == 'sms'
+        assert meta.extra['outbound_idempotency_key'] == 'msg-uuid'
 
 
 def _make_inbound(
