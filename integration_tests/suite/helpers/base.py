@@ -463,15 +463,16 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
     @classmethod
     def setUpClass(cls):
         cls.reset_clients()
-        cls.auth.set_external_config({
-            'test': {'mock_url': 'http://connector-mock:8080'},
-        })
+        cls.auth.set_external_config(
+            {
+                'test': {'mock_url': 'http://connector-mock:8080'},
+            }
+        )
 
     @classmethod
     def reset_clients(cls):
         super().reset_clients()
         cls.connector_mock = cls.asset_cls.make_connector_mock()
-
 
 
 class TeamsIntegrationTest(_BaseIntegrationTest):

@@ -28,6 +28,7 @@ def _make_outbound() -> OutboundMessage:
         message_uuid='msg-uuid',
         sender_uuid='user-uuid',
         body='hello',
+        message_type='sms',
     )
 
 
@@ -37,6 +38,7 @@ def _make_inbound() -> InboundMessage:
         recipient='+15551234',
         body='hello',
         backend='twilio',
+        message_type='sms',
         external_id='ext-123',
     )
 

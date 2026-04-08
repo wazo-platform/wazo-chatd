@@ -55,7 +55,9 @@ class RoomService:
         sender_identity_uuid: UUID | None = None,
     ) -> object:
         self._set_default_message_values(message)
-        context = MessageContext(room, message, sender_identity_uuid=sender_identity_uuid)
+        context = MessageContext(
+            room, message, sender_identity_uuid=sender_identity_uuid
+        )
         self._hooks.dispatch('before_message_creation', context, allow_raise=True)
         self._dao.room.add_message(room, message)
         self._hooks.dispatch('after_message_creation', context)

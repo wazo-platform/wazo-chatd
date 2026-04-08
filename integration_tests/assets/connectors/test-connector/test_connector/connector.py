@@ -27,7 +27,7 @@ MOCK_URL = os.environ.get('TEST_CONNECTOR_MOCK_URL', 'http://connector-mock:8080
 
 class TestConnector:
     backend: ClassVar[str] = 'test'
-    supported_types: ClassVar[tuple[str, ...]] = ('test',)
+    supported_types: ClassVar[tuple[str, ...]] = ('test', 'test_alt')
     status_map: ClassVar[dict[str, DeliveryStatus]] = {
         'sent': DeliveryStatus.SENT,
         'delivered': DeliveryStatus.DELIVERED,
@@ -84,6 +84,7 @@ class TestConnector:
                 recipient=body.get('to', ''),
                 body=str(content),
                 backend=cls.backend,
+                message_type=body.get('type', 'test'),
                 external_id=body.get('message_id', ''),
                 metadata=dict(body),
             )
@@ -125,6 +126,7 @@ class TestConnector:
                 f'{self._mock_url}/sent',
                 json={
                     'message_uuid': message.message_uuid,
+                    'message_type': message.message_type,
                     'sender_identity': message.sender_identity,
                     'recipient_identity': message.recipient_identity,
                     'body': message.body,

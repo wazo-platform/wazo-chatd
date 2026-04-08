@@ -40,12 +40,15 @@ class AsyncUserIdentityDAO:
     async def resolve_users_by_identities(
         self,
         identities: list[str],
+        backend: str | None = None,
     ) -> dict[str, User]:
         stmt = (
             select(UserIdentity)
             .options(selectinload(UserIdentity.user))
             .where(UserIdentity.identity.in_(identities))
         )
+        if backend:
+            stmt = stmt.where(UserIdentity.backend == backend)
         result = await self.session.execute(stmt)
         return {str(record.identity): record.user for record in result.scalars().all()}
 

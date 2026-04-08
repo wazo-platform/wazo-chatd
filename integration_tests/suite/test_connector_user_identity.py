@@ -8,16 +8,15 @@ import uuid
 import requests
 
 from .helpers import fixtures
+from .helpers.base import TOKEN_SUBTENANT_UUID as OTHER_TENANT_UUID
 from .helpers.base import (
-    TOKEN_SUBTENANT_UUID as OTHER_TENANT_UUID,
     TOKEN_TENANT_UUID,
-    TOKEN_USER_UUID,
     TOKEN_UUID,
     ConnectorIntegrationTest,
     use_asset,
 )
 
-USER_UUID = TOKEN_USER_UUID
+USER_UUID = uuid.uuid4()
 OTHER_TENANT_USER_UUID = uuid.uuid4()
 
 
@@ -58,6 +57,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
         backend='twilio',
+        type_='sms',
         identity='+15551234567',
     )
     def test_list_returns_identities(self, user, identity):
@@ -70,6 +70,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         body = response.json()
         assert body['total'] == 1
         assert body['items'][0]['backend'] == 'twilio'
+        assert body['items'][0]['type'] == 'sms'
         assert body['items'][0]['identity'] == '+15551234567'
 
     @fixtures.db.user(uuid=USER_UUID)
@@ -79,6 +80,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
             headers=_headers(),
             json={
                 'backend': 'twilio',
+                'type': 'sms',
                 'identity': '+15559999999',
             },
         )
@@ -86,6 +88,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         assert response.status_code == 201
         body = response.json()
         assert body['backend'] == 'twilio'
+        assert body['type'] == 'sms'
         assert body['identity'] == '+15559999999'
         assert 'uuid' in body
 
@@ -96,6 +99,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
             headers=_headers(),
             json={
                 'backend': 'twilio',
+                'type': 'sms',
                 'identity': '+15558888888',
                 'extra': {'account_sid': 'AC123'},
             },
@@ -103,6 +107,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
 
         assert response.status_code == 201
         body = response.json()
+        assert body['type'] == 'sms'
         assert body['extra'] == {'account_sid': 'AC123'}
 
     @fixtures.db.user(uuid=USER_UUID)
@@ -110,7 +115,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         response = requests.post(
             _identity_url(self.port, str(USER_UUID)),
             headers=_headers(),
-            json={'identity': '+15557777777'},
+            json={'type': 'sms', 'identity': '+15557777777'},
         )
 
         assert response.status_code == 400
@@ -120,7 +125,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         response = requests.post(
             _identity_url(self.port, str(USER_UUID)),
             headers=_headers(),
-            json={'backend': 'twilio'},
+            json={'backend': 'twilio', 'type': 'sms'},
         )
 
         assert response.status_code == 400
@@ -129,6 +134,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
         backend='twilio',
+        type_='sms',
         identity='+15551234567',
     )
     def test_get(self, user, identity):
@@ -141,6 +147,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         body = response.json()
         assert body['uuid'] == str(identity.uuid)
         assert body['backend'] == 'twilio'
+        assert body['type'] == 'sms'
         assert body['identity'] == '+15551234567'
 
     @fixtures.db.user(uuid=USER_UUID)
@@ -157,6 +164,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
         backend='twilio',
+        type_='sms',
         identity='+15551234567',
     )
     def test_update(self, user, identity):
@@ -165,6 +173,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
             headers=_headers(),
             json={
                 'backend': 'vonage',
+                'type': 'sms',
                 'identity': '+15550000000',
             },
         )
@@ -175,6 +184,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
         backend='twilio',
+        type_='sms',
         identity='+15551234567',
     )
     def test_delete(self, user, identity):
@@ -235,6 +245,7 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
         user_uuid=OTHER_TENANT_USER_UUID,
         tenant_uuid=OTHER_TENANT_UUID,
         backend='twilio',
+        type_='sms',
         identity='+15553334444',
     )
     def test_token_sees_own_tenant_identities(self, user, identity):
@@ -261,6 +272,7 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
         user_uuid=USER_UUID,
         tenant_uuid=TOKEN_TENANT_UUID,
         backend='twilio',
+        type_='sms',
         identity='+15551112222',
     )
     def test_user_identity_tenant_isolation(self, user, identity):

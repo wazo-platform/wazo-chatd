@@ -21,6 +21,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         backend='twilio',
+        type_='sms',
         identity='+15551234567',
     )
     def test_create_identity(self, identity, user):
@@ -38,11 +39,13 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         backend='twilio',
+        type_='sms',
         identity='+15551111111',
     )
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         backend='vonage',
+        type_='sms',
         identity='+15552222222',
     )
     def test_user_multiple_identities(

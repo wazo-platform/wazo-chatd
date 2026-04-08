@@ -269,7 +269,7 @@ class RoomMessage(Base):  # type: ignore[misc, valid-type]
 @generic_repr
 class UserIdentity(Base):  # type: ignore[misc, valid-type]
     __tablename__ = 'chatd_user_identity'
-    __table_args__ = (UniqueConstraint('backend', 'identity'),)
+    __table_args__ = (UniqueConstraint('backend', 'identity', 'type'),)
 
     uuid = Column(
         UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
@@ -285,6 +285,7 @@ class UserIdentity(Base):  # type: ignore[misc, valid-type]
         nullable=False,
     )
     backend = Column(String, nullable=False)
+    type_ = Column('type', String, nullable=False)
     identity = Column(String, nullable=False)
     extra = Column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")

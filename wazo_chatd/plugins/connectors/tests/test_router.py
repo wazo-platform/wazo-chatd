@@ -48,6 +48,7 @@ class _SmsConnector:
                     recipient=body.get('To', ''),
                     body=body['Body'],
                     backend=cls.backend,
+                    message_type='sms',
                     external_id=body.get('MessageSid', ''),
                 )
             case _:
@@ -123,7 +124,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
     def test_dispatch_enqueues_inbound_message(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
-        data = WebhookData(body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-123'})
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-123'}
+        )
 
         self.router.dispatch_webhook(data, backend='twilio')
 
@@ -134,7 +137,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
     def test_dispatch_without_backend_hint(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
-        data = WebhookData(body={'From': '+15559876', 'Body': 'hi', 'MessageSid': 'msg-1'})
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hi', 'MessageSid': 'msg-1'}
+        )
 
         self.router.dispatch_webhook(data)
 
@@ -143,7 +148,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def test_dispatch_skips_connector_that_cannot_handle(self) -> None:
         self.registry.register_backend(_EmailConnector)  # type: ignore[arg-type]
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
-        data = WebhookData(body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'})
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
 
         self.router.dispatch_webhook(data)
 
@@ -166,7 +173,9 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
     def test_dispatch_falls_back_to_non_hint_connectors(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
-        data = WebhookData(body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'})
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
 
         self.router.dispatch_webhook(data, backend='vonage')
 
@@ -235,9 +244,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         self.router = _build_router(registry=self.registry, service=self.service)
 
     def test_internal_room_without_sender_identity_uuid_passes(self) -> None:
-        room = _make_room(
-            [_make_room_user('user-a'), _make_room_user('user-b')]
-        )
+        room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
         ctx = MessageContext(room, Mock(), sender_identity_uuid=None)
 
         self.router.validate_outbound(ctx)
@@ -257,9 +264,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
             self.router.validate_outbound(ctx)
 
     def test_sender_identity_uuid_delegates_to_service(self) -> None:
-        room = _make_room(
-            [_make_room_user('user-a'), _make_room_user('user-b')]
-        )
+        room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
         identity_uuid = uuid.uuid4()
         message = Mock(user_uuid='user-a')
         ctx = MessageContext(room, message, sender_identity_uuid=identity_uuid)
@@ -278,9 +283,7 @@ class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
         self.router = _build_router(registry=self.registry, service=self.service)
 
     def test_delegates_to_service(self) -> None:
-        room = _make_room(
-            [_make_room_user('user-a'), _make_room_user('user-b')]
-        )
+        room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
 
         self.router.validate_room_creation(room)
 

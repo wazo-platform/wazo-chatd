@@ -32,7 +32,6 @@ class TestInboundWebhook(ConnectorIntegrationTest):
     )
     def test_webhook_creates_message_with_meta(self, user, identity):
 
-
         webhook_data = {
             'from': EXTERNAL_IDENTITY,
             'to': 'test:+15551234',
@@ -64,6 +63,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             )
             assert meta is not None
             assert meta.backend == 'test'
+            assert meta.type_ == 'test'
 
         until.assert_(message_persisted, timeout=5, interval=0.1)
 
@@ -74,7 +74,6 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         identity='test:+15551234',
     )
     def test_webhook_with_backend_hint(self, user, identity):
-
 
         webhook_data = {
             'from': EXTERNAL_IDENTITY,
@@ -119,7 +118,6 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         identity='test:+15551234',
     )
     def test_webhook_duplicate_idempotency_skipped(self, user, identity):
-
 
         webhook_data = {
             'from': EXTERNAL_IDENTITY,
@@ -213,6 +211,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         )
         assert meta is not None
         assert meta.backend == 'test'
+        assert meta.type_ == 'test'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(
@@ -528,3 +527,34 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
         message = messages['items'][0]
         assert message['type'] == 'internal'
         assert message['backend'] is None
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        backend='test',
+        identity='test:+15551234',
+    )
+    @fixtures.db.room(
+        users=[
+            {'uuid': TOKEN_USER_UUID},
+            {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
+        ],
+    )
+    def test_connector_message_has_type_from_identity(self, user, identity, room):
+        self.connector_mock.reset()
+
+        message = self.chatd.rooms.create_message_from_user(
+            str(room.uuid),
+            {'content': 'Typed message', 'sender_identity_uuid': str(identity.uuid)},
+        )
+
+        def message_has_type():
+            messages = self.chatd.rooms.list_messages_from_user(str(room.uuid))
+            connector_msgs = [
+                m for m in messages['items'] if m['content'] == 'Typed message'
+            ]
+            assert len(connector_msgs) == 1
+            assert connector_msgs[0]['type'] == 'test'
+            assert connector_msgs[0]['backend'] == 'test'
+
+        until.assert_(message_has_type, timeout=5, interval=0.1)

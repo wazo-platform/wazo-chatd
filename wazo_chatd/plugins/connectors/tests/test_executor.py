@@ -38,6 +38,7 @@ def _make_outbound(message_uuid: str = 'delivery-1') -> OutboundMessage:
         message_uuid=message_uuid,
         sender_uuid='user-uuid',
         body='hello',
+        message_type='sms',
         sender_identity='+15551234',
         recipient_identity='+15559876',
         metadata={'idempotency_key': 'key-1'},
@@ -151,6 +152,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
             identity='+15551234',
             tenant_uuid='tenant-uuid',
             backend='twilio',
+            type_='sms',
         )
         recipient_user = Mock(uuid='recipient-uuid', identity=None)
         sender_user = Mock(uuid='sender-uuid', identity=None)
@@ -172,6 +174,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_outbound(meta)
 
         assert meta.backend == 'twilio'
+        assert meta.type_ == 'sms'
 
 
 def _make_inbound(
@@ -185,6 +188,7 @@ def _make_inbound(
         recipient='+15551234',
         body='hello from outside',
         backend='twilio',
+        message_type='sms',
         external_id='ext-123',
         metadata=metadata,
     )

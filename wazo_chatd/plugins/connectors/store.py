@@ -67,22 +67,16 @@ class ConnectorStore:
         if backend not in self._registry.available_backends():
             return None
 
-        return await asyncio.to_thread(
-            self._fetch_and_cache, backend, tenant_uuid
-        )
+        return await asyncio.to_thread(self._fetch_and_cache, backend, tenant_uuid)
 
     def _is_expired(self, timestamp: float) -> bool:
         return (time.monotonic() - timestamp) > self._cache_ttl
 
-    def _fetch_and_cache(
-        self, backend: str, tenant_uuid: str
-    ) -> Connector | None:
+    def _fetch_and_cache(self, backend: str, tenant_uuid: str) -> Connector | None:
         key = (tenant_uuid, backend)
         try:
             config = dict(
-                self._auth_client.external.get_config(
-                    backend, tenant_uuid=tenant_uuid
-                )
+                self._auth_client.external.get_config(backend, tenant_uuid=tenant_uuid)
             )
         except HTTPError as e:
             status = getattr(e.response, 'status_code', None)
@@ -105,7 +99,5 @@ class ConnectorStore:
         instance = cls(config, self._connectors_config.get(backend, {}))
         self._cache[key] = instance
         self._timestamps[key] = time.monotonic()
-        logger.info(
-            'Loaded connector instance %r for tenant %s', backend, tenant_uuid
-        )
+        logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)
         return instance

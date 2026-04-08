@@ -16,10 +16,7 @@ from wazo_chatd.http import AuthResource
 from wazo_chatd.plugin_helpers.http import update_model_instance
 from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
 from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
-from wazo_chatd.plugins.connectors.schemas import (
-    UserIdentityAdminSchema,
-    UserIdentitySchema,
-)
+from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.types import WebhookData
 
@@ -77,14 +74,14 @@ class UserIdentityListResource(AuthResource):
         tenant_uuids = get_tenant_uuids(recurse=True)
         identities = self._service.list_identities(tenant_uuids, user_uuid)
         return {
-            'items': UserIdentityAdminSchema().dump(identities, many=True),
+            'items': UserIdentitySchema().dump(identities, many=True),
             'total': len(identities),
         }, 200
 
     @required_acl('chatd.users.{user_uuid}.identities.create')
     def post(self, user_uuid: str) -> tuple[dict[str, Any], int]:
         tenant_uuids = get_tenant_uuids(recurse=True)
-        body = UserIdentityAdminSchema().load(request.get_json(force=True))
+        body = UserIdentitySchema().load(request.get_json(force=True))
         tenant_uuid = tenant_uuids[0]
         identity = UserIdentity(
             tenant_uuid=tenant_uuid,
@@ -92,7 +89,7 @@ class UserIdentityListResource(AuthResource):
             **body,
         )
         created = self._service.create_identity(identity)
-        return UserIdentityAdminSchema().dump(created), 201
+        return UserIdentitySchema().dump(created), 201
 
 
 class UserIdentityItemResource(AuthResource):
@@ -105,7 +102,7 @@ class UserIdentityItemResource(AuthResource):
         identity = self._service.get_identity(
             tenant_uuids, identity_uuid, user_uuid=user_uuid
         )
-        return UserIdentityAdminSchema().dump(identity), 200
+        return UserIdentitySchema().dump(identity), 200
 
     @required_acl('chatd.users.{user_uuid}.identities.{identity_uuid}.update')
     def put(self, user_uuid: str, identity_uuid: str) -> tuple[str, int]:
@@ -113,7 +110,7 @@ class UserIdentityItemResource(AuthResource):
         identity = self._service.get_identity(
             tenant_uuids, identity_uuid, user_uuid=user_uuid
         )
-        body = UserIdentityAdminSchema().load(request.get_json(force=True))
+        body = UserIdentitySchema().load(request.get_json(force=True))
         update_model_instance(identity, body)
         self._service.update_identity(identity)
         return '', 204
@@ -138,6 +135,8 @@ class RoomIdentityListResource(AuthResource):
             [token.tenant_uuid], room_uuid, str(token.user_uuid)
         )
         return {
-            'items': UserIdentitySchema().dump(identities, many=True),
+            'items': UserIdentitySchema(
+                only=('uuid', 'backend', 'type_', 'identity')
+            ).dump(identities, many=True),
             'total': len(identities),
         }, 200

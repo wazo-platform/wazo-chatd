@@ -20,7 +20,9 @@ class _SmsConnector:
     backend: ClassVar[str] = 'twilio'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
-    def __init__(self, provider_config: object = None, connector_config: object = None) -> None:
+    def __init__(
+        self, provider_config: object = None, connector_config: object = None
+    ) -> None:
         pass
 
 
@@ -28,7 +30,9 @@ class _EmailConnector:
     backend: ClassVar[str] = 'mailgun'
     supported_types: ClassVar[tuple[str, ...]] = ('email',)
 
-    def __init__(self, provider_config: object = None, connector_config: object = None) -> None:
+    def __init__(
+        self, provider_config: object = None, connector_config: object = None
+    ) -> None:
         pass
 
 

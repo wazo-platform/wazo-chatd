@@ -87,8 +87,7 @@ class ConnectorService:
         if not reachable_types:
             return []
 
-        backends = self._registry.backends_for_types(reachable_types)
-        return self._dao.user_identity.list_by_user(user_uuid, backends=backends)
+        return self._dao.user_identity.list_by_user(user_uuid, types=reachable_types)
 
     def validate_room_reachability(self, room: Room) -> None:
         participants = room.users
@@ -124,16 +123,13 @@ class ConnectorService:
         needs_db_lookup.extend(internal)
 
         if needs_db_lookup:
-            db_backends = self._dao.user_identity.list_backends_by_users(
+            db_types = self._dao.user_identity.list_types_by_users(
                 [str(u.uuid) for u in needs_db_lookup]
             )
             for user in needs_db_lookup:
-                user_backends = db_backends.get(str(user.uuid), set())
-                if not user_backends:
+                user_types = db_types.get(str(user.uuid), set())
+                if not user_types:
                     raise UnreachableParticipantError(str(user.identity or user.uuid))
-                user_types: set[str] = set()
-                for backend in user_backends:
-                    user_types |= self._registry.types_for_backend(backend)
                 types_by_participant[str(user.uuid)] = user_types
 
         common_types: set[str] | None = None
@@ -157,27 +153,24 @@ class ConnectorService:
             raise InvalidIdentityError(str(sender_identity_uuid))
 
         sender_backend = str(record.backend)
-        sender_types = self._registry.types_for_backend(sender_backend)
+        sender_type = str(record.type_)
         others = [u for u in room.users if str(u.uuid) != sender_uuid]
 
         internal = [u for u in others if not u.identity]
         external = [u for u in others if u.identity]
 
         if internal:
-            internal_backends = self._dao.user_identity.list_backends_by_users(
+            internal_types = self._dao.user_identity.list_types_by_users(
                 [str(u.uuid) for u in internal]
             )
             for user in internal:
-                user_backends = internal_backends.get(str(user.uuid), set())
-                user_types: set[str] = set()
-                for backend in user_backends:
-                    user_types |= self._registry.types_for_backend(backend)
-                if not (sender_types & user_types):
+                user_types = internal_types.get(str(user.uuid), set())
+                if sender_type not in user_types:
                     raise UnreachableParticipantError(str(user.uuid), sender_backend)
 
         for user in external:
             reachable_types = self._registry.resolve_reachable_types(str(user.identity))
-            if not (sender_types & reachable_types):
+            if sender_type not in reachable_types:
                 raise UnreachableParticipantError(str(user.identity), sender_backend)
 
     def _resolve_participant_types(self, participant: RoomUser) -> set[str]:
@@ -186,16 +179,10 @@ class ConnectorService:
         if identity is not None:
             if self._dao.user_identity.is_identity_bound(identity):
                 user_id = str(participant.uuid)
-                backends_map = self._dao.user_identity.list_backends_by_users([user_id])
-                types: set[str] = set()
-                for backend in backends_map.get(user_id, set()):
-                    types |= self._registry.types_for_backend(backend)
-                return types
+                types_map = self._dao.user_identity.list_types_by_users([user_id])
+                return types_map.get(user_id, set())
             return self._registry.resolve_reachable_types(identity)
 
         user_id = str(participant.uuid)
-        backends_map = self._dao.user_identity.list_backends_by_users([user_id])
-        types = set()
-        for backend in backends_map.get(user_id, set()):
-            types |= self._registry.types_for_backend(backend)
-        return types
+        types_map = self._dao.user_identity.list_types_by_users([user_id])
+        return types_map.get(user_id, set())

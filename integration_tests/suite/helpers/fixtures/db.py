@@ -335,6 +335,7 @@ def user_identity(**identity_args):
             identity_args.setdefault('uuid', uuid.uuid4())
             identity_args.setdefault('tenant_uuid', TOKEN_TENANT_UUID)
             identity_args.setdefault('backend', 'test')
+            identity_args.setdefault('type_', 'test')
             identity_args.setdefault(
                 'identity', f'+1555{random.randint(1000000, 9999999)}'
             )

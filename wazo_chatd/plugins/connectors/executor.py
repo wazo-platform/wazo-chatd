@@ -75,6 +75,7 @@ class DeliveryExecutor:
 
         sender_identity = str(sender_record.identity)
         backend_name = str(sender_record.backend)
+        message_type = str(sender_record.type_)
 
         recipient_identity = await self._resolve_recipient_identity(
             room, message, backend_name
@@ -83,6 +84,7 @@ class DeliveryExecutor:
             return
 
         meta.backend = backend_name
+        meta.type_ = message_type
         meta.extra = {
             **(meta.extra or {}),
             'outbound_idempotency_key': str(meta.message_uuid),
@@ -94,6 +96,7 @@ class DeliveryExecutor:
             message_uuid=str(meta.message_uuid),
             sender_uuid=str(message.user_uuid),
             body=str(message.content or ''),
+            message_type=message_type,
             sender_identity=sender_identity,
             recipient_identity=recipient_identity,
             metadata={'idempotency_key': str(meta.message_uuid)},
@@ -215,6 +218,7 @@ class DeliveryExecutor:
         meta = MessageMeta(
             message_uuid=message.uuid,
             backend=inbound.backend,
+            type_=inbound.message_type,
             extra=extra,
         )
         record = DeliveryRecord(

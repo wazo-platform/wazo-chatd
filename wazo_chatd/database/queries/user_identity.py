@@ -51,6 +51,7 @@ class UserIdentityDAO:
         user_uuid: str,
         tenant_uuids: Iterable[str] | None = None,
         backends: Iterable[str] | None = None,
+        types: Iterable[str] | None = None,
     ) -> list[UserIdentity]:
         stmt = select(UserIdentity).where(
             UserIdentity.user_uuid == user_uuid,
@@ -59,6 +60,8 @@ class UserIdentityDAO:
             stmt = stmt.where(UserIdentity.tenant_uuid.in_(tenant_uuids))
         if backends:
             stmt = stmt.where(UserIdentity.backend.in_(backends))
+        if types:
+            stmt = stmt.where(UserIdentity.type_.in_(types))
 
         return list(self.session.execute(stmt).scalars().all())
 
@@ -83,6 +86,24 @@ class UserIdentityDAO:
         result: dict[str, set[str]] = {uid: set() for uid in user_uuids}
         for user_uuid_val, backend in rows:
             result[str(user_uuid_val)].add(backend)
+        return result
+
+    def list_types_by_users(
+        self,
+        user_uuids: list[str],
+    ) -> dict[str, set[str]]:
+        stmt = (
+            select(UserIdentity.user_uuid, UserIdentity.type_)
+            .where(UserIdentity.user_uuid.in_(user_uuids))
+            .distinct()
+        )
+
+        rows = self.session.execute(stmt).all()
+        result: dict[str, set[str]] = {uid: set() for uid in user_uuids}
+
+        for user_uuid_val, type_ in rows:
+            result[str(user_uuid_val)].add(type_)
+
         return result
 
     def users_reachable_by_backend(

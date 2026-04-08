@@ -27,7 +27,6 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     def test_room_with_unreachable_participant_returns_409(self, user):
 
-
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.rooms.create_from_user(
                 {
@@ -49,7 +48,6 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
     )
     def test_room_with_reachable_external_participant_succeeds(self, user, identity):
 
-
         room = self.chatd.rooms.create_from_user(
             {
                 'users': [
@@ -69,7 +67,6 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
     )
     def test_room_with_multiple_reachable_external_participants(self, user, identity):
 
-
         room = self.chatd.rooms.create_from_user(
             {
                 'users': [
@@ -84,7 +81,6 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     def test_room_with_one_reachable_one_unreachable_returns_409(self, user):
-
 
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.rooms.create_from_user(
@@ -130,7 +126,6 @@ class TestMessageValidation(ConnectorIntegrationTest):
         self, user, identity, room
     ):
 
-
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.rooms.create_message_from_user(
                 str(room.uuid), {'content': 'No alias'}
@@ -154,7 +149,6 @@ class TestMessageValidation(ConnectorIntegrationTest):
     def test_external_room_with_sender_identity_uuid_succeeds(
         self, user, identity, room
     ):
-
 
         message = self.chatd.rooms.create_message_from_user(
             str(room.uuid),
@@ -198,7 +192,6 @@ class TestMessageValidation(ConnectorIntegrationTest):
         self, user, recipient, sender_identity, recipient_identity, room
     ):
 
-
         message = self.chatd.rooms.create_message_from_user(
             str(room.uuid),
             {
@@ -225,7 +218,6 @@ class TestMessageValidation(ConnectorIntegrationTest):
     def test_mixed_room_without_sender_identity_uuid_returns_409(
         self, user, identity, room
     ):
-
 
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.rooms.create_message_from_user(
@@ -256,7 +248,6 @@ class TestMessageValidation(ConnectorIntegrationTest):
     def test_mixed_room_with_sender_identity_uuid_succeeds(
         self, user, internal_user, sender_identity, internal_identity, room
     ):
-
 
         message = self.chatd.rooms.create_message_from_user(
             str(room.uuid),

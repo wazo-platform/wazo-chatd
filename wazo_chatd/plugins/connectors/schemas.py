@@ -7,12 +7,7 @@ from xivo.mallow_helpers import Schema
 
 class UserIdentitySchema(Schema):
     uuid = fields.UUID(dump_only=True)
-    backend = fields.String(dump_only=True)
-    identity = fields.String(dump_only=True)
-
-
-class UserIdentityAdminSchema(Schema):
-    uuid = fields.UUID(dump_only=True)
     backend = fields.String(required=True)
+    type_ = fields.String(required=True, data_key='type')
     identity = fields.String(required=True)
     extra = fields.Dict(load_default=dict)

@@ -22,6 +22,7 @@ from wazo_chatd.plugins.connectors.types import WebhookData
 
 if TYPE_CHECKING:
     from wazo_auth_client import Client as AuthClient
+
     from wazo_chatd.database.models import Room
 
 logger = logging.getLogger(__name__)

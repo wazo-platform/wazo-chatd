@@ -34,7 +34,9 @@ class TestRoomServiceCreate(unittest.TestCase):
 
     def test_create_dispatches_before_room_creation_before_persist(self) -> None:
         call_order: list[str] = []
-        self.hooks.register('before_room_creation', lambda _: call_order.append('creating'))
+        self.hooks.register(
+            'before_room_creation', lambda _: call_order.append('creating')
+        )
         self.dao.room.create.side_effect = lambda *a: call_order.append('persist')
 
         self.service.create(self.room)

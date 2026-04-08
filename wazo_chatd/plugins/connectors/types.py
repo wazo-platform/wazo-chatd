@@ -54,6 +54,7 @@ class OutboundMessage:
     message_uuid: str
     sender_uuid: str
     body: str
+    message_type: str
     participants: tuple[RoomParticipant, ...] = ()
     sender_identity: str = ''
     recipient_identity: str = ''
@@ -78,6 +79,9 @@ class InboundMessage:
 
     backend: str
     """Which backend produced this message (e.g. "twilio")."""
+
+    message_type: str
+    """Communication type resolved from the payload (e.g. "sms", "whatsapp")."""
 
     external_id: str
     """The backend's message ID, for idempotency and tracking."""

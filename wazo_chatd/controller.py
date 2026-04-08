@@ -15,11 +15,11 @@ from xivo.token_renewer import TokenRenewer
 
 from . import auth
 from .asyncio_ import CoreAsyncio
-from .plugin_helpers.hooks import Hooks
 from .bus import BusConsumer, BusPublisher
 from .database.helpers import init_db
 from .database.queries import DAO
 from .http_server import CoreRestApi, api, app
+from .plugin_helpers.hooks import Hooks
 from .thread_manager import ThreadManager
 
 logger = logging.getLogger(__name__)

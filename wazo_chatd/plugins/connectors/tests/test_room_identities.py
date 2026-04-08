@@ -49,7 +49,7 @@ def _make_room(users: list[Mock] | None = None) -> Mock:
 
 def _build_service(
     room: Mock | None = None,
-    backends_by_user: dict[str, list[str]] | None = None,
+    types_by_user: dict[str, list[str]] | None = None,
     identity_bound: dict[str, bool] | None = None,
     sender_identities: list[Mock] | None = None,
 ) -> ConnectorService:
@@ -59,9 +59,9 @@ def _build_service(
     if room is not None:
         dao.room.get.return_value = room
 
-    backends_map = backends_by_user or {}
-    dao.user_identity.list_backends_by_users.side_effect = lambda uids: {
-        uid: set(backends_map.get(uid, [])) for uid in uids
+    types_map = types_by_user or {}
+    dao.user_identity.list_types_by_users.side_effect = lambda uids: {
+        uid: set(types_map.get(uid, [])) for uid in uids
     }
 
     bound_map = identity_bound or {}
@@ -105,7 +105,7 @@ class TestListRoomIdentities(unittest.TestCase):
         identity_mock = Mock()
         service = _build_service(
             room=room,
-            backends_by_user={'recipient-uuid': ['twilio']},
+            types_by_user={'recipient-uuid': ['sms']},
             sender_identities=[identity_mock],
         )
 
@@ -122,7 +122,7 @@ class TestListRoomIdentities(unittest.TestCase):
         service = _build_service(
             room=room,
             identity_bound={'+15559876': True},
-            backends_by_user={'recipient-uuid': ['twilio']},
+            types_by_user={'recipient-uuid': ['sms']},
             sender_identities=[identity_mock],
         )
 
@@ -137,7 +137,7 @@ class TestListRoomIdentities(unittest.TestCase):
 
         service = _build_service(
             room=room,
-            backends_by_user={'other-uuid': []},
+            types_by_user={'other-uuid': []},
         )
 
         result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
@@ -153,9 +153,9 @@ class TestListRoomIdentities(unittest.TestCase):
         identity_mock = Mock()
         service = _build_service(
             room=room,
-            backends_by_user={
-                'user-a': ['twilio'],
-                'user-b': ['twilio'],
+            types_by_user={
+                'user-a': ['sms'],
+                'user-b': ['sms'],
             },
             sender_identities=[identity_mock],
         )
@@ -192,9 +192,10 @@ class TestListRoomIdentities(unittest.TestCase):
             service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
 
-def _make_identity(backend: str = 'twilio') -> Mock:
+def _make_identity(backend: str = 'twilio', type_: str = 'sms') -> Mock:
     identity_mock = Mock()
     identity_mock.backend = backend
+    identity_mock.type_ = type_
     return identity_mock
 
 
@@ -207,7 +208,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         identity = _make_identity('twilio')
         service = _build_service(
             room=room,
-            backends_by_user={'recipient-uuid': ['twilio']},
+            types_by_user={'recipient-uuid': ['sms']},
         )
         service._dao.user_identity.find.return_value = identity
 
@@ -221,7 +222,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         identity = _make_identity('twilio')
         service = _build_service(
             room=room,
-            backends_by_user={'recipient-uuid': []},
+            types_by_user={'recipient-uuid': []},
         )
         service._dao.user_identity.find.return_value = identity
 
@@ -272,7 +273,7 @@ class TestValidateRoomReachability(unittest.TestCase):
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},
-            backends_by_user={'user-a': ['twilio']},
+            types_by_user={'user-a': ['sms']},
         )
         service._dao.user_identity.list_bound_identities.return_value = set()
 
@@ -297,7 +298,7 @@ class TestValidateRoomReachability(unittest.TestCase):
 
         service = _build_service(
             room=room,
-            backends_by_user={'user-a': ['twilio'], 'user-b': ['twilio']},
+            types_by_user={'user-a': ['sms'], 'user-b': ['sms']},
         )
         service._dao.user_identity.list_bound_identities.return_value = set()
 

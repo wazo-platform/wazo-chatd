@@ -53,6 +53,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column('backend', sa.String, nullable=False),
+        sa.Column('type', sa.String, nullable=False),
         sa.Column('identity', sa.String, nullable=False),
         sa.Column(
             'extra',
@@ -62,9 +63,9 @@ def upgrade() -> None:
         ),
     )
     op.create_unique_constraint(
-        'chatd_user_identity__uq__backend_identity',
+        'chatd_user_identity__uq__backend_identity_type',
         'chatd_user_identity',
-        ['backend', 'identity'],
+        ['backend', 'identity', 'type'],
     )
 
     # MessageMeta: optional 1:1 delivery metadata for RoomMessage
