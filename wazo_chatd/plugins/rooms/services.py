@@ -3,18 +3,24 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugin_helpers.hooks import Hooks
+
+if TYPE_CHECKING:
+    from wazo_chatd.database.models import Room, RoomMessage
+    from wazo_chatd.database.queries import DAO
+    from wazo_chatd.plugins.rooms.notifier import RoomNotifier
 
 
 class RoomService:
     def __init__(
         self,
         wazo_uuid: str,
-        dao: object,
-        notifier: object,
+        dao: DAO,
+        notifier: RoomNotifier,
         hooks: Hooks,
     ) -> None:
         self._dao = dao
@@ -50,17 +56,16 @@ class RoomService:
 
     def create_message(
         self,
-        room: object,
-        message: object,
+        room: Room,
+        message: RoomMessage,
         sender_identity_uuid: UUID | None = None,
-    ) -> object:
+    ) -> RoomMessage:
         self._set_default_message_values(message)
         context = MessageContext(
             room, message, sender_identity_uuid=sender_identity_uuid
         )
         self._hooks.dispatch('before_message_creation', context, allow_raise=True)
         self._dao.room.add_message(room, message)
-        self._hooks.dispatch('after_message_creation', context)
         self._notifier.message_created(room, message)
         return message
 

@@ -1,6 +1,8 @@
 # Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from uuid import uuid4
+
 from sqlalchemy import and_, distinct, text
 from sqlalchemy.dialects.postgresql import array_agg
 from sqlalchemy.orm import Query, aliased
@@ -83,29 +85,29 @@ class RoomDAO:
         self.session.flush()
         return meta
 
-    def create_pending_delivery(
+    def prepare_pending_delivery(
         self,
         message: RoomMessage,
         sender_identity_uuid: object | None = None,
         backend: str | None = None,
         type_: str | None = None,
-    ) -> MessageMeta:
+    ) -> None:
+        if not message.uuid:
+            message.uuid = uuid4()
+
         meta = MessageMeta(
-            message=message,
             sender_identity_uuid=sender_identity_uuid,
             backend=backend,
             type_=type_,
         )
         meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
-        self.session.add(meta)
-        self.session.flush()
+        message.meta = meta
 
         # On commit, signal the async delivery loop from the sync Flask path
         self.session.execute(
             text("SELECT pg_notify('connector_delivery', :payload)"),
             {'payload': str(message.uuid)},
         )
-        return meta
 
     def list_messages(self, room, **filter_parameters):
         query = self._build_messages_query(room.uuid)

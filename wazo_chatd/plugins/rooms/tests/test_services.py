@@ -78,27 +78,6 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
         assert result is self.message
         assert self.message.wazo_uuid == WAZO_UUID
 
-    def test_create_message_dispatches_context_to_created_hook(self) -> None:
-        callback = Mock()
-        self.hooks.register('after_message_creation', callback)
-
-        self.service.create_message(
-            self.room, self.message, sender_identity_uuid=self.sender_identity_uuid
-        )
-
-        ctx = callback.call_args[0][0]
-        assert isinstance(ctx, MessageContext)
-        assert ctx.room is self.room
-        assert ctx.message is self.message
-        assert ctx.sender_identity_uuid == self.sender_identity_uuid
-
-    def test_create_message_notifies_even_when_created_hook_fails(self) -> None:
-        self.hooks.register('after_message_creation', Mock(side_effect=RuntimeError))
-
-        self.service.create_message(self.room, self.message)
-
-        self.notifier.message_created.assert_called_once_with(self.room, self.message)
-
     def test_create_message_dispatches_creating_hook_before_persist(self) -> None:
         call_order: list[str] = []
         self.hooks.register(
@@ -123,7 +102,7 @@ class TestRoomServiceCreateMessage(unittest.TestCase):
 
     def test_create_message_without_sender_identity_uuid(self) -> None:
         callback = Mock()
-        self.hooks.register('after_message_creation', callback)
+        self.hooks.register('before_message_creation', callback)
 
         self.service.create_message(self.room, self.message)
 

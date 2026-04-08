@@ -65,12 +65,12 @@ class ConnectorService:
         self._dao.user_identity.delete(identity)
         self._notifier.deleted(identity)
 
-    def create_outbound_delivery(
+    def prepare_outbound_delivery(
         self,
         message: RoomMessage,
         sender_identity: UserIdentity,
     ) -> None:
-        self._dao.room.create_pending_delivery(
+        self._dao.room.prepare_pending_delivery(
             message,
             sender_identity.uuid,
             backend=sender_identity.backend,

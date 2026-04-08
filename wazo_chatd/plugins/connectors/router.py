@@ -73,7 +73,7 @@ class ConnectorRouter:
     def validate_room_creation(self, room: Room) -> None:
         self._service.validate_room_reachability(room)
 
-    def validate_outbound(self, context: MessageContext) -> None:
+    def prepare_outbound(self, context: MessageContext) -> None:
         has_external = any(u.identity for u in context.room.users)
         if has_external and not context.sender_identity_uuid:
             raise MessageIdentityRequiredError()
@@ -85,9 +85,9 @@ class ConnectorRouter:
                 context.sender_identity_uuid,
             )
             context.resolved_sender_identity = identity
-
-    def on_message_created(self, context: MessageContext) -> None:
-        self.send(context)
+            self._service.prepare_outbound_delivery(
+                context.message, identity
+            )
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
         loop = self._delivery_loop
@@ -99,19 +99,6 @@ class ConnectorRouter:
             'instances': len(self._store),
         }
 
-    def send(self, context: MessageContext) -> None:
-        """Create delivery metadata and notify the async delivery loop.
-
-        For internal-only rooms (no external participants), this is a
-        no-op.  Uses PostgreSQL NOTIFY to signal the async loop after
-        the transaction commits, guaranteeing data visibility.
-        """
-        if not context.resolved_sender_identity:
-            return
-
-        self._service.create_outbound_delivery(
-            context.message, context.resolved_sender_identity
-        )
 
     def dispatch_webhook(
         self,

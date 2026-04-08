@@ -47,8 +47,7 @@ class Plugin:
         router.register_http_endpoints(api)
 
         hooks.register('before_room_creation', router.validate_room_creation)
-        hooks.register('before_message_creation', router.validate_outbound)
-        hooks.register('after_message_creation', router.on_message_created)
+        hooks.register('before_message_creation', router.prepare_outbound)
 
         bus_handler = ConnectorBusEventHandler(bus_consumer, router)
         bus_handler.subscribe()

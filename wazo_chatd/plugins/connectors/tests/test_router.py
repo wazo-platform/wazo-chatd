@@ -184,61 +184,6 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         assert result.backend == 'twilio'
 
 
-class TestConnectorRouterSend(unittest.TestCase):
-    def setUp(self) -> None:
-        self.registry = _build_registry()
-        self.router = _build_router(registry=self.registry)
-
-    def test_send_internal_room_is_noop(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('user-b'),
-            ]
-        )
-        message = Mock(uuid='msg-uuid')
-        context = MessageContext(room, message)
-
-        self.router.send(context)
-
-        self.router._service.create_outbound_delivery.assert_not_called()
-
-    def test_send_external_room_creates_delivery(self) -> None:
-        room = _make_room(
-            [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='+15559876'),
-            ]
-        )
-        message = Mock(uuid='msg-uuid')
-        sender_identity = Mock()
-        context = MessageContext(
-            room, message, resolved_sender_identity=sender_identity
-        )
-
-        self.router.send(context)
-
-        self.router._service.create_outbound_delivery.assert_called_once_with(
-            message, sender_identity
-        )
-
-
-class TestConnectorRouterOnRoomMessageCreated(unittest.TestCase):
-    def setUp(self) -> None:
-        self.registry = _build_registry()
-        self.router = _build_router(registry=self.registry)
-        self.router.send = Mock()  # type: ignore[assignment]
-
-    def test_unpacks_context_and_calls_send(self) -> None:
-        room = _make_room()
-        message = Mock()
-        ctx = MessageContext(room, message, sender_identity_uuid=None)
-
-        self.router.on_message_created(ctx)
-
-        self.router.send.assert_called_once_with(ctx)
-
-
 class TestConnectorRouterValidateOutbound(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = _build_registry()
@@ -249,7 +194,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
         ctx = MessageContext(room, Mock(), sender_identity_uuid=None)
 
-        self.router.validate_outbound(ctx)
+        self.router.prepare_outbound(ctx)
 
         self.service.validate_identity_reachability.assert_not_called()
 
@@ -263,19 +208,25 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         ctx = MessageContext(room, Mock(), sender_identity_uuid=None)
 
         with pytest.raises(MessageIdentityRequiredError):
-            self.router.validate_outbound(ctx)
+            self.router.prepare_outbound(ctx)
 
-    def test_sender_identity_uuid_delegates_to_service(self) -> None:
+    def test_sender_identity_uuid_validates_and_prepares_delivery(self) -> None:
         room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
         identity_uuid = uuid.uuid4()
+        identity = Mock()
+        self.service.validate_identity_reachability.return_value = identity
         message = Mock(user_uuid='user-a')
         ctx = MessageContext(room, message, sender_identity_uuid=identity_uuid)
 
-        self.router.validate_outbound(ctx)
+        self.router.prepare_outbound(ctx)
 
         self.service.validate_identity_reachability.assert_called_once_with(
             room, 'user-a', identity_uuid
         )
+        self.service.prepare_outbound_delivery.assert_called_once_with(
+            message, identity
+        )
+        assert ctx.resolved_sender_identity is identity
 
 
 class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
