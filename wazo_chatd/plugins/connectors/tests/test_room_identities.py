@@ -74,7 +74,7 @@ def _build_service(
     registry = ConnectorRegistry()
     registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
 
-    return ConnectorService(dao, registry)
+    return ConnectorService(dao, registry, Mock())
 
 
 SENDER_UUID = 'sender-uuid'

@@ -129,7 +129,7 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
 
         dao = Mock()
         registry = ConnectorRegistry()
-        return ConnectorService(dao, registry)
+        return ConnectorService(dao, registry, Mock())
 
     def test_list_identities(self) -> None:
         service = self._build_service()

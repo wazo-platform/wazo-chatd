@@ -13,6 +13,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     NoCommonConnectorError,
     UnreachableParticipantError,
 )
+from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 if TYPE_CHECKING:
@@ -23,9 +24,15 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectorService:
-    def __init__(self, dao: DAO, registry: ConnectorRegistry) -> None:
+    def __init__(
+        self,
+        dao: DAO,
+        registry: ConnectorRegistry,
+        notifier: UserIdentityNotifier,
+    ) -> None:
         self._dao = dao
         self._registry = registry
+        self._notifier = notifier
 
     def list_identities(
         self, tenant_uuids: list[str], user_uuid: str
@@ -45,14 +52,18 @@ class ConnectorService:
         )
 
     def create_identity(self, identity: UserIdentity) -> UserIdentity:
-        return self._dao.user_identity.create(identity)
+        created = self._dao.user_identity.create(identity)
+        self._notifier.created(created)
+        return created
 
     def update_identity(self, identity: UserIdentity) -> UserIdentity:
         self._dao.user_identity.update(identity)
+        self._notifier.updated(identity)
         return identity
 
     def delete_identity(self, identity: UserIdentity) -> None:
         self._dao.user_identity.delete(identity)
+        self._notifier.deleted(identity)
 
     def create_outbound_delivery(
         self,

@@ -14,6 +14,7 @@ from wazo_chatd.plugins.connectors.http import (
     UserIdentityItemResource,
     UserIdentityListResource,
 )
+from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
 from wazo_chatd.plugins.connectors.services import ConnectorService
@@ -27,6 +28,7 @@ class Plugin:
         api = dependencies['api']
         dao = dependencies['dao']
         bus_consumer = dependencies['bus_consumer']
+        bus_publisher = dependencies['bus_publisher']
         hooks = dependencies['hooks']
         status_aggregator = dependencies['status_aggregator']
         thread_manager = dependencies['thread_manager']
@@ -38,9 +40,10 @@ class Plugin:
         token_changed_subscribe = dependencies['token_changed_subscribe']
         token_changed_subscribe(auth_client.set_token)
 
-        service = ConnectorService(dao, registry)
+        notifier = UserIdentityNotifier(bus_publisher)
+        service = ConnectorService(dao, registry, notifier=notifier)
 
-        router = ConnectorRouter(config, registry, service, auth_client=auth_client)
+        router = ConnectorRouter(config, registry, service, auth_client)
         router.register_http_endpoints(api)
 
         hooks.register('before_room_creation', router.validate_room_creation)

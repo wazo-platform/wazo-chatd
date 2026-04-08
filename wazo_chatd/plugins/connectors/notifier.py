@@ -7,11 +7,17 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, TypedDict
 
-from wazo_bus.resources.chatd.events import UserRoomMessageCreatedEvent
+from wazo_bus.resources.chatd.events import (
+    MessageDeliveryStatusEvent,
+    UserIdentityCreatedEvent,
+    UserIdentityDeletedEvent,
+    UserIdentityUpdatedEvent,
+    UserRoomMessageCreatedEvent,
+)
 from wazo_bus.resources.common.event import ServiceEvent
 
-from wazo_chatd.database.models import Room, RoomMessage
-from wazo_chatd.plugins.connectors.events import MessageDeliveryStatusEvent
+from wazo_chatd.database.models import Room, RoomMessage, UserIdentity
+from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
 
 if TYPE_CHECKING:
     from wazo_chatd.bus import BusPublisher
@@ -32,6 +38,32 @@ class MessageEventData(TypedDict):
     wazo_uuid: str
     created_at: str
     room: _RoomRef
+
+
+class UserIdentityNotifier:
+    def __init__(self, bus_publisher: BusPublisher) -> None:
+        self._bus = bus_publisher
+
+    def created(self, identity: UserIdentity) -> None:
+        identity_data = UserIdentitySchema().dump(identity)
+        event = UserIdentityCreatedEvent(
+            identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
+        )
+        self._bus.publish(event)
+
+    def updated(self, identity: UserIdentity) -> None:
+        identity_data = UserIdentitySchema().dump(identity)
+        event = UserIdentityUpdatedEvent(
+            identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
+        )
+        self._bus.publish(event)
+
+    def deleted(self, identity: UserIdentity) -> None:
+        identity_data = UserIdentitySchema().dump(identity)
+        event = UserIdentityDeletedEvent(
+            identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
+        )
+        self._bus.publish(event)
 
 
 class AsyncNotifier:

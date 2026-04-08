@@ -7,7 +7,65 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import Mock
 
-from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
+from wazo_chatd.plugins.connectors.notifier import AsyncNotifier, UserIdentityNotifier
+
+
+class TestUserIdentityNotifier(unittest.TestCase):
+    def setUp(self) -> None:
+        self.bus = Mock()
+        self.notifier = UserIdentityNotifier(self.bus)
+
+    def _make_identity(self) -> Mock:
+        identity = Mock()
+        identity.uuid = 'identity-uuid'
+        identity.user_uuid = 'user-uuid'
+        identity.tenant_uuid = 'tenant-uuid'
+        identity.backend = 'twilio'
+        identity.type_ = 'sms'
+        identity.identity = '+15551234567'
+        identity.extra = {}
+        return identity
+
+    def test_created_publishes_event(self) -> None:
+        identity = self._make_identity()
+
+        self.notifier.created(identity)
+
+        self.bus.publish.assert_called_once()
+        event = self.bus.publish.call_args[0][0]
+        assert event.name == 'chatd_user_identity_created'
+        assert event.content['uuid'] == 'identity-uuid'
+        assert event.content['backend'] == 'twilio'
+        assert event.content['type'] == 'sms'
+        assert event.content['identity'] == '+15551234567'
+
+    def test_updated_publishes_event(self) -> None:
+        identity = self._make_identity()
+
+        self.notifier.updated(identity)
+
+        self.bus.publish.assert_called_once()
+        event = self.bus.publish.call_args[0][0]
+        assert event.name == 'chatd_user_identity_updated'
+
+    def test_deleted_publishes_event(self) -> None:
+        identity = self._make_identity()
+
+        self.notifier.deleted(identity)
+
+        self.bus.publish.assert_called_once()
+        event = self.bus.publish.call_args[0][0]
+        assert event.name == 'chatd_user_identity_deleted'
+        assert event.content['uuid'] == 'identity-uuid'
+
+    def test_event_targets_correct_user(self) -> None:
+        identity = self._make_identity()
+
+        self.notifier.created(identity)
+
+        event = self.bus.publish.call_args[0][0]
+        assert event.user_uuid == 'user-uuid'
+        assert event.tenant_uuid == 'tenant-uuid'
 
 
 class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
