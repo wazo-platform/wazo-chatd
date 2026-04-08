@@ -39,4 +39,4 @@ class PluginDependencies(TypedDict):
 class MessageContext:
     room: Room
     message: RoomMessage
-    sender_alias_uuid: UUID | None = None
+    sender_identity_uuid: UUID | None = None

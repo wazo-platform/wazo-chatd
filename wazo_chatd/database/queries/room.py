@@ -86,9 +86,9 @@ class RoomDAO:
     def create_pending_delivery(
         self,
         message: RoomMessage,
-        sender_alias_uuid: object | None = None,
+        sender_identity_uuid: object | None = None,
     ) -> MessageMeta:
-        meta = MessageMeta(message=message, sender_alias_uuid=sender_alias_uuid)
+        meta = MessageMeta(message=message, sender_identity_uuid=sender_identity_uuid)
         meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
         self.session.add(meta)
         self.session.flush()

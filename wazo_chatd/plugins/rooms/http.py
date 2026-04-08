@@ -114,15 +114,15 @@ class UserRoomMessageListResource(AuthResource):
     def post(self, room_uuid):
         room = self._service.get([token.tenant_uuid], room_uuid)
         message_args = MessageSchema().load(request.get_json(force=True))
-        sender_alias_uuid = message_args.pop('sender_alias_uuid', None)
+        sender_identity_uuid = message_args.pop('sender_identity_uuid', None)
         message_args['user_uuid'] = token.user_uuid
         message_args['tenant_uuid'] = token.tenant_uuid
         message = RoomMessage(**message_args)
 
         message = self._service.create_message(
-            room, message, sender_alias_uuid=sender_alias_uuid
+            room, message, sender_identity_uuid=sender_identity_uuid
         )
-        has_delivery = sender_alias_uuid and self._service.has_delivery_pipeline()
+        has_delivery = sender_identity_uuid and self._service.has_delivery_pipeline()
         status_code = 202 if has_delivery else 201
         return MessageSchema().dump(message), status_code
 

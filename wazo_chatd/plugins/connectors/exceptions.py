@@ -29,24 +29,24 @@ class NoCommonConnectorError(APIException):
         )
 
 
-class MessageAliasRequiredError(APIException):
+class MessageIdentityRequiredError(APIException):
     def __init__(self) -> None:
         super().__init__(
             409,
-            'Messages in rooms with external participants require a sender_alias_uuid',
-            'message-alias-required',
+            'Messages in rooms with external participants require a sender_identity_uuid',
+            'message-identity-required',
             {},
             'messages',
         )
 
 
-class InvalidAliasError(APIException):
-    def __init__(self, alias_uuid: str) -> None:
+class InvalidIdentityError(APIException):
+    def __init__(self, identity_uuid: str) -> None:
         super().__init__(
             400,
-            f'No alias found with UUID {alias_uuid!r}',
-            'invalid-alias',
-            {'alias_uuid': alias_uuid},
+            f'No identity found with UUID {identity_uuid!r}',
+            'invalid-identity',
+            {'identity_uuid': identity_uuid},
             'messages',
         )
 
