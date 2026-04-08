@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
 
 from wazo_bus.resources.chatd.events import (
     MessageDeliveryStatusEvent,
@@ -14,6 +14,7 @@ from wazo_bus.resources.chatd.events import (
     UserIdentityUpdatedEvent,
     UserRoomMessageCreatedEvent,
 )
+from wazo_bus.resources.chatd.types import MessageDict
 from wazo_bus.resources.common.event import ServiceEvent
 
 from wazo_chatd.database.models import Room, RoomMessage, UserIdentity
@@ -23,21 +24,6 @@ if TYPE_CHECKING:
     from wazo_chatd.bus import BusPublisher
 
 logger = logging.getLogger(__name__)
-
-
-class _RoomRef(TypedDict):
-    uuid: str
-
-
-class MessageEventData(TypedDict):
-    uuid: str
-    content: str | None
-    alias: str | None
-    user_uuid: str
-    tenant_uuid: str
-    wazo_uuid: str
-    created_at: str
-    room: _RoomRef
 
 
 class UserIdentityNotifier:
@@ -71,10 +57,12 @@ class AsyncNotifier:
         self._bus = bus_publisher
 
     async def message_created(self, room: Room, message: RoomMessage) -> None:
-        message_data: MessageEventData = {
+        message_data: MessageDict = {
             'uuid': str(message.uuid),
             'content': message.content,
             'alias': message.alias,
+            'type': str(message.meta.type_),
+            'backend': str(message.meta.backend),
             'user_uuid': str(message.user_uuid),
             'tenant_uuid': str(message.tenant_uuid),
             'wazo_uuid': str(message.wazo_uuid),
