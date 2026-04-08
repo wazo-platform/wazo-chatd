@@ -476,7 +476,7 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
             room_uuid, {'content': 'Internal hello'}
         )
 
-        outbound = self.chatd.rooms.create_message_from_user(
+        self.chatd.rooms.create_message_from_user(
             room_uuid,
             {'content': 'Sending by SMS', 'sender_identity_uuid': str(identity_a.uuid)},
         )
