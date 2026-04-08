@@ -3,98 +3,115 @@
 
 from __future__ import annotations
 
-from sqlalchemy.orm import joinedload
+from collections.abc import Iterable
 
-from wazo_chatd.database.models import ChatProvider, UserAlias
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from wazo_chatd.database.models import UserIdentity
+from wazo_chatd.exceptions import UnknownUserIdentityException
 
 
-class UserAliasDAO:
+class UserIdentityDAO:
     def __init__(self, session):  # type: ignore[no-untyped-def]
         self._session = session
 
     @property
-    def session(self):  # type: ignore[no-untyped-def]
+    def session(self) -> Session:
         return self._session()
 
-    def get(self, alias_uuid: str) -> UserAlias | None:
-        return (
-            self.session.query(UserAlias)
-            .options(joinedload(UserAlias.provider))
-            .filter(UserAlias.uuid == alias_uuid)
-            .first()
-        )
+    def create(self, identity: UserIdentity) -> UserIdentity:
+        self.session.add(identity)
+        self.session.flush()
+        return identity
 
-    def list_by_user_and_types(
+    def get(
+        self,
+        tenant_uuids: Iterable[str],
+        identity_uuid: str,
+        user_uuid: str | None = None,
+    ) -> UserIdentity:
+        stmt = select(UserIdentity).where(
+            UserIdentity.tenant_uuid.in_(tenant_uuids),
+            UserIdentity.uuid == identity_uuid,
+        )
+        if user_uuid is not None:
+            stmt = stmt.where(UserIdentity.user_uuid == user_uuid)
+
+        if not (result := self.session.execute(stmt).scalars().first()):
+            raise UnknownUserIdentityException(identity_uuid)
+        return result
+
+    def find(self, identity_uuid: str) -> UserIdentity | None:
+        stmt = select(UserIdentity).where(UserIdentity.uuid == identity_uuid)
+        return self.session.execute(stmt).scalars().first()
+
+    def list_by_user(
         self,
         user_uuid: str,
-        types: list[str] | None = None,
-    ) -> list[UserAlias]:
-        query = (
-            self.session.query(UserAlias)
-            .options(joinedload(UserAlias.provider))
-            .filter(UserAlias.user_uuid == user_uuid)
+        tenant_uuids: Iterable[str] | None = None,
+        backends: Iterable[str] | None = None,
+    ) -> list[UserIdentity]:
+        stmt = select(UserIdentity).where(
+            UserIdentity.user_uuid == user_uuid,
         )
+        if tenant_uuids is not None:
+            stmt = stmt.where(UserIdentity.tenant_uuid.in_(tenant_uuids))
+        if backends:
+            stmt = stmt.where(UserIdentity.backend.in_(backends))
 
-        if types:
-            query = query.join(ChatProvider).filter(ChatProvider.type_.in_(types))
+        return list(self.session.execute(stmt).scalars().all())
 
-        return query.all()
+    def update(self, identity: UserIdentity) -> None:
+        self.session.add(identity)
+        self.session.flush()
 
-    def list_types_by_user(self, user_uuid: str) -> list[str]:
-        return [
-            row[0]
-            for row in (
-                self.session.query(ChatProvider.type_)
-                .join(UserAlias)
-                .filter(UserAlias.user_uuid == user_uuid)
-                .distinct()
-                .all()
-            )
-        ]
+    def delete(self, identity: UserIdentity) -> None:
+        self.session.delete(identity)
+        self.session.flush()
 
-    def list_types_by_users(
+    def list_backends_by_users(
         self,
         user_uuids: list[str],
     ) -> dict[str, set[str]]:
-        rows = (
-            self.session.query(UserAlias.user_uuid, ChatProvider.type_)
-            .join(ChatProvider)
-            .filter(UserAlias.user_uuid.in_(user_uuids))
+        stmt = (
+            select(UserIdentity.user_uuid, UserIdentity.backend)
+            .where(UserIdentity.user_uuid.in_(user_uuids))
             .distinct()
-            .all()
         )
+        rows = self.session.execute(stmt).all()
         result: dict[str, set[str]] = {uid: set() for uid in user_uuids}
-        for user_uuid, type_ in rows:
-            result[str(user_uuid)].add(type_)
+        for user_uuid_val, backend in rows:
+            result[str(user_uuid_val)].add(backend)
         return result
 
-    def users_reachable_by_type(
+    def users_reachable_by_backend(
         self,
-        user_uuids: list[str],
-        type_: str,
+        user_uuids: Iterable[str],
+        backend: str,
     ) -> set[str]:
-        rows = (
-            self.session.query(UserAlias.user_uuid)
-            .join(ChatProvider)
-            .filter(
-                UserAlias.user_uuid.in_(user_uuids),
-                ChatProvider.type_ == type_,
+        stmt = (
+            select(UserIdentity.user_uuid)
+            .where(
+                UserIdentity.user_uuid.in_(user_uuids),
+                UserIdentity.backend == backend,
             )
             .distinct()
-            .all()
         )
-        return {str(row[0]) for row in rows}
+        return {str(row[0]) for row in self.session.execute(stmt).all()}
 
-    def list_bound_identities(self, identities: list[str]) -> set[str]:
-        rows = (
-            self.session.query(UserAlias.identity)
-            .filter(UserAlias.identity.in_(identities))
+    def list_bound_identities(self, identities: Iterable[str]) -> set[str]:
+        stmt = (
+            select(UserIdentity.identity)
+            .where(UserIdentity.identity.in_(identities))
             .distinct()
-            .all()
         )
-        return {row[0] for row in rows}
+        return set(self.session.execute(stmt).scalars().all())
 
     def is_identity_bound(self, identity: str) -> bool:
-        return (
-            self.session.query(UserAlias).filter(UserAlias.identity == identity).first()
-        ) is not None
+        stmt = select(UserIdentity).where(UserIdentity.identity == identity)
+        return self.session.execute(stmt).scalars().first() is not None
+
+    def list_tenant_backends(self) -> list[tuple[str, str]]:
+        stmt = select(UserIdentity.tenant_uuid, UserIdentity.backend).distinct()
+        return list(self.session.execute(stmt).all())

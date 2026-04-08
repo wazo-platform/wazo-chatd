@@ -11,7 +11,7 @@ from unittest.mock import Mock
 import pytest
 
 from wazo_chatd.plugins.connectors.exceptions import (
-    InvalidAliasError,
+    InvalidIdentityError,
     NoCommonConnectorError,
     UnreachableParticipantError,
 )
@@ -22,7 +22,8 @@ class _SmsConnector:
     backend: ClassVar[str] = 'twilio'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
-    def normalize_identity(self, raw_identity: str) -> str:
+    @classmethod
+    def normalize_identity(cls, raw_identity: str) -> str:
         if raw_identity.startswith('+'):
             return raw_identity
         raise ValueError(f'Not a phone number: {raw_identity}')
@@ -48,9 +49,9 @@ def _make_room(users: list[Mock] | None = None) -> Mock:
 
 def _build_service(
     room: Mock | None = None,
-    types_by_user: dict[str, list[str]] | None = None,
+    backends_by_user: dict[str, list[str]] | None = None,
     identity_bound: dict[str, bool] | None = None,
-    sender_aliases: list[Mock] | None = None,
+    sender_identities: list[Mock] | None = None,
 ) -> ConnectorService:
     from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
@@ -58,15 +59,17 @@ def _build_service(
     if room is not None:
         dao.room.get.return_value = room
 
-    types_map = types_by_user or {}
-    dao.user_alias.list_types_by_user.side_effect = lambda uid: types_map.get(uid, [])
+    backends_map = backends_by_user or {}
+    dao.user_identity.list_backends_by_users.side_effect = lambda uids: {
+        uid: set(backends_map.get(uid, [])) for uid in uids
+    }
 
     bound_map = identity_bound or {}
-    dao.user_alias.is_identity_bound.side_effect = lambda ident: bound_map.get(
+    dao.user_identity.is_identity_bound.side_effect = lambda ident: bound_map.get(
         ident, False
     )
 
-    dao.user_alias.list_by_user_and_types.return_value = sender_aliases or []
+    dao.user_identity.list_by_user.return_value = sender_identities or []
 
     registry = ConnectorRegistry()
     registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
@@ -77,55 +80,55 @@ def _build_service(
 SENDER_UUID = 'sender-uuid'
 
 
-class TestListRoomAliases(unittest.TestCase):
-    def test_truly_external_participant_returns_sender_aliases(self) -> None:
+class TestListRoomIdentities(unittest.TestCase):
+    def test_truly_external_participant_returns_sender_identities(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
         room = _make_room(users=[sender, external])
 
-        alias = Mock()
+        identity_mock = Mock()
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},
-            sender_aliases=[alias],
+            sender_identities=[identity_mock],
         )
 
-        result = service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+        result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
-        assert result == [alias]
+        assert result == [identity_mock]
 
-    def test_wazo_user_with_sms_alias_returns_sender_aliases(self) -> None:
+    def test_wazo_user_with_sms_identity_returns_sender_identities(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        alias = Mock()
+        identity_mock = Mock()
         service = _build_service(
             room=room,
-            types_by_user={'recipient-uuid': ['sms']},
-            sender_aliases=[alias],
+            backends_by_user={'recipient-uuid': ['twilio']},
+            sender_identities=[identity_mock],
         )
 
-        result = service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+        result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
-        assert result == [alias]
+        assert result == [identity_mock]
 
-    def test_wazo_user_with_identity_bound_to_alias(self) -> None:
+    def test_wazo_user_with_identity_bound(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         recipient = _make_room_user(uuid='recipient-uuid', identity='+15559876')
         room = _make_room(users=[sender, recipient])
 
-        alias = Mock()
+        identity_mock = Mock()
         service = _build_service(
             room=room,
             identity_bound={'+15559876': True},
-            types_by_user={'recipient-uuid': ['sms']},
-            sender_aliases=[alias],
+            backends_by_user={'recipient-uuid': ['twilio']},
+            sender_identities=[identity_mock],
         )
 
-        result = service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+        result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
-        assert result == [alias]
+        assert result == [identity_mock]
 
     def test_internal_only_room_returns_empty(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
@@ -134,10 +137,10 @@ class TestListRoomAliases(unittest.TestCase):
 
         service = _build_service(
             room=room,
-            types_by_user={'other-uuid': []},
+            backends_by_user={'other-uuid': []},
         )
 
-        result = service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+        result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
         assert result == []
 
@@ -147,24 +150,21 @@ class TestListRoomAliases(unittest.TestCase):
         user_b = _make_room_user(uuid='user-b')
         room = _make_room(users=[sender, user_a, user_b])
 
-        alias = Mock()
+        identity_mock = Mock()
         service = _build_service(
             room=room,
-            types_by_user={
-                'user-a': ['sms', 'whatsapp'],
-                'user-b': ['sms'],
+            backends_by_user={
+                'user-a': ['twilio'],
+                'user-b': ['twilio'],
             },
-            sender_aliases=[alias],
+            sender_identities=[identity_mock],
         )
 
-        result = service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+        result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
-        assert result == [alias]
-        service._dao.user_alias.list_by_user_and_types.assert_called_once_with(
-            SENDER_UUID, ['sms']
-        )
+        assert result == [identity_mock]
 
-    def test_sender_has_no_matching_aliases_returns_empty(self) -> None:
+    def test_sender_has_no_matching_identities_returns_empty(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
         room = _make_room(users=[sender, external])
@@ -172,10 +172,10 @@ class TestListRoomAliases(unittest.TestCase):
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},
-            sender_aliases=[],
+            sender_identities=[],
         )
 
-        result = service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+        result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
         assert result == []
 
@@ -189,90 +189,69 @@ class TestListRoomAliases(unittest.TestCase):
         from wazo_chatd.exceptions import UnknownRoomException
 
         with self.assertRaises(UnknownRoomException):
-            service.list_room_aliases(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+            service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
 
-def _make_alias(type_: str = 'sms') -> Mock:
-    alias = Mock()
-    alias.provider = Mock(type_=type_)
-    return alias
+def _make_identity(backend: str = 'twilio') -> Mock:
+    identity_mock = Mock()
+    identity_mock.backend = backend
+    return identity_mock
 
 
-class TestValidateAliasReachability(unittest.TestCase):
+class TestValidateIdentityReachability(unittest.TestCase):
     def test_both_internal_users_share_type_passes(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        alias = _make_alias('sms')
-        service = _build_service(room=room)
-        service._dao.user_alias.get.return_value = alias
-        service._dao.user_alias.users_reachable_by_type.return_value = {
-            'recipient-uuid'
-        }
-
-        service.validate_alias_reachability(
-            room, SENDER_UUID, uuid.uuid4()
+        identity = _make_identity('twilio')
+        service = _build_service(
+            room=room,
+            backends_by_user={'recipient-uuid': ['twilio']},
         )
+        service._dao.user_identity.find.return_value = identity
+
+        service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
     def test_recipient_missing_type_raises(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        alias = _make_alias('sms')
-        service = _build_service(room=room)
-        service._dao.user_alias.get.return_value = alias
-        service._dao.user_alias.users_reachable_by_type.return_value = set()
+        identity = _make_identity('twilio')
+        service = _build_service(
+            room=room,
+            backends_by_user={'recipient-uuid': []},
+        )
+        service._dao.user_identity.find.return_value = identity
 
         with pytest.raises(UnreachableParticipantError):
-            service.validate_alias_reachability(
-                room, SENDER_UUID, uuid.uuid4()
-            )
-
-    def test_recipient_has_no_types_raises(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid')
-        room = _make_room(users=[sender, recipient])
-
-        alias = _make_alias('sms')
-        service = _build_service(room=room)
-        service._dao.user_alias.get.return_value = alias
-        service._dao.user_alias.users_reachable_by_type.return_value = set()
-
-        with pytest.raises(UnreachableParticipantError):
-            service.validate_alias_reachability(
-                room, SENDER_UUID, uuid.uuid4()
-            )
+            service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
     def test_external_participant_reachable_passes(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
         room = _make_room(users=[sender, external])
 
-        alias = _make_alias('sms')
+        identity = _make_identity('twilio')
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},
         )
-        service._dao.user_alias.get.return_value = alias
+        service._dao.user_identity.find.return_value = identity
 
-        service.validate_alias_reachability(
-            room, SENDER_UUID, uuid.uuid4()
-        )
+        service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
-    def test_invalid_alias_uuid_raises(self) -> None:
+    def test_invalid_identity_uuid_raises(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
         service = _build_service(room=room)
-        service._dao.user_alias.get.return_value = None
+        service._dao.user_identity.find.return_value = None
 
-        with pytest.raises(InvalidAliasError):
-            service.validate_alias_reachability(
-                room, SENDER_UUID, uuid.uuid4()
-            )
+        with pytest.raises(InvalidIdentityError):
+            service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
 
 class TestValidateRoomReachability(unittest.TestCase):
@@ -293,11 +272,9 @@ class TestValidateRoomReachability(unittest.TestCase):
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},
+            backends_by_user={'user-a': ['twilio']},
         )
-        service._dao.user_alias.list_bound_identities.return_value = set()
-        service._dao.user_alias.list_types_by_users.return_value = {
-            'user-a': {'sms'},
-        }
+        service._dao.user_identity.list_bound_identities.return_value = set()
 
         service.validate_room_reachability(room)
 
@@ -307,7 +284,7 @@ class TestValidateRoomReachability(unittest.TestCase):
         room = _make_room(users=[user_a, external])
 
         service = _build_service(room=room)
-        service._dao.user_alias.list_bound_identities.return_value = set()
+        service._dao.user_identity.list_bound_identities.return_value = set()
 
         with pytest.raises(UnreachableParticipantError):
             service.validate_room_reachability(room)
@@ -318,11 +295,10 @@ class TestValidateRoomReachability(unittest.TestCase):
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
         room = _make_room(users=[user_a, user_b, external])
 
-        service = _build_service(room=room)
-        service._dao.user_alias.list_bound_identities.return_value = set()
-        service._dao.user_alias.list_types_by_users.return_value = {
-            'user-a': {'sms'},
-            'user-b': {'sms'},
-        }
+        service = _build_service(
+            room=room,
+            backends_by_user={'user-a': ['twilio'], 'user-b': ['twilio']},
+        )
+        service._dao.user_identity.list_bound_identities.return_value = set()
 
         service.validate_room_reachability(room)

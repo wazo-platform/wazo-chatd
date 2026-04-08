@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock, patch
@@ -11,6 +12,7 @@ from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.executor import MAX_RETRIES, DeliveryExecutor
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
@@ -36,8 +38,8 @@ def _make_outbound(message_uuid: str = 'delivery-1') -> OutboundMessage:
         message_uuid=message_uuid,
         sender_uuid='user-uuid',
         body='hello',
-        sender_alias='+15551234',
-        recipient_alias='+15559876',
+        sender_identity='+15551234',
+        recipient_identity='+15559876',
         metadata={'idempotency_key': 'key-1'},
     )
 
@@ -49,9 +51,6 @@ class _FakeConnector:
     def __init__(self) -> None:
         self.send_return = 'ext-msg-id-123'
         self.send_side_effect: Exception | None = None
-
-    def configure(self, type_, provider_config, connector_config) -> None:
-        pass
 
     def send(self, message: OutboundMessage) -> str:
         if self.send_side_effect:
@@ -72,9 +71,10 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
             config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
             notifier=self.notifier,
-            store=ConnectorStore(),
+            store=ConnectorStore(Mock(), ConnectorRegistry()),
         )
-        self.executor._store.register('twilio-sms', self.connector)
+        self.executor._store._cache[('tenant-uuid', 'twilio')] = self.connector
+        self.executor._store._timestamps[('tenant-uuid', 'twilio')] = time.monotonic()
         self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
         self.delivery = Mock()
@@ -91,7 +91,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
     async def test_execute_success(self) -> None:
         outbound = _make_outbound()
 
-        await self.executor.execute(outbound, self.delivery)
+        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
 
         assert self.delivery.external_id == 'ext-msg-id-123'
 
@@ -99,7 +99,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.connector.send_side_effect = ConnectorSendError('timeout')
         outbound = _make_outbound()
 
-        await self.executor.execute(outbound, self.delivery)
+        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
 
         assert self.delivery.retry_count == 1
 
@@ -108,7 +108,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.delivery.retry_count = MAX_RETRIES - 1
         outbound = _make_outbound()
 
-        await self.executor.execute(outbound, self.delivery)
+        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
 
         dao_mock = self.executor._room_dao.add_delivery_record
         statuses = [call.args[1].status for call in dao_mock.call_args_list]
@@ -117,11 +117,9 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
     async def test_execute_publishes_status_event(self) -> None:
         outbound = _make_outbound()
 
-        await self.executor.execute(outbound, self.delivery)
+        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
 
         self.notifier.delivery_status_updated.assert_awaited_once()
-
-
 
 
 class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
@@ -134,24 +132,25 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
         self.registry.resolve_reachable_types.return_value = {'sms'}
 
         self.connector = _FakeConnector()
-        self.store = ConnectorStore()
+        self.store = ConnectorStore(Mock(), ConnectorRegistry())
         self.executor = DeliveryExecutor(
             config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
             notifier=AsyncMock(),
             store=self.store,
         )
-        self.store.register('twilio-sms', self.connector)
+        self.store._cache[('tenant-uuid', 'twilio')] = self.connector
+        self.store._timestamps[('tenant-uuid', 'twilio')] = time.monotonic()
         self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
     def tearDown(self) -> None:
         _current_session.reset(self.token)
 
-    async def test_route_outbound_resolves_alias_and_sends(self) -> None:
-        sender_alias = Mock(
+    async def test_route_outbound_resolves_identity_and_sends(self) -> None:
+        sender_identity = Mock(
             identity='+15551234',
             tenant_uuid='tenant-uuid',
-            provider=Mock(type_='sms', backend='twilio'),
+            backend='twilio',
         )
         recipient_user = Mock(uuid='recipient-uuid', identity=None)
         sender_user = Mock(uuid='sender-uuid', identity=None)
@@ -160,19 +159,18 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
 
         meta = Mock()
         meta.message_uuid = 'msg-uuid'
-        meta.sender_alias = sender_alias
+        meta.sender_identity = sender_identity
         meta.message = message
         meta.message.room = room
         meta.extra = {}
 
-        recipient_alias = Mock(identity='+15559876')
-        self.executor._user_alias_dao.list_by_user_and_types = AsyncMock(
-            return_value=[recipient_alias]
+        recipient_identity = Mock(identity='+15559876')
+        self.executor._user_identity_dao.list_by_user = AsyncMock(
+            return_value=[recipient_identity]
         )
 
         await self.executor.route_outbound(meta)
 
-        assert meta.type_ == 'sms'
         assert meta.backend == 'twilio'
 
 
@@ -199,12 +197,13 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.token = _current_session.set(self.session)
 
         self.registry = Mock()
+        self.registry.get_backend.side_effect = KeyError
         self.notifier = AsyncMock()
         self.executor = DeliveryExecutor(
             config={'uuid': 'test-wazo-uuid'},
             registry=self.registry,
             notifier=self.notifier,
-            store=ConnectorStore(),
+            store=ConnectorStore(Mock(), ConnectorRegistry()),
         )
 
     def tearDown(self) -> None:
@@ -225,7 +224,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         inbound = _make_inbound()
 
         self.executor._room_dao.check_duplicate_idempotency_key = AsyncMock()
-        self.executor._user_alias_dao.resolve_users_by_identities = AsyncMock(
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={}
         )
 
@@ -236,7 +235,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
     async def test_route_inbound_unknown_recipient_logs_and_returns(self) -> None:
         inbound = _make_inbound()
 
-        self.executor._user_alias_dao.resolve_users_by_identities = AsyncMock(
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={}
         )
 
@@ -251,7 +250,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
 
         inbound = _make_inbound()
 
-        self.executor._user_alias_dao.resolve_users_by_identities = AsyncMock(
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
@@ -270,7 +269,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
 
         inbound = _make_inbound()
 
-        self.executor._user_alias_dao.resolve_users_by_identities = AsyncMock(
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
@@ -281,7 +280,6 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
 
         self.notifier.message_created.assert_awaited_once()
 
-
     async def test_route_inbound_resolves_sender_to_wazo_user(self) -> None:
         recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
         sender = Mock(uuid='sender-wazo-uuid', tenant_uuid='tenant-uuid')
@@ -290,7 +288,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
 
         inbound = _make_inbound()
 
-        self.executor._user_alias_dao.resolve_users_by_identities = AsyncMock(
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient, '+15559876': sender}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
@@ -313,7 +311,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
 
         inbound = _make_inbound()
 
-        self.executor._user_alias_dao.resolve_users_by_identities = AsyncMock(
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
@@ -348,11 +346,12 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
         self.session.add = Mock()
         self.token = _current_session.set(self.session)
 
-        self.store = ConnectorStore()
+        self.registry = Mock()
+        self.store = ConnectorStore(Mock(), ConnectorRegistry())
         self.notifier = AsyncMock()
         self.executor = DeliveryExecutor(
             config={'uuid': 'test-wazo-uuid'},
-            registry=Mock(),
+            registry=self.registry,
             notifier=self.notifier,
             store=self.store,
         )
@@ -362,10 +361,9 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
         _current_session.reset(self.token)
 
     def _register_connector(self, status_map: dict) -> None:
-        connector = Mock()
-        connector.backend = 'test'
-        connector.status_map = status_map
-        self.store.register('test-provider', connector)
+        backend_cls = Mock()
+        backend_cls.status_map = status_map
+        self.registry.get_backend.return_value = backend_cls
 
     def _mock_meta(self) -> Mock:
         meta = Mock()
@@ -395,6 +393,7 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
         self.executor._room_dao.add_delivery_record.assert_not_awaited()
 
     async def test_drops_when_no_connector(self) -> None:
+        self.registry.get_backend.side_effect = KeyError('test')
         await self.executor.route_status_update(_make_status_update())
 
         self.executor._room_dao.add_delivery_record.assert_not_awaited()
@@ -437,7 +436,7 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
             config={'uuid': 'test-wazo-uuid'},
             registry=Mock(),
             notifier=AsyncMock(),
-            store=ConnectorStore(),
+            store=ConnectorStore(Mock(), ConnectorRegistry()),
         )
 
     def tearDown(self) -> None:

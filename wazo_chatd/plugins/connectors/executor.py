@@ -25,7 +25,7 @@ from wazo_chatd.database.models import (
     RoomUser,
 )
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
-from wazo_chatd.database.queries.async_.user_alias import AsyncUserAliasDAO
+from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
@@ -64,26 +64,24 @@ class DeliveryExecutor:
         self._notifier = notifier
         self._store = store
         self._room_dao = AsyncRoomDAO()
-        self._user_alias_dao = AsyncUserAliasDAO()
+        self._user_identity_dao = AsyncUserIdentityDAO()
 
     async def route_outbound(self, meta: MessageMeta) -> None:
-        assert (sender_alias := meta.sender_alias) and sender_alias.provider
+        assert (sender_record := meta.sender_identity)
 
         session = get_async_session()
         message = meta.message
         room = message.room
 
-        sender_identity = str(sender_alias.identity)
-        alias_type = str(sender_alias.provider.type_)
-        backend_name = str(sender_alias.provider.backend)
+        sender_identity = str(sender_record.identity)
+        backend_name = str(sender_record.backend)
 
         recipient_identity = await self._resolve_recipient_identity(
-            room, message, alias_type
+            room, message, backend_name
         )
         if not recipient_identity:
             return
 
-        meta.type_ = alias_type
         meta.backend = backend_name
         meta.extra = {
             **(meta.extra or {}),
@@ -96,15 +94,15 @@ class DeliveryExecutor:
             message_uuid=str(meta.message_uuid),
             sender_uuid=str(message.user_uuid),
             body=str(message.content or ''),
-            sender_alias=sender_identity,
-            recipient_alias=recipient_identity,
+            sender_identity=sender_identity,
+            recipient_identity=recipient_identity,
             metadata={'idempotency_key': str(meta.message_uuid)},
         )
 
         await self.execute(
             outbound,
             meta,
-            tenant_uuid=str(sender_alias.tenant_uuid),
+            tenant_uuid=str(sender_record.tenant_uuid),
             room_uuid=str(room.uuid),
             user_uuids=[str(u.uuid) for u in room.users],
         )
@@ -113,7 +111,7 @@ class DeliveryExecutor:
         self,
         room: Room,
         message: RoomMessage,
-        alias_type: str,
+        backend: str,
     ) -> str | None:
         recipients = [u for u in room.users if u.uuid != message.user_uuid]
         if not recipients:
@@ -124,18 +122,18 @@ class DeliveryExecutor:
         if recipient.identity:
             return str(recipient.identity)
 
-        aliases = await self._user_alias_dao.list_by_user_and_types(
-            str(recipient.uuid), [alias_type]
+        identities = await self._user_identity_dao.list_by_user(
+            str(recipient.uuid), backends=[backend]
         )
-        if not aliases:
+        if not identities:
             logger.warning(
-                'No %s alias for recipient %s, skipping',
-                alias_type,
+                'No %s identity for recipient %s, skipping',
+                backend,
                 recipient.uuid,
             )
             return None
 
-        return str(aliases[0].identity)
+        return str(identities[0].identity)
 
     async def route_inbound(
         self,
@@ -154,13 +152,13 @@ class DeliveryExecutor:
                 return
 
         sender_identity = inbound.sender
-        if connector := self._store.find_by_backend(inbound.backend):
-            try:
-                sender_identity = connector.normalize_identity(sender_identity)
-            except (ValueError, TypeError):
-                pass
+        try:
+            backend_cls = self._registry.get_backend(inbound.backend)
+            sender_identity = backend_cls.normalize_identity(sender_identity)
+        except (KeyError, ValueError, TypeError):
+            pass
 
-        resolved = await self._user_alias_dao.resolve_users_by_identities(
+        resolved = await self._user_identity_dao.resolve_users_by_identities(
             [inbound.recipient, sender_identity]
         )
 
@@ -233,15 +231,16 @@ class DeliveryExecutor:
         )
 
     async def route_status_update(self, update: StatusUpdate) -> None:
-        connector = self._store.find_by_backend(update.backend)
-        if not connector:
+        try:
+            backend_cls = self._registry.get_backend(update.backend)
+        except KeyError:
             logger.warning(
                 'No connector for backend %r, dropping status update',
                 update.backend,
             )
             return
 
-        status_map = getattr(connector, 'status_map', {})
+        status_map = getattr(backend_cls, 'status_map', {})
         mapped_status = status_map.get(update.status)
         if not mapped_status:
             logger.debug(
@@ -320,7 +319,7 @@ class DeliveryExecutor:
     ) -> None:
         backend = str(delivery.backend)
         last_status = DeliveryStatus.PENDING
-        connector = self._find_connector(backend)
+        connector = await self._find_connector(backend, tenant_uuid)
         if connector is None:
             last_status = DeliveryStatus.DEAD_LETTER
             last_record = await self._add_record(
@@ -367,15 +366,13 @@ class DeliveryExecutor:
             user_uuids=user_uuids or [],
         )
 
-    def _find_connector(self, backend: str) -> Connector | None:
-        """Find a connector instance matching the given backend name."""
-        logger.debug(
-            'Finding connector for backend=%r in %d instances: %s',
-            backend,
-            len(self._store),
-            self._store.backends(),
-        )
-        return self._store.find_by_backend(backend)
+    async def _find_connector(self, backend: str, tenant_uuid: str) -> Connector | None:
+        """Find a connector instance, refreshing the cache if needed."""
+        connector = self._store.find_by_backend(backend, tenant_uuid)
+        if connector:
+            return connector
+
+        return await self._store.refresh(backend, tenant_uuid)
 
     async def _send(
         self,

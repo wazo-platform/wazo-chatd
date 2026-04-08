@@ -3,19 +3,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from wazo_chatd.database.async_helpers import get_async_session
-from wazo_chatd.database.models import ChatProvider, User, UserAlias
+from wazo_chatd.database.models import User, UserIdentity
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class AsyncUserAliasDAO:
+class AsyncUserIdentityDAO:
     @property
     def session(self) -> AsyncSession:
         return get_async_session()
@@ -24,43 +25,48 @@ class AsyncUserAliasDAO:
         self,
         identity: str,
         backend: str,
-    ) -> UserAlias | None:
+    ) -> UserIdentity | None:
         stmt = (
-            select(UserAlias)
-            .join(ChatProvider)
-            .options(
-                selectinload(UserAlias.provider),
-                selectinload(UserAlias.user),
+            select(UserIdentity)
+            .options(selectinload(UserIdentity.user))
+            .where(
+                UserIdentity.identity == identity,
+                UserIdentity.backend == backend,
             )
-            .filter(UserAlias.identity == identity, ChatProvider.backend == backend)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def resolve_users_by_identities(
-        self, identities: list[str],
+        self,
+        identities: list[str],
     ) -> dict[str, User]:
         stmt = (
-            select(UserAlias)
-            .options(selectinload(UserAlias.user))
-            .filter(UserAlias.identity.in_(identities))
+            select(UserIdentity)
+            .options(selectinload(UserIdentity.user))
+            .where(UserIdentity.identity.in_(identities))
         )
         result = await self.session.execute(stmt)
-        return {str(alias.identity): alias.user for alias in result.scalars().all()}
+        return {str(record.identity): record.user for record in result.scalars().all()}
 
-    async def list_by_user_and_types(
+    async def list_tenant_backends(self) -> list[tuple[str, str]]:
+        stmt = select(UserIdentity.tenant_uuid, UserIdentity.backend).distinct()
+        result = await self.session.execute(stmt)
+        return [(str(row[0]), row[1]) for row in result.all()]
+
+    async def list_by_user(
         self,
         user_uuid: str,
-        types: list[str] | None = None,
-    ) -> list[UserAlias]:
-        stmt = (
-            select(UserAlias)
-            .options(selectinload(UserAlias.provider))
-            .filter(UserAlias.user_uuid == user_uuid)
+        tenant_uuids: Iterable[str] | None = None,
+        backends: Iterable[str] | None = None,
+    ) -> list[UserIdentity]:
+        stmt = select(UserIdentity).where(
+            UserIdentity.user_uuid == user_uuid,
         )
-
-        if types:
-            stmt = stmt.join(ChatProvider).filter(ChatProvider.type_.in_(types))
+        if tenant_uuids is not None:
+            stmt = stmt.where(UserIdentity.tenant_uuid.in_(tenant_uuids))
+        if backends:
+            stmt = stmt.where(UserIdentity.backend.in_(backends))
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
