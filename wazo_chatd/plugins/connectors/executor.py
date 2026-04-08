@@ -200,30 +200,26 @@ class DeliveryExecutor:
             participants=[sender_participant, recipient_participant],
         )
 
+        extra: dict[str, str] = {'external_id': inbound.external_id}
+        if idempotency_key:
+            extra['idempotency_key'] = str(idempotency_key)
+
+        record = DeliveryRecord(status=DeliveryStatus.DELIVERED.value)
+        meta = MessageMeta(
+            backend=inbound.backend,
+            type_=inbound.message_type,
+            extra=extra,
+            records=[record],
+        )
         message = RoomMessage(
             room_uuid=room.uuid,
             content=inbound.body,
             user_uuid=sender_participant.uuid,
             tenant_uuid=tenant_uuid,
             wazo_uuid=wazo_uuid,
+            meta=meta,
         )
         await self._room_dao.add_message(room, message)
-
-        extra: dict[str, str] = {'external_id': inbound.external_id}
-        if idempotency_key:
-            extra['idempotency_key'] = str(idempotency_key)
-
-        meta = MessageMeta(
-            message_uuid=message.uuid,
-            backend=inbound.backend,
-            type_=inbound.message_type,
-            extra=extra,
-        )
-        record = DeliveryRecord(
-            message_uuid=message.uuid,
-            status=DeliveryStatus.DELIVERED.value,
-        )
-        await self._room_dao.add_message_meta(meta, record)
 
         await self._notifier.message_created(room, message)
         logger.info(

@@ -258,12 +258,13 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
         self.executor._room_dao.add_message = AsyncMock()
-        self.executor._room_dao.add_message_meta = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
         self.executor._room_dao.add_message.assert_awaited_once()
-        self.executor._room_dao.add_message_meta.assert_awaited_once()
+        message = self.executor._room_dao.add_message.call_args[0][1]
+        assert message.meta is not None
+        assert message.meta.backend == 'twilio'
 
     async def test_route_inbound_publishes_message_event(self) -> None:
         recipient = Mock(uuid='wazo-user-uuid', tenant_uuid='tenant-uuid')
@@ -277,7 +278,6 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
         self.executor._room_dao.add_message = AsyncMock()
-        self.executor._room_dao.add_message_meta = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
@@ -296,7 +296,6 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
         self.executor._room_dao.add_message = AsyncMock()
-        self.executor._room_dao.add_message_meta = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
@@ -319,7 +318,6 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
         self.executor._room_dao.add_message = AsyncMock()
-        self.executor._room_dao.add_message_meta = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
