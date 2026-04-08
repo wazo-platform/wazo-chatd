@@ -4,106 +4,68 @@ Changes introduced by the `feat/connectors` branch.
 
 ## New Endpoints
 
-### `GET /users/me/aliases`
+### User Identity CRUD
 
-List messaging aliases (external identities) for the authenticated user.
+- `GET /users/{user_uuid}/identities` — list identities for a user
+- `POST /users/{user_uuid}/identities` — create an identity
+- `GET /users/{user_uuid}/identities/{identity_uuid}` — get an identity
+- `PUT /users/{user_uuid}/identities/{identity_uuid}` — update an identity
+- `DELETE /users/{user_uuid}/identities/{identity_uuid}` — delete an identity
 
-- **ACL**: `chatd.users.me.aliases.read`
-- **Query parameters**:
-  - `type` (optional): comma-separated filter, e.g. `?type=sms,whatsapp`
-- **Response**:
-  ```json
-  {
-    "items": [
-      {
-        "uuid": "alias-uuid",
-        "type": "sms",
-        "backend": "twilio",
-        "identity": "+15551234567"
-      }
-    ],
-    "total": 1
-  }
-  ```
+**ACL**: `chatd.users.{user_uuid}.identities.{read,create,update,delete}`
 
-### `POST /connectors/incoming`
+### Room Identities
 
-Generic inbound webhook endpoint. Tries all registered connectors using
-two-phase dispatch (`can_handle` pre-filter, then `on_event` parsing).
+- `GET /users/me/rooms/{room_uuid}/identities` — list usable identities for a room
 
-- **No authentication** (connector-level validation via signatures)
-- **Accepts**: `application/json` or `application/x-www-form-urlencoded`
-- **Response**: `204 No Content` on success, `404` if no connector matched
+**ACL**: `chatd.users.me.rooms.{room_uuid}.identities.read`
+
+### Inbound Webhooks
+
+- `POST /connectors/incoming` — generic inbound webhook dispatch
+- `POST /connectors/incoming/{backend}` — inbound webhook with backend hint
+
+No authentication (connector-level validation via signatures).
+The `{backend}` path parameter is a hint for fast-path matching. If no
+connector matches the hinted backend, the remaining connectors are tried
+as fallback.
 
 ## Modified Endpoints
 
-### Room Responses
+### Room User
 
-Applies to all endpoints returning rooms:
-- `POST /users/me/rooms`
-- `GET /users/me/rooms`
+New field added to the room user object:
 
-New computed field added to the room object:
+| Field      | Type     | Description                                                              |
+|------------|----------|--------------------------------------------------------------------------|
+| `identity` | `string` | External identity of this participant. When set, the participant is reachable via the matching connector backend. |
 
-| Field          | Type       | Description                                                        |
-|----------------|------------|--------------------------------------------------------------------|
-| `capabilities` | `string[]` | Connector types available to all participants in the room. Computed from installed connectors and participant identities. `["internal"]` for internal-only rooms. |
+### Room Creation (`POST /users/me/rooms`)
 
-Example response:
-```json
-{
-  "uuid": "room-uuid",
-  "tenant_uuid": "tenant-uuid",
-  "users": [
-    { "uuid": "user-a", "tenant_uuid": "tenant-uuid", "wazo_uuid": "wazo-uuid", "identity": null },
-    { "uuid": "ext-uuid", "tenant_uuid": "tenant-uuid", "wazo_uuid": "wazo-uuid", "identity": "+15559876" }
-  ],
-  "capabilities": ["sms", "whatsapp"]
-}
-```
+May now return `409` when a participant is unreachable via any registered connector.
 
-### `POST /connectors/incoming/<backend>`
+### Message Creation (`POST /users/me/rooms/{room_uuid}/messages`)
 
-The `<backend>` path parameter is now a **hint** for fast-path matching, not
-a definitive filter. If no connector matches the hinted backend, the
-remaining connectors are tried as fallback.
+New request field:
+
+| Field                  | Type     | Description                                                    |
+|------------------------|----------|----------------------------------------------------------------|
+| `sender_identity_uuid` | `string` | UUID of the sender's identity to use for outbound delivery. Required when the room contains external participants. |
+
+May now return:
+- `202` when outbound delivery is accepted
+- `409` when `sender_identity_uuid` is required but missing
 
 ### Message Responses
 
-Applies to all endpoints returning messages:
-- `POST /rooms/{room_uuid}/messages`
-- `GET /rooms/{room_uuid}/messages`
+Applies to all endpoints returning messages.
 
-New fields added to the message object:
+New read-only fields:
 
-| Field     | Type            | Direction | Description                                      |
-|-----------|-----------------|-----------|--------------------------------------------------|
-| `type`    | `string`        | response  | Channel kind: `"internal"`, `"sms"`, `"whatsapp"`, etc. Defaults to `"internal"` when no connector metadata exists. |
-| `backend` | `string \| null` | response  | Provider name: `"twilio"`, `"vonage"`, etc. `null` for internal messages. |
-| `sender_alias_uuid` | `string \| null` | request | UUID of the sender's alias to use for delivery. Determines which connector and identity to send from. Omit for internal messages. |
-
-Example request:
-```json
-{
-  "content": "Hello via SMS",
-  "sender_alias_uuid": "alias-uuid"
-}
-```
-
-Example response:
-```json
-{
-  "uuid": "message-uuid",
-  "content": "Hello",
-  "type": "sms",
-  "backend": "twilio",
-  "user_uuid": "user-uuid",
-  "tenant_uuid": "tenant-uuid",
-  "wazo_uuid": "wazo-uuid",
-  "created_at": "2026-03-30T14:00:00+00:00",
-  "room": { "uuid": "room-uuid" }
-}
-```
+| Field     | Type            | Description                                      |
+|-----------|-----------------|--------------------------------------------------|
+| `type`    | `string`        | Channel kind: `"internal"`, `"sms"`, etc. Defaults to `"internal"` when no connector metadata exists. |
+| `backend` | `string \| null` | Provider name: `"twilio"`, `"vonage"`, etc. `null` for internal messages. |
 
 ## New Bus Events
 

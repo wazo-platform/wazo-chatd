@@ -34,14 +34,14 @@ Everything else (persistence, delivery tracking, retries, bus events) is handled
 
 ## The Connector Protocol
 
-Your connector class must implement the following interface. See `wazo_chatd.connectors.connector.Connector` for the full Protocol definition.
+Your connector class must implement the following interface. See `wazo_chatd.plugins.connectors.connector.Connector` for the full Protocol definition.
 
 ### Class attributes
 
 ```python
 from typing import ClassVar
 
-from wazo_chatd.connectors.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.delivery import DeliveryStatus
 
 class MyConnector:
     backend: ClassVar[str] = 'my-provider'
@@ -83,15 +83,15 @@ def __init__(
 Send a message through your external API. Returns the provider's message ID.
 
 ```python
-from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import OutboundMessage
+from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.types import OutboundMessage
 
 def send(self, message: OutboundMessage) -> str:
     try:
         result = self._client.messages.create(
-            to=message.recipient_alias,
+            to=message.recipient_identity,
             body=message.body,
-            from_=message.sender_alias,
+            from_=message.sender_identity,
         )
         return result.id
     except ProviderError as exc:
@@ -112,8 +112,8 @@ def send(self, message: OutboundMessage) -> str:
 | `message_uuid` | `str` | Unique message identifier |
 | `sender_uuid` | `str` | Wazo user UUID of the sender |
 | `body` | `str` | Message content |
-| `sender_alias` | `str` | Sender's external identity (e.g. `"+15551234"`) |
-| `recipient_alias` | `str` | Recipient's external identity |
+| `sender_identity` | `str` | Sender's external identity (e.g. `"+15551234"`) |
+| `recipient_identity` | `str` | Recipient's external identity |
 | `metadata` | `Mapping` | Extra data including optional `idempotency_key` |
 
 ### Transport types
@@ -137,14 +137,15 @@ match data:
         ...handle custom transport...
 ```
 
-### `can_handle(data) -> bool`
+### `can_handle(data) -> bool` (classmethod)
 
-Cheap pre-filter called before `on_event()`. Inspect transport-specific metadata to quickly determine if this event is for your connector.
+Cheap pre-filter called before `on_event()`. Inspect transport-specific metadata to quickly determine if this event is for your connector. This is a classmethod — it does not require a connector instance and is called directly on the class during webhook dispatch.
 
 ```python
-from wazo_chatd.connectors.types import TransportData, WebhookData
+from wazo_chatd.plugins.connectors.types import TransportData, WebhookData
 
-def can_handle(self, data: TransportData) -> bool:
+@classmethod
+def can_handle(cls, data: TransportData) -> bool:
     match data:
         case WebhookData(headers=headers):
             return 'X-My-Provider-Signature' in headers
@@ -156,21 +157,22 @@ def can_handle(self, data: TransportData) -> bool:
 
 **What to check:** Headers, content-type, or any cheap signal. Do NOT do full parsing or signature validation here.
 
-### `on_event(data) -> InboundMessage | StatusUpdate | None`
+### `on_event(data) -> InboundMessage | StatusUpdate | None` (classmethod)
 
-Parse an incoming event into an `InboundMessage` (new message), `StatusUpdate` (delivery status change), or `None` (irrelevant event).
+Parse an incoming event into an `InboundMessage` (new message), `StatusUpdate` (delivery status change), or `None` (irrelevant event). This is a classmethod — no connector instance is needed for inbound parsing.
 
 Many providers send both message webhooks and status callbacks to the same URL. Your connector decides the type based on the payload.
 
 **Using structural pattern matching (recommended):**
 
 ```python
-from wazo_chatd.connectors.types import InboundMessage, StatusUpdate, TransportData, WebhookData
+from wazo_chatd.plugins.connectors.types import InboundMessage, StatusUpdate, TransportData, WebhookData
 
-def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
+@classmethod
+def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
     match data:
         case WebhookData(body=body):
-            return self._parse_webhook(body)
+            return cls._parse_webhook(body)
         case _:
             return None
 ```
@@ -178,9 +180,10 @@ def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
 **Using isinstance (alternative):**
 
 ```python
-def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
+@classmethod
+def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
     if isinstance(data, WebhookData):
-        return self._parse_webhook(data.body)
+        return cls._parse_webhook(data.body)
     return None
 ```
 
@@ -189,14 +192,15 @@ Both approaches are equivalent. Pattern matching is more expressive when handlin
 **Parsing example:**
 
 ```python
-def _parse_webhook(self, body):
+@classmethod
+def _parse_webhook(cls, body):
     content = body.get('body')
     if content:
         return InboundMessage(
             sender=body['from'],
             recipient=body['to'],
             body=content,
-            backend=self.backend,
+            backend=cls.backend,
             external_id=body['message_id'],
             metadata={
                 'idempotency_key': body.get('idempotency_token', ''),
@@ -209,14 +213,14 @@ def _parse_webhook(self, body):
         return StatusUpdate(
             external_id=message_id,
             status=status,
-            backend=self.backend,
+            backend=cls.backend,
             error_code=body.get('error_code', ''),
         )
 
     return None
 ```
 
-**Signature validation** is your responsibility. Verify the webhook signature inside `on_event()` and return `None` if invalid.
+**Signature validation** is your responsibility. Verify the webhook signature inside `on_event()` and return `None` if invalid. Note that signature validation requiring per-tenant secrets (e.g. auth tokens) must be done via instance methods called separately from the classmethod dispatch path.
 
 **Idempotency:** If the provider supplies a deduplication key, include it as `idempotency_key` in `InboundMessage.metadata`. wazo-chatd uses this to prevent duplicate message ingestion via a GIN-indexed JSONB lookup.
 
@@ -241,16 +245,17 @@ def _parse_webhook(self, body):
 | `error_code` | `str` | Provider error code if delivery failed (empty otherwise) |
 | `metadata` | `Mapping` | Provider-specific extra data |
 
-### `normalize_identity(raw_identity) -> str`
+### `normalize_identity(raw_identity) -> str` (classmethod)
 
-Normalize an external identity to its canonical form. Used for capability resolution: if this method succeeds for a given identity, your connector type can reach that participant.
+Normalize an external identity to its canonical form. Used for capability resolution: if this method succeeds for a given identity, your connector type can reach that participant. This is a classmethod — no connector instance is needed for identity resolution.
 
 ```python
 import re
 
 _E164 = re.compile(r'^\+[1-9]\d{6,14}$')
 
-def normalize_identity(self, raw_identity: str) -> str:
+@classmethod
+def normalize_identity(cls, raw_identity: str) -> str:
     if _E164.match(raw_identity):
         return raw_identity
     raise ValueError(f'Not a valid phone number: {raw_identity}')
@@ -263,7 +268,7 @@ Raise `ValueError` if the identity doesn't match your connector's expected forma
 For connectors that use polling or websockets instead of webhooks.
 
 ```python
-from wazo_chatd.connectors.types import PollData
+from wazo_chatd.plugins.connectors.types import PollData
 
 def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
     # For webhook-only connectors: no-op
@@ -329,38 +334,52 @@ pip install -e ./wazo-chatd-connector-myprovider
 
 wazo-chatd discovers installed connectors at startup via stevedore. No configuration changes needed in wazo-chatd itself.
 
-## Configuration: Providers and User Aliases
+## Configuration: Provider Credentials and User Identities
 
-For a connector to function, two configuration resources must exist in the system:
+For a connector to function, two things must be configured:
 
-### ChatProvider
+### Provider credentials (wazo-auth external config)
 
-A `ChatProvider` represents a configured instance of a messaging backend for a tenant. It is managed via the wazo-confd API and cached locally by wazo-chatd.
+Provider credentials are stored per-tenant in wazo-auth's external configuration. This is the standard Wazo mechanism for storing third-party service credentials.
 
-| Field | Description |
-|-------|-------------|
-| `uuid` | Unique provider identifier |
-| `tenant_uuid` | Which tenant owns this provider |
-| `type_` | Messaging type: `sms`, `whatsapp`, `email`, etc. |
-| `backend` | Which connector backend handles this provider (must match your `backend` class attribute) |
-| `name` | Human-readable name (e.g. "Production SMS") |
-| `configuration` | JSONB dict of provider-specific credentials and settings (passed to `configure()` as `provider_config`) |
+```bash
+# Store provider credentials for a tenant
+PUT /api/auth/0.1/external/{backend}/config
+{
+    "api_key": "...",
+    "api_secret": "...",
+    "webhook_secret": "..."
+}
+```
 
-A single backend can have multiple providers (e.g. separate SMS accounts for different tenants).
+These credentials are passed as `provider_config` to your connector's `__init__()`. wazo-chatd fetches and caches them from wazo-auth at startup and on cache miss.
 
-### UserAlias
+### User identities
 
-A `UserAlias` maps a Wazo user to an external identity through a provider. It determines which phone number, email address, or handle a user sends from.
+A `UserIdentity` maps a Wazo user to an external identity for a given backend. It determines which phone number, email address, or handle a user sends from.
 
-| Field | Description |
-|-------|-------------|
-| `uuid` | Unique alias identifier |
-| `user_uuid` | The Wazo user this alias belongs to |
-| `provider_uuid` | Which `ChatProvider` this alias is associated with |
-| `identity` | The external identity string (e.g. `"+15551234567"`, `"user@example.com"`) |
+User identities are managed via the wazo-chatd API:
 
-When sending an outbound message, the executor resolves the sender's `UserAlias` to determine:
-- The `sender_alias` (the "from" identity passed to `send()`)
+| Endpoint | Description |
+|----------|-------------|
+| `GET /users/{user_uuid}/identities` | List identities for a user |
+| `POST /users/{user_uuid}/identities` | Create an identity |
+| `GET /users/{user_uuid}/identities/{identity_uuid}` | Get an identity |
+| `PUT /users/{user_uuid}/identities/{identity_uuid}` | Update an identity |
+| `DELETE /users/{user_uuid}/identities/{identity_uuid}` | Delete an identity |
+
+**UserIdentity fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uuid` | `str` | Unique identity identifier (read-only) |
+| `backend` | `str` | Which connector backend this identity belongs to (must match your `backend` class attribute) |
+| `type` | `str` | Messaging type: `sms`, `whatsapp`, `email`, etc. |
+| `identity` | `str` | The external identity string (e.g. `"+15551234567"`, `"user@example.com"`) |
+| `extra` | `dict` | Additional metadata |
+
+When sending an outbound message, the user specifies a `sender_identity_uuid` in the message payload. The executor resolves this identity to determine:
+- The `sender_identity` (the "from" value passed to `send()`)
 - The `backend` and `type` (which connector to use)
 
 ### End-to-end setup
@@ -369,8 +388,8 @@ To send and receive messages through your connector:
 
 1. Install your connector package (`apt install` or `pip install -e`)
 2. Enable it in `/etc/wazo-chatd/conf.d/connectors.yml`
-3. Create a `ChatProvider` via wazo-confd with your backend name and credentials
-4. Create `UserAlias` records linking Wazo users to external identities
+3. Store provider credentials via wazo-auth external config (`PUT /external/{backend}/config`)
+4. Create `UserIdentity` records linking Wazo users to external identities
 5. Configure your provider to send webhooks to `POST /connectors/incoming`
 
 ### Enabling/disabling
@@ -389,13 +408,13 @@ enabled_connectors:
 wazo-chatd exposes two webhook endpoints for inbound messages:
 
 - `POST /connectors/incoming` - generic, tries all connectors
-- `POST /connectors/incoming/<backend>` - backend hint for faster matching
+- `POST /connectors/incoming/{backend}` - backend hint for faster matching
 
-Configure your external provider to send webhooks to either URL. The `<backend>` path is a convenience hint that prioritizes matching connectors but falls back to trying all registered connectors if no match is found.
+Configure your external provider to send webhooks to either URL. The `{backend}` path is a convenience hint that prioritizes matching connectors but falls back to trying all registered connectors if no match is found.
 
 The dispatch flow:
 1. HTTP request is extracted into a `WebhookData(body=..., headers=..., content_type=...)`
-2. `can_handle(data)` is called on each connector (hint-matched first)
+2. `can_handle(data)` is called on each connector class (hint-matched first)
 3. First connector returning `True` gets `on_event(data)` called
 4. If `on_event` returns an `InboundMessage` or `StatusUpdate`, it's enqueued for processing
 5. If it returns `None`, the next matching connector is tried
@@ -431,6 +450,17 @@ stateDiagram-v2
 - `status_map` — map your provider's status strings to `DeliveryStatus` values
 - wazo-chatd publishes `chatd_message_delivery_status` bus events on each state transition
 
+## Summary: Instance vs Class Methods
+
+| Method | Type | Needs instance? | Why |
+|--------|------|-----------------|-----|
+| `__init__` | instance | yes | Stores per-tenant credentials |
+| `send` | instance | yes | Uses credentials to call external API |
+| `listen` / `stop` | instance | yes | Manages polling/websocket connections |
+| `can_handle` | classmethod | no | Stateless header inspection during webhook dispatch |
+| `on_event` | classmethod | no | Stateless payload parsing during webhook dispatch |
+| `normalize_identity` | classmethod | no | Stateless format validation for capability resolution |
+
 ## Complete Example
 
 > [!NOTE]
@@ -443,9 +473,9 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
-from wazo_chatd.connectors.delivery import DeliveryStatus
-from wazo_chatd.connectors.exceptions import ConnectorSendError
-from wazo_chatd.connectors.types import (
+from wazo_chatd.plugins.connectors.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
     StatusUpdate,
@@ -486,30 +516,33 @@ class MySmsConnector:
         except Exception as exc:
             raise ConnectorSendError(str(exc)) from exc
 
-    def can_handle(self, data: TransportData) -> bool:
+    @classmethod
+    def can_handle(cls, data: TransportData) -> bool:
         match data:
             case WebhookData(headers=headers):
                 return 'X-My-Provider-Signature' in headers
             case _:
                 return True
 
+    @classmethod
     def on_event(
-        self, data: TransportData
+        cls, data: TransportData
     ) -> InboundMessage | StatusUpdate | None:
         match data:
             case WebhookData(body=body):
-                return self._parse_webhook(body)
+                return cls._parse_webhook(body)
             case _:
                 return None
 
-    def _parse_webhook(self, body):
+    @classmethod
+    def _parse_webhook(cls, body):
         content = body.get('text')
         if content:
             return InboundMessage(
                 sender=body.get('from', ''),
                 recipient=body.get('to', ''),
                 body=content,
-                backend=self.backend,
+                backend=cls.backend,
                 external_id=body.get('message_id', ''),
             )
 
@@ -519,7 +552,7 @@ class MySmsConnector:
             return StatusUpdate(
                 external_id=message_id,
                 status=status,
-                backend=self.backend,
+                backend=cls.backend,
                 error_code=body.get('error_code', ''),
             )
 
@@ -531,7 +564,8 @@ class MySmsConnector:
     def stop(self) -> None:
         pass
 
-    def normalize_identity(self, raw_identity: str) -> str:
+    @classmethod
+    def normalize_identity(cls, raw_identity: str) -> str:
         if _E164.match(raw_identity):
             return raw_identity
         raise ValueError(f'Not a valid phone number: {raw_identity}')
