@@ -55,8 +55,8 @@ class OutboundMessage:
     sender_uuid: str
     body: str
     participants: tuple[RoomParticipant, ...] = ()
-    sender_alias: str = ''
-    recipient_alias: str = ''
+    sender_identity: str = ''
+    recipient_identity: str = ''
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:

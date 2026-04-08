@@ -74,6 +74,7 @@ _DEFAULT_CONFIG = {
     'connectors': {},
     'delivery': {
         'max_concurrent_tasks': 100,
+        'provider_cache_ttl': 300,
     },
     'initialization': {
         'enabled': True,

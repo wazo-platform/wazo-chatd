@@ -59,26 +59,23 @@ class MyConnector:
 | `supported_types` | Tuple of messaging types this backend supports (e.g. `("sms", "mms", "whatsapp")`) |
 | `status_map` | Mapping of provider status strings to `DeliveryStatus` enum values. Only statuses that should create a delivery record need to be mapped. Omit transient statuses (e.g. `"queued"`, `"sending"`) — the executor ignores unmapped statuses. Use an empty dict `{}` if your connector doesn't support status callbacks. |
 
-### `configure(type_, provider_config, connector_config)`
+### `__init__(provider_config, connector_config)`
 
-Called once after instantiation. Receives two configuration sources:
+The constructor receives two configuration sources:
 
 ```python
-def configure(
+def __init__(
     self,
-    type_: str,
     provider_config: Mapping[str, Any],
     connector_config: Mapping[str, Any],
 ) -> None:
-    self._type = type_
     self._api_key = provider_config['api_key']
     self._mode = str(connector_config.get('mode', 'webhook'))
 ```
 
 | Parameter | Source | Example |
 |-----------|--------|---------|
-| `type_` | `ChatProvider.type_` | `"sms"`, `"whatsapp"` |
-| `provider_config` | `ChatProvider.configuration` JSONB (per-tenant, managed by confd) | `{"api_key": "..."}` |
+| `provider_config` | wazo-auth external auth config (per-tenant, via `PUT /external/{backend}/config`) | `{"api_key": "..."}` |
 | `connector_config` | `/etc/wazo-chatd/conf.d/` (system-level) | `{"mode": "webhook", "polling_interval": 30}` |
 
 ### `send(message) -> str`
@@ -469,26 +466,20 @@ class MySmsConnector:
         'rejected': DeliveryStatus.FAILED,
     }
 
-    def __init__(self) -> None:
-        self._api_key: str = ''
-        self._api_secret: str = ''
-        self._client = None  # Provider SDK client instance
-
-    def configure(
+    def __init__(
         self,
-        type_: str,
         provider_config: Mapping[str, Any],
         connector_config: Mapping[str, Any],
     ) -> None:
         self._api_key = provider_config.get('api_key', '')
         self._api_secret = provider_config.get('api_secret', '')
-        # Initialize your SDK client here
+        self._client = None  # Initialize your SDK client here
 
     def send(self, message: OutboundMessage) -> str:
         try:
             response = self._client.sms.send_message({
-                'from': message.sender_alias,
-                'to': message.recipient_alias,
+                'from': message.sender_identity,
+                'to': message.recipient_identity,
                 'text': message.body,
             })
             return response['messages'][0]['message-id']
