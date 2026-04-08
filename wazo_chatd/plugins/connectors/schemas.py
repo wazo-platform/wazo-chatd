@@ -5,8 +5,14 @@ from xivo.mallow import fields
 from xivo.mallow_helpers import Schema
 
 
-class UserAliasSchema(Schema):
+class UserIdentitySchema(Schema):
     uuid = fields.UUID(dump_only=True)
-    type = fields.String(dump_only=True, attribute='provider.type_')
-    backend = fields.String(dump_only=True, attribute='provider.backend')
+    backend = fields.String(dump_only=True)
     identity = fields.String(dump_only=True)
+
+
+class UserIdentityAdminSchema(Schema):
+    uuid = fields.UUID(dump_only=True)
+    backend = fields.String(required=True)
+    identity = fields.String(required=True)
+    extra = fields.Dict(load_default=dict)

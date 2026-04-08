@@ -1,4 +1,4 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from xivo.rest_api_helpers import APIException
@@ -51,3 +51,10 @@ class UnknownRoomException(APIException):
         msg = f'No such room: "{room_uuid}"'
         details = {'uuid': str(room_uuid)}
         super().__init__(404, msg, 'unknown-room', details, 'rooms')
+
+
+class UnknownUserIdentityException(APIException):
+    def __init__(self, identity_uuid: str) -> None:
+        msg = f'No such user identity: "{identity_uuid}"'
+        details = {'uuid': str(identity_uuid)}
+        super().__init__(404, msg, 'unknown-user-identity', details, 'identities')

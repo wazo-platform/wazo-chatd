@@ -5,9 +5,15 @@ from __future__ import annotations
 
 import logging
 
+from wazo_auth_client import Client as AuthClient
+
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
 from wazo_chatd.plugins.connectors.bus_consume import ConnectorBusEventHandler
-from wazo_chatd.plugins.connectors.http import RoomAliasListResource
+from wazo_chatd.plugins.connectors.http import (
+    RoomIdentityListResource,
+    UserIdentityItemResource,
+    UserIdentityListResource,
+)
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
 from wazo_chatd.plugins.connectors.services import ConnectorService
@@ -28,9 +34,13 @@ class Plugin:
         registry = ConnectorRegistry()
         registry.discover(connectors_config=config.get('connectors', {}))
 
+        auth_client = AuthClient(**config['auth'])
+        token_changed_subscribe = dependencies['token_changed_subscribe']
+        token_changed_subscribe(auth_client.set_token)
+
         service = ConnectorService(dao, registry)
 
-        router = ConnectorRouter(config, registry, service)
+        router = ConnectorRouter(config, registry, service, auth_client=auth_client)
         router.register_http_endpoints(api)
 
         hooks.register('before_room_creation', router.validate_room_creation)
@@ -41,8 +51,19 @@ class Plugin:
         bus_handler.subscribe()
 
         api.add_resource(
-            RoomAliasListResource,
-            '/users/me/rooms/<uuid:room_uuid>/aliases',
+            UserIdentityListResource,
+            '/users/<uuid:user_uuid>/identities',
+            resource_class_args=[service],
+        )
+        api.add_resource(
+            UserIdentityItemResource,
+            '/users/<uuid:user_uuid>/identities/<uuid:identity_uuid>',
+            resource_class_args=[service],
+        )
+
+        api.add_resource(
+            RoomIdentityListResource,
+            '/users/me/rooms/<uuid:room_uuid>/identities',
             resource_class_args=[service],
         )
 
