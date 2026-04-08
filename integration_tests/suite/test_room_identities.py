@@ -17,15 +17,14 @@ from .helpers.base import (
 )
 
 RECIPIENT_UUID = uuid.uuid4()
-PROVIDER_UUID = uuid.uuid4()
 EXTERNAL_IDENTITY = 'test:+15559876'
 SENDER_IDENTITY = 'test:+15551234'
 
 
-def _get_aliases(port: int, room_uuid: str) -> requests.Response:
-    # TODO: add list_room_aliases to wazo-chatd-client
+def _get_identities(port: int, room_uuid: str) -> requests.Response:
+    # TODO: add list_room_identities to wazo-chatd-client
     return requests.get(
-        f'http://127.0.0.1:{port}/1.0/users/me/rooms/{room_uuid}/aliases',
+        f'http://127.0.0.1:{port}/1.0/users/me/rooms/{room_uuid}/identities',
         headers={
             'X-Auth-Token': str(TOKEN_UUID),
             'Wazo-Tenant': str(TOKEN_TENANT_UUID),
@@ -37,15 +36,9 @@ def _get_aliases(port: int, room_uuid: str) -> requests.Response:
 class TestRoomAliases(ConnectorIntegrationTest):
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user(uuid=RECIPIENT_UUID)
-    @fixtures.db.chat_provider(
-        uuid=PROVIDER_UUID,
-        name='Test Provider',
-        type_='test',
-        backend='test',
-    )
-    @fixtures.db.user_alias(
+    @fixtures.db.user_identity(
         user_uuid=TOKEN_USER_UUID,
-        provider_uuid=PROVIDER_UUID,
+        backend='test',
         identity=SENDER_IDENTITY,
     )
     @fixtures.db.room(
@@ -54,13 +47,13 @@ class TestRoomAliases(ConnectorIntegrationTest):
             {'uuid': RECIPIENT_UUID, 'identity': EXTERNAL_IDENTITY},
         ],
     )
-    def test_external_participant_returns_sender_aliases(
-        self, sender, recipient, provider, alias, room
+    def test_external_participant_returns_sender_identities(
+        self, sender, recipient, identity, room
     ):
-        self.reload_connectors()
+
         port = self.asset_cls.service_port(9304, 'chatd')
 
-        response = _get_aliases(port, str(room.uuid))
+        response = _get_identities(port, str(room.uuid))
 
         assert response.status_code == 200
         body = response.json()
@@ -70,20 +63,14 @@ class TestRoomAliases(ConnectorIntegrationTest):
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user(uuid=RECIPIENT_UUID)
-    @fixtures.db.chat_provider(
-        uuid=PROVIDER_UUID,
-        name='Test Provider',
-        type_='test',
-        backend='test',
-    )
-    @fixtures.db.user_alias(
+    @fixtures.db.user_identity(
         user_uuid=TOKEN_USER_UUID,
-        provider_uuid=PROVIDER_UUID,
+        backend='test',
         identity=SENDER_IDENTITY,
     )
-    @fixtures.db.user_alias(
+    @fixtures.db.user_identity(
         user_uuid=RECIPIENT_UUID,
-        provider_uuid=PROVIDER_UUID,
+        backend='test',
         identity='test:+15557777',
     )
     @fixtures.db.room(
@@ -92,13 +79,13 @@ class TestRoomAliases(ConnectorIntegrationTest):
             {'uuid': RECIPIENT_UUID},
         ],
     )
-    def test_wazo_user_with_alias_returns_sender_aliases(
-        self, sender, recipient, provider, sender_alias, recipient_alias, room
+    def test_wazo_user_with_identity_returns_sender_identities(
+        self, sender, recipient, sender_identity, recipient_identity, room
     ):
-        self.reload_connectors()
+
         port = self.asset_cls.service_port(9304, 'chatd')
 
-        response = _get_aliases(port, str(room.uuid))
+        response = _get_identities(port, str(room.uuid))
 
         assert response.status_code == 200
         body = response.json()
@@ -117,7 +104,7 @@ class TestRoomAliases(ConnectorIntegrationTest):
     def test_internal_only_room_returns_empty(self, sender, recipient, room):
         port = self.asset_cls.service_port(9304, 'chatd')
 
-        response = _get_aliases(port, str(room.uuid))
+        response = _get_identities(port, str(room.uuid))
 
         assert response.status_code == 200
         body = response.json()
@@ -128,6 +115,6 @@ class TestRoomAliases(ConnectorIntegrationTest):
         port = self.asset_cls.service_port(9304, 'chatd')
         unknown_uuid = str(uuid.uuid4())
 
-        response = _get_aliases(port, unknown_uuid)
+        response = _get_identities(port, unknown_uuid)
 
         assert response.status_code == 404

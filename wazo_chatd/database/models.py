@@ -267,38 +267,9 @@ class RoomMessage(Base):  # type: ignore[misc, valid-type]
 
 
 @generic_repr
-class ChatProvider(Base):  # type: ignore[misc, valid-type]
-    __tablename__ = 'chatd_provider'
-    __table_args__ = (
-        UniqueConstraint('tenant_uuid', 'name'),
-        Index('chatd_provider__idx__tenant_uuid', 'tenant_uuid'),
-    )
-
-    uuid = Column(
-        UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
-    )
-    tenant_uuid: UUIDType = Column(
-        UUIDType(),
-        ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
-        nullable=False,
-    )
-    type_ = Column('type', String, nullable=False)
-    backend = Column(String, nullable=False)
-    name = Column(String, nullable=False)
-    description = Column(String, nullable=True)
-    configuration = Column(
-        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
-    )
-
-    tenant: RelationshipProperty[Tenant] = relationship(
-        'Tenant', uselist=False, viewonly=True
-    )
-
-
-@generic_repr
-class UserAlias(Base):  # type: ignore[misc, valid-type]
-    __tablename__ = 'chatd_user_alias'
-    __table_args__ = (UniqueConstraint('provider_uuid', 'identity'),)
+class UserIdentity(Base):  # type: ignore[misc, valid-type]
+    __tablename__ = 'chatd_user_identity'
+    __table_args__ = (UniqueConstraint('backend', 'identity'),)
 
     uuid = Column(
         UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
@@ -313,11 +284,7 @@ class UserAlias(Base):  # type: ignore[misc, valid-type]
         ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
         nullable=False,
     )
-    provider_uuid: UUIDType = Column(
-        UUIDType(),
-        ForeignKey('chatd_provider.uuid', ondelete='CASCADE'),
-        nullable=False,
-    )
+    backend = Column(String, nullable=False)
     identity = Column(String, nullable=False)
     extra = Column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
@@ -328,9 +295,6 @@ class UserAlias(Base):  # type: ignore[misc, valid-type]
     )
     user: RelationshipProperty[User] = relationship(
         'User', uselist=False, viewonly=True
-    )
-    provider: RelationshipProperty[ChatProvider] = relationship(
-        'ChatProvider', uselist=False, viewonly=True
     )
 
 
@@ -353,9 +317,9 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
     )
     type_ = Column('type', String, nullable=True)
     backend = Column(String, nullable=True)
-    sender_alias_uuid: UUIDType = Column(
+    sender_identity_uuid: UUIDType = Column(
         UUIDType(),
-        ForeignKey('chatd_user_alias.uuid', ondelete='SET NULL'),
+        ForeignKey('chatd_user_identity.uuid', ondelete='SET NULL'),
         nullable=True,
     )
     retry_count = Column(Integer, nullable=False, default=0, server_default='0')
@@ -364,8 +328,8 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
 
-    sender_alias: RelationshipProperty[UserAlias | None] = relationship(
-        'UserAlias', uselist=False, viewonly=True
+    sender_identity: RelationshipProperty[UserIdentity | None] = relationship(
+        'UserIdentity', uselist=False, viewonly=True
     )
     message: RelationshipProperty[RoomMessage] = relationship(
         'RoomMessage', uselist=False, overlaps='meta'

@@ -7,37 +7,34 @@ from ..helpers import Session
 from .channel import ChannelDAO
 from .endpoint import EndpointDAO
 from .line import LineDAO
-from .provider import ProviderDAO
 from .refresh_token import RefreshTokenDAO
 from .room import RoomDAO
 from .session import SessionDAO
 from .tenant import TenantDAO
 from .user import UserDAO
-from .user_alias import UserAliasDAO
+from .user_identity import UserIdentityDAO
 
 
 class DAO:
     channel: ChannelDAO
     endpoint: EndpointDAO
     line: LineDAO
-    provider: ProviderDAO
     refresh_token: RefreshTokenDAO
     room: RoomDAO
     session: SessionDAO
     tenant: TenantDAO
     user: UserDAO
-    user_alias: UserAliasDAO
+    user_identity: UserIdentityDAO
     _daos = {
         'channel': ChannelDAO,
         'endpoint': EndpointDAO,
         'line': LineDAO,
-        'provider': ProviderDAO,
         'refresh_token': RefreshTokenDAO,
         'room': RoomDAO,
         'session': SessionDAO,
         'tenant': TenantDAO,
         'user': UserDAO,
-        'user_alias': UserAliasDAO,
+        'user_identity': UserIdentityDAO,
     }
 
     def __init__(self):

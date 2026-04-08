@@ -31,46 +31,9 @@ def upgrade() -> None:
         ['identity'],
     )
 
-    # ChatProvider: local cache of confd-managed providers
+    # UserIdentity: user-to-external-identity mappings
     op.create_table(
-        'chatd_provider',
-        sa.Column(
-            'uuid',
-            UUIDType(),
-            server_default=sa.text('uuid_generate_v4()'),
-            primary_key=True,
-        ),
-        sa.Column(
-            'tenant_uuid',
-            UUIDType(),
-            sa.ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
-            nullable=False,
-        ),
-        sa.Column('type', sa.String, nullable=False),
-        sa.Column('backend', sa.String, nullable=False),
-        sa.Column('name', sa.String, nullable=False),
-        sa.Column('description', sa.String, nullable=True),
-        sa.Column(
-            'configuration',
-            JSONB,
-            nullable=False,
-            server_default=sa.text("'{}'::jsonb"),
-        ),
-    )
-    op.create_unique_constraint(
-        'chatd_provider__uq__tenant_uuid_name',
-        'chatd_provider',
-        ['tenant_uuid', 'name'],
-    )
-    op.create_index(
-        'chatd_provider__idx__tenant_uuid',
-        'chatd_provider',
-        ['tenant_uuid'],
-    )
-
-    # UserAlias: local cache of confd-managed user aliases
-    op.create_table(
-        'chatd_user_alias',
+        'chatd_user_identity',
         sa.Column(
             'uuid',
             UUIDType(),
@@ -89,12 +52,7 @@ def upgrade() -> None:
             sa.ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
             nullable=False,
         ),
-        sa.Column(
-            'provider_uuid',
-            UUIDType(),
-            sa.ForeignKey('chatd_provider.uuid', ondelete='CASCADE'),
-            nullable=False,
-        ),
+        sa.Column('backend', sa.String, nullable=False),
         sa.Column('identity', sa.String, nullable=False),
         sa.Column(
             'extra',
@@ -104,9 +62,9 @@ def upgrade() -> None:
         ),
     )
     op.create_unique_constraint(
-        'chatd_user_alias__uq__provider_uuid_identity',
-        'chatd_user_alias',
-        ['provider_uuid', 'identity'],
+        'chatd_user_identity__uq__backend_identity',
+        'chatd_user_identity',
+        ['backend', 'identity'],
     )
 
     # MessageMeta: optional 1:1 delivery metadata for RoomMessage
@@ -121,9 +79,9 @@ def upgrade() -> None:
         sa.Column('type', sa.String, nullable=True),
         sa.Column('backend', sa.String, nullable=True),
         sa.Column(
-            'sender_alias_uuid',
+            'sender_identity_uuid',
             UUIDType(),
-            sa.ForeignKey('chatd_user_alias.uuid', ondelete='SET NULL'),
+            sa.ForeignKey('chatd_user_identity.uuid', ondelete='SET NULL'),
             nullable=True,
         ),
         sa.Column('retry_count', sa.Integer, nullable=False, server_default='0'),
@@ -171,8 +129,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table('chatd_delivery_record')
     op.drop_table('chatd_message_meta')
-    op.drop_table('chatd_user_alias')
-    op.drop_index('chatd_provider__idx__tenant_uuid', 'chatd_provider')
-    op.drop_table('chatd_provider')
+    op.drop_table('chatd_user_identity')
     op.drop_index('chatd_room_user__idx__identity', 'chatd_room_user')
     op.drop_column('chatd_room_user', 'identity')
