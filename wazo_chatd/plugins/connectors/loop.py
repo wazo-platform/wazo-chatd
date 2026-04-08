@@ -22,6 +22,7 @@ from wazo_chatd.database.async_helpers import (
     init_async_db,
     parse_ssl_from_uri,
 )
+from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
 from wazo_chatd.plugins.connectors.executor import DeliveryExecutor
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -70,6 +71,7 @@ class DeliveryLoop:
         self._thread: threading.Thread | None = None
         self._in_flight: set[asyncio.Task[None]] = set()
         self._semaphore: asyncio.Semaphore | None = None
+        self._listener_task: asyncio.Task[None] | None = None
         self._restart_count: int = 0
 
     def _init_loop(self) -> None:
@@ -158,9 +160,8 @@ class DeliveryLoop:
         assert loop is not None
 
         asyncio.set_event_loop(loop)
+        loop.create_task(self._startup())
         try:
-            loop.run_until_complete(self._recover())
-            self._listener_task = loop.create_task(self._listen_for_deliveries())
             loop.run_forever()
         except Exception:
             logger.exception('Delivery loop crashed, restarting')
@@ -169,6 +170,32 @@ class DeliveryLoop:
             return
 
         self._teardown_loop(loop)
+
+    async def _startup(self) -> None:
+        await self._populate_store()
+        await self._recover()
+        self._listener_task = asyncio.ensure_future(self._listen_for_deliveries())
+
+    async def _populate_store(self) -> None:
+        try:
+            async with async_session_scope(self._session_factory):
+                dao = AsyncUserIdentityDAO()
+                tenant_backends = await dao.list_tenant_backends()
+        except Exception:
+            logger.exception('Failed to scan tenant backends for store population')
+            return
+
+        sem = asyncio.Semaphore(20)
+
+        async def _load(backend: str, tenant_uuid: str) -> None:
+            async with sem:
+                await self._store.refresh(backend, tenant_uuid)
+
+        await asyncio.gather(
+            *(_load(backend, tenant_uuid) for tenant_uuid, backend in tenant_backends)
+        )
+
+        logger.info('Populated connector store with %d instance(s)', len(self._store))
 
     def _teardown_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         if self._in_flight:
@@ -237,9 +264,7 @@ class DeliveryLoop:
 
     def _schedule_outbound_notification(self, message_uuid: str) -> None:
         assert self._loop is not None
-        task = self._loop.create_task(
-            self._process_outbound_notification(message_uuid)
-        )
+        task = self._loop.create_task(self._process_outbound_notification(message_uuid))
         self._in_flight.add(task)
         task.add_done_callback(self._task_done)
 
@@ -298,9 +323,7 @@ class DeliveryLoop:
                 logger.info('Recovery: re-enqueuing %s immediately', message_uuid)
                 self._schedule_outbound_notification(message_uuid)
 
-    def _schedule_task(
-        self, message: InboundMessage | StatusUpdate
-    ) -> None:
+    def _schedule_task(self, message: InboundMessage | StatusUpdate) -> None:
         assert self._loop is not None
 
         match message:
@@ -336,6 +359,13 @@ class DeliveryLoop:
     async def _drain_and_stop(self) -> None:
         if self._shutdown and not self._shutdown.done():
             self._shutdown.set_result(None)
+
+        if self._listener_task and not self._listener_task.done():
+            self._listener_task.cancel()
+            try:
+                await self._listener_task
+            except asyncio.CancelledError:
+                pass
 
         if self._in_flight:
             logger.info(

@@ -463,18 +463,15 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
     @classmethod
     def setUpClass(cls):
         cls.reset_clients()
+        cls.auth.set_external_config({
+            'test': {'mock_url': 'http://connector-mock:8080'},
+        })
 
     @classmethod
     def reset_clients(cls):
         super().reset_clients()
         cls.connector_mock = cls.asset_cls.make_connector_mock()
 
-    def reload_connectors(self) -> None:
-        port = self.asset_cls.service_port(9304, 'chatd')
-        requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/reload',
-            headers={'X-Auth-Token': str(TOKEN_UUID)},
-        )
 
 
 class TeamsIntegrationTest(_BaseIntegrationTest):

@@ -4,21 +4,16 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from flask_restful import Api
 
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
-from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
-    MessageAliasRequiredError,
+    MessageIdentityRequiredError,
 )
-from wazo_chatd.plugins.connectors.http import (
-    ConnectorReloadResource,
-    ConnectorWebhookResource,
-)
+from wazo_chatd.plugins.connectors.http import ConnectorWebhookResource
 from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.services import ConnectorService
@@ -26,7 +21,8 @@ from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import WebhookData
 
 if TYPE_CHECKING:
-    from wazo_chatd.database.models import Room, RoomMessage, RoomUser
+    from wazo_auth_client import Client as AuthClient
+    from wazo_chatd.database.models import Room
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +31,8 @@ class ConnectorRouter:
     """Main entry point for the connector subsystem.
 
     Owns the delivery loop, manages connector instances, handles
-    capability resolution and message forwarding. Heavy processing
-    (alias lookup, delivery tracking, persistence) happens
+    capability resolution and message forwarding.  Heavy processing
+    (identity lookup, delivery tracking, persistence) happens
     asynchronously in the delivery loop.
     """
 
@@ -45,11 +41,18 @@ class ConnectorRouter:
         config: dict[str, str | bool],
         registry: ConnectorRegistry,
         service: ConnectorService,
+        auth_client: AuthClient,
     ) -> None:
         self._registry = registry
         self._service = service
-        self._connectors_config: dict[str, Any] = dict(config.get('connectors', {}))
-        self._store = ConnectorStore()
+        connectors_config: dict[str, Any] = dict(config.get('connectors', {}))
+        delivery_config: dict[str, Any] = dict(config.get('delivery', {}))
+        self._store = ConnectorStore(
+            auth_client,
+            registry,
+            cache_ttl=float(delivery_config.get('provider_cache_ttl', 300)),
+            connectors_config=connectors_config,
+        )
         self._delivery_loop = DeliveryLoop(config, registry, self._store)
 
     def register_http_endpoints(self, api: Api) -> None:
@@ -57,11 +60,6 @@ class ConnectorRouter:
             ConnectorWebhookResource,
             '/connectors/incoming',
             '/connectors/incoming/<backend>',
-            resource_class_args=[self],
-        )
-        api.add_resource(
-            ConnectorReloadResource,
-            '/connectors/reload',
             resource_class_args=[self],
         )
 
@@ -76,14 +74,14 @@ class ConnectorRouter:
 
     def validate_outbound(self, context: MessageContext) -> None:
         has_external = any(u.identity for u in context.room.users)
-        if has_external and not context.sender_alias_uuid:
-            raise MessageAliasRequiredError()
+        if has_external and not context.sender_identity_uuid:
+            raise MessageIdentityRequiredError()
 
-        if context.sender_alias_uuid:
-            self._service.validate_alias_reachability(
+        if context.sender_identity_uuid:
+            self._service.validate_identity_reachability(
                 context.room,
                 str(context.message.user_uuid),
-                context.sender_alias_uuid,
+                context.sender_identity_uuid,
             )
 
     def on_message_created(self, context: MessageContext) -> None:
@@ -99,60 +97,6 @@ class ConnectorRouter:
             'instances': len(self._store),
         }
 
-    def load_providers(self) -> None:
-        """Load connector instances from ChatProvider records.
-
-        TODO: Replace with confd client fetch once wazo-confd-mock
-        supports chat_provider responses. Currently reads directly
-        from chatd's own database.
-        """
-        new_instances: dict[str, Connector] = {}
-
-        for provider in self._service.list_providers():
-            backend = str(provider.backend)
-            try:
-                cls = self._registry.get_backend(backend)
-            except KeyError:
-                logger.warning(
-                    'Backend %r not available, skipping provider %r',
-                    backend,
-                    provider.name,
-                )
-                continue
-
-            instance = cls()
-            instance.configure(
-                str(provider.type_),
-                dict(provider.configuration) if provider.configuration else {},
-                self._connectors_config.get(backend, {}),
-            )
-            new_instances[str(provider.name)] = instance
-            logger.info(
-                'Loaded connector instance %r (backend=%r)',
-                provider.name,
-                backend,
-            )
-
-        self._store.set(new_instances)
-
-    def invalidate_cache(self) -> None:
-        """Mark the connector cache as stale.
-
-        The next operation that needs provider data will trigger a
-        fresh fetch from confd.
-        """
-        logger.info('Connector cache invalidated')
-        self._store.set({})
-
-    def add_instance(self, name: str, connector: Connector) -> None:
-        """Register a configured connector instance.
-
-        Args:
-            name: Unique name for this instance (e.g. provider name).
-            connector: A configured connector instance.
-        """
-        self._store.register(name, connector)
-
     def send(self, context: MessageContext) -> None:
         """Create delivery metadata and notify the async delivery loop.
 
@@ -160,11 +104,11 @@ class ConnectorRouter:
         no-op.  Uses PostgreSQL NOTIFY to signal the async loop after
         the transaction commits, guaranteeing data visibility.
         """
-        if not context.sender_alias_uuid:
+        if not context.sender_identity_uuid:
             return
 
         self._service.create_outbound_delivery(
-            context.message, context.sender_alias_uuid
+            context.message, context.sender_identity_uuid
         )
 
     def dispatch_webhook(
@@ -174,36 +118,27 @@ class ConnectorRouter:
     ) -> None:
         """Parse an incoming webhook and enqueue the result.
 
-        Uses a two-phase dispatch:
-
-        1. ``can_handle(data)`` pre-filters connectors cheaply.
-        2. ``on_event(data)`` does full parsing on candidates until one
-           returns a non-None result.
-
-        When *backend* is provided (from the URL path), matching instances
-        are tried first as a fast path. Remaining instances are tried as
-        fallback.
+        Uses backend classes from the registry directly — inbound parsing
+        is stateless (no auth config needed).  The store is only required
+        for the outbound ``send()`` path.
 
         Raises:
             ConnectorParseError: If no connector can handle the webhook.
         """
-        instances = list(self._store)
-        if not instances:
-            raise ConnectorParseError('No connector instances registered')
+        backends = self._registry.available_backends()
+        if not backends:
+            raise ConnectorParseError('No connector backends registered')
 
-        if backend:
-            hint_match = [
-                i for i in instances if getattr(i, 'backend', None) == backend
-            ]
-            rest = [i for i in instances if i not in hint_match]
-            ordered = hint_match + rest
+        if backend and backend in backends:
+            ordered = [backend] + [b for b in backends if b != backend]
         else:
-            ordered = instances
+            ordered = backends
 
-        for instance in ordered:
-            if not instance.can_handle(data):
+        for name in ordered:
+            cls = self._registry.get_backend(name)
+            if not cls.can_handle(data):
                 continue
-            result = instance.on_event(data)
+            result = cls.on_event(data)
             if result is not None:
                 self._delivery_loop.enqueue_message(result)
                 return
