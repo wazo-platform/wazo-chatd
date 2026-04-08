@@ -34,17 +34,12 @@ class TestConnector:
         'failed': DeliveryStatus.FAILED,
     }
 
-    def __init__(self) -> None:
-        self._type: str = ''
-        self._mock_url: str = MOCK_URL
-
-    def configure(
+    def __init__(
         self,
-        type_: str,
         provider_config: Mapping[str, Any],
         connector_config: Mapping[str, Any],
     ) -> None:
-        self._type = type_
+        self._mock_url: str = MOCK_URL
         mock_url = provider_config.get('mock_url')
         if mock_url:
             self._mock_url = str(mock_url)
@@ -62,22 +57,25 @@ class TestConnector:
 
         return config.get('external_id', f'test-{message.message_uuid}')
 
-    def can_handle(self, data: TransportData) -> bool:
+    @classmethod
+    def can_handle(cls, data: TransportData) -> bool:
         match data:
             case WebhookData(headers=headers):
                 return 'X-Test-Connector' in headers
             case _:
                 return True
 
-    def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
+    @classmethod
+    def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
         match data:
             case WebhookData(body=body):
-                return self._parse_webhook(body)
+                return cls._parse_webhook(body)
             case _:
                 return None
 
+    @classmethod
     def _parse_webhook(
-        self, body: Mapping[str, Any]
+        cls, body: Mapping[str, Any]
     ) -> InboundMessage | StatusUpdate | None:
         content = body.get('body')
         if content:
@@ -85,7 +83,7 @@ class TestConnector:
                 sender=body.get('from', ''),
                 recipient=body.get('to', ''),
                 body=str(content),
-                backend=self.backend,
+                backend=cls.backend,
                 external_id=body.get('message_id', ''),
                 metadata=dict(body),
             )
@@ -96,7 +94,7 @@ class TestConnector:
             return StatusUpdate(
                 external_id=external_id,
                 status=status,
-                backend=self.backend,
+                backend=cls.backend,
                 error_code=body.get('error_code', ''),
             )
 
@@ -108,7 +106,8 @@ class TestConnector:
     def stop(self) -> None:
         pass
 
-    def normalize_identity(self, raw_identity: str) -> str:
+    @classmethod
+    def normalize_identity(cls, raw_identity: str) -> str:
         if raw_identity.startswith('test:'):
             return raw_identity
         raise ValueError(f'Test connector expects "test:" prefix: {raw_identity}')
@@ -126,8 +125,8 @@ class TestConnector:
                 f'{self._mock_url}/sent',
                 json={
                     'message_uuid': message.message_uuid,
-                    'sender_alias': message.sender_alias,
-                    'recipient_alias': message.recipient_alias,
+                    'sender_identity': message.sender_identity,
+                    'recipient_identity': message.recipient_identity,
                     'body': message.body,
                 },
                 timeout=2,

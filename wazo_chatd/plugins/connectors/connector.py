@@ -52,20 +52,17 @@ class Connector(Protocol):
         }
     """
 
-    def configure(
+    def __init__(
         self,
-        type_: str,
         provider_config: Mapping[str, Any],
         connector_config: Mapping[str, Any],
     ) -> None:
         """Initialize the connector with two configuration sources.
 
         Args:
-            type_: Which messaging type this instance handles
-                (from ``ChatProvider.type_``).
-            provider_config: Per-tenant configuration from
-                ``ChatProvider.configuration`` JSONB (credentials, etc.
-                — managed by confd).
+            provider_config: Per-tenant configuration from wazo-auth
+                external auth config (credentials, API keys — managed
+                via ``PUT /external/{backend}/config``).
             connector_config: System-level configuration from
                 ``/etc/wazo-chatd/conf.d/`` (polling interval, inbound
                 mode, network settings).
@@ -98,51 +95,31 @@ class Connector(Protocol):
         """
         ...
 
-    def can_handle(self, data: TransportData) -> bool:
+    @classmethod
+    def can_handle(cls, data: TransportData) -> bool:
         """Check whether this connector can handle the given event data.
 
         A lightweight pre-filter called before :meth:`on_event`.  Should
         inspect transport-specific metadata (e.g. headers for webhooks)
         without doing full parsing or signature validation.
 
-        Use structural pattern matching to dispatch by transport type::
-
-            match data:
-                case WebhookData(headers=headers):
-                    return 'X-My-Signature' in headers
-                case _:
-                    return True
-
         Returns:
             ``True`` if this connector should attempt to handle the event.
         """
         ...
 
-    def on_event(self, data: TransportData) -> InboundMessage | StatusUpdate | None:
-        """Parse and validate an incoming event from any transport.
-
-        Use structural pattern matching to dispatch by transport type::
-
-            match data:
-                case WebhookData(body=body, headers=headers):
-                    ...validate signature, parse body...
-                case PollData(body=body):
-                    ...parse polled data...
+    @classmethod
+    def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
+        """Parse an incoming event from any transport.
 
         Returns:
             An :class:`InboundMessage` for new messages, a
             :class:`StatusUpdate` for delivery status changes,
             or ``None`` to skip (e.g. irrelevant event).
 
-        Auth/signature validation is the connector's responsibility.
-
         Idempotency (optional):
             If the provider supplies an idempotency key, include it in
-            ``InboundMessage.metadata`` as ``idempotency_key``.  The
-            router uses this to deduplicate inbound messages via a
-            GIN-indexed JSONB lookup on ``MessageMeta.extra``.  If the
-            key is absent, no dedup is performed — the message is
-            always accepted.
+            ``InboundMessage.metadata`` as ``idempotency_key``.
         """
         ...
 
@@ -162,7 +139,8 @@ class Connector(Protocol):
         """Stop listening and clean up resources."""
         ...
 
-    def normalize_identity(self, raw_identity: str) -> str:
+    @classmethod
+    def normalize_identity(cls, raw_identity: str) -> str:
         """Normalize an external identity to its canonical form.
 
         Examples: phone number to E.164 format, email to lowercase.

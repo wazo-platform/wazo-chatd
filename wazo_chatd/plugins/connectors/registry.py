@@ -83,6 +83,20 @@ class ConnectorRegistry:
         """Return names of all registered backends."""
         return list(self._backends.keys())
 
+    def types_for_backend(self, backend: str) -> set[str]:
+        """Return supported types for a backend."""
+        cls = self._backends.get(backend)
+        if not cls:
+            return set()
+        return set(cls.supported_types)
+
+    def backends_for_types(self, types: set[str]) -> set[str]:
+        return {
+            name
+            for name, cls in self._backends.items()
+            if types & set(cls.supported_types)
+        }
+
     def resolve_reachable_types(self, identity: str) -> set[str]:
         """Return connector types that can reach the given identity.
 
@@ -91,11 +105,9 @@ class ConnectorRegistry:
         backend's supported types can reach the identity.
         """
         reachable: set[str] = set()
-        for backend_name in self._backends:
-            cls = self._backends[backend_name]
-            instance = cls()
+        for backend_name, cls in self._backends.items():
             try:
-                instance.normalize_identity(identity)
+                cls.normalize_identity(identity)
             except (ValueError, TypeError):
                 continue
             reachable.update(cls.supported_types)
