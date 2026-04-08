@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import UUID
 
 if TYPE_CHECKING:
-    from wazo_chatd.database.models import Room, RoomMessage
+    from wazo_chatd.database.models import Room, RoomMessage, UserIdentity
 
 from flask_restful import Api
 from xivo.status import StatusAggregator
@@ -40,3 +40,4 @@ class MessageContext:
     room: Room
     message: RoomMessage
     sender_identity_uuid: UUID | None = None
+    resolved_sender_identity: UserIdentity | None = None

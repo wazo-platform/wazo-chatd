@@ -68,14 +68,13 @@ class ConnectorService:
     def create_outbound_delivery(
         self,
         message: RoomMessage,
-        sender_identity_uuid: UUID,
+        sender_identity: UserIdentity,
     ) -> None:
-        identity = self._dao.user_identity.find(str(sender_identity_uuid))
-        backend = identity.backend if identity else None
-        message_type = identity.type_ if identity else None
-
         self._dao.room.create_pending_delivery(
-            message, sender_identity_uuid, backend=backend, type_=message_type
+            message,
+            sender_identity.uuid,
+            backend=sender_identity.backend,
+            type_=sender_identity.type_,
         )
 
     def list_room_identities(
@@ -164,7 +163,7 @@ class ConnectorService:
         room: Room,
         sender_uuid: str,
         sender_identity_uuid: UUID,
-    ) -> None:
+    ) -> UserIdentity:
         record = self._dao.user_identity.find(str(sender_identity_uuid))
         if not record:
             raise InvalidIdentityError(str(sender_identity_uuid))
@@ -189,6 +188,8 @@ class ConnectorService:
             reachable_types = self._registry.resolve_reachable_types(str(user.identity))
             if sender_type not in reachable_types:
                 raise UnreachableParticipantError(str(user.identity), sender_backend)
+
+        return record
 
     def _resolve_participant_types(self, participant: RoomUser) -> set[str]:
         identity = participant.identity

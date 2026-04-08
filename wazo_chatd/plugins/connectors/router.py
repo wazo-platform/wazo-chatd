@@ -79,11 +79,12 @@ class ConnectorRouter:
             raise MessageIdentityRequiredError()
 
         if context.sender_identity_uuid:
-            self._service.validate_identity_reachability(
+            identity = self._service.validate_identity_reachability(
                 context.room,
                 str(context.message.user_uuid),
                 context.sender_identity_uuid,
             )
+            context.resolved_sender_identity = identity
 
     def on_message_created(self, context: MessageContext) -> None:
         self.send(context)
@@ -105,11 +106,11 @@ class ConnectorRouter:
         no-op.  Uses PostgreSQL NOTIFY to signal the async loop after
         the transaction commits, guaranteeing data visibility.
         """
-        if not context.sender_identity_uuid:
+        if not context.resolved_sender_identity:
             return
 
         self._service.create_outbound_delivery(
-            context.message, context.sender_identity_uuid
+            context.message, context.resolved_sender_identity
         )
 
     def dispatch_webhook(

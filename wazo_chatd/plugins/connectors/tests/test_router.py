@@ -211,13 +211,15 @@ class TestConnectorRouterSend(unittest.TestCase):
             ]
         )
         message = Mock(uuid='msg-uuid')
-        identity_uuid = uuid.uuid4()
-        context = MessageContext(room, message, sender_identity_uuid=identity_uuid)
+        sender_identity = Mock()
+        context = MessageContext(
+            room, message, resolved_sender_identity=sender_identity
+        )
 
         self.router.send(context)
 
         self.router._service.create_outbound_delivery.assert_called_once_with(
-            message, identity_uuid
+            message, sender_identity
         )
 
 
