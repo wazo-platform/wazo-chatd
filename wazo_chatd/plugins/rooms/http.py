@@ -133,9 +133,10 @@ class UserRoomMessageListResource(AuthResource):
         if token.user_uuid not in {str(user.uuid) for user in room.users}:
             raise UnknownRoomException(room_uuid)
 
-        messages = self._service.list_messages(room, **filter_parameters)
-        filtered = self._service.count_messages(room, **filter_parameters)
-        total = self._service.count_messages(room)
+        viewer_uuid = token.user_uuid
+        messages = self._service.list_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
+        filtered = self._service.count_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
+        total = self._service.count_messages(room, viewer_uuid=viewer_uuid)
         return {
             'items': MessageSchema().dump(messages, many=True),
             'filtered': filtered,

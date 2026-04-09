@@ -3,7 +3,7 @@
 
 from uuid import uuid4
 
-from sqlalchemy import and_, distinct, text
+from sqlalchemy import and_, distinct, or_, text
 from sqlalchemy.dialects.postgresql import array_agg
 from sqlalchemy.orm import Query, aliased
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
@@ -109,21 +109,34 @@ class RoomDAO:
             {'payload': str(message.uuid)},
         )
 
-    def list_messages(self, room, **filter_parameters):
-        query = self._build_messages_query(room.uuid)
+    def list_messages(self, room, viewer_uuid=None, **filter_parameters):
+        query = self._build_messages_query(room.uuid, viewer_uuid)
         query = self._list_filter(query, **filter_parameters)
         query = self._paginate(query, **filter_parameters)
         return query.all()
 
-    def count_messages(self, room, **filter_parameters):
-        query = self._build_messages_query(room.uuid)
+    def count_messages(self, room, viewer_uuid=None, **filter_parameters):
+        query = self._build_messages_query(room.uuid, viewer_uuid)
         query = self._list_filter(query, **filter_parameters)
         return query.count()
 
-    def _build_messages_query(self, room_uuid):
-        return self.session.query(RoomMessage).filter(
-            RoomMessage.room_uuid == room_uuid
+    def _build_messages_query(self, room_uuid, viewer_uuid=None):
+        query = (
+            self.session.query(RoomMessage)
+            .outerjoin(MessageMeta, MessageMeta.message_uuid == RoomMessage.uuid)
+            .filter(RoomMessage.room_uuid == room_uuid)
         )
+
+        if viewer_uuid:
+            query = query.filter(
+                or_(
+                    RoomMessage.user_uuid == viewer_uuid,
+                    MessageMeta.status.is_(None),
+                    MessageMeta.status == 'delivered',
+                )
+            )
+
+        return query
 
     def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         query = self._build_user_messages_query(tenant_uuid, user_uuid)
@@ -139,10 +152,18 @@ class RoomDAO:
     def _build_user_messages_query(self, tenant_uuid, user_uuid, *filters):
         return (
             self.session.query(RoomMessage)
+            .outerjoin(MessageMeta, MessageMeta.message_uuid == RoomMessage.uuid)
             .join(Room)
             .join(RoomUser)
             .filter(RoomUser.tenant_uuid == tenant_uuid)
             .filter(RoomUser.uuid == user_uuid)
+            .filter(
+                or_(
+                    RoomMessage.user_uuid == user_uuid,
+                    MessageMeta.status.is_(None),
+                    MessageMeta.status == 'delivered',
+                )
+            )
         )
 
     def _paginate(

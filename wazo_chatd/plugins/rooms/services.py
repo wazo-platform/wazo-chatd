@@ -72,11 +72,11 @@ class RoomService:
     def _set_default_message_values(self, message):
         message.wazo_uuid = self._wazo_uuid
 
-    def list_messages(self, room, **filter_parameters):
-        return self._dao.room.list_messages(room, **filter_parameters)
+    def list_messages(self, room, viewer_uuid: str | None = None, **filter_parameters):
+        return self._dao.room.list_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
 
-    def count_messages(self, room, **filter_parameters):
-        return self._dao.room.count_messages(room, **filter_parameters)
+    def count_messages(self, room, viewer_uuid: str | None = None, **filter_parameters):
+        return self._dao.room.count_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
 
     def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         return self._dao.room.list_user_messages(
