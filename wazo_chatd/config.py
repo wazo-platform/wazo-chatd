@@ -65,10 +65,16 @@ _DEFAULT_CONFIG = {
     'enabled_plugins': {
         'api': True,
         'config': True,
+        'connectors': True,
         'presences': True,
         'rooms': True,
         'status': True,
         'teams_presence': False,
+    },
+    'connectors': {},
+    'delivery': {
+        'max_concurrent_tasks': 100,
+        'provider_cache_ttl': 300,
     },
     'initialization': {
         'enabled': True,
