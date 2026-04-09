@@ -1,9 +1,10 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import signal
 import threading
+from contextlib import ExitStack
 from functools import partial
 
 from wazo_auth_client import Client as AuthClient
@@ -18,6 +19,7 @@ from .bus import BusConsumer, BusPublisher
 from .database.helpers import init_db
 from .database.queries import DAO
 from .http_server import CoreRestApi, api, app
+from .plugin_helpers.hooks import Hooks
 from .thread_manager import ThreadManager
 
 logger = logging.getLogger(__name__)
@@ -40,9 +42,13 @@ class Controller:
         self.bus_consumer = BusConsumer.from_config(config['bus'])
         self.bus_publisher = BusPublisher.from_config(config['uuid'], config['bus'])
         self.thread_manager = ThreadManager()
+        self.hooks = Hooks()
         auth_client = AuthClient(**config['auth'])
         self.token_renewer = TokenRenewer(auth_client)
         self._stopping_thread = None
+
+        dao = DAO()
+
         if not app.config['auth'].get('master_tenant_uuid'):
             self.token_renewer.subscribe_to_next_token_details_change(
                 auth.init_master_tenant
@@ -54,13 +60,14 @@ class Controller:
                 'api': api,
                 'aio': self.aio,
                 'config': config,
-                'dao': DAO(),
+                'dao': dao,
                 'bus_consumer': self.bus_consumer,
                 'bus_publisher': self.bus_publisher,
                 'status_aggregator': self.status_aggregator,
                 'thread_manager': self.thread_manager,
                 'token_changed_subscribe': self.token_renewer.subscribe_to_token_change,
                 'next_token_changed_subscribe': self.token_renewer.subscribe_to_next_token_change,
+                'hooks': self.hooks,
             },
         )
 
@@ -71,18 +78,21 @@ class Controller:
         signal.signal(signal.SIGTERM, partial(_signal_handler, self))
         signal.signal(signal.SIGINT, partial(_signal_handler, self))
 
-        with self.thread_manager:
-            with self.token_renewer:
-                with self.bus_consumer:
-                    with self.aio:
-                        with ServiceCatalogRegistration(*self._service_discovery_args):
-                            try:
-                                self.rest_api.run()
-                            finally:
-                                if self._stopping_thread:
-                                    logger.debug('joining stopping thread...')
-                                    self._stopping_thread.join()
-                                logger.info('wazo-chatd rest api stopped')
+        with ExitStack() as stack:
+            stack.enter_context(self.thread_manager)
+            stack.enter_context(self.token_renewer)
+            stack.enter_context(self.bus_consumer)
+            stack.enter_context(self.aio)
+            stack.enter_context(
+                ServiceCatalogRegistration(*self._service_discovery_args)
+            )
+            try:
+                self.rest_api.run()
+            finally:
+                if self._stopping_thread:
+                    logger.debug('joining stopping thread...')
+                    self._stopping_thread.join()
+                logger.info('wazo-chatd rest api stopped')
 
     def stop(self, reason):
         logger.warning('Stopping wazo-chatd: %s', reason)
