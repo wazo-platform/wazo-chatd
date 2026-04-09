@@ -5,7 +5,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, func, select
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.orm import joinedload, selectinload
 
 from wazo_chatd.database.async_helpers import get_async_session
@@ -81,6 +83,27 @@ class AsyncRoomDAO:
         self.session.add(initial_record)
         await self.session.flush()
         return meta
+
+    async def has_matching_signature(
+        self,
+        room_uuid: str,
+        signature: str,
+        window_seconds: int = 60,
+    ) -> bool:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        stmt = select(
+            exists()
+            .where(MessageMeta.message_uuid == RoomMessage.uuid)
+            .where(RoomMessage.room_uuid == room_uuid)
+            .where(
+                MessageMeta.extra.op('@>', is_comparison=True)(
+                    {'message_signature': signature}
+                )
+            )
+            .where(RoomMessage.created_at > cutoff)
+        )
+        result = await self.session.execute(stmt)
+        return bool(result.scalar())
 
     async def check_duplicate_idempotency_key(
         self,

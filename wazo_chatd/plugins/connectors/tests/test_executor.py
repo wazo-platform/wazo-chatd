@@ -11,7 +11,11 @@ from unittest.mock import AsyncMock, Mock, patch
 from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
-from wazo_chatd.plugins.connectors.executor import MAX_RETRIES, DeliveryExecutor
+from wazo_chatd.plugins.connectors.executor import (
+    MAX_RETRIES,
+    DeliveryExecutor,
+    generate_message_signature,
+)
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
@@ -295,6 +299,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
             return_value={'+15551234': recipient, '+15559876': sender}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.has_matching_signature = AsyncMock(return_value=False)
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
@@ -325,6 +330,108 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         participants = call_args.kwargs['participants']
         sender_participant = [p for p in participants if p.identity is not None][0]
         assert sender_participant.identity == '+15559876'
+
+    async def test_route_inbound_echo_dropped(self) -> None:
+        recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
+        sender = Mock(uuid='sender-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='recipient-uuid'), Mock(uuid='sender-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient, '+15559876': sender}
+        )
+        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.has_matching_signature = AsyncMock(return_value=True)
+        self.executor._room_dao.add_message = AsyncMock()
+
+        await self.executor.route_inbound(inbound)
+
+        self.executor._room_dao.add_message.assert_not_awaited()
+        self.notifier.message_created.assert_not_awaited()
+
+    async def test_route_inbound_no_echo_creates_message(self) -> None:
+        recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
+        sender = Mock(uuid='sender-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='recipient-uuid'), Mock(uuid='sender-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient, '+15559876': sender}
+        )
+        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.has_matching_signature = AsyncMock(return_value=False)
+        self.executor._room_dao.add_message = AsyncMock()
+
+        await self.executor.route_inbound(inbound)
+
+        self.executor._room_dao.add_message.assert_awaited_once()
+
+    async def test_route_inbound_external_sender_skips_dedup(self) -> None:
+        recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='recipient-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient}
+        )
+        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.has_matching_signature = AsyncMock()
+        self.executor._room_dao.add_message = AsyncMock()
+
+        await self.executor.route_inbound(inbound)
+
+        self.executor._room_dao.has_matching_signature.assert_not_awaited()
+        self.executor._room_dao.add_message.assert_awaited_once()
+
+
+class TestGenerateMessageSignature(unittest.TestCase):
+    def test_basic(self) -> None:
+        fp = generate_message_signature('+15551234', 'Hello world')
+        assert isinstance(fp, str)
+        assert len(fp) == 16
+
+    def test_same_input_same_output(self) -> None:
+        fp1 = generate_message_signature('+15551234', 'Hello world')
+        fp2 = generate_message_signature('+15551234', 'Hello world')
+        assert fp1 == fp2
+
+    def test_whitespace_ignored(self) -> None:
+        fp1 = generate_message_signature('+15551234', 'Hello world')
+        fp2 = generate_message_signature('+15551234', 'Hello  world')
+        fp3 = generate_message_signature('+15551234', ' Hello world ')
+        assert fp1 == fp2 == fp3
+
+    def test_case_ignored(self) -> None:
+        fp1 = generate_message_signature('+15551234', 'Hello World')
+        fp2 = generate_message_signature('+15551234', 'hello world')
+        assert fp1 == fp2
+
+    def test_non_ascii_stripped(self) -> None:
+        fp1 = generate_message_signature('+15551234', 'Hello wörld 🎉')
+        fp2 = generate_message_signature('+15551234', 'Hello wörld 🎉')
+        assert fp1 == fp2
+
+    def test_different_sender_different_fingerprint(self) -> None:
+        fp1 = generate_message_signature('+15551234', 'ok')
+        fp2 = generate_message_signature('+15559876', 'ok')
+        assert fp1 != fp2
+
+    def test_capped_at_160_chars(self) -> None:
+        long_body = 'a' * 300
+        fp1 = generate_message_signature('+15551234', long_body)
+        fp2 = generate_message_signature('+15551234', 'a' * 160)
+        assert fp1 == fp2
+
+    def test_empty_body(self) -> None:
+        fp = generate_message_signature('+15551234', '')
+        assert isinstance(fp, str)
+        assert len(fp) == 16
 
 
 def _make_status_update(

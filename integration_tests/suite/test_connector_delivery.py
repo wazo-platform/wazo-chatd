@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 
 import requests
@@ -510,6 +511,71 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
             assert 'SMS reply from user B' in contents
 
         until.assert_(all_messages_in_same_room, timeout=5, interval=0.1)
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        backend='test',
+        identity='test:+15551234',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='test',
+        identity='test:+15559876',
+    )
+    @fixtures.http.room(
+        users=[
+            {'uuid': str(TOKEN_USER_UUID)},
+            {'uuid': str(USER_UUID_1)},
+        ],
+    )
+    def test_inbound_echo_of_outbound_is_dropped(
+        self, user_a, user_b, identity_a, identity_b, room
+    ):
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-echo-001'
+        )
+
+        room_uuid = room['uuid']
+        port = self.asset_cls.service_port(9304, 'chatd')
+
+        self.chatd.rooms.create_message_from_user(
+            room_uuid,
+            {
+                'content': 'Echo test message',
+                'sender_identity_uuid': str(identity_a.uuid),
+            },
+        )
+
+        def outbound_sent():
+            sent = self.connector_mock.get_sent_messages()
+            assert any(m['body'] == 'Echo test message' for m in sent)
+
+        until.assert_(outbound_sent, timeout=5, interval=0.1)
+
+        response = requests.post(
+            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+            json={
+                'from': 'test:+15551234',
+                'to': 'test:+15559876',
+                'body': 'Echo test message',
+                'message_id': 'ext-echo-inbound',
+            },
+            headers={'X-Test-Connector': 'true'},
+        )
+        assert response.status_code == 204
+
+        time.sleep(1)
+
+        messages = (
+            self._session.query(RoomMessage)
+            .filter(RoomMessage.room_uuid == room_uuid)
+            .all()
+        )
+        echo_messages = [m for m in messages if m.content == 'Echo test message']
+        assert len(echo_messages) == 1
 
 
 @use_asset('connectors')

@@ -10,6 +10,7 @@ Sync connector implementations are wrapped with ``asyncio.to_thread()``.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import logging
 import uuid
@@ -40,6 +41,13 @@ from wazo_chatd.plugins.connectors.types import (
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES: int = 3
+ECHO_WINDOW_SECONDS: int = 60
+
+
+def generate_message_signature(sender_identity: str, body: str) -> str:
+    normalized = ''.join(c.lower() for c in body if c.isascii() and not c.isspace())
+    payload = sender_identity + ':' + normalized[:160]
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
 RETRY_DELAYS: list[int] = [30, 120, 300]
 
 
@@ -199,6 +207,19 @@ class DeliveryExecutor:
             tenant_uuid=tenant_uuid,
             participants=[sender_participant, recipient_participant],
         )
+
+        if sender_user and inbound.body:
+            signature = generate_message_signature(sender_identity, inbound.body)
+            is_duplicate = await self._room_dao.has_matching_signature(
+                str(room.uuid), signature, ECHO_WINDOW_SECONDS
+            )
+            if is_duplicate:
+                logger.info(
+                    'Duplicate inbound message dropped (room=%s, sender=%s)',
+                    room.uuid,
+                    sender_identity,
+                )
+                return
 
         extra: dict[str, str] = {'external_id': inbound.external_id}
         if idempotency_key:

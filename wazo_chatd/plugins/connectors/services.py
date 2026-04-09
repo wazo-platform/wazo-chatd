@@ -13,6 +13,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     NoCommonConnectorError,
     UnreachableParticipantError,
 )
+from wazo_chatd.plugins.connectors.executor import generate_message_signature
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
@@ -70,11 +71,16 @@ class ConnectorService:
         message: RoomMessage,
         sender_identity: UserIdentity,
     ) -> None:
+        signature = generate_message_signature(
+            str(sender_identity.identity), str(message.content or '')
+        )
+
         self._dao.room.prepare_pending_delivery(
             message,
             sender_identity.uuid,
             backend=sender_identity.backend,
             type_=sender_identity.type_,
+            message_signature=signature,
         )
 
     def list_room_identities(
