@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from flask import request
@@ -114,12 +114,17 @@ class UserRoomMessageListResource(AuthResource):
     def post(self, room_uuid):
         room = self._service.get([token.tenant_uuid], room_uuid)
         message_args = MessageSchema().load(request.get_json(force=True))
+        sender_identity_uuid = message_args.pop('sender_identity_uuid', None)
         message_args['user_uuid'] = token.user_uuid
         message_args['tenant_uuid'] = token.tenant_uuid
         message = RoomMessage(**message_args)
 
-        message = self._service.create_message(room, message)
-        return MessageSchema().dump(message), 201
+        message = self._service.create_message(
+            room, message, sender_identity_uuid=sender_identity_uuid
+        )
+        has_delivery = sender_identity_uuid and self._service.has_delivery_pipeline()
+        status_code = 202 if has_delivery else 201
+        return MessageSchema().dump(message), status_code
 
     @required_acl('chatd.users.me.rooms.{room_uuid}.messages.read')
     def get(self, room_uuid):
@@ -128,9 +133,10 @@ class UserRoomMessageListResource(AuthResource):
         if token.user_uuid not in {str(user.uuid) for user in room.users}:
             raise UnknownRoomException(room_uuid)
 
-        messages = self._service.list_messages(room, **filter_parameters)
-        filtered = self._service.count_messages(room, **filter_parameters)
-        total = self._service.count_messages(room)
+        viewer_uuid = token.user_uuid
+        messages = self._service.list_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
+        filtered = self._service.count_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
+        total = self._service.count_messages(room, viewer_uuid=viewer_uuid)
         return {
             'items': MessageSchema().dump(messages, many=True),
             'filtered': filtered,
