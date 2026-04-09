@@ -88,7 +88,9 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.delivery.retry_count = 0
         self.delivery.external_id = None
         self.delivery.records = []
-        self.delivery.message = None
+        self.delivery.message = Mock(
+            room=Mock(uuid='room-uuid', tenant_uuid='tenant-uuid', users=[Mock(uuid='user-1')])
+        )
 
     def tearDown(self) -> None:
         _current_session.reset(self.token)

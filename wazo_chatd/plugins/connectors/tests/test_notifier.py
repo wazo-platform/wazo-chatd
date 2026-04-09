@@ -124,17 +124,19 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.bus = Mock()
         self.notifier = AsyncNotifier(self.bus)
+        self.room = Mock(
+            uuid='room-uuid', tenant_uuid='tenant-uuid', users=[Mock(uuid='user-1')]
+        )
+
+    def _make_meta_and_record(self) -> tuple[Mock, Mock]:
+        meta = Mock(message_uuid='msg-uuid', backend='twilio')
+        record = Mock(status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc))
+        return meta, record
 
     async def test_publishes_delivery_status_event(self) -> None:
-        await self.notifier.delivery_status_updated(
-            message_uuid='msg-uuid',
-            status='sent',
-            timestamp='2026-03-30T14:00:00+00:00',
-            backend='twilio',
-            tenant_uuid='tenant-uuid',
-            room_uuid='room-uuid',
-            user_uuids=['user-1'],
-        )
+        meta, record = self._make_meta_and_record()
+
+        await self.notifier.delivery_status_updated(meta, record, self.room)
 
         self.bus.publish.assert_called_once()
         event = self.bus.publish.call_args[0][0]
@@ -142,13 +144,6 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
 
     async def test_publish_error_does_not_propagate(self) -> None:
         self.bus.publish.side_effect = RuntimeError('connection lost')
+        meta, record = self._make_meta_and_record()
 
-        await self.notifier.delivery_status_updated(
-            message_uuid='msg-uuid',
-            status='sent',
-            timestamp='',
-            backend='twilio',
-            tenant_uuid='tenant-uuid',
-            room_uuid='room-uuid',
-            user_uuids=['user-1'],
-        )
+        await self.notifier.delivery_status_updated(meta, record, self.room)

@@ -121,8 +121,6 @@ class DeliveryExecutor:
             outbound,
             meta,
             tenant_uuid=str(sender_record.tenant_uuid),
-            room_uuid=str(room.uuid),
-            user_uuids=[str(u.uuid) for u in room.users],
         )
 
     async def _resolve_recipient_identity(
@@ -293,15 +291,7 @@ class DeliveryExecutor:
         await self._room_dao.add_delivery_record(meta, record)
 
         room = meta.message.room
-        await self._notifier.delivery_status_updated(
-            message_uuid=str(meta.message_uuid),
-            status=mapped_status.value,
-            timestamp=record.timestamp.isoformat(),
-            backend=update.backend,
-            tenant_uuid=str(room.tenant_uuid),
-            room_uuid=str(room.uuid),
-            user_uuids=[str(u.uuid) for u in room.users],
-        )
+        await self._notifier.delivery_status_updated(meta, record, room)
 
         logger.info(
             'Status update: %s → %s (external_id=%s)',
@@ -342,8 +332,6 @@ class DeliveryExecutor:
         outbound: OutboundMessage,
         delivery: MessageMeta,
         tenant_uuid: str = '',
-        room_uuid: str = '',
-        user_uuids: list[str] | None = None,
     ) -> None:
         backend = str(delivery.backend)
         last_status = DeliveryStatus.PENDING
@@ -385,13 +373,7 @@ class DeliveryExecutor:
                     last_record = await self._add_record(delivery, last_status)
 
         await self._notifier.delivery_status_updated(
-            message_uuid=str(delivery.message_uuid),
-            status=last_status.value,
-            timestamp=last_record.timestamp.isoformat(),
-            backend=backend,
-            tenant_uuid=tenant_uuid,
-            room_uuid=room_uuid,
-            user_uuids=user_uuids or [],
+            delivery, last_record, delivery.message.room
         )
 
     async def _find_connector(self, backend: str, tenant_uuid: str) -> Connector | None:

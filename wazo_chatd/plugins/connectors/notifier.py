@@ -14,10 +14,10 @@ from wazo_bus.resources.chatd.events import (
     UserIdentityUpdatedEvent,
     UserRoomMessageCreatedEvent,
 )
-from wazo_bus.resources.chatd.types import MessageDict
+from wazo_bus.resources.chatd.types import DeliveryStatusDict, MessageDict
 from wazo_bus.resources.common.event import ServiceEvent
 
-from wazo_chatd.database.models import Room, RoomMessage, UserIdentity
+from wazo_chatd.database.models import DeliveryRecord, MessageMeta, Room, RoomMessage, UserIdentity
 from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
 
 if TYPE_CHECKING:
@@ -77,26 +77,22 @@ class AsyncNotifier:
 
     async def delivery_status_updated(
         self,
-        message_uuid: str,
-        status: str,
-        timestamp: str,
-        backend: str,
-        tenant_uuid: str,
-        room_uuid: str,
-        user_uuids: list[str],
+        meta: MessageMeta,
+        record: DeliveryRecord,
+        room: Room,
     ) -> None:
-        delivery_data = {
-            'message_uuid': message_uuid,
-            'status': status,
-            'timestamp': timestamp,
-            'backend': backend,
+        delivery_data: DeliveryStatusDict = {
+            'message_uuid': str(meta.message_uuid),
+            'status': str(record.status),
+            'timestamp': record.timestamp.isoformat(),
+            'backend': str(meta.backend),
         }
         event = MessageDeliveryStatusEvent(
             delivery_data=delivery_data,
-            tenant_uuid=tenant_uuid,
-            user_uuids=user_uuids,
-            room_uuid=room_uuid,
-            message_uuid=message_uuid,
+            room_uuid=str(room.uuid),
+            message_uuid=str(meta.message_uuid),
+            tenant_uuid=str(room.tenant_uuid),
+            user_uuids=[str(u.uuid) for u in room.users],
         )
         await self._publish(event)
 
