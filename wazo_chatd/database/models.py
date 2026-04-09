@@ -339,6 +339,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
     records: RelationshipProperty[list[DeliveryRecord]] = relationship(
         'DeliveryRecord',
         uselist=True,
+        cascade='all,delete-orphan',
         order_by='DeliveryRecord.timestamp',
     )
     latest_record: RelationshipProperty[DeliveryRecord | None] = relationship(
@@ -346,6 +347,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         uselist=False,
         viewonly=True,
         order_by='desc(DeliveryRecord.timestamp)',
+        overlaps='records',
     )
 
     status = association_proxy('latest_record', 'status')
