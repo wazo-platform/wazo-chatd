@@ -1,15 +1,18 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from sqlalchemy import and_, distinct, text
+from uuid import uuid4
+
+from sqlalchemy import and_, distinct, or_, text
 from sqlalchemy.dialects.postgresql import array_agg
 from sqlalchemy.orm import Query, aliased
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
 
+from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.helpers import get_query_main_entity
 
 from ...exceptions import UnknownRoomException
-from ..models import Room, RoomMessage, RoomUser
+from ..models import DeliveryRecord, MessageMeta, Room, RoomMessage, RoomUser
 
 
 class unaccent(ReturnTypeFromArgs):
@@ -74,15 +77,50 @@ class RoomDAO:
     def add_message(self, room, message):
         room.messages.append(message)
         self.session.flush()
+        return message
 
-    def list_messages(self, room, **filter_parameters):
+    def add_message_meta(self, meta, initial_record):
+        self.session.add(meta)
+        self.session.add(initial_record)
+        self.session.flush()
+        return meta
+
+    def prepare_pending_delivery(
+        self,
+        message: RoomMessage,
+        sender_identity_uuid: object | None = None,
+        backend: str | None = None,
+        type_: str | None = None,
+    ) -> None:
+        if not message.uuid:
+            message.uuid = uuid4()
+
+        meta = MessageMeta(
+            sender_identity_uuid=sender_identity_uuid,
+            backend=backend,
+            type_=type_,
+        )
+        meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
+        message.meta = meta
+
+        # On commit, signal the async delivery loop from the sync Flask path
+        self.session.execute(
+            text("SELECT pg_notify('connector_delivery', :payload)"),
+            {'payload': str(message.uuid)},
+        )
+
+    def list_messages(self, room, viewer_uuid=None, **filter_parameters):
         query = self._build_messages_query(room.uuid)
+        if viewer_uuid:
+            query = self._filter_visible_messages(query, viewer_uuid)
         query = self._list_filter(query, **filter_parameters)
         query = self._paginate(query, **filter_parameters)
         return query.all()
 
-    def count_messages(self, room, **filter_parameters):
+    def count_messages(self, room, viewer_uuid=None, **filter_parameters):
         query = self._build_messages_query(room.uuid)
+        if viewer_uuid:
+            query = self._filter_visible_messages(query, viewer_uuid)
         query = self._list_filter(query, **filter_parameters)
         return query.count()
 
@@ -93,12 +131,14 @@ class RoomDAO:
 
     def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         query = self._build_user_messages_query(tenant_uuid, user_uuid)
+        query = self._filter_visible_messages(query, user_uuid)
         query = self._list_filter(query, **filter_parameters)
         query = self._paginate(query, **filter_parameters)
         return query.all()
 
     def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         query = self._build_user_messages_query(tenant_uuid, user_uuid)
+        query = self._filter_visible_messages(query, user_uuid)
         query = self._list_filter(query, **filter_parameters)
         return query.count()
 
@@ -109,6 +149,19 @@ class RoomDAO:
             .join(RoomUser)
             .filter(RoomUser.tenant_uuid == tenant_uuid)
             .filter(RoomUser.uuid == user_uuid)
+        )
+
+    def _filter_visible_messages(self, query, viewer_uuid):
+        return query.filter(
+            or_(
+                RoomMessage.user_uuid == viewer_uuid,
+                ~RoomMessage.meta.has(),
+                RoomMessage.meta.has(
+                    MessageMeta.records.any(
+                        DeliveryRecord.status == DeliveryStatus.DELIVERED.value
+                    )
+                ),
+            )
         )
 
     def _paginate(
