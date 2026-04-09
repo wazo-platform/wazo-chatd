@@ -91,20 +91,14 @@ class RoomDAO:
         sender_identity_uuid: object | None = None,
         backend: str | None = None,
         type_: str | None = None,
-        message_signature: str | None = None,
     ) -> None:
         if not message.uuid:
             message.uuid = uuid4()
-
-        extra: dict[str, str] = {}
-        if message_signature:
-            extra['message_signature'] = message_signature
 
         meta = MessageMeta(
             sender_identity_uuid=sender_identity_uuid,
             backend=backend,
             type_=type_,
-            extra=extra,
         )
         meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
         message.meta = meta

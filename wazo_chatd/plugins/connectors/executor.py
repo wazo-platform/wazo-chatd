@@ -91,10 +91,19 @@ class DeliveryExecutor:
         if not recipient_identity:
             return
 
-        meta.extra = {
+        has_internal_recipient = any(
+            u.uuid != message.user_uuid and not u.identity for u in room.users
+        )
+
+        extra = {
             **(meta.extra or {}),
             'outbound_idempotency_key': str(meta.message_uuid),
         }
+        if has_internal_recipient:
+            extra['message_signature'] = generate_message_signature(
+                sender_identity, str(message.content or '')
+            )
+        meta.extra = extra
         await session.flush()
 
         outbound = OutboundMessage(
