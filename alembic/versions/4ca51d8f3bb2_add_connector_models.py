@@ -125,6 +125,11 @@ def upgrade() -> None:
             server_default=sa.text("(now() at time zone 'utc')"),
         ),
     )
+    op.create_index(
+        'chatd_delivery_record__idx__message_uuid',
+        'chatd_delivery_record',
+        ['message_uuid'],
+    )
 
 
 def downgrade() -> None:

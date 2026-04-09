@@ -357,6 +357,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
 @generic_repr
 class DeliveryRecord(Base):  # type: ignore[misc, valid-type]
     __tablename__ = 'chatd_delivery_record'
+    __table_args__ = (Index('chatd_delivery_record__idx__message_uuid', 'message_uuid'),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_uuid: UUIDType = Column(
