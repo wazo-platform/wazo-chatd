@@ -41,14 +41,22 @@ from wazo_chatd.plugins.connectors.types import (
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES: int = 3
+RETRY_DELAYS: list[int] = [30, 120, 300]
 ECHO_WINDOW_SECONDS: int = 60
 
 
 def generate_message_signature(sender_identity: str, body: str) -> str:
+    """Generate a dedup signature to detect inbound echoes of outbound messages.
+
+    Combines the sender identity with a normalized body (lowercase, ASCII-only,
+    no whitespace, capped at 160 chars) and returns a truncated SHA-256 hash.
+    The 160-char cap ensures consistent signatures across providers regardless
+    of SMS segment reassembly behavior.
+    """
     normalized = ''.join(c.lower() for c in body if c.isascii() and not c.isspace())
     payload = sender_identity + ':' + normalized[:160]
+
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
-RETRY_DELAYS: list[int] = [30, 120, 300]
 
 
 class DeliveryExecutor:
@@ -99,10 +107,12 @@ class DeliveryExecutor:
             **(meta.extra or {}),
             'outbound_idempotency_key': str(meta.message_uuid),
         }
+
         if has_internal_recipient:
             extra['message_signature'] = generate_message_signature(
                 sender_identity, str(message.content or '')
             )
+
         meta.extra = extra
         await session.flush()
 
