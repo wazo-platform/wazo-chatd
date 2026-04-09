@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
@@ -17,9 +17,10 @@ from sqlalchemy import (
     Text,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy.schema import Index
+from sqlalchemy.schema import Index, UniqueConstraint
 from sqlalchemy_utils import UUIDType, generic_repr
 
 if TYPE_CHECKING:
@@ -216,6 +217,7 @@ class Room(Base):  # type: ignore[misc, valid-type]
 @generic_repr
 class RoomUser(Base):  # type: ignore[misc, valid-type]
     __tablename__ = 'chatd_room_user'
+    __table_args__ = (Index('chatd_room_user__idx__identity', 'identity'),)
 
     room_uuid: UUIDType = Column(
         UUIDType(),
@@ -225,6 +227,10 @@ class RoomUser(Base):  # type: ignore[misc, valid-type]
     uuid = Column(UUIDType(), primary_key=True)
     tenant_uuid = Column(UUIDType(), primary_key=True)
     wazo_uuid = Column(UUIDType(), primary_key=True)
+
+    # External participants: "+15559876", "bob@remote.wazo.io", etc.
+    # None for internal Wazo users.
+    identity = Column(String, nullable=True)
 
 
 @generic_repr
@@ -253,3 +259,116 @@ class RoomMessage(Base):  # type: ignore[misc, valid-type]
     )
 
     room: RelationshipProperty[Room] = relationship('Room', viewonly=True)
+    meta: RelationshipProperty[MessageMeta | None] = relationship(
+        'MessageMeta',
+        uselist=False,
+        cascade='all,delete-orphan',
+        back_populates='message',
+    )
+
+
+@generic_repr
+class UserIdentity(Base):  # type: ignore[misc, valid-type]
+    __tablename__ = 'chatd_user_identity'
+    __table_args__ = (UniqueConstraint('backend', 'identity', 'type'),)
+
+    uuid = Column(
+        UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
+    )
+    tenant_uuid: UUIDType = Column(
+        UUIDType(),
+        ForeignKey('chatd_tenant.uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
+    user_uuid: UUIDType = Column(
+        UUIDType(),
+        ForeignKey('chatd_user.uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
+    backend = Column(String, nullable=False)
+    type_ = Column('type', String, nullable=False)
+    identity = Column(String, nullable=False)
+    extra = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+
+    tenant: RelationshipProperty[Tenant] = relationship(
+        'Tenant', uselist=False, viewonly=True
+    )
+    user: RelationshipProperty[User] = relationship(
+        'User', uselist=False, viewonly=True
+    )
+
+
+@generic_repr
+class MessageMeta(Base):  # type: ignore[misc, valid-type]
+    __tablename__ = 'chatd_message_meta'
+    __table_args__ = (
+        Index(
+            'chatd_message_meta__idx__extra',
+            'extra',
+            postgresql_using='gin',
+        ),
+        Index('chatd_message_meta__idx__external_id', 'external_id'),
+    )
+
+    message_uuid: UUIDType = Column(
+        UUIDType(),
+        ForeignKey('chatd_room_message.uuid', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    type_ = Column('type', String, nullable=True)
+    backend = Column(String, nullable=True)
+    sender_identity_uuid: UUIDType = Column(
+        UUIDType(),
+        ForeignKey('chatd_user_identity.uuid', ondelete='SET NULL'),
+        nullable=True,
+    )
+    retry_count = Column(Integer, nullable=False, default=0, server_default='0')
+    external_id = Column(String, nullable=True)
+    extra = Column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+
+    sender_identity: RelationshipProperty[UserIdentity | None] = relationship(
+        'UserIdentity', uselist=False, viewonly=True
+    )
+    message: RelationshipProperty[RoomMessage] = relationship(
+        'RoomMessage', uselist=False, back_populates='meta'
+    )
+    records: RelationshipProperty[list[DeliveryRecord]] = relationship(
+        'DeliveryRecord',
+        uselist=True,
+        cascade='all,delete-orphan',
+        order_by='DeliveryRecord.timestamp',
+    )
+    latest_record: RelationshipProperty[DeliveryRecord | None] = relationship(
+        'DeliveryRecord',
+        uselist=False,
+        viewonly=True,
+        order_by='desc(DeliveryRecord.timestamp)',
+        overlaps='records',
+    )
+
+    status = association_proxy('latest_record', 'status')
+    updated_at = association_proxy('latest_record', 'timestamp')
+
+
+@generic_repr
+class DeliveryRecord(Base):  # type: ignore[misc, valid-type]
+    __tablename__ = 'chatd_delivery_record'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    message_uuid: UUIDType = Column(
+        UUIDType(),
+        ForeignKey('chatd_message_meta.message_uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
+    status = Column(String, nullable=False)
+    reason = Column(String, nullable=True)
+    timestamp = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=text("(now() at time zone 'utc')"),
+        nullable=False,
+    )
