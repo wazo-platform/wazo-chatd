@@ -90,7 +90,9 @@ class AsyncNotifier:
             await self._notify_message_delivered(meta, room)
 
     @staticmethod
-    def _build_message_payload(message: RoomMessage) -> MessageDict:
+    def _build_message_payload(
+        message: RoomMessage, status_override: str | None = None
+    ) -> MessageDict:
         meta = message.meta
         return {
             'uuid': str(message.uuid),
@@ -99,7 +101,7 @@ class AsyncNotifier:
             'delivery': {
                 'type': meta.type_,
                 'backend': meta.backend,
-                'status': meta.status,
+                'status': status_override or meta.status,
             },
             'user_uuid': str(message.user_uuid),
             'tenant_uuid': str(message.tenant_uuid),
@@ -119,7 +121,9 @@ class AsyncNotifier:
         if not recipients:
             return
 
-        message_data = self._build_message_payload(message)
+        message_data = self._build_message_payload(
+            message, status_override=DeliveryStatus.DELIVERED.value
+        )
         for user in recipients:
             event = UserRoomMessageCreatedEvent(
                 message_data, room.uuid, room.tenant_uuid, user.uuid

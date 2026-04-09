@@ -16,7 +16,7 @@ from wazo_chatd.database.models import (
 )
 
 from .helpers import fixtures
-from .helpers.base import TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
+from .helpers.base import TOKEN_TENANT_UUID, TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
@@ -625,3 +625,161 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
             assert connector_msgs[0]['delivery']['backend'] == 'test'
 
         until.assert_(message_has_type, timeout=5, interval=0.1)
+
+
+@use_asset('connectors')
+class TestMessageVisibility(ConnectorIntegrationTest):
+    def _make_user_b_client(self):
+        token_b = self.asset_cls.create_user_token(
+            str(USER_UUID_1), str(TOKEN_TENANT_UUID)
+        )
+        return self.asset_cls.make_chatd(token=token_b)
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        backend='test',
+        identity='test:+15551234',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='test',
+        identity='test:+15559876',
+    )
+    @fixtures.http.room(
+        users=[
+            {'uuid': str(TOKEN_USER_UUID)},
+            {'uuid': str(USER_UUID_1)},
+        ],
+    )
+    def test_sender_sees_own_pending_message(
+        self, user_a, user_b, identity_a, identity_b, room
+    ):
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-vis-001'
+        )
+
+        message = self.chatd.rooms.create_message_from_user(
+            room['uuid'],
+            {'content': 'Visible to sender', 'sender_identity_uuid': str(identity_a.uuid)},
+        )
+
+        messages = self.chatd.rooms.list_messages_from_user(room['uuid'])
+        contents = [m['content'] for m in messages['items']]
+        assert 'Visible to sender' in contents
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        backend='test',
+        identity='test:+15551234',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='test',
+        identity='test:+15559876',
+    )
+    @fixtures.http.room(
+        users=[
+            {'uuid': str(TOKEN_USER_UUID)},
+            {'uuid': str(USER_UUID_1)},
+        ],
+    )
+    def test_other_user_does_not_see_pending_message(
+        self, user_a, user_b, identity_a, identity_b, room
+    ):
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-vis-002'
+        )
+
+        self.chatd.rooms.create_message_from_user(
+            room['uuid'],
+            {'content': 'Not yet visible', 'sender_identity_uuid': str(identity_a.uuid)},
+        )
+
+        chatd_b = self._make_user_b_client()
+        messages = chatd_b.rooms.list_messages_from_user(room['uuid'])
+        contents = [m['content'] for m in messages['items']]
+        assert 'Not yet visible' not in contents
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        backend='test',
+        identity='test:+15551234',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='test',
+        identity='test:+15559876',
+    )
+    @fixtures.http.room(
+        users=[
+            {'uuid': str(TOKEN_USER_UUID)},
+            {'uuid': str(USER_UUID_1)},
+        ],
+    )
+    def test_other_user_sees_message_after_delivery(
+        self, user_a, user_b, identity_a, identity_b, room
+    ):
+        self.connector_mock.reset()
+        self.connector_mock.set_config(
+            send_behavior='succeed', external_id='ext-vis-003'
+        )
+
+        self.chatd.rooms.create_message_from_user(
+            room['uuid'],
+            {'content': 'Will be delivered', 'sender_identity_uuid': str(identity_a.uuid)},
+        )
+
+        def sent():
+            records = (
+                self._session.query(DeliveryRecord)
+                .join(MessageMeta)
+                .join(RoomMessage)
+                .filter(RoomMessage.content == 'Will be delivered')
+                .all()
+            )
+            statuses = [r.status for r in records]
+            assert 'sent' in statuses
+
+        until.assert_(sent, timeout=5, interval=0.1)
+
+        port = self.asset_cls.service_port(9304, 'chatd')
+        requests.post(
+            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+            json={'external_id': 'ext-vis-003', 'status': 'delivered'},
+            headers={'X-Test-Connector': 'true'},
+        )
+
+        chatd_b = self._make_user_b_client()
+
+        def visible_to_b():
+            messages = chatd_b.rooms.list_messages_from_user(room['uuid'])
+            contents = [m['content'] for m in messages['items']]
+            assert 'Will be delivered' in contents
+
+        until.assert_(visible_to_b, timeout=5, interval=0.1)
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.http.room(
+        users=[
+            {'uuid': str(TOKEN_USER_UUID)},
+            {'uuid': str(USER_UUID_1)},
+        ],
+    )
+    def test_internal_message_visible_to_all(self, user_a, user_b, room):
+        self.chatd.rooms.create_message_from_user(
+            room['uuid'], {'content': 'Internal hello'}
+        )
+
+        chatd_b = self._make_user_b_client()
+        messages = chatd_b.rooms.list_messages_from_user(room['uuid'])
+        contents = [m['content'] for m in messages['items']]
+        assert 'Internal hello' in contents
