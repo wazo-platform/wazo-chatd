@@ -591,8 +591,9 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
         messages = self.chatd.rooms.list_messages_from_user(str(room.uuid))
 
         message = messages['items'][0]
-        assert message['type'] == 'internal'
-        assert message['backend'] is None
+        assert message['delivery']['type'] == 'internal'
+        assert message['delivery']['backend'] is None
+        assert message['delivery']['status'] == 'delivered'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(
@@ -620,7 +621,7 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
                 m for m in messages['items'] if m['content'] == 'Typed message'
             ]
             assert len(connector_msgs) == 1
-            assert connector_msgs[0]['type'] == 'test'
-            assert connector_msgs[0]['backend'] == 'test'
+            assert connector_msgs[0]['delivery']['type'] == 'test'
+            assert connector_msgs[0]['delivery']['backend'] == 'test'
 
         until.assert_(message_has_type, timeout=5, interval=0.1)

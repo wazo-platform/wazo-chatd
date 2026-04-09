@@ -56,8 +56,9 @@ class TestOutboundMessageEvent(ConnectorIntegrationTest):
             ]
             assert len(matching) >= 1
             data = matching[0]['message']['data']
-            assert data['type'] == 'test'
-            assert data['backend'] == 'test'
+            delivery = data['delivery']
+            assert delivery['type'] == 'test'
+            assert delivery['backend'] == 'test'
 
         until.assert_(event_received, timeout=5, interval=0.1)
 
@@ -70,9 +71,7 @@ class TestInboundMessageEvent(ConnectorIntegrationTest):
         backend='test',
         identity=SENDER_IDENTITY,
     )
-    def test_inbound_webhook_emits_message_event_with_type_and_backend(
-        self, user, identity
-    ):
+    def test_inbound_webhook_emits_message_event_with_delivery(self, user, identity):
         accumulator = self.bus.accumulator(
             headers={'name': 'chatd_user_room_message_created'}
         )
@@ -95,8 +94,10 @@ class TestInboundMessageEvent(ConnectorIntegrationTest):
             assert len(events) >= 1
             data = events[0]['message']['data']
             assert data['content'] == 'Inbound event test'
-            assert data['type'] == 'test'
-            assert data['backend'] == 'test'
+            delivery = data['delivery']
+            assert delivery['type'] == 'test'
+            assert delivery['backend'] == 'test'
+            assert delivery['status'] == 'delivered'
 
         until.assert_(event_received, timeout=5, interval=0.1)
 

@@ -61,8 +61,11 @@ class AsyncNotifier:
             'uuid': str(message.uuid),
             'content': message.content,
             'alias': message.alias,
-            'type': str(message.meta.type_),
-            'backend': str(message.meta.backend),
+            'delivery': {
+                'type': message.meta.type_,
+                'backend': message.meta.backend,
+                'status': message.meta.status,
+            },
             'user_uuid': str(message.user_uuid),
             'tenant_uuid': str(message.tenant_uuid),
             'wazo_uuid': str(message.wazo_uuid),

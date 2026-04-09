@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from marshmallow import fields as ma_fields
-from marshmallow import pre_load, validates_schema
+from marshmallow import post_dump, pre_load, validates_schema
 from xivo.mallow import fields, validate
 from xivo.mallow_helpers import ListSchema as _ListSchema
 from xivo.mallow_helpers import Schema, ValidationError
@@ -26,12 +26,17 @@ class RoomSchema(Schema):
     users = fields.Nested('RoomUserSchema', many=True, load_default=list)
 
 
+class MessageDeliverySchema(Schema):
+    type = fields.String(dump_default='internal', attribute='type_')
+    backend = fields.String(dump_default=None, allow_none=True)
+    status = fields.String(dump_default='delivered')
+
+
 class MessageSchema(Schema):
     uuid = fields.UUID(dump_only=True)
     content = fields.String(required=True)
     alias = fields.String(validate=validate.Length(max=256), allow_none=True)
-    type_ = ma_fields.Method('get_type', dump_only=True, data_key='type')
-    backend = ma_fields.Method('get_backend', dump_only=True)
+    delivery = fields.Nested(MessageDeliverySchema, dump_only=True, attribute='meta')
     user_uuid = fields.UUID(dump_only=True)
     tenant_uuid = fields.UUID(dump_only=True)
     wazo_uuid = fields.UUID(dump_only=True)
@@ -40,17 +45,11 @@ class MessageSchema(Schema):
 
     room = fields.Nested('RoomSchema', dump_only=True, only=['uuid'])
 
-    def get_type(self, obj: object) -> str:
-        meta = getattr(obj, 'meta', None)
-        if meta and meta.type_:
-            return str(meta.type_)
-        return 'internal'
-
-    def get_backend(self, obj: object) -> str | None:
-        meta = getattr(obj, 'meta', None)
-        if meta and meta.backend:
-            return str(meta.backend)
-        return None
+    @post_dump
+    def _default_delivery(self, data: dict, **kwargs: object) -> dict:
+        if data.get('delivery') is None:
+            data['delivery'] = MessageDeliverySchema().dump({})
+        return data
 
 
 class ListRequestSchema(_ListSchema):

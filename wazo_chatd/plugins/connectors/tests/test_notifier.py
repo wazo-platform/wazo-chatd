@@ -83,7 +83,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         message.wazo_uuid = 'wazo-uuid'
         message.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         message.room = Mock(uuid='room-uuid')
-        message.meta = Mock(type_='sms', backend='twilio')
+        message.meta = Mock(type_='sms', backend='twilio', status='delivered')
         return message
 
     async def test_publishes_event_per_user(self) -> None:
@@ -107,7 +107,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_user_room_message_created'
 
-    async def test_event_includes_type_and_backend(self) -> None:
+    async def test_event_includes_delivery(self) -> None:
         room = Mock()
         room.uuid = 'room-uuid'
         room.tenant_uuid = 'tenant-uuid'
@@ -116,8 +116,10 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         await self.notifier.message_created(room, self._make_message())
 
         event = self.bus.publish.call_args[0][0]
-        assert event.content['type'] == 'sms'
-        assert event.content['backend'] == 'twilio'
+        delivery = event.content['delivery']
+        assert delivery['type'] == 'sms'
+        assert delivery['backend'] == 'twilio'
+        assert delivery['status'] == 'delivered'
 
 
 class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):

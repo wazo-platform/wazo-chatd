@@ -3,7 +3,7 @@
 
 import unittest
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 from hamcrest import assert_that, calling, has_entries, has_length, not_, raises
 from xivo.mallow_helpers import ValidationError
@@ -42,30 +42,37 @@ class TestMessageListRequestSchema(unittest.TestCase):
         )
 
 
-class TestMessageSchemaType(unittest.TestCase):
-    def test_type_defaults_to_internal_when_no_meta(self) -> None:
-        message = MagicMock(meta=None)
+class TestMessageSchemaDelivery(unittest.TestCase):
+    def test_internal_message_has_delivery_with_delivered_status(self) -> None:
+        message = Mock(meta=None, spec=['uuid', 'content', 'alias', 'user_uuid', 'tenant_uuid', 'wazo_uuid', 'created_at', 'room', 'meta'])
 
         result = MessageSchema().dump(message)
 
-        assert result['type'] == 'internal'
+        assert result['delivery'] == {
+            'type': 'internal',
+            'backend': None,
+            'status': 'delivered',
+        }
 
-    def test_type_from_meta(self) -> None:
-        message = MagicMock()
-        message.meta.type_ = 'sms'
-        message.meta.backend = 'twilio'
-
-        result = MessageSchema().dump(message)
-
-        assert result['type'] == 'sms'
-        assert result['backend'] == 'twilio'
-
-    def test_backend_none_when_no_meta(self) -> None:
-        message = MagicMock(meta=None)
+    def test_connector_message_has_delivery_from_meta(self) -> None:
+        meta = Mock(type_='sms', backend='twilio', status='sent')
+        message = Mock(meta=meta)
 
         result = MessageSchema().dump(message)
 
-        assert result['backend'] is None
+        assert result['delivery'] == {
+            'type': 'sms',
+            'backend': 'twilio',
+            'status': 'sent',
+        }
+
+    def test_connector_message_with_null_status(self) -> None:
+        meta = Mock(type_='sms', backend='twilio', status=None)
+        message = Mock(meta=meta)
+
+        result = MessageSchema().dump(message)
+
+        assert result['delivery']['status'] is None
 
 
 class TestRoomListRequestSchema(unittest.TestCase):
