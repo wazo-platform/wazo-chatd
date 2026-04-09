@@ -144,6 +144,44 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_message_delivery_status'
 
+    async def test_delivered_status_publishes_message_created_to_other_users(
+        self,
+    ) -> None:
+        sender = Mock(uuid='sender-uuid', identity=None)
+        recipient = Mock(uuid='recipient-uuid', identity=None)
+        room = Mock(
+            uuid='room-uuid',
+            tenant_uuid='tenant-uuid',
+            users=[sender, recipient],
+        )
+        meta = Mock(
+            message_uuid='msg-uuid',
+            backend='twilio',
+            message=Mock(user_uuid='sender-uuid'),
+        )
+        record = Mock(
+            status='delivered',
+            timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc),
+        )
+
+        await self.notifier.delivery_status_updated(meta, record, room)
+
+        events = [call.args[0] for call in self.bus.publish.call_args_list]
+        status_events = [e for e in events if e.name == 'chatd_message_delivery_status']
+        message_events = [e for e in events if e.name == 'chatd_user_room_message_created']
+        assert len(status_events) == 1
+        assert len(message_events) == 1
+        assert message_events[0].user_uuid == 'recipient-uuid'
+
+    async def test_non_delivered_status_does_not_publish_message_created(self) -> None:
+        meta, record = self._make_meta_and_record()
+
+        await self.notifier.delivery_status_updated(meta, record, self.room)
+
+        events = [call.args[0] for call in self.bus.publish.call_args_list]
+        message_events = [e for e in events if e.name == 'chatd_user_room_message_created']
+        assert len(message_events) == 0
+
     async def test_publish_error_does_not_propagate(self) -> None:
         self.bus.publish.side_effect = RuntimeError('connection lost')
         meta, record = self._make_meta_and_record()

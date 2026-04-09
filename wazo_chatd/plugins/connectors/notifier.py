@@ -17,6 +17,7 @@ from wazo_bus.resources.chatd.events import (
 from wazo_bus.resources.chatd.types import DeliveryStatusDict, MessageDict
 from wazo_bus.resources.common.event import ServiceEvent
 
+from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import DeliveryRecord, MessageMeta, Room, RoomMessage, UserIdentity
 from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
 
@@ -57,21 +58,7 @@ class AsyncNotifier:
         self._bus = bus_publisher
 
     async def message_created(self, room: Room, message: RoomMessage) -> None:
-        message_data: MessageDict = {
-            'uuid': str(message.uuid),
-            'content': message.content,
-            'alias': message.alias,
-            'delivery': {
-                'type': message.meta.type_,
-                'backend': message.meta.backend,
-                'status': message.meta.status,
-            },
-            'user_uuid': str(message.user_uuid),
-            'tenant_uuid': str(message.tenant_uuid),
-            'wazo_uuid': str(message.wazo_uuid),
-            'created_at': message.created_at.isoformat(),
-            'room': {'uuid': str(message.room.uuid)},
-        }
+        message_data = self._build_message_payload(message)
         for user in room.users:
             event = UserRoomMessageCreatedEvent(
                 message_data, room.uuid, room.tenant_uuid, user.uuid
@@ -98,6 +85,46 @@ class AsyncNotifier:
             user_uuids=[str(u.uuid) for u in room.users],
         )
         await self._publish(event)
+
+        if record.status == DeliveryStatus.DELIVERED.value:
+            await self._notify_message_delivered(meta, room)
+
+    @staticmethod
+    def _build_message_payload(message: RoomMessage) -> MessageDict:
+        meta = message.meta
+        return {
+            'uuid': str(message.uuid),
+            'content': message.content,
+            'alias': message.alias,
+            'delivery': {
+                'type': meta.type_,
+                'backend': meta.backend,
+                'status': meta.status,
+            },
+            'user_uuid': str(message.user_uuid),
+            'tenant_uuid': str(message.tenant_uuid),
+            'wazo_uuid': str(message.wazo_uuid),
+            'created_at': message.created_at.isoformat(),
+            'room': {'uuid': str(message.room.uuid)},
+        }
+
+    async def _notify_message_delivered(
+        self, meta: MessageMeta, room: Room
+    ) -> None:
+        message = meta.message
+        sender_uuid = str(message.user_uuid)
+        recipients = [
+            u for u in room.users if not u.identity and str(u.uuid) != sender_uuid
+        ]
+        if not recipients:
+            return
+
+        message_data = self._build_message_payload(message)
+        for user in recipients:
+            event = UserRoomMessageCreatedEvent(
+                message_data, room.uuid, room.tenant_uuid, user.uuid
+            )
+            await self._publish(event)
 
     async def _publish(self, event: ServiceEvent) -> None:
         try:
