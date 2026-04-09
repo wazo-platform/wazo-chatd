@@ -67,6 +67,16 @@ def upgrade() -> None:
         'chatd_user_identity',
         ['backend', 'identity', 'type'],
     )
+    op.create_index(
+        'chatd_user_identity__idx__tenant_uuid',
+        'chatd_user_identity',
+        ['tenant_uuid'],
+    )
+    op.create_index(
+        'chatd_user_identity__idx__user_uuid',
+        'chatd_user_identity',
+        ['user_uuid'],
+    )
 
     # MessageMeta: optional 1:1 delivery metadata for RoomMessage
     op.create_table(

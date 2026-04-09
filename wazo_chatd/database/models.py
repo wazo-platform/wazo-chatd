@@ -270,7 +270,11 @@ class RoomMessage(Base):  # type: ignore[misc, valid-type]
 @generic_repr
 class UserIdentity(Base):  # type: ignore[misc, valid-type]
     __tablename__ = 'chatd_user_identity'
-    __table_args__ = (UniqueConstraint('backend', 'identity', 'type'),)
+    __table_args__ = (
+        UniqueConstraint('backend', 'identity', 'type'),
+        Index('chatd_user_identity__idx__tenant_uuid', 'tenant_uuid'),
+        Index('chatd_user_identity__idx__user_uuid', 'user_uuid'),
+    )
 
     uuid = Column(
         UUIDType(), server_default=text('uuid_generate_v4()'), primary_key=True
