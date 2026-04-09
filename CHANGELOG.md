@@ -1,5 +1,35 @@
 # Changelog
 
+## 26.05
+
+* New endpoints:
+  * `GET /1.0/users/{user_uuid}/identities`
+  * `POST /1.0/users/{user_uuid}/identities`
+  * `GET /1.0/users/{user_uuid}/identities/{identity_uuid}`
+  * `PUT /1.0/users/{user_uuid}/identities/{identity_uuid}`
+  * `DELETE /1.0/users/{user_uuid}/identities/{identity_uuid}`
+  * `GET /1.0/users/me/rooms/{room_uuid}/identities`
+  * `POST /1.0/connectors/incoming`
+  * `POST /1.0/connectors/incoming/{backend}`
+
+* New read only parameters have been added to the room user resource:
+  * `identity`
+
+* New parameters have been added to the message creation endpoint:
+  * `sender_identity_uuid`
+
+* New read only parameters have been added to the message resource:
+  * `type`
+  * `backend`
+
+* `POST /1.0/users/me/rooms` may now return `409` when a participant is unreachable
+
+* `POST /1.0/users/me/rooms/{room_uuid}/messages` may now return:
+  * `202` when outbound delivery is accepted
+  * `409` when `sender_identity_uuid` is required but missing
+
+* New configuration: `enabled_connectors` to control which connector backends are loaded
+
 ## 26.02
 
 * `POST`, `PATCH` and `PUT` request bodies to endpoints accepting JSON payload are systematically parsed as JSON, with or without a proper `Content-Type` header;
