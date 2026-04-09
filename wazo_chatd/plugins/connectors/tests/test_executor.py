@@ -12,7 +12,7 @@ from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.executor import (
-    MAX_RETRIES,
+    OUTBOUND_MAX_RETRIES,
     DeliveryExecutor,
     generate_message_signature,
 )
@@ -112,7 +112,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
 
     async def test_execute_max_retries_sets_dead_letter(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
-        self.delivery.retry_count = MAX_RETRIES - 1
+        self.delivery.retry_count = OUTBOUND_MAX_RETRIES - 1
         outbound = _make_outbound()
 
         await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
@@ -127,6 +127,17 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
 
         self.notifier.delivery_status_updated.assert_awaited_once()
+
+    async def test_execute_unexpected_error_treated_as_failure(self) -> None:
+        self.connector.send_side_effect = RuntimeError('SDK crashed')
+        outbound = _make_outbound()
+
+        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
+
+        assert self.delivery.retry_count == 1
+        dao_mock = self.executor._room_dao.add_delivery_record
+        statuses = [call.args[1].status for call in dao_mock.call_args_list]
+        assert DeliveryStatus.FAILED.value in statuses
 
 
 class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
@@ -371,6 +382,26 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_inbound(inbound)
 
         self.executor._room_dao.add_message.assert_awaited_once()
+
+    async def test_route_inbound_retries_on_persist_failure(self) -> None:
+        recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='recipient-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient}
+        )
+        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.add_message = AsyncMock(
+            side_effect=[RuntimeError('DB down'), AsyncMock()]
+        )
+
+        await self.executor.route_inbound(inbound)
+
+        assert self.executor._room_dao.add_message.await_count == 2
+        self.notifier.message_created.assert_awaited_once()
 
     async def test_route_inbound_external_sender_skips_dedup(self) -> None:
         recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')

@@ -40,8 +40,10 @@ from wazo_chatd.plugins.connectors.types import (
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES: int = 3
-RETRY_DELAYS: list[int] = [30, 120, 300]
+OUTBOUND_MAX_RETRIES: int = 3
+OUTBOUND_RETRY_DELAYS: list[int] = [30, 120, 300]
+INBOUND_MAX_RETRIES: int = 3
+INBOUND_RETRY_DELAYS: list[int] = [2, 5, 10]
 ECHO_WINDOW_SECONDS: int = 60
 
 
@@ -164,6 +166,7 @@ class DeliveryExecutor:
     async def route_inbound(
         self,
         inbound: InboundMessage,
+        attempt: int = 0,
     ) -> None:
         idempotency_key = inbound.metadata.get('idempotency_key')
         if idempotency_key:
@@ -257,7 +260,21 @@ class DeliveryExecutor:
             wazo_uuid=wazo_uuid,
             meta=meta,
         )
-        await self._room_dao.add_message(room, message)
+        try:
+            await self._room_dao.add_message(room, message)
+        except Exception:
+            if attempt < INBOUND_MAX_RETRIES:
+                delay = INBOUND_RETRY_DELAYS[attempt]
+                logger.warning(
+                    'Failed to persist inbound from %s, retrying in %ds (%d/%d)',
+                    inbound.sender,
+                    delay,
+                    attempt + 1,
+                    INBOUND_MAX_RETRIES,
+                )
+                await asyncio.sleep(delay)
+                return await self.route_inbound(inbound, attempt + 1)
+            raise
 
         await self._notifier.message_created(room, message)
         logger.info(
@@ -327,8 +344,8 @@ class DeliveryExecutor:
                 continue
 
             if status == DeliveryStatus.RETRYING.value:
-                retry_idx = min(int(meta.retry_count or 0), len(RETRY_DELAYS) - 1)
-                delay = float(RETRY_DELAYS[retry_idx])
+                retry_idx = min(int(meta.retry_count or 0), len(OUTBOUND_RETRY_DELAYS) - 1)
+                delay = float(OUTBOUND_RETRY_DELAYS[retry_idx])
             else:
                 delay = 0.0
 
@@ -362,7 +379,14 @@ class DeliveryExecutor:
                 last_status = DeliveryStatus.SENT
                 last_record = await self._add_record(delivery, last_status)
 
-            except ConnectorSendError as exc:
+            except Exception as exc:
+                if not isinstance(exc, ConnectorSendError):
+                    logger.exception(
+                        'Unexpected error sending message %s via %s',
+                        outbound.message_uuid,
+                        backend,
+                    )
+
                 delivery.retry_count += 1  # type: ignore[assignment]
                 last_status = DeliveryStatus.FAILED
                 await self._add_record(
@@ -371,12 +395,12 @@ class DeliveryExecutor:
                     reason=str(exc),
                 )
 
-                if delivery.retry_count >= MAX_RETRIES:  # type: ignore[operator]
+                if delivery.retry_count >= OUTBOUND_MAX_RETRIES:  # type: ignore[operator]
                     last_status = DeliveryStatus.DEAD_LETTER
                     last_record = await self._add_record(
                         delivery,
                         last_status,
-                        reason=f'Max retries ({MAX_RETRIES}) exceeded',
+                        reason=f'Max retries ({OUTBOUND_MAX_RETRIES}) exceeded',
                     )
                 else:
                     last_status = DeliveryStatus.RETRYING
