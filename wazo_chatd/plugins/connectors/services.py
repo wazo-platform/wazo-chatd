@@ -73,8 +73,8 @@ class ConnectorService:
         self._dao.room.prepare_pending_delivery(
             message,
             sender_identity.uuid,
-            backend=sender_identity.backend,
-            type_=sender_identity.type_,
+            backend=sender_identity.backend,  # type: ignore[arg-type]
+            type_=sender_identity.type_,  # type: ignore[arg-type]
         )
 
     def list_room_identities(
@@ -192,7 +192,7 @@ class ConnectorService:
         return record
 
     def _resolve_participant_types(self, participant: RoomUser) -> set[str]:
-        identity = participant.identity
+        identity: str | None = participant.identity  # type: ignore[assignment]
 
         if identity is not None:
             if self._dao.user_identity.is_identity_bound(identity):

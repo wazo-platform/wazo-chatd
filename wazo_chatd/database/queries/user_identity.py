@@ -105,4 +105,4 @@ class UserIdentityDAO:
 
     def list_tenant_backends(self) -> list[tuple[str, str]]:
         stmt = select(UserIdentity.tenant_uuid, UserIdentity.backend).distinct()
-        return list(self.session.execute(stmt).all())
+        return list(self.session.execute(stmt).all())  # type: ignore[arg-type]

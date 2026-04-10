@@ -116,7 +116,7 @@ class DeliveryExecutor:
                 sender_identity, str(message.content or '')
             )
 
-        meta.extra = extra
+        meta.extra = extra  # type: ignore[assignment]
         await session.flush()
 
         outbound = OutboundMessage(
