@@ -1,0 +1,4 @@
+FROM wazo-chatd-test
+
+COPY assets/connectors/test-connector /usr/src/test-connector
+RUN python3 -m pip install -e /usr/src/test-connector
