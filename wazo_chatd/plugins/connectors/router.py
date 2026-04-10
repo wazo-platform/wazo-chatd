@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from flask_restful import Api
 
-from wazo_chatd.plugin_helpers.dependencies import MessageContext
+from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageIdentityRequiredError,
@@ -39,15 +39,15 @@ class ConnectorRouter:
 
     def __init__(
         self,
-        config: dict[str, str | bool],
+        config: ConfigDict,
         registry: ConnectorRegistry,
         service: ConnectorService,
         auth_client: AuthClient,
     ) -> None:
         self._registry = registry
         self._service = service
-        connectors_config: dict[str, Any] = dict(config.get('connectors', {}))
-        delivery_config: dict[str, Any] = dict(config.get('delivery', {}))
+        connectors_config = config.get('connectors') or {}
+        delivery_config = config.get('delivery') or {}
         self._store = ConnectorStore(
             auth_client,
             registry,
@@ -85,9 +85,7 @@ class ConnectorRouter:
                 context.sender_identity_uuid,
             )
             context.resolved_sender_identity = identity
-            self._service.prepare_outbound_delivery(
-                context.message, identity
-            )
+            self._service.prepare_outbound_delivery(context.message, identity)
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
         loop = self._delivery_loop
@@ -98,7 +96,6 @@ class ConnectorRouter:
             'restart_count': loop.restart_count,
             'instances': len(self._store),
         }
-
 
     def dispatch_webhook(
         self,

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from marshmallow import fields as ma_fields
 from marshmallow import post_dump, pre_load, validates_schema
 from xivo.mallow import fields, validate
 from xivo.mallow_helpers import ListSchema as _ListSchema

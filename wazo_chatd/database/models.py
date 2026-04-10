@@ -346,7 +346,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         'DeliveryRecord',
         uselist=True,
         cascade='all,delete-orphan',
-        order_by=('DeliveryRecord.timestamp', 'DeliveryRecord.id'),
+        order_by='DeliveryRecord.timestamp, DeliveryRecord.id',
     )
 
     @hybrid_property
@@ -383,7 +383,9 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
 @generic_repr
 class DeliveryRecord(Base):  # type: ignore[misc, valid-type]
     __tablename__ = 'chatd_delivery_record'
-    __table_args__ = (Index('chatd_delivery_record__idx__message_uuid', 'message_uuid'),)
+    __table_args__ = (
+        Index('chatd_delivery_record__idx__message_uuid', 'message_uuid'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_uuid: UUIDType = Column(

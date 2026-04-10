@@ -11,12 +11,7 @@ from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
 from .helpers.base import TOKEN_SUBTENANT_UUID as OTHER_TENANT_UUID
-from .helpers.base import (
-    TOKEN_TENANT_UUID,
-    TOKEN_UUID,
-    ConnectorIntegrationTest,
-    use_asset,
-)
+from .helpers.base import TOKEN_TENANT_UUID, ConnectorIntegrationTest, use_asset
 
 USER_UUID = uuid.uuid4()
 OTHER_TENANT_USER_UUID = uuid.uuid4()
@@ -105,9 +100,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         identity='+15551234567',
     )
     def test_get(self, user, identity):
-        result = self.chatd.user_identities.get(
-            str(USER_UUID), str(identity.uuid)
-        )
+        result = self.chatd.user_identities.get(str(USER_UUID), str(identity.uuid))
 
         assert result['uuid'] == str(identity.uuid)
         assert result['backend'] == 'twilio'

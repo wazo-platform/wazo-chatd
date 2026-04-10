@@ -5,13 +5,7 @@
 
 from __future__ import annotations
 
-import uuid
-
-from wazo_chatd.database.models import (
-    DeliveryRecord,
-    MessageMeta,
-    Room,
-)
+from wazo_chatd.database.models import DeliveryRecord, MessageMeta, Room
 
 from .helpers import fixtures
 from .helpers.base import DBIntegrationTest, use_asset

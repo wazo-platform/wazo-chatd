@@ -27,6 +27,7 @@ from wazo_chatd.database.models import (
 )
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
+from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
@@ -71,7 +72,7 @@ class DeliveryExecutor:
 
     def __init__(
         self,
-        config: dict[str, Any],
+        config: ConfigDict,
         registry: ConnectorRegistry,
         notifier: AsyncNotifier,
         store: ConnectorStore,
@@ -344,7 +345,9 @@ class DeliveryExecutor:
                 continue
 
             if status == DeliveryStatus.RETRYING.value:
-                retry_idx = min(int(meta.retry_count or 0), len(OUTBOUND_RETRY_DELAYS) - 1)
+                retry_idx = min(
+                    int(meta.retry_count or 0), len(OUTBOUND_RETRY_DELAYS) - 1
+                )
                 delay = float(OUTBOUND_RETRY_DELAYS[retry_idx])
             else:
                 delay = 0.0

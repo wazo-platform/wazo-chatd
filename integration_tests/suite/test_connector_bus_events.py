@@ -10,7 +10,6 @@ from wazo_test_helpers import until
 
 from .helpers import fixtures
 from .helpers.base import (
-    TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
     ConnectorIntegrationTest,
     use_asset,
@@ -51,7 +50,8 @@ class TestOutboundMessageEvent(ConnectorIntegrationTest):
         def event_received():
             events = accumulator.accumulate(with_headers=True)
             matching = [
-                e for e in events
+                e
+                for e in events
                 if e['message']['data'].get('content') == 'Outbound event'
             ]
             assert len(matching) >= 1
@@ -133,10 +133,7 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
 
         def sent_event_received():
             events = accumulator.accumulate(with_headers=True)
-            sent = [
-                e for e in events
-                if e['message']['data'].get('status') == 'sent'
-            ]
+            sent = [e for e in events if e['message']['data'].get('status') == 'sent']
             assert len(sent) >= 1
             data = sent[0]['message']['data']
             assert data['message_uuid'] == message['uuid']
@@ -157,8 +154,7 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
         def delivered_event_received():
             events = accumulator.accumulate(with_headers=True)
             delivered = [
-                e for e in events
-                if e['message']['data'].get('status') == 'delivered'
+                e for e in events if e['message']['data'].get('status') == 'delivered'
             ]
             assert len(delivered) >= 1
             data = delivered[0]['message']['data']

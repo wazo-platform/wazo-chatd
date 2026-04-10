@@ -9,14 +9,15 @@ import uuid
 import requests
 from wazo_test_helpers import until
 
-from wazo_chatd.database.models import (
-    DeliveryRecord,
-    MessageMeta,
-    RoomMessage,
-)
+from wazo_chatd.database.models import DeliveryRecord, MessageMeta, RoomMessage
 
 from .helpers import fixtures
-from .helpers.base import TOKEN_TENANT_UUID, TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
+from .helpers.base import (
+    TOKEN_TENANT_UUID,
+    TOKEN_USER_UUID,
+    ConnectorIntegrationTest,
+    use_asset,
+)
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
@@ -610,7 +611,7 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
     def test_connector_message_has_type_from_identity(self, user, identity, room):
         self.connector_mock.reset()
 
-        message = self.chatd.rooms.create_message_from_user(
+        self.chatd.rooms.create_message_from_user(
             str(room.uuid),
             {'content': 'Typed message', 'sender_identity_uuid': str(identity.uuid)},
         )
@@ -661,9 +662,12 @@ class TestMessageVisibility(ConnectorIntegrationTest):
             send_behavior='succeed', external_id='ext-vis-001'
         )
 
-        message = self.chatd.rooms.create_message_from_user(
+        self.chatd.rooms.create_message_from_user(
             room['uuid'],
-            {'content': 'Visible to sender', 'sender_identity_uuid': str(identity_a.uuid)},
+            {
+                'content': 'Visible to sender',
+                'sender_identity_uuid': str(identity_a.uuid),
+            },
         )
 
         messages = self.chatd.rooms.list_messages_from_user(room['uuid'])
@@ -698,7 +702,10 @@ class TestMessageVisibility(ConnectorIntegrationTest):
 
         self.chatd.rooms.create_message_from_user(
             room['uuid'],
-            {'content': 'Not yet visible', 'sender_identity_uuid': str(identity_a.uuid)},
+            {
+                'content': 'Not yet visible',
+                'sender_identity_uuid': str(identity_a.uuid),
+            },
         )
 
         chatd_b = self._make_user_b_client()
@@ -734,7 +741,10 @@ class TestMessageVisibility(ConnectorIntegrationTest):
 
         self.chatd.rooms.create_message_from_user(
             room['uuid'],
-            {'content': 'Will be delivered', 'sender_identity_uuid': str(identity_a.uuid)},
+            {
+                'content': 'Will be delivered',
+                'sender_identity_uuid': str(identity_a.uuid),
+            },
         )
 
         def sent():

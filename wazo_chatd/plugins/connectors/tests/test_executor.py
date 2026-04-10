@@ -6,7 +6,7 @@ from __future__ import annotations
 import time
 import unittest
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
@@ -89,7 +89,9 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.delivery.external_id = None
         self.delivery.records = []
         self.delivery.message = Mock(
-            room=Mock(uuid='room-uuid', tenant_uuid='tenant-uuid', users=[Mock(uuid='user-1')])
+            room=Mock(
+                uuid='room-uuid', tenant_uuid='tenant-uuid', users=[Mock(uuid='user-1')]
+            )
         )
 
     def tearDown(self) -> None:

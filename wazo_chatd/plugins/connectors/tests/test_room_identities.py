@@ -12,7 +12,6 @@ import pytest
 
 from wazo_chatd.plugins.connectors.exceptions import (
     InvalidIdentityError,
-    NoCommonConnectorError,
     UnreachableParticipantError,
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService

@@ -23,6 +23,7 @@ from wazo_chatd.database.async_helpers import (
     parse_ssl_from_uri,
 )
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
+from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugins.connectors.executor import DeliveryExecutor
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -39,7 +40,7 @@ def _backoff() -> itertools.chain[int]:
 class DeliveryLoop:
     def __init__(
         self,
-        config: dict[str, Any],
+        config: ConfigDict,
         registry: ConnectorRegistry,
         store: ConnectorStore,
     ) -> None:
