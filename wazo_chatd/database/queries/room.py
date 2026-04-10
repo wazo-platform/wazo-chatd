@@ -93,7 +93,7 @@ class RoomDAO:
         type_: str | None = None,
     ) -> None:
         if not message.uuid:
-            message.uuid = uuid4()
+            message.uuid = uuid4()  # type: ignore[assignment]
 
         meta = MessageMeta(
             sender_identity_uuid=sender_identity_uuid,
