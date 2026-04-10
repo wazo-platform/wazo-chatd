@@ -5,6 +5,12 @@ check_untyped_defs = true
 warn_unused_configs = true
 ignore_missing_imports = true
 
+# Tests use unittest.mock and hamcrest extensively — Mock/AsyncMock
+# patterns and hamcrest matchers trigger false positives.
+[[tool.mypy.overrides]]
+module = ["*.tests.*", "integration_tests.*"]
+disable_error_code = ["method-assign", "attr-defined", "arg-type"]
+
 [tool.black]
 skip-string-normalization = true
 
