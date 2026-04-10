@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import AsyncGenerator
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from sqlalchemy.exc import MissingGreenlet
@@ -56,7 +56,9 @@ def init_async_db(
         pool_pre_ping=True,
         connect_args={'ssl': ssl},
     )
-    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    factory = sessionmaker(  # type: ignore[type-var]
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
     return engine, factory
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypeAlias, TypedDict
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -20,11 +20,13 @@ from wazo_chatd.database.queries import DAO
 from wazo_chatd.plugin_helpers.hooks import Hooks
 from wazo_chatd.thread_manager import ThreadManager
 
+ConfigDict: TypeAlias = dict[str, Any]
+
 
 class PluginDependencies(TypedDict):
     api: Api
     aio: CoreAsyncio
-    config: dict[str, Any]
+    config: ConfigDict
     dao: DAO
     bus_consumer: BusConsumer
     bus_publisher: BusPublisher
