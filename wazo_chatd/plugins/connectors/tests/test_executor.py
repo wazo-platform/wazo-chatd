@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import time
 import unittest
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, Mock
 
 from wazo_chatd.database.async_helpers import _current_session
@@ -22,6 +24,7 @@ from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
     OutboundMessage,
     StatusUpdate,
+    TransportData,
 )
 
 FIXED_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -50,10 +53,15 @@ def _make_outbound(message_uuid: str = 'delivery-1') -> OutboundMessage:
 
 
 class _FakeConnector:
-    backend = 'twilio'
-    supported_types = ('sms',)
+    backend: ClassVar[str] = 'twilio'
+    supported_types: ClassVar[tuple[str, ...]] = ('sms',)
+    status_map: ClassVar[dict[str, DeliveryStatus]] = {}
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        provider_config: Mapping[str, Any] | None = None,
+        connector_config: Mapping[str, Any] | None = None,
+    ) -> None:
         self.send_return = 'ext-msg-id-123'
         self.send_side_effect: Exception | None = None
 
@@ -61,6 +69,24 @@ class _FakeConnector:
         if self.send_side_effect:
             raise self.send_side_effect
         return self.send_return
+
+    @classmethod
+    def can_handle(cls, data: TransportData) -> bool:
+        return True
+
+    @classmethod
+    def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
+        return None
+
+    def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    @classmethod
+    def normalize_identity(cls, raw_identity: str) -> str:
+        return raw_identity
 
 
 class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):

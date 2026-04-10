@@ -9,11 +9,7 @@ import requests
 from wazo_test_helpers import until
 
 from .helpers import fixtures
-from .helpers.base import (
-    TOKEN_USER_UUID,
-    ConnectorIntegrationTest,
-    use_asset,
-)
+from .helpers.base import TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
 
 EXTERNAL_IDENTITY = 'test:+15559876'
 SENDER_IDENTITY = 'test:+15551234'

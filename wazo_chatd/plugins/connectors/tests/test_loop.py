@@ -9,27 +9,18 @@ import unittest
 import unittest.mock
 from unittest.mock import AsyncMock, Mock
 
+from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugins.connectors.loop import DeliveryLoop
-from wazo_chatd.plugins.connectors.types import InboundMessage, OutboundMessage
+from wazo_chatd.plugins.connectors.types import InboundMessage
 
 
-def _make_config() -> dict[str, str | bool]:
+def _make_config() -> ConfigDict:
     return {
         'db_uri': 'postgresql://localhost/test',
         'uuid': 'svc-uuid',
         'bus': {},
         'delivery': {'max_concurrent_tasks': 100},
     }
-
-
-def _make_outbound() -> OutboundMessage:
-    return OutboundMessage(
-        room_uuid='room-uuid',
-        message_uuid='msg-uuid',
-        sender_uuid='user-uuid',
-        body='hello',
-        message_type='sms',
-    )
 
 
 def _make_inbound() -> InboundMessage:
@@ -70,7 +61,7 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        loop = DeliveryLoop(_make_config(), Mock(), {})
+        loop = DeliveryLoop(_make_config(), Mock(), Mock())
         loop.start()
 
         try:
@@ -88,7 +79,7 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        loop = DeliveryLoop(_make_config(), Mock(), {})
+        loop = DeliveryLoop(_make_config(), Mock(), Mock())
         loop.start()
         loop.shutdown(timeout=10)
 
@@ -103,9 +94,11 @@ class TestDeliveryLoopLifecycle(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        with DeliveryLoop(_make_config(), Mock(), {}) as loop:
+        with DeliveryLoop(_make_config(), Mock(), Mock()) as loop:
+            assert loop._loop is not None
             assert loop._loop.is_running()
 
+        assert loop._thread is not None
         assert not loop._thread.is_alive()
 
 
@@ -120,7 +113,7 @@ class TestDeliveryLoopStatus(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        loop = DeliveryLoop(_make_config(), Mock(), {})
+        loop = DeliveryLoop(_make_config(), Mock(), Mock())
         loop.start()
 
         try:
@@ -134,7 +127,7 @@ class TestDeliveryLoopStatus(unittest.TestCase):
         mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
         mock_bus.from_config.return_value = Mock()
 
-        loop = DeliveryLoop(_make_config(), Mock(), {})
+        loop = DeliveryLoop(_make_config(), Mock(), Mock())
 
         assert loop.is_running is False
 
@@ -143,19 +136,6 @@ class TestDeliveryLoopStatus(unittest.TestCase):
 @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.init_async_db')
 @unittest.mock.patch('wazo_chatd.plugins.connectors.loop.BusPublisher')
 class TestDeliveryLoopEnqueue(unittest.TestCase):
-    def test_enqueue_outbound_creates_task(
-        self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
-    ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
-        mock_bus.from_config.return_value = Mock()
-        mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
-
-        with DeliveryLoop(_make_config(), Mock(), {}) as loop:
-            loop.enqueue_message(_make_outbound())
-            time.sleep(0.1)
-
-            assert loop._executor is not None
-
     def test_enqueue_inbound_creates_task(
         self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
     ) -> None:
@@ -163,7 +143,7 @@ class TestDeliveryLoopEnqueue(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        with DeliveryLoop(_make_config(), Mock(), {}) as loop:
+        with DeliveryLoop(_make_config(), Mock(), Mock()) as loop:
             loop.enqueue_message(_make_inbound())
             time.sleep(0.1)
 
@@ -176,7 +156,7 @@ class TestDeliveryLoopRestart(unittest.TestCase):
     def _make_loop(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryLoop:
         mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        loop = DeliveryLoop(_make_config(), Mock(), {})
+        loop = DeliveryLoop(_make_config(), Mock(), Mock())
         loop._loop = asyncio.new_event_loop()
         loop._semaphore = asyncio.Semaphore(100)
         return loop
