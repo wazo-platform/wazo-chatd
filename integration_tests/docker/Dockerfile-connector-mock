@@ -1,0 +1,8 @@
+FROM python:3.11-slim
+
+RUN pip install flask
+
+COPY assets/connectors/servers /usr/local/share/connector_mock
+
+EXPOSE 8080
+CMD ["python3", "-u", "/usr/local/share/connector_mock/test-connector-server.py", "8080"]
