@@ -1,14 +1,19 @@
-# Copyright 2019-2023 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import unittest
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 from hamcrest import assert_that, calling, has_entries, has_length, not_, raises
 from xivo.mallow_helpers import ValidationError
 
-from ..schemas import ListRequestSchema, MessageListRequestSchema, RoomListRequestSchema
+from ..schemas import (
+    ListRequestSchema,
+    MessageListRequestSchema,
+    MessageSchema,
+    RoomListRequestSchema,
+)
 
 
 class TestListRequestSchema(unittest.TestCase):
@@ -35,6 +40,52 @@ class TestMessageListRequestSchema(unittest.TestCase):
             calling(self.schema().load).with_args({'search': 'ok'}),
             not_(raises(ValidationError, pattern='search or distinct')),
         )
+
+
+class TestMessageSchemaDelivery(unittest.TestCase):
+    def test_internal_message_has_delivery_with_delivered_status(self) -> None:
+        message = Mock(
+            meta=None,
+            spec=[
+                'uuid',
+                'content',
+                'alias',
+                'user_uuid',
+                'tenant_uuid',
+                'wazo_uuid',
+                'created_at',
+                'room',
+                'meta',
+            ],
+        )
+
+        result = MessageSchema().dump(message)
+
+        assert result['delivery'] == {
+            'type': 'internal',
+            'backend': None,
+            'status': 'delivered',
+        }
+
+    def test_connector_message_has_delivery_from_meta(self) -> None:
+        meta = Mock(type_='sms', backend='twilio', status='sent')
+        message = Mock(meta=meta)
+
+        result = MessageSchema().dump(message)
+
+        assert result['delivery'] == {
+            'type': 'sms',
+            'backend': 'twilio',
+            'status': 'sent',
+        }
+
+    def test_connector_message_with_null_status(self) -> None:
+        meta = Mock(type_='sms', backend='twilio', status=None)
+        message = Mock(meta=meta)
+
+        result = MessageSchema().dump(message)
+
+        assert result['delivery']['status'] is None
 
 
 class TestRoomListRequestSchema(unittest.TestCase):
