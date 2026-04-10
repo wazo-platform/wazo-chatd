@@ -18,7 +18,13 @@ from wazo_bus.resources.chatd.types import DeliveryStatusDict, MessageDict
 from wazo_bus.resources.common.event import ServiceEvent
 
 from wazo_chatd.database.delivery import DeliveryStatus
-from wazo_chatd.database.models import DeliveryRecord, MessageMeta, Room, RoomMessage, UserIdentity
+from wazo_chatd.database.models import (
+    DeliveryRecord,
+    MessageMeta,
+    Room,
+    RoomMessage,
+    UserIdentity,
+)
 from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
 
 if TYPE_CHECKING:
@@ -110,9 +116,7 @@ class AsyncNotifier:
             'room': {'uuid': str(message.room.uuid)},
         }
 
-    async def _notify_message_delivered(
-        self, meta: MessageMeta, room: Room
-    ) -> None:
+    async def _notify_message_delivered(self, meta: MessageMeta, room: Room) -> None:
         message = meta.message
         sender_uuid = str(message.user_uuid)
         recipients = [

@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import AsyncGenerator
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from sqlalchemy.exc import MissingGreenlet

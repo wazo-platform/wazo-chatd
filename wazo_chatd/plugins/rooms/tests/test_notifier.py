@@ -16,7 +16,10 @@ class TestRoomNotifierMessageCreated(unittest.TestCase):
 
     def test_internal_message_notifies_all_users(self) -> None:
         room = Mock()
-        room.users = [Mock(uuid='user-a', identity=None), Mock(uuid='user-b', identity=None)]
+        room.users = [
+            Mock(uuid='user-a', identity=None),
+            Mock(uuid='user-b', identity=None),
+        ]
         message = Mock(meta=None, user_uuid='user-a')
 
         self.notifier.message_created(room, message)
@@ -25,7 +28,10 @@ class TestRoomNotifierMessageCreated(unittest.TestCase):
 
     def test_outbound_pending_notifies_sender_only(self) -> None:
         room = Mock()
-        room.users = [Mock(uuid='user-a', identity=None), Mock(uuid='user-b', identity=None)]
+        room.users = [
+            Mock(uuid='user-a', identity=None),
+            Mock(uuid='user-b', identity=None),
+        ]
         message = Mock(user_uuid='user-a')
         message.meta.status = 'pending'
 
@@ -37,7 +43,10 @@ class TestRoomNotifierMessageCreated(unittest.TestCase):
 
     def test_inbound_delivered_notifies_all_users(self) -> None:
         room = Mock()
-        room.users = [Mock(uuid='user-a', identity=None), Mock(uuid='user-b', identity=None)]
+        room.users = [
+            Mock(uuid='user-a', identity=None),
+            Mock(uuid='user-b', identity=None),
+        ]
         message = Mock(user_uuid='user-a')
         message.meta.status = 'delivered'
 

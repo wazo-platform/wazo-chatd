@@ -9,11 +9,7 @@ import pytest
 from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
-from .helpers.base import (
-    TOKEN_USER_UUID,
-    ConnectorIntegrationTest,
-    use_asset,
-)
+from .helpers.base import TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
 
 EXTERNAL_IDENTITY = 'test:+15559876'
 EXTERNAL_IDENTITY_2 = 'test:+15558765'

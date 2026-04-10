@@ -132,7 +132,9 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
 
     def _make_meta_and_record(self) -> tuple[Mock, Mock]:
         meta = Mock(message_uuid='msg-uuid', backend='twilio')
-        record = Mock(status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc))
+        record = Mock(
+            status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc)
+        )
         return meta, record
 
     async def test_publishes_delivery_status_event(self) -> None:
@@ -168,7 +170,9 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
 
         events = [call.args[0] for call in self.bus.publish.call_args_list]
         status_events = [e for e in events if e.name == 'chatd_message_delivery_status']
-        message_events = [e for e in events if e.name == 'chatd_user_room_message_created']
+        message_events = [
+            e for e in events if e.name == 'chatd_user_room_message_created'
+        ]
         assert len(status_events) == 1
         assert len(message_events) == 1
         assert message_events[0].user_uuid == 'recipient-uuid'
@@ -179,7 +183,9 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         await self.notifier.delivery_status_updated(meta, record, self.room)
 
         events = [call.args[0] for call in self.bus.publish.call_args_list]
-        message_events = [e for e in events if e.name == 'chatd_user_room_message_created']
+        message_events = [
+            e for e in events if e.name == 'chatd_user_room_message_created'
+        ]
         assert len(message_events) == 0
 
     async def test_publish_error_does_not_propagate(self) -> None:

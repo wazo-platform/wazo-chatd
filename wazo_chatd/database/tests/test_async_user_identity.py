@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import unittest
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 from unittest.mock import AsyncMock, Mock
 
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -134,8 +134,12 @@ class UserRoomMessageListResource(AuthResource):
             raise UnknownRoomException(room_uuid)
 
         viewer_uuid = token.user_uuid
-        messages = self._service.list_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
-        filtered = self._service.count_messages(room, viewer_uuid=viewer_uuid, **filter_parameters)
+        messages = self._service.list_messages(
+            room, viewer_uuid=viewer_uuid, **filter_parameters
+        )
+        filtered = self._service.count_messages(
+            room, viewer_uuid=viewer_uuid, **filter_parameters
+        )
         total = self._service.count_messages(room, viewer_uuid=viewer_uuid)
         return {
             'items': MessageSchema().dump(messages, many=True),

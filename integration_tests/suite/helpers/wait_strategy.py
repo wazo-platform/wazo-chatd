@@ -4,9 +4,7 @@
 from wazo_test_helpers.wait_strategy import (
     ComponentsWaitStrategy as _ComponentsWaitStrategy,
 )
-from wazo_test_helpers.wait_strategy import (
-    NoWaitStrategy,
-)
+from wazo_test_helpers.wait_strategy import NoWaitStrategy
 
 __all__ = ['NoWaitStrategy']
 

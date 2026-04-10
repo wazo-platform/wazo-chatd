@@ -9,11 +9,7 @@ import pytest
 from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
-from .helpers.base import (
-    TOKEN_USER_UUID,
-    ConnectorIntegrationTest,
-    use_asset,
-)
+from .helpers.base import TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
 
 RECIPIENT_UUID = uuid.uuid4()
 EXTERNAL_IDENTITY = 'test:+15559876'
@@ -38,9 +34,7 @@ class TestRoomIdentities(ConnectorIntegrationTest):
     def test_external_participant_returns_sender_identities(
         self, sender, recipient, identity, room
     ):
-        result = self.chatd.rooms.list_available_identities_from_user(
-            str(room.uuid)
-        )
+        result = self.chatd.rooms.list_available_identities_from_user(str(room.uuid))
 
         assert result['total'] >= 1
         identities = [item['identity'] for item in result['items']]
@@ -67,9 +61,7 @@ class TestRoomIdentities(ConnectorIntegrationTest):
     def test_wazo_user_with_identity_returns_sender_identities(
         self, sender, recipient, sender_identity, recipient_identity, room
     ):
-        result = self.chatd.rooms.list_available_identities_from_user(
-            str(room.uuid)
-        )
+        result = self.chatd.rooms.list_available_identities_from_user(str(room.uuid))
 
         assert result['total'] >= 1
         identities = [item['identity'] for item in result['items']]
@@ -84,17 +76,13 @@ class TestRoomIdentities(ConnectorIntegrationTest):
         ],
     )
     def test_internal_only_room_returns_empty(self, sender, recipient, room):
-        result = self.chatd.rooms.list_available_identities_from_user(
-            str(room.uuid)
-        )
+        result = self.chatd.rooms.list_available_identities_from_user(str(room.uuid))
 
         assert result['total'] == 0
         assert result['items'] == []
 
     def test_unknown_room_returns_404(self):
         with pytest.raises(ChatdError) as exc_info:
-            self.chatd.rooms.list_available_identities_from_user(
-                str(uuid.uuid4())
-            )
+            self.chatd.rooms.list_available_identities_from_user(str(uuid.uuid4()))
 
         assert exc_info.value.status_code == 404

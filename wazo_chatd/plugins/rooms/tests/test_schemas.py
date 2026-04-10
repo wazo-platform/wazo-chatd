@@ -44,7 +44,20 @@ class TestMessageListRequestSchema(unittest.TestCase):
 
 class TestMessageSchemaDelivery(unittest.TestCase):
     def test_internal_message_has_delivery_with_delivered_status(self) -> None:
-        message = Mock(meta=None, spec=['uuid', 'content', 'alias', 'user_uuid', 'tenant_uuid', 'wazo_uuid', 'created_at', 'room', 'meta'])
+        message = Mock(
+            meta=None,
+            spec=[
+                'uuid',
+                'content',
+                'alias',
+                'user_uuid',
+                'tenant_uuid',
+                'wazo_uuid',
+                'created_at',
+                'room',
+                'meta',
+            ],
+        )
 
         result = MessageSchema().dump(message)
 

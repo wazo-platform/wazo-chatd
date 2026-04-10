@@ -24,7 +24,9 @@ class RoomNotifier:
         recipients = [u for u in room.users if not u.identity]
 
         if message.meta and message.meta.status != 'delivered':
-            recipients = [u for u in recipients if str(u.uuid) == str(message.user_uuid)]
+            recipients = [
+                u for u in recipients if str(u.uuid) == str(message.user_uuid)
+            ]
 
         for user in recipients:
             event = UserRoomMessageCreatedEvent(
