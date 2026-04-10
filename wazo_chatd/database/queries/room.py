@@ -157,9 +157,7 @@ class RoomDAO:
                 RoomMessage.user_uuid == viewer_uuid,
                 ~RoomMessage.meta.has(),
                 RoomMessage.meta.has(
-                    MessageMeta.records.any(
-                        DeliveryRecord.status == DeliveryStatus.DELIVERED.value
-                    )
+                    MessageMeta.status == DeliveryStatus.DELIVERED.value
                 ),
             )
         )

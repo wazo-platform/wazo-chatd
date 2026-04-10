@@ -15,10 +15,12 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.schema import Index, UniqueConstraint
 from sqlalchemy_utils import UUIDType, generic_repr
@@ -346,16 +348,36 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         cascade='all,delete-orphan',
         order_by='DeliveryRecord.timestamp',
     )
-    latest_record: RelationshipProperty[DeliveryRecord | None] = relationship(
-        'DeliveryRecord',
-        uselist=False,
-        viewonly=True,
-        order_by='desc(DeliveryRecord.timestamp)',
-        overlaps='records',
-    )
 
-    status = association_proxy('latest_record', 'status')
-    updated_at = association_proxy('latest_record', 'timestamp')
+    @hybrid_property
+    def status(self) -> str | None:
+        return self.records[-1].status if self.records else None
+
+    @status.expression  # type: ignore[no-redef]
+    def status(cls):
+        return (
+            select(DeliveryRecord.status)
+            .where(DeliveryRecord.message_uuid == cls.message_uuid)
+            .order_by(DeliveryRecord.timestamp.desc())
+            .limit(1)
+            .correlate_except(DeliveryRecord)
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def updated_at(self) -> datetime | None:
+        return self.records[-1].timestamp if self.records else None
+
+    @updated_at.expression  # type: ignore[no-redef]
+    def updated_at(cls):
+        return (
+            select(DeliveryRecord.timestamp)
+            .where(DeliveryRecord.message_uuid == cls.message_uuid)
+            .order_by(DeliveryRecord.timestamp.desc())
+            .limit(1)
+            .correlate_except(DeliveryRecord)
+            .scalar_subquery()
+        )
 
 
 @generic_repr
