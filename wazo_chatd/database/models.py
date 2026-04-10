@@ -346,7 +346,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         'DeliveryRecord',
         uselist=True,
         cascade='all,delete-orphan',
-        order_by='DeliveryRecord.timestamp',
+        order_by=('DeliveryRecord.timestamp', 'DeliveryRecord.id'),
     )
 
     @hybrid_property
@@ -358,7 +358,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         return (
             select(DeliveryRecord.status)
             .where(DeliveryRecord.message_uuid == cls.message_uuid)
-            .order_by(DeliveryRecord.timestamp.desc())
+            .order_by(DeliveryRecord.timestamp.desc(), DeliveryRecord.id.desc())
             .limit(1)
             .correlate_except(DeliveryRecord)
             .scalar_subquery()
@@ -373,7 +373,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         return (
             select(DeliveryRecord.timestamp)
             .where(DeliveryRecord.message_uuid == cls.message_uuid)
-            .order_by(DeliveryRecord.timestamp.desc())
+            .order_by(DeliveryRecord.timestamp.desc(), DeliveryRecord.id.desc())
             .limit(1)
             .correlate_except(DeliveryRecord)
             .scalar_subquery()
