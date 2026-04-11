@@ -4,23 +4,10 @@
 from __future__ import annotations
 
 import unittest
-from collections.abc import Generator
-from contextlib import contextmanager
 from unittest.mock import AsyncMock, Mock
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
-
-
-@contextmanager
-def mock_async_session(session: AsyncSession) -> Generator[None, None, None]:
-    token = _current_session.set(session)
-    try:
-        yield
-    finally:
-        _current_session.reset(token)
 
 
 class TestAsyncListByUser(unittest.IsolatedAsyncioTestCase):
