@@ -19,15 +19,15 @@ class Hooks:
         self._subscribers[name].append(callback)
 
     def has_subscribers(self, name: str) -> bool:
-        return bool(self._subscribers[name])
+        return name in self._subscribers
 
     def dispatch(self, name: str, payload: Any, *, allow_raise: bool = False) -> None:
-        for callback in self._subscribers[name]:
-            if allow_raise:
-                callback(payload)  # exits on first exception
-                continue
-
+        for callback in self._subscribers.get(name, []):
             try:
                 callback(payload)
-            except Exception:
-                logger.exception('Hook subscriber %s failed', callback)
+            except Exception as e:
+                logger.warning(
+                    'Hook subscriber %s failed: %s', callback, e, exc_info=not allow_raise
+                )
+                if allow_raise:
+                    raise
