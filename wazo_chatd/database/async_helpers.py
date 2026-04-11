@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from asyncio import CancelledError
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -77,7 +78,7 @@ async def async_session_scope(
             'Lazy loading triggered in async context. '
             'Use selectinload() to eager-load relationships in async DAO queries.'
         ) from exc
-    except Exception:
+    except (Exception, CancelledError):
         await session.rollback()
         raise
     finally:
