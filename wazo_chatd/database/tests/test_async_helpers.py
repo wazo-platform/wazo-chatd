@@ -7,25 +7,64 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from wazo_chatd.database.async_helpers import (
+    _build_async_engine_args,
     async_session_scope,
     init_async_db,
-    make_async_uri,
 )
 
 
-class TestMakeAsyncUri(unittest.TestCase):
+class TestBuildAsyncEngineArgs(unittest.TestCase):
     def test_converts_postgresql_scheme(self) -> None:
-        result = make_async_uri('postgresql://user:pass@localhost/db')
-        assert result == 'postgresql+asyncpg://user:pass@localhost/db'
+        uri, _ = _build_async_engine_args('postgresql://user:pass@localhost/db')
+        assert uri == 'postgresql+asyncpg://user:pass@localhost/db'
 
-    def test_already_async_unchanged(self) -> None:
-        uri = 'postgresql+asyncpg://user:pass@localhost/db'
-        assert make_async_uri(uri) == uri
+    def test_preserves_existing_asyncpg_scheme(self) -> None:
+        uri, _ = _build_async_engine_args('postgresql+asyncpg://user:pass@localhost/db')
+        assert uri == 'postgresql+asyncpg://user:pass@localhost/db'
 
-    def test_preserves_query_params(self) -> None:
-        uri = 'postgresql://user:pass@localhost/db?sslmode=require'
-        result = make_async_uri(uri)
-        assert result == 'postgresql+asyncpg://user:pass@localhost/db?sslmode=require'
+    def test_ssl_disabled_by_default(self) -> None:
+        _, connect_args = _build_async_engine_args('postgresql://localhost/db')
+        assert connect_args == {'ssl': False}
+
+    def test_sslmode_require_enables_ssl_and_is_stripped(self) -> None:
+        uri, connect_args = _build_async_engine_args(
+            'postgresql://localhost/db?sslmode=require'
+        )
+        assert connect_args == {'ssl': True}
+        assert 'sslmode' not in uri
+
+    def test_application_name_routed_to_server_settings(self) -> None:
+        uri, connect_args = _build_async_engine_args(
+            'postgresql://localhost/db?application_name=wazo-chatd'
+        )
+        assert connect_args == {
+            'ssl': False,
+            'server_settings': {'application_name': 'wazo-chatd'},
+        }
+        assert 'application_name' not in uri
+
+    def test_multiple_known_server_settings_extracted(self) -> None:
+        uri, connect_args = _build_async_engine_args(
+            'postgresql://localhost/db'
+            '?application_name=wazo-chatd'
+            '&statement_timeout=5000'
+            '&search_path=public'
+        )
+        assert connect_args['server_settings'] == {
+            'application_name': 'wazo-chatd',
+            'statement_timeout': '5000',
+            'search_path': 'public',
+        }
+        assert 'application_name' not in uri
+        assert 'statement_timeout' not in uri
+        assert 'search_path' not in uri
+
+    def test_unknown_query_params_stay_on_uri(self) -> None:
+        uri, connect_args = _build_async_engine_args(
+            'postgresql://localhost/db?connect_timeout=5&application_name=foo'
+        )
+        assert 'connect_timeout=5' in uri
+        assert connect_args['server_settings'] == {'application_name': 'foo'}
 
 
 class TestInitAsyncDb(unittest.TestCase):
@@ -41,6 +80,15 @@ class TestInitAsyncDb(unittest.TestCase):
         call_args = mock_create.call_args
         assert 'postgresql+asyncpg://localhost/db' in call_args.args
         assert call_args.kwargs['pool_size'] == 3
+
+    @patch('wazo_chatd.database.async_helpers.create_async_engine')
+    def test_forwards_server_settings_via_connect_args(
+        self, mock_create: MagicMock
+    ) -> None:
+        init_async_db('postgresql://localhost/db?application_name=wazo-chatd')
+
+        connect_args = mock_create.call_args.kwargs['connect_args']
+        assert connect_args['server_settings'] == {'application_name': 'wazo-chatd'}
 
 
 class TestAsyncSessionScope(unittest.IsolatedAsyncioTestCase):
