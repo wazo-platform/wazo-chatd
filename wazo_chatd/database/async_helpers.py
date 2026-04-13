@@ -7,11 +7,21 @@ from asyncio import CancelledError
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from sqlalchemy.exc import MissingGreenlet
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+
+_POSTGRES_SERVER_SETTINGS_PARAMS: tuple[str, ...] = (
+    'application_name',
+    'search_path',
+    'options',
+    'statement_timeout',
+    'lock_timeout',
+    'idle_in_transaction_session_timeout',
+)
 
 _current_session: ContextVar[AsyncSession] = ContextVar('_current_session')
 
@@ -20,42 +30,45 @@ def get_async_session() -> AsyncSession:
     return _current_session.get()
 
 
-def make_async_uri(sync_uri: str) -> str:
-    if '+asyncpg' in sync_uri:
-        return sync_uri
-    return sync_uri.replace('postgresql://', 'postgresql+asyncpg://', 1)
+def _build_async_engine_args(uri: str) -> tuple[str, dict[str, Any]]:
+    """Translate a Postgres URI into (async_uri, connect_args) for asyncpg.
 
-
-def parse_ssl_from_uri(uri: str) -> bool:
-    """Extract sslmode from a PostgreSQL URI.
-
-    Returns True if SSL is requested, False otherwise (default).
-    asyncpg does not accept sslmode as a keyword argument through
-    SQLAlchemy, so we parse it from the URI ourselves.
+    SQLAlchemy's asyncpg dialect forwards URI query params as kwargs to
+    ``asyncpg.connect()``.  ``sslmode`` must become an ``ssl`` bool and
+    Postgres GUCs (e.g. ``application_name``) must be routed through
+    ``server_settings``.
     """
-    sslmode = parse_qs(urlparse(uri).query).get('sslmode', ['disable'])[0]
-    return sslmode not in ('disable', 'allow')
-
-
-def _strip_sslmode_from_uri(uri: str) -> str:
-    """Remove sslmode from URI to avoid asyncpg keyword conflict."""
     parsed = urlparse(uri)
     params = parse_qs(parsed.query)
-    params.pop('sslmode', None)
-    return urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
+
+    sslmode = params.pop('sslmode', ['disable'])[0]
+    connect_args: dict[str, Any] = {'ssl': sslmode not in ('disable', 'allow')}
+
+    server_settings = {
+        key: params.pop(key)[0]
+        for key in _POSTGRES_SERVER_SETTINGS_PARAMS
+        if key in params
+    }
+    if server_settings:
+        connect_args['server_settings'] = server_settings
+
+    scheme = parsed.scheme if '+' in parsed.scheme else 'postgresql+asyncpg'
+    async_uri = urlunparse(
+        parsed._replace(scheme=scheme, query=urlencode(params, doseq=True))
+    )
+    return async_uri, connect_args
 
 
 def init_async_db(
     db_uri: str,
     pool_size: int = 5,
 ) -> tuple[AsyncEngine, sessionmaker]:
-    ssl = parse_ssl_from_uri(db_uri)
-    async_uri = make_async_uri(_strip_sslmode_from_uri(db_uri))
+    async_uri, connect_args = _build_async_engine_args(db_uri)
     engine = create_async_engine(
         async_uri,
         pool_size=pool_size,
         pool_pre_ping=True,
-        connect_args={'ssl': ssl},
+        connect_args=connect_args,
     )
     factory = sessionmaker(  # type: ignore[type-var]
         engine, class_=AsyncSession, expire_on_commit=False

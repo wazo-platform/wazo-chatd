@@ -20,7 +20,6 @@ from wazo_chatd.bus import BusPublisher
 from wazo_chatd.database.async_helpers import (
     async_session_scope,
     init_async_db,
-    parse_ssl_from_uri,
 )
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
@@ -226,13 +225,12 @@ class DeliveryLoop:
 
     async def _listen_for_deliveries(self) -> None:
         assert self._shutdown is not None
-        ssl = parse_ssl_from_uri(self._db_uri)
         backoff = _backoff()
 
         while not self._shutdown.done():
             connection: asyncpg.Connection | None = None
             try:
-                connection = await asyncpg.connect(self._db_uri, ssl=ssl)
+                connection = await asyncpg.connect(self._db_uri)
                 await connection.add_listener(
                     'connector_delivery', self._on_delivery_notify
                 )
