@@ -1,0 +1,210 @@
+paths:
+  /users/{user_uuid}/identities:
+    get:
+      operationId: list_user_identities
+      summary: List user identities
+      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.read`'
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/user_uuid'
+      responses:
+        '200':
+          description: Identity list
+          schema:
+            $ref: '#/definitions/UserIdentityList'
+    post:
+      operationId: create_user_identity
+      summary: Create user identity
+      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.create`'
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/user_uuid'
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UserIdentityRequest'
+      responses:
+        '201':
+          description: Identity created
+          schema:
+            $ref: '#/definitions/UserIdentity'
+        '400':
+          $ref: '#/responses/InvalidRequest'
+  /users/{user_uuid}/identities/{identity_uuid}:
+    get:
+      operationId: get_user_identity
+      summary: Get user identity
+      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.{identity_uuid}.read`'
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/user_uuid'
+      - $ref: '#/parameters/identity_uuid'
+      responses:
+        '200':
+          description: Identity
+          schema:
+            $ref: '#/definitions/UserIdentity'
+        '404':
+          $ref: '#/responses/NotFoundError'
+    put:
+      operationId: update_user_identity
+      summary: Update user identity
+      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.{identity_uuid}.update`'
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/user_uuid'
+      - $ref: '#/parameters/identity_uuid'
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UserIdentityRequest'
+      responses:
+        '204':
+          $ref: '#/responses/ResourceUpdated'
+        '400':
+          $ref: '#/responses/InvalidRequest'
+        '404':
+          $ref: '#/responses/NotFoundError'
+    delete:
+      operationId: delete_user_identity
+      summary: Delete user identity
+      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.{identity_uuid}.delete`'
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/user_uuid'
+      - $ref: '#/parameters/identity_uuid'
+      responses:
+        '204':
+          $ref: '#/responses/ResourceUpdated'
+        '404':
+          $ref: '#/responses/NotFoundError'
+  /users/me/rooms/{room_uuid}/identities:
+    get:
+      operationId: list_room_identities
+      summary: List usable identities for a room
+      description: '**Required ACL:** `chatd.users.me.rooms.{room_uuid}.identities.read`'
+      tags:
+      - identities
+      - rooms
+      parameters:
+      - $ref: '#/parameters/room_uuid'
+      responses:
+        '200':
+          description: Identity list
+          schema:
+            $ref: '#/definitions/UserIdentityList'
+        '404':
+          $ref: '#/responses/NotFoundError'
+  /connectors/incoming:
+    post:
+      operationId: connector_webhook
+      summary: Receive incoming webhook from connector
+      description: Dispatches an incoming webhook to the matching connector backend.
+      tags:
+      - connectors
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+      responses:
+        '204':
+          description: Webhook accepted
+        '404':
+          description: No connector matched the webhook
+  /connectors/incoming/{backend}:
+    post:
+      operationId: connector_webhook_with_hint
+      summary: Receive incoming webhook with backend hint
+      description: Dispatches an incoming webhook, trying the specified backend first.
+      tags:
+      - connectors
+      parameters:
+      - name: backend
+        in: path
+        type: string
+        description: Backend name hint for faster dispatch
+        required: true
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+      responses:
+        '204':
+          description: Webhook accepted
+        '404':
+          description: No connector matched the webhook
+
+parameters:
+  identity_uuid:
+    name: identity_uuid
+    in: path
+    type: string
+    description: The UUID of the identity
+    required: true
+
+definitions:
+  UserIdentityList:
+    title: UserIdentityList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/UserIdentity'
+      total:
+        type: integer
+        description: The number of results
+
+  UserIdentity:
+    title: UserIdentity
+    properties:
+      uuid:
+        type: string
+        description: The UUID of the identity
+        readOnly: true
+      backend:
+        type: string
+        description: The connector backend name
+      type:
+        type: string
+        description: The messaging type
+      identity:
+        type: string
+        description: The external identity value
+      extra:
+        type: object
+        description: Additional metadata
+
+  UserIdentityRequest:
+    title: UserIdentityRequest
+    properties:
+      backend:
+        type: string
+        description: The connector backend name
+      type:
+        type: string
+        description: The messaging type
+      identity:
+        type: string
+        description: The external identity value
+      extra:
+        type: object
+        description: Additional metadata
+    required:
+      - backend
+      - type
+      - identity
