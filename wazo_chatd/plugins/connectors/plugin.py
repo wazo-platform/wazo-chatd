@@ -10,6 +10,7 @@ from wazo_auth_client import Client as AuthClient
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
 from wazo_chatd.plugins.connectors.bus_consume import ConnectorBusEventHandler
 from wazo_chatd.plugins.connectors.http import (
+    ConnectorWebhookResource,
     RoomIdentityListResource,
     UserIdentityItemResource,
     UserIdentityListResource,
@@ -46,7 +47,6 @@ class Plugin:
         service = ConnectorService(dao, registry, notifier, auth_client)
 
         router = ConnectorRouter(config, registry, service, auth_client)
-        router.register_http_endpoints(api)
         next_token_changed_subscribe(router.on_token_acquired)
         thread_manager.manage(router)
         status_aggregator.add_provider(router.provide_status)
@@ -60,6 +60,12 @@ class Plugin:
         bus_handler = ConnectorBusEventHandler(bus_consumer, router)
         bus_handler.subscribe()
 
+        api.add_resource(
+            ConnectorWebhookResource,
+            '/connectors/incoming',
+            '/connectors/incoming/<backend>',
+            resource_class_args=[router],
+        )
         api.add_resource(
             UserIdentityListResource,
             '/users/<uuid:user_uuid>/identities',

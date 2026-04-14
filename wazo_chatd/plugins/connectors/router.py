@@ -6,15 +6,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from flask_restful import Api
-
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageIdentityRequiredError,
 )
-from wazo_chatd.plugins.connectors.http import ConnectorWebhookResource
 from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.services import ConnectorService
@@ -56,14 +53,6 @@ class ConnectorRouter:
             connectors_config=connectors_config,
         )
         self._delivery_loop = DeliveryLoop(config, registry, self._store)
-
-    def register_http_endpoints(self, api: Api) -> None:
-        api.add_resource(
-            ConnectorWebhookResource,
-            '/connectors/incoming',
-            '/connectors/incoming/<backend>',
-            resource_class_args=[self],
-        )
 
     def on_token_acquired(self, token: str) -> None:
         self._delivery_loop.on_token_acquired(token)
