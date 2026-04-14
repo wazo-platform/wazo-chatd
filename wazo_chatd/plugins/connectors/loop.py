@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import itertools
 import logging
 import threading
@@ -66,6 +67,11 @@ class DeliveryLoop:
 
         self._backoff = _backoff()
         self._healthy: bool = False
+        # concurrent.futures.Future: loop-independent, created once, survives
+        # restarts. Awaited in async via asyncio.wrap_future().
+        self._token_future: concurrent.futures.Future[None] = (
+            concurrent.futures.Future()
+        )
         self._loop: asyncio.AbstractEventLoop | None = None
         self._shutdown: asyncio.Future[None] | None = None
         self._thread: threading.Thread | None = None
@@ -78,6 +84,10 @@ class DeliveryLoop:
         self._loop = asyncio.new_event_loop()
         self._semaphore = asyncio.Semaphore(self._max_tasks)
         self._shutdown = self._loop.create_future()
+
+    def on_token_acquired(self, _token: str | None = None) -> None:
+        if not self._token_future.done():
+            self._token_future.set_result(None)
 
     def __enter__(self) -> DeliveryLoop:
         self.start()
@@ -172,6 +182,7 @@ class DeliveryLoop:
         self._teardown_loop(loop)
 
     async def _startup(self) -> None:
+        await asyncio.wrap_future(self._token_future)
         await self._populate_store()
         await self._recover()
         self._listener_task = asyncio.ensure_future(self._listen_for_deliveries())
