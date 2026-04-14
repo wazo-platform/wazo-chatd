@@ -58,3 +58,13 @@ class UnknownUserIdentityException(APIException):
         msg = f'No such user identity: "{identity_uuid}"'
         details = {'uuid': str(identity_uuid)}
         super().__init__(404, msg, 'unknown-user-identity', details, 'identities')
+
+
+class DuplicateIdentityException(APIException):
+    def __init__(self, backend: str, identity: str, type_: str) -> None:
+        msg = (
+            f'Identity {identity!r} already exists'
+            f' for backend {backend!r} type {type_!r}'
+        )
+        details = {'backend': backend, 'identity': identity, 'type': type_}
+        super().__init__(409, msg, 'duplicate-identity', details, 'identities')

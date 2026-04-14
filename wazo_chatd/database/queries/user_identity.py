@@ -5,12 +5,17 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import exc, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, selectinload
 
 from wazo_chatd.database.models import Tenant, User, UserIdentity
-from wazo_chatd.exceptions import UnknownUserIdentityException
+from wazo_chatd.exceptions import (
+    DuplicateIdentityException,
+    UnknownUserIdentityException,
+)
+
+_UNIQUE_VIOLATION = '23505'
 
 
 class UserIdentityDAO:
@@ -33,7 +38,16 @@ class UserIdentityDAO:
 
     def create(self, identity: UserIdentity) -> UserIdentity:
         self.session.add(identity)
-        self.session.flush()
+        try:
+            self.session.flush()
+        except exc.IntegrityError as e:
+            self.session.rollback()
+            if e.orig.pgcode == _UNIQUE_VIOLATION:
+                raise DuplicateIdentityException(
+                    identity.backend, identity.identity, identity.type_  # type: ignore[arg-type]
+                )
+            raise
+
         return identity
 
     def get(
