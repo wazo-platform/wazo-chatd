@@ -51,6 +51,28 @@ class InvalidIdentityError(APIException):
         )
 
 
+class InvalidIdentityFormatException(APIException):
+    def __init__(self, identity: str, backend: str, reason: str) -> None:
+        super().__init__(
+            400,
+            f'Identity {identity!r} is not valid for backend {backend!r}: {reason}',
+            'invalid-identity-format',
+            {'identity': identity, 'backend': backend, 'reason': reason},
+            'identities',
+        )
+
+
+class UnknownBackendException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            400,
+            f'Unknown connector backend {backend!r}',
+            'unknown-backend',
+            {'backend': backend},
+            'identities',
+        )
+
+
 class AuthServiceUnavailableError(APIException):
     def __init__(self) -> None:
         super().__init__(

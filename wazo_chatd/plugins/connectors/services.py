@@ -14,7 +14,9 @@ from wazo_chatd.exceptions import UnknownRoomException, UnknownUserException
 from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableError,
     InvalidIdentityError,
+    InvalidIdentityFormatException,
     NoCommonConnectorError,
+    UnknownBackendException,
     UnreachableParticipantError,
 )
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
@@ -93,14 +95,30 @@ class ConnectorService:
         )
 
     def create_identity(self, identity: UserIdentity) -> UserIdentity:
+        self._validate_and_normalize_identity(identity)
         created = self._dao.user_identity.create(identity)
         self._notifier.created(created)
         return created
 
     def update_identity(self, identity: UserIdentity) -> UserIdentity:
+        self._validate_and_normalize_identity(identity)
         self._dao.user_identity.update(identity)
         self._notifier.updated(identity)
         return identity
+
+    def _validate_and_normalize_identity(self, identity: UserIdentity) -> None:
+        backend_name = str(identity.backend)
+        try:
+            backend_cls = self._registry.get_backend(backend_name)
+        except KeyError:
+            raise UnknownBackendException(backend_name)
+
+        try:
+            identity.identity = backend_cls.normalize_identity(identity.identity)  # type: ignore[assignment, arg-type]
+        except ValueError as e:
+            raise InvalidIdentityFormatException(
+                identity.identity, backend_name, str(e)  # type: ignore[arg-type]
+            )
 
     def delete_identity(self, identity: UserIdentity) -> None:
         self._dao.user_identity.delete(identity)

@@ -4,11 +4,17 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+
+import pytest
 
 from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.database.queries.user_identity import UserIdentityDAO
 from wazo_chatd.exceptions import UnknownUserIdentityException
+from wazo_chatd.plugins.connectors.exceptions import (
+    InvalidIdentityFormatException,
+    UnknownBackendException,
+)
 from wazo_chatd.plugins.connectors.services import ConnectorService
 
 TENANT_A = 'tenant-a-uuid'
@@ -16,11 +22,14 @@ USER_UUID = 'user-uuid'
 IDENTITY_UUID = 'identity-uuid'
 
 
+BACKEND = 'test-backend'
+
+
 def _make_identity(
     identity_uuid: str = IDENTITY_UUID,
     user_uuid: str = USER_UUID,
     tenant_uuid: str = TENANT_A,
-    backend: str = 'twilio',
+    backend: str = BACKEND,
     identity: str = '+15551234',
 ) -> UserIdentity:
     obj = UserIdentity(
@@ -123,12 +132,22 @@ class TestUserIdentityDAODelete(unittest.TestCase):
         dao.session.flush.assert_called_once()
 
 
+class _StubConnector:
+    backend = BACKEND
+    supported_types = ('sms',)
+
+    @classmethod
+    def normalize_identity(cls, raw_identity: str) -> str:
+        return raw_identity
+
+
 class TestConnectorServiceIdentityCRUD(unittest.TestCase):
     def _build_service(self) -> ConnectorService:
         from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
         dao = Mock()
         registry = ConnectorRegistry()
+        registry.register_backend(_StubConnector)  # type: ignore[arg-type]
         return ConnectorService(dao, registry, Mock(), Mock())
 
     def test_list_identities(self) -> None:
@@ -170,6 +189,46 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
 
         assert result is identity
         service._dao.user_identity.update.assert_called_once_with(identity)
+
+    def test_create_identity_normalizes_value(self) -> None:
+        service = self._build_service()
+        identity = _make_identity(identity='  +15551234  ')
+        service._dao.user_identity.create.return_value = identity
+
+        with patch.object(
+            _StubConnector, 'normalize_identity', return_value='+15551234'
+        ):
+            service.create_identity(identity)
+
+        assert identity.identity == '+15551234'
+
+    def test_create_identity_invalid_format_raises(self) -> None:
+        service = self._build_service()
+        identity = _make_identity(identity='not-valid')
+
+        with patch.object(
+            _StubConnector, 'normalize_identity', side_effect=ValueError('bad format')
+        ):
+            with pytest.raises(InvalidIdentityFormatException):
+                service.create_identity(identity)
+
+    def test_create_identity_unknown_backend_raises(self) -> None:
+        service = self._build_service()
+        identity = _make_identity(backend='nonexistent')
+
+        with pytest.raises(UnknownBackendException):
+            service.create_identity(identity)
+
+    def test_update_identity_normalizes_value(self) -> None:
+        service = self._build_service()
+        identity = _make_identity(identity='  +15551234  ')
+
+        with patch.object(
+            _StubConnector, 'normalize_identity', return_value='+15551234'
+        ):
+            service.update_identity(identity)
+
+        assert identity.identity == '+15551234'
 
     def test_delete_identity(self) -> None:
         service = self._build_service()
