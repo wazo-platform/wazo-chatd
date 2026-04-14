@@ -220,16 +220,16 @@ class ConnectorService:
     def validate_identity_reachability(
         self,
         room: Room,
-        sender_uuid: str,
+        user_uuid: str,
         sender_identity_uuid: UUID,
     ) -> UserIdentity:
-        record = self._dao.user_identity.find(str(sender_identity_uuid))
+        record = self._dao.user_identity.find(sender_identity_uuid, user_uuid=user_uuid)
         if not record:
             raise InvalidIdentityError(str(sender_identity_uuid))
 
         sender_backend = str(record.backend)
         sender_type = str(record.type_)
-        others = [u for u in room.users if str(u.uuid) != sender_uuid]
+        others = [u for u in room.users if str(u.uuid) != user_uuid]
 
         internal = [u for u in others if not u.identity]
         external = [u for u in others if u.identity]

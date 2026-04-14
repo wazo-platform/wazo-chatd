@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from uuid import UUID
 
 from sqlalchemy import exc, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -67,8 +68,12 @@ class UserIdentityDAO:
             raise UnknownUserIdentityException(identity_uuid)
         return result
 
-    def find(self, identity_uuid: str) -> UserIdentity | None:
+    def find(
+        self, identity_uuid: str | UUID, user_uuid: str | None = None
+    ) -> UserIdentity | None:
         stmt = select(UserIdentity).where(UserIdentity.uuid == identity_uuid)
+        if user_uuid is not None:
+            stmt = stmt.where(UserIdentity.user_uuid == user_uuid)
         return self.session.execute(stmt).scalars().first()
 
     def list_by_user(

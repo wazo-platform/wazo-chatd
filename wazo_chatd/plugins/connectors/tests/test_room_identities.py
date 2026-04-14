@@ -242,6 +242,25 @@ class TestValidateIdentityReachability(unittest.TestCase):
 
         service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
+    def test_find_filters_by_user_uuid(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        recipient = _make_room_user(uuid='recipient-uuid')
+        room = _make_room(users=[sender, recipient])
+
+        identity = _make_identity()
+        service = _build_service(
+            room=room,
+            types_by_user={'recipient-uuid': ['sms']},
+        )
+        service._dao.user_identity.find.return_value = identity
+
+        identity_uuid = uuid.uuid4()
+        service.validate_identity_reachability(room, SENDER_UUID, identity_uuid)
+
+        service._dao.user_identity.find.assert_called_once_with(
+            identity_uuid, user_uuid=SENDER_UUID
+        )
+
     def test_invalid_identity_uuid_raises(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         recipient = _make_room_user(uuid='recipient-uuid')
