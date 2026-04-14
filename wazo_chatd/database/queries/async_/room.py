@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import joinedload, selectinload
 
 from wazo_chatd.database.async_helpers import get_async_session
@@ -48,9 +48,10 @@ class AsyncRoomDAO:
         stmt = (
             select(MessageMeta)
             .options(
+                selectinload(MessageMeta.records),
                 selectinload(MessageMeta.message)
                 .selectinload(RoomMessage.room)
-                .selectinload(Room.users)
+                .selectinload(Room.users),
             )
             .filter(MessageMeta.external_id == external_id)
         )
@@ -83,16 +84,22 @@ class AsyncRoomDAO:
         await self.session.flush()
         return meta
 
-    async def has_matching_signature(
+    async def find_matching_signature(
         self,
         room_uuid: str,
         signature: str,
         window_seconds: int = 60,
-    ) -> bool:
+    ) -> MessageMeta | None:
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
-        stmt = select(
-            exists()
-            .where(MessageMeta.message_uuid == RoomMessage.uuid)
+        stmt = (
+            select(MessageMeta)
+            .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
+            .options(
+                selectinload(MessageMeta.records),
+                selectinload(MessageMeta.message)
+                .selectinload(RoomMessage.room)
+                .selectinload(Room.users),
+            )
             .where(RoomMessage.room_uuid == room_uuid)
             .where(
                 MessageMeta.extra.op('@>', is_comparison=True)(
@@ -102,7 +109,7 @@ class AsyncRoomDAO:
             .where(RoomMessage.created_at > cutoff)
         )
         result = await self.session.execute(stmt)
-        return bool(result.scalar())
+        return result.scalar_one_or_none()
 
     async def check_duplicate_idempotency_key(
         self,

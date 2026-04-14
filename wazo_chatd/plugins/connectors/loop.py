@@ -266,7 +266,7 @@ class DeliveryLoop:
         payload: str,
     ) -> None:
         message_uuid = payload
-        logger.debug('Received delivery notification for message %s', message_uuid)
+        logger.debug('Message %s scheduled for delivery', message_uuid)
         self._schedule_outbound_notification(message_uuid)
 
     def _schedule_outbound_notification(self, message_uuid: str) -> None:

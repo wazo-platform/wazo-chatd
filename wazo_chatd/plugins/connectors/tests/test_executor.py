@@ -340,7 +340,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
             return_value={'+15551234': recipient, '+15559876': sender}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
-        self.executor._room_dao.has_matching_signature = AsyncMock(return_value=False)
+        self.executor._room_dao.find_matching_signature = AsyncMock(return_value=None)
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
@@ -384,13 +384,23 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
             return_value={'+15551234': recipient, '+15559876': sender}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
-        self.executor._room_dao.has_matching_signature = AsyncMock(return_value=True)
+        original_meta = Mock(
+            status='sent',
+            message_uuid='original-msg-uuid',
+            message=Mock(room=room),
+        )
+        self.executor._room_dao.find_matching_signature = AsyncMock(
+            return_value=original_meta
+        )
         self.executor._room_dao.add_message = AsyncMock()
+        self.executor._room_dao.add_delivery_record = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
         self.executor._room_dao.add_message.assert_not_awaited()
         self.notifier.message_created.assert_not_awaited()
+        self.executor._room_dao.add_delivery_record.assert_awaited_once()
+        self.notifier.delivery_status_updated.assert_awaited_once()
 
     async def test_route_inbound_no_echo_creates_message(self) -> None:
         recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
@@ -404,7 +414,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
             return_value={'+15551234': recipient, '+15559876': sender}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
-        self.executor._room_dao.has_matching_signature = AsyncMock(return_value=False)
+        self.executor._room_dao.find_matching_signature = AsyncMock(return_value=None)
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
@@ -442,12 +452,12 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
             return_value={'+15551234': recipient}
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
-        self.executor._room_dao.has_matching_signature = AsyncMock()
+        self.executor._room_dao.find_matching_signature = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
-        self.executor._room_dao.has_matching_signature.assert_not_awaited()
+        self.executor._room_dao.find_matching_signature.assert_not_awaited()
         self.executor._room_dao.add_message.assert_awaited_once()
 
 

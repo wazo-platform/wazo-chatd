@@ -231,15 +231,16 @@ class DeliveryExecutor:
 
         if sender_user and inbound.body:
             signature = generate_message_signature(sender_identity, inbound.body)
-            is_duplicate = await self._room_dao.has_matching_signature(
+            original_meta = await self._room_dao.find_matching_signature(
                 str(room.uuid), signature, ECHO_WINDOW_SECONDS
             )
-            if is_duplicate:
+            if original_meta:
                 logger.info(
                     'Duplicate inbound message dropped (room=%s, sender=%s)',
                     room.uuid,
                     sender_identity,
                 )
+                await self._confirm_delivery(original_meta)
                 return
 
         extra: dict[str, str] = {'external_id': inbound.external_id}
@@ -312,6 +313,14 @@ class DeliveryExecutor:
             )
             return
 
+        if meta.status == DeliveryStatus.DELIVERED.value:
+            logger.debug(
+                'Message %s already delivered, ignoring status %s',
+                meta.message_uuid,
+                update.status,
+            )
+            return
+
         record = DeliveryRecord(
             status=mapped_status.value,
             reason=update.error_code or None,
@@ -322,11 +331,24 @@ class DeliveryExecutor:
         await self._notifier.delivery_status_updated(meta, record, room)
 
         logger.info(
-            'Status update: %s → %s (external_id=%s)',
+            'Status update: %s → %s (message=%s, external_id=%s)',
             update.status,
             mapped_status.value,
+            meta.message_uuid,
             update.external_id,
         )
+
+    async def _confirm_delivery(self, meta: MessageMeta) -> None:
+        if meta.status == DeliveryStatus.DELIVERED.value:
+            return
+
+        record = DeliveryRecord(status=DeliveryStatus.DELIVERED.value)
+        await self._room_dao.add_delivery_record(meta, record)
+
+        room = meta.message.room
+        await self._notifier.delivery_status_updated(meta, record, room)
+
+        logger.info('Confirmed delivery for message %s', meta.message_uuid)
 
     async def recover_pending_deliveries(
         self,
