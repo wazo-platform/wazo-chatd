@@ -6,9 +6,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, selectinload
 
-from wazo_chatd.database.models import User, UserIdentity
+from wazo_chatd.database.models import Tenant, User, UserIdentity
 from wazo_chatd.exceptions import UnknownUserIdentityException
 
 
@@ -19,6 +20,16 @@ class UserIdentityDAO:
     @property
     def session(self) -> Session:
         return self._session()
+
+    def ensure_tenant_and_user_exist(self, tenant_uuid: str, user_uuid: str) -> None:
+        self.session.execute(
+            pg_insert(Tenant).values(uuid=tenant_uuid).on_conflict_do_nothing()
+        )
+        self.session.execute(
+            pg_insert(User)
+            .values(uuid=user_uuid, tenant_uuid=tenant_uuid, state='unavailable')
+            .on_conflict_do_nothing()
+        )
 
     def create(self, identity: UserIdentity) -> UserIdentity:
         self.session.add(identity)

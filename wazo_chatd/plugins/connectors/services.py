@@ -59,7 +59,9 @@ class ConnectorService:
 
         try:
             user_data = self._auth_client.users.get(user_uuid)
-            return str(user_data['tenant_uuid'])
+            tenant_uuid = str(user_data['tenant_uuid'])
+            self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
+            return tenant_uuid
         except HTTPError as e:
             status = getattr(e.response, 'status_code', None)
             if status != 404:
