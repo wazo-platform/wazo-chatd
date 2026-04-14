@@ -51,6 +51,16 @@ class InvalidIdentityError(APIException):
         )
 
 
+class AuthServiceUnavailableError(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            503,
+            'wazo-auth is unreachable',
+            'wazo-auth-unreachable',
+            {},
+        )
+
+
 class UnreachableParticipantError(APIException):
     def __init__(self, participant: str, connector_type: str = '') -> None:
         detail = f'participant {participant!r}'

@@ -82,7 +82,7 @@ class UserIdentityListResource(AuthResource):
     def post(self, user_uuid: str) -> tuple[dict[str, Any], int]:
         tenant_uuids = get_tenant_uuids(recurse=True)
         body = UserIdentitySchema().load(request.get_json(force=True))
-        tenant_uuid = tenant_uuids[0]
+        tenant_uuid = self._service.get_user_tenant_uuid(tenant_uuids, user_uuid)
         identity = UserIdentity(
             tenant_uuid=tenant_uuid,
             user_uuid=user_uuid,
