@@ -13,11 +13,11 @@ import asyncio
 import hashlib
 import inspect
 import logging
-import uuid
 from typing import Any
 
 from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
 from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageMeta,
@@ -219,7 +219,7 @@ class DeliveryExecutor:
             )
         else:
             sender_participant = RoomUser(
-                uuid=uuid.uuid5(uuid.NAMESPACE_URL, f'{tenant_uuid}:{sender_identity}'),
+                uuid=derive_external_user_uuid(tenant_uuid, sender_identity),
                 tenant_uuid=tenant_uuid,
                 wazo_uuid=wazo_uuid,
                 identity=sender_identity,
