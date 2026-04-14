@@ -38,14 +38,22 @@ class Plugin:
 
         auth_client = AuthClient(**config['auth'])
         token_changed_subscribe = dependencies['token_changed_subscribe']
+        next_token_changed_subscribe = dependencies['next_token_changed_subscribe']
+
         token_changed_subscribe(auth_client.set_token)
 
         notifier = UserIdentityNotifier(bus_publisher)
-        service = ConnectorService(dao, registry, notifier=notifier)
+        service = ConnectorService(dao, registry, notifier, auth_client)
 
         router = ConnectorRouter(config, registry, service, auth_client)
         router.register_http_endpoints(api)
+        next_token_changed_subscribe(router.on_token_acquired)
+        thread_manager.manage(router)
+        status_aggregator.add_provider(router.provide_status)
 
+        hooks.register(
+            'before_room_schema_validation', router.resolve_room_participants
+        )
         hooks.register('before_room_creation', router.validate_room_creation)
         hooks.register('before_message_creation', router.prepare_outbound)
 
@@ -68,6 +76,3 @@ class Plugin:
             '/users/me/rooms/<uuid:room_uuid>/identities',
             resource_class_args=[service],
         )
-
-        thread_manager.manage(router)
-        status_aggregator.add_provider(router.provide_status)

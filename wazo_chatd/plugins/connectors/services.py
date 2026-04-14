@@ -4,11 +4,15 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from wazo_chatd.exceptions import UnknownRoomException
+from requests.exceptions import HTTPError, RequestException
+
+from wazo_chatd.exceptions import UnknownRoomException, UnknownUserException
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableError,
     InvalidIdentityError,
     NoCommonConnectorError,
     UnreachableParticipantError,
@@ -17,6 +21,8 @@ from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 if TYPE_CHECKING:
+    from wazo_auth_client import Client as AuthClient
+
     from wazo_chatd.database.models import Room, RoomMessage, RoomUser, UserIdentity
     from wazo_chatd.database.queries import DAO
 
@@ -29,10 +35,39 @@ class ConnectorService:
         dao: DAO,
         registry: ConnectorRegistry,
         notifier: UserIdentityNotifier,
+        auth_client: AuthClient,
     ) -> None:
         self._dao = dao
         self._registry = registry
         self._notifier = notifier
+        self._auth_client = auth_client
+
+    def get_user_tenant_uuid(self, tenant_uuids: Iterable[str], user_uuid: str) -> str:
+        try:
+            user = self._dao.user.get(tenant_uuids, user_uuid)
+            return str(user.tenant_uuid)
+        except UnknownUserException:
+            logger.debug(
+                'User %s not in wazo-chatd cache, querying wazo-auth', user_uuid
+            )
+
+        try:
+            user_data = self._auth_client.users.get(user_uuid)
+            return str(user_data['tenant_uuid'])
+        except HTTPError as e:
+            status = getattr(e.response, 'status_code', None)
+            if status != 404:
+                logger.error(
+                    'wazo-auth returned HTTP %s for user %s', status, user_uuid
+                )
+            raise UnknownUserException(user_uuid)
+        except RequestException:
+            raise AuthServiceUnavailableError()
+
+    def resolve_users_by_identities(
+        self, identities: Iterable[str]
+    ) -> dict[str, object]:
+        return self._dao.user_identity.resolve_users_by_identities(identities)
 
     def list_identities(
         self, tenant_uuids: list[str], user_uuid: str

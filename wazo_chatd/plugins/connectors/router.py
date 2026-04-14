@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from flask_restful import Api
 
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
+from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageIdentityRequiredError,
@@ -64,6 +65,9 @@ class ConnectorRouter:
             resource_class_args=[self],
         )
 
+    def on_token_acquired(self, token: str) -> None:
+        self._delivery_loop.on_token_acquired(token)
+
     def start(self) -> None:
         self._delivery_loop.start()
 
@@ -96,6 +100,27 @@ class ConnectorRouter:
             'restart_count': loop.restart_count,
             'instances': len(self._store),
         }
+
+    def resolve_room_participants(self, body: dict, tenant_uuid: str) -> None:
+        users = body.get('users', [])
+        identities = {
+            u['identity'] for u in users if u.get('identity') and not u.get('uuid')
+        }
+        if not identities:
+            return
+
+        resolved = self._service.resolve_users_by_identities(identities)
+
+        for user in users:
+            if user.get('uuid') or not user.get('identity'):
+                continue
+            identity = user['identity']
+            wazo_user = resolved.get(identity)
+            if wazo_user:
+                user['uuid'] = str(wazo_user.uuid)
+                user.pop('identity', None)
+            else:
+                user['uuid'] = str(derive_external_user_uuid(tenant_uuid, identity))
 
     def dispatch_webhook(
         self,

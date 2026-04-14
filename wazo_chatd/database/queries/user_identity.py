@@ -6,9 +6,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from wazo_chatd.database.models import UserIdentity
+from wazo_chatd.database.models import User, UserIdentity
 from wazo_chatd.exceptions import UnknownUserIdentityException
 
 
@@ -102,6 +102,19 @@ class UserIdentityDAO:
     def is_identity_bound(self, identity: str) -> bool:
         stmt = select(UserIdentity).where(UserIdentity.identity == identity)
         return self.session.execute(stmt).scalars().first() is not None
+
+    def resolve_users_by_identities(
+        self,
+        identities: Iterable[str],
+    ) -> dict[str, User]:
+        stmt = (
+            select(UserIdentity)
+            .options(selectinload(UserIdentity.user))
+            .where(UserIdentity.identity.in_(list(identities)))
+        )
+        return {
+            str(r.identity): r.user for r in self.session.execute(stmt).scalars().all()
+        }
 
     def list_tenant_backends(self) -> list[tuple[str, str]]:
         stmt = select(UserIdentity.tenant_uuid, UserIdentity.backend).distinct()

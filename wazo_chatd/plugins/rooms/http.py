@@ -27,7 +27,9 @@ class UserRoomListResource(AuthResource):
 
     @required_acl('chatd.users.me.rooms.create')
     def post(self):
-        room_args = RoomSchema().load(request.get_json(force=True))
+        body = request.get_json(force=True)
+        body = self._service.prepare_room_request(body, str(token.tenant_uuid))
+        room_args = RoomSchema().load(body)
 
         if self._is_duplicate_user(room_args['users']):
             raise DuplicateUserException()
