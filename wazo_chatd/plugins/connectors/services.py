@@ -23,7 +23,13 @@ from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 if TYPE_CHECKING:
     from wazo_auth_client import Client as AuthClient
 
-    from wazo_chatd.database.models import Room, RoomMessage, RoomUser, UserIdentity
+    from wazo_chatd.database.models import (
+        Room,
+        RoomMessage,
+        RoomUser,
+        User,
+        UserIdentity,
+    )
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
@@ -64,9 +70,7 @@ class ConnectorService:
         except RequestException:
             raise AuthServiceUnavailableError()
 
-    def resolve_users_by_identities(
-        self, identities: Iterable[str]
-    ) -> dict[str, object]:
+    def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
         return self._dao.user_identity.resolve_users_by_identities(identities)
 
     def list_identities(
@@ -107,7 +111,7 @@ class ConnectorService:
     ) -> None:
         self._dao.room.prepare_pending_delivery(
             message,
-            sender_identity.uuid,
+            sender_identity.uuid,  # type: ignore[arg-type]
             backend=sender_identity.backend,  # type: ignore[arg-type]
             type_=sender_identity.type_,  # type: ignore[arg-type]
         )

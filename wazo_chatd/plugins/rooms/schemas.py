@@ -45,7 +45,7 @@ class MessageSchema(Schema):
     room = fields.Nested('RoomSchema', dump_only=True, only=['uuid'])
 
     @post_dump
-    def _default_delivery(self, data: dict, **kwargs: object) -> dict:
+    def _default_delivery(self, data: dict, **kwargs) -> dict:
         if data.get('delivery') is None:
             data['delivery'] = MessageDeliverySchema().dump({})
         return data

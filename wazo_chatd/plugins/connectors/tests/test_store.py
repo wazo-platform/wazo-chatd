@@ -21,7 +21,7 @@ class _SmsConnector:
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
     def __init__(
-        self, provider_config: object = None, connector_config: object = None
+        self, provider_config: dict | None = None, connector_config: dict | None = None
     ) -> None:
         pass
 
@@ -31,7 +31,7 @@ class _EmailConnector:
     supported_types: ClassVar[tuple[str, ...]] = ('email',)
 
     def __init__(
-        self, provider_config: object = None, connector_config: object = None
+        self, provider_config: dict | None = None, connector_config: dict | None = None
     ) -> None:
         pass
 

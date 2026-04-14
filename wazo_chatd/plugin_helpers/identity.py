@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID, NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 
 def derive_external_user_uuid(tenant_uuid: str, identity: str) -> UUID:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+from importlib.metadata import EntryPoint
 
 from stevedore import ExtensionManager
 
@@ -116,7 +117,7 @@ class ConnectorRegistry:
     @staticmethod
     def _on_load_failure(
         manager: ExtensionManager,
-        entry_point: object,
+        entry_point: EntryPoint,
         exception: Exception,
     ) -> None:
         logger.error(

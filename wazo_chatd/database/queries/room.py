@@ -1,7 +1,7 @@
 # Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import and_, distinct, or_, text
 from sqlalchemy.dialects.postgresql import array_agg
@@ -88,7 +88,7 @@ class RoomDAO:
     def prepare_pending_delivery(
         self,
         message: RoomMessage,
-        sender_identity_uuid: object | None = None,
+        sender_identity_uuid: UUID | None = None,
         backend: str | None = None,
         type_: str | None = None,
     ) -> None:

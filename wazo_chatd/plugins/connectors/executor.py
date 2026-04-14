@@ -17,7 +17,6 @@ from typing import Any
 
 from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.delivery import DeliveryStatus
-from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
 from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageMeta,
@@ -28,6 +27,7 @@ from wazo_chatd.database.models import (
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
+from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
