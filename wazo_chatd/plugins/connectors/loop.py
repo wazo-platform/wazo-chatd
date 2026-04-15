@@ -18,7 +18,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
 
 from wazo_chatd.bus import BusPublisher
-from wazo_chatd.database.async_helpers import async_session_scope, init_async_db
+from wazo_chatd.database.async_helpers import (
+    async_session_scope,
+    build_asyncpg_connect_args,
+    init_async_db,
+)
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugins.connectors.executor import DeliveryExecutor
@@ -64,11 +68,13 @@ class DeliveryLoop:
 
         self._backoff = _backoff()
         self._healthy: bool = False
+
         # concurrent.futures.Future: loop-independent, created once, survives
         # restarts. Awaited in async via asyncio.wrap_future().
-        self._token_future: concurrent.futures.Future[
-            None
-        ] = concurrent.futures.Future()
+        self._token_future: concurrent.futures.Future[None] = (
+            concurrent.futures.Future()
+        )
+
         self._loop: asyncio.AbstractEventLoop | None = None
         self._shutdown: asyncio.Future[None] | None = None
         self._thread: threading.Thread | None = None
@@ -238,7 +244,8 @@ class DeliveryLoop:
         while not self._shutdown.done():
             connection: asyncpg.Connection | None = None
             try:
-                connection = await asyncpg.connect(self._db_uri)
+                driver_uri, connect_args = build_asyncpg_connect_args(self._db_uri)
+                connection = await asyncpg.connect(driver_uri, **connect_args)
                 await connection.add_listener(
                     'connector_delivery', self._on_delivery_notify
                 )
