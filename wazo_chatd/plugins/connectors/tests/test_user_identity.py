@@ -11,6 +11,7 @@ import pytest
 from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.database.queries.user_identity import UserIdentityDAO
 from wazo_chatd.exceptions import UnknownUserIdentityException
+from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.exceptions import (
     InvalidIdentityFormatException,
     UnknownBackendException,
@@ -237,3 +238,73 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
         service.delete_identity(identity)
 
         service._dao.user_identity.delete.assert_called_once_with(identity)
+
+
+class TestConnectorServiceResolveRoomParticipants(unittest.TestCase):
+    def _build_service(self) -> ConnectorService:
+        from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+
+        dao = Mock()
+        registry = ConnectorRegistry()
+        registry.register_backend(_StubConnector)  # type: ignore[arg-type]
+        return ConnectorService(dao, registry, Mock(), Mock())
+
+    def test_uuid_only_participant_unchanged(self) -> None:
+        service = self._build_service()
+        body = {'users': [{'uuid': 'user-uuid-1'}]}
+
+        service.resolve_room_participants(body, 'tenant-uuid')
+
+        assert body['users'] == [{'uuid': 'user-uuid-1'}]
+
+    def test_identity_resolved_to_wazo_user(self) -> None:
+        service = self._build_service()
+        wazo_user = Mock(uuid='resolved-uuid')
+        service._dao.user_identity.resolve_users_by_identities.return_value = {
+            '+15551234': wazo_user
+        }
+        body = {'users': [{'identity': '+15551234'}]}
+
+        service.resolve_room_participants(body, 'tenant-uuid')
+
+        assert body['users'] == [{'uuid': 'resolved-uuid'}]
+
+    def test_identity_not_resolved_gets_uuid5(self) -> None:
+        service = self._build_service()
+        service._dao.user_identity.resolve_users_by_identities.return_value = {}
+        body = {'users': [{'identity': '+15559876'}]}
+
+        service.resolve_room_participants(body, 'tenant-uuid')
+
+        expected_uuid = str(make_uuid5('tenant-uuid', '+15559876'))
+        assert body['users'] == [{'uuid': expected_uuid, 'identity': '+15559876'}]
+
+    def test_mixed_participants(self) -> None:
+        service = self._build_service()
+        wazo_user = Mock(uuid='resolved-uuid')
+        service._dao.user_identity.resolve_users_by_identities.return_value = {
+            '+15551234': wazo_user
+        }
+        body = {
+            'users': [
+                {'uuid': 'existing-uuid'},
+                {'identity': '+15551234'},
+                {'identity': '+15559876'},
+            ]
+        }
+
+        service.resolve_room_participants(body, 'tenant-uuid')
+
+        assert body['users'][0] == {'uuid': 'existing-uuid'}
+        assert body['users'][1] == {'uuid': 'resolved-uuid'}
+        assert 'identity' not in body['users'][1]
+        assert body['users'][2]['uuid'] is not None
+        assert body['users'][2]['identity'] == '+15559876'
+
+    def test_no_users_key_does_nothing(self) -> None:
+        service = self._build_service()
+        body: dict = {}
+
+        service.resolve_room_participants(body, 'tenant-uuid')
+
+        assert body == {}

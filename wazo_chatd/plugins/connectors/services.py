@@ -11,6 +11,7 @@ from uuid import UUID
 from requests.exceptions import HTTPError, RequestException
 
 from wazo_chatd.exceptions import UnknownRoomException, UnknownUserException
+from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableException,
     InvalidIdentityException,
@@ -76,6 +77,23 @@ class ConnectorService:
 
     def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
         return self._dao.user_identity.resolve_users_by_identities(identities)
+
+    def resolve_room_participants(self, body: dict, tenant_uuid: str) -> None:
+        users = body.get('users', [])
+        to_resolve = [u for u in users if u.get('identity') and not u.get('uuid')]
+        if not to_resolve:
+            return
+
+        identities = {u['identity'] for u in to_resolve}
+        resolved = self.resolve_users_by_identities(identities)
+
+        for user in to_resolve:
+            identity = user['identity']
+            if not (wazo_user := resolved.get(identity)):
+                user['uuid'] = str(make_uuid5(tenant_uuid, identity))
+                continue
+            user['uuid'] = str(wazo_user.uuid)
+            user.pop('identity', None)
 
     def list_identities(
         self, tenant_uuids: list[str], user_uuid: str

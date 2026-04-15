@@ -5,21 +5,21 @@ from __future__ import annotations
 
 import unittest
 
-from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
+from wazo_chatd.plugin_helpers.tenant import make_uuid5
 
 
-class TestDeriveExternalUserUuid(unittest.TestCase):
+class TestMakeUuid5(unittest.TestCase):
     def test_deterministic(self) -> None:
-        result_a = derive_external_user_uuid('tenant-1', '+15551234')
-        result_b = derive_external_user_uuid('tenant-1', '+15551234')
+        result_a = make_uuid5('tenant-1', '+15551234')
+        result_b = make_uuid5('tenant-1', '+15551234')
         assert result_a == result_b
 
     def test_different_tenants_produce_different_uuids(self) -> None:
-        result_a = derive_external_user_uuid('tenant-1', '+15551234')
-        result_b = derive_external_user_uuid('tenant-2', '+15551234')
+        result_a = make_uuid5('tenant-1', '+15551234')
+        result_b = make_uuid5('tenant-2', '+15551234')
         assert result_a != result_b
 
-    def test_different_identities_produce_different_uuids(self) -> None:
-        result_a = derive_external_user_uuid('tenant-1', '+15551234')
-        result_b = derive_external_user_uuid('tenant-1', '+15559876')
+    def test_different_keys_produce_different_uuids(self) -> None:
+        result_a = make_uuid5('tenant-1', '+15551234')
+        result_b = make_uuid5('tenant-1', '+15559876')
         assert result_a != result_b

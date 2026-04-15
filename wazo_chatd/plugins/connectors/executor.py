@@ -27,7 +27,7 @@ from wazo_chatd.database.models import (
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
-from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
+from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
@@ -219,7 +219,7 @@ class DeliveryExecutor:
             )
         else:
             sender_participant = RoomUser(
-                uuid=derive_external_user_uuid(tenant_uuid, sender_identity),
+                uuid=make_uuid5(tenant_uuid, sender_identity),
                 tenant_uuid=tenant_uuid,
                 wazo_uuid=wazo_uuid,
                 identity=sender_identity,
