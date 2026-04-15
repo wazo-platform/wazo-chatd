@@ -11,8 +11,8 @@ from unittest.mock import Mock
 import pytest
 
 from wazo_chatd.plugins.connectors.exceptions import (
-    InvalidIdentityError,
-    UnreachableParticipantError,
+    InvalidIdentityException,
+    UnreachableParticipantException,
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService
 
@@ -225,7 +225,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         )
         service._dao.user_identity.find.return_value = identity
 
-        with pytest.raises(UnreachableParticipantError):
+        with pytest.raises(UnreachableParticipantException):
             service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
     def test_external_participant_reachable_passes(self) -> None:
@@ -269,7 +269,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         service = _build_service(room=room)
         service._dao.user_identity.find.return_value = None
 
-        with pytest.raises(InvalidIdentityError):
+        with pytest.raises(InvalidIdentityException):
             service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
 
@@ -305,7 +305,7 @@ class TestValidateRoomReachability(unittest.TestCase):
         service = _build_service(room=room)
         service._dao.user_identity.list_bound_identities.return_value = set()
 
-        with pytest.raises(UnreachableParticipantError):
+        with pytest.raises(UnreachableParticipantException):
             service.validate_room_reachability(room)
 
     def test_mixed_room_with_common_type_passes(self) -> None:

@@ -10,7 +10,7 @@ from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugin_helpers.identity import derive_external_user_uuid
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
-    MessageIdentityRequiredError,
+    MessageIdentityRequiredException,
 )
 from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -69,7 +69,7 @@ class ConnectorRouter:
     def prepare_outbound(self, context: MessageContext) -> None:
         has_external = any(u.identity for u in context.room.users)
         if has_external and not context.sender_identity_uuid:
-            raise MessageIdentityRequiredError()
+            raise MessageIdentityRequiredException()
 
         if context.sender_identity_uuid:
             identity = self._service.validate_identity_reachability(

@@ -13,7 +13,7 @@ import pytest
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
-    MessageIdentityRequiredError,
+    MessageIdentityRequiredException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
@@ -207,7 +207,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         )
         ctx = MessageContext(room, Mock(), sender_identity_uuid=None)
 
-        with pytest.raises(MessageIdentityRequiredError):
+        with pytest.raises(MessageIdentityRequiredException):
             self.router.prepare_outbound(ctx)
 
     def test_sender_identity_uuid_validates_and_prepares_delivery(self) -> None:

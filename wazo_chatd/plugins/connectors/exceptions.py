@@ -18,7 +18,7 @@ class ConnectorParseError(ConnectorError):
     """Raised when a connector fails to parse an incoming event."""
 
 
-class NoCommonConnectorError(APIException):
+class NoCommonConnectorException(APIException):
     def __init__(self) -> None:
         super().__init__(
             409,
@@ -29,7 +29,7 @@ class NoCommonConnectorError(APIException):
         )
 
 
-class MessageIdentityRequiredError(APIException):
+class MessageIdentityRequiredException(APIException):
     def __init__(self) -> None:
         super().__init__(
             409,
@@ -40,7 +40,7 @@ class MessageIdentityRequiredError(APIException):
         )
 
 
-class InvalidIdentityError(APIException):
+class InvalidIdentityException(APIException):
     def __init__(self, identity_uuid: str) -> None:
         super().__init__(
             400,
@@ -73,7 +73,7 @@ class UnknownBackendException(APIException):
         )
 
 
-class AuthServiceUnavailableError(APIException):
+class AuthServiceUnavailableException(APIException):
     def __init__(self) -> None:
         super().__init__(
             503,
@@ -83,7 +83,7 @@ class AuthServiceUnavailableError(APIException):
         )
 
 
-class UnreachableParticipantError(APIException):
+class UnreachableParticipantException(APIException):
     def __init__(self, participant: str, connector_type: str = '') -> None:
         detail = f'participant {participant!r}'
         if connector_type:

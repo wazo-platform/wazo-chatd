@@ -12,12 +12,12 @@ from requests.exceptions import HTTPError, RequestException
 
 from wazo_chatd.exceptions import UnknownRoomException, UnknownUserException
 from wazo_chatd.plugins.connectors.exceptions import (
-    AuthServiceUnavailableError,
-    InvalidIdentityError,
+    AuthServiceUnavailableException,
+    InvalidIdentityException,
     InvalidIdentityFormatException,
-    NoCommonConnectorError,
+    NoCommonConnectorException,
     UnknownBackendException,
-    UnreachableParticipantError,
+    UnreachableParticipantException,
 )
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -72,7 +72,7 @@ class ConnectorService:
                 )
             raise UnknownUserException(user_uuid)
         except RequestException:
-            raise AuthServiceUnavailableError()
+            raise AuthServiceUnavailableException()
 
     def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
         return self._dao.user_identity.resolve_users_by_identities(identities)
@@ -191,7 +191,7 @@ class ConnectorService:
             else:
                 reachable = self._registry.resolve_reachable_types(identity)
                 if not reachable:
-                    raise UnreachableParticipantError(identity)
+                    raise UnreachableParticipantException(identity)
                 types_by_participant[str(user.uuid)] = reachable
 
         internal = [u for u in participants if not u.identity]
@@ -204,7 +204,9 @@ class ConnectorService:
             for user in needs_db_lookup:
                 user_types = db_types.get(str(user.uuid), set())
                 if not user_types:
-                    raise UnreachableParticipantError(str(user.identity or user.uuid))
+                    raise UnreachableParticipantException(
+                        str(user.identity or user.uuid)
+                    )
                 types_by_participant[str(user.uuid)] = user_types
 
         common_types: set[str] | None = None
@@ -215,7 +217,7 @@ class ConnectorService:
                 common_types &= types
 
         if not common_types:
-            raise NoCommonConnectorError()
+            raise NoCommonConnectorException()
 
     def validate_identity_reachability(
         self,
@@ -225,7 +227,7 @@ class ConnectorService:
     ) -> UserIdentity:
         record = self._dao.user_identity.find(sender_identity_uuid, user_uuid=user_uuid)
         if not record:
-            raise InvalidIdentityError(str(sender_identity_uuid))
+            raise InvalidIdentityException(str(sender_identity_uuid))
 
         sender_backend = str(record.backend)
         sender_type = str(record.type_)
@@ -241,12 +243,16 @@ class ConnectorService:
             for user in internal:
                 user_types = internal_types.get(str(user.uuid), set())
                 if sender_type not in user_types:
-                    raise UnreachableParticipantError(str(user.uuid), sender_backend)
+                    raise UnreachableParticipantException(
+                        str(user.uuid), sender_backend
+                    )
 
         for user in external:
             reachable_types = self._registry.resolve_reachable_types(str(user.identity))
             if sender_type not in reachable_types:
-                raise UnreachableParticipantError(str(user.identity), sender_backend)
+                raise UnreachableParticipantException(
+                    str(user.identity), sender_backend
+                )
 
         return record
 
