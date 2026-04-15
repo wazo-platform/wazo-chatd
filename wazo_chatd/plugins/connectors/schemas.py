@@ -11,3 +11,7 @@ class UserIdentitySchema(Schema):
     type_ = fields.String(required=True, data_key='type')
     identity = fields.String(required=True)
     extra = fields.Dict(load_default=dict)
+
+
+class IdentityListRequestSchema(Schema):
+    room_uuid = fields.UUID(load_default=None)

@@ -16,7 +16,10 @@ from wazo_chatd.http import AuthResource
 from wazo_chatd.plugin_helpers.http import update_model_instance
 from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
 from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
-from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
+from wazo_chatd.plugins.connectors.schemas import (
+    IdentityListRequestSchema,
+    UserIdentitySchema,
+)
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.types import WebhookData
 
@@ -125,15 +128,24 @@ class UserIdentityItemResource(AuthResource):
         return '', 204
 
 
-class RoomIdentityListResource(AuthResource):
+class UserMeIdentityListResource(AuthResource):
     def __init__(self, service: ConnectorService) -> None:
         self._service = service
 
-    @required_acl('chatd.users.me.rooms.{room_uuid}.identities.read')
-    def get(self, room_uuid: str) -> tuple[dict[str, Any], int]:
-        identities = self._service.list_room_identities(
-            [token.tenant_uuid], room_uuid, str(token.user_uuid)
-        )
+    @required_acl('chatd.users.me.identities.read')
+    def get(self) -> tuple[dict[str, Any], int]:
+        params = IdentityListRequestSchema().load(request.args)
+        user_uuid = str(token.user_uuid)
+        tenant_uuids = [token.tenant_uuid]
+
+        if params['room_uuid']:
+            room_uuid = str(params['room_uuid'])
+            identities = self._service.list_room_identities(
+                tenant_uuids, room_uuid, user_uuid
+            )
+        else:
+            identities = self._service.list_identities(tenant_uuids, user_uuid)
+
         return {
             'items': UserIdentitySchema(
                 only=('uuid', 'backend', 'type_', 'identity')

@@ -8,7 +8,7 @@
   * `GET /1.0/users/{user_uuid}/identities/{identity_uuid}`
   * `PUT /1.0/users/{user_uuid}/identities/{identity_uuid}`
   * `DELETE /1.0/users/{user_uuid}/identities/{identity_uuid}`
-  * `GET /1.0/users/me/rooms/{room_uuid}/identities`
+  * `GET /1.0/users/me/identities`
   * `POST /1.0/connectors/incoming`
   * `POST /1.0/connectors/incoming/{backend}`
 

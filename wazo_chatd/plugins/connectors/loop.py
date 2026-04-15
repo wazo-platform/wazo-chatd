@@ -71,9 +71,9 @@ class DeliveryLoop:
 
         # concurrent.futures.Future: loop-independent, created once, survives
         # restarts. Awaited in async via asyncio.wrap_future().
-        self._token_future: concurrent.futures.Future[None] = (
-            concurrent.futures.Future()
-        )
+        self._token_future: concurrent.futures.Future[
+            None
+        ] = concurrent.futures.Future()
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._shutdown: asyncio.Future[None] | None = None

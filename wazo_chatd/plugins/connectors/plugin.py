@@ -11,9 +11,9 @@ from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
 from wazo_chatd.plugins.connectors.bus_consume import ConnectorBusEventHandler
 from wazo_chatd.plugins.connectors.http import (
     ConnectorWebhookResource,
-    RoomIdentityListResource,
     UserIdentityItemResource,
     UserIdentityListResource,
+    UserMeIdentityListResource,
 )
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -78,7 +78,7 @@ class Plugin:
         )
 
         api.add_resource(
-            RoomIdentityListResource,
-            '/users/me/rooms/<uuid:room_uuid>/identities',
+            UserMeIdentityListResource,
+            '/users/me/identities',
             resource_class_args=[service],
         )
