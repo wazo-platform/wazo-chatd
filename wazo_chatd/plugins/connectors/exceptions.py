@@ -83,6 +83,17 @@ class AuthServiceUnavailableException(APIException):
         )
 
 
+class ConnectorAuthException(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            401,
+            'Webhook signature verification failed',
+            'connector-signature-invalid',
+            {},
+            'connectors',
+        )
+
+
 class UnreachableParticipantException(APIException):
     def __init__(self, participant: str, connector_type: str = '') -> None:
         detail = f'participant {participant!r}'

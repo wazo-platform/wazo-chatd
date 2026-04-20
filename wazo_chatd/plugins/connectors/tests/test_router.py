@@ -12,6 +12,7 @@ import pytest
 
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorAuthException,
     ConnectorParseError,
     MessageIdentityRequiredException,
 )
@@ -106,6 +107,7 @@ def _build_router(
     registry: ConnectorRegistry | None = None,
     service: Mock | None = None,
     auth_client: Mock | None = None,
+    dao: Mock | None = None,
 ) -> ConnectorRouter:
     with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
         return ConnectorRouter(
@@ -113,13 +115,21 @@ def _build_router(
             registry=registry or ConnectorRegistry(),
             service=service or Mock(),
             auth_client=auth_client or Mock(),
+            dao=dao or Mock(),
         )
 
 
 class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
-        self.router = _build_router(registry=self.registry)
+        self.dao = Mock()
+        self.dao.user_identity.find_tenant_by_identity.return_value = 'tenant-uuid'
+        self.dao.room.find_tenant_by_external_id.return_value = 'tenant-uuid'
+        self.router = _build_router(registry=self.registry, dao=self.dao)
+        instance = Mock()
+        instance.verify_signature.return_value = True
+        self.router._store = Mock()
+        self.router._store.find_by_backend.return_value = instance
         self.manager = self.router._delivery_loop
 
     def test_dispatch_enqueues_inbound_message(self) -> None:
@@ -182,6 +192,73 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         self.manager.enqueue_message.assert_called_once()
         result = self.manager.enqueue_message.call_args[0][0]
         assert result.backend == 'twilio'
+
+
+class TestConnectorRouterWebhookVerify(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = ConnectorRegistry()
+        self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+        self.dao = Mock()
+        self.dao.user_identity.find_tenant_by_identity.return_value = 'tenant-uuid'
+        self.dao.room.find_tenant_by_external_id.return_value = 'tenant-uuid'
+
+        self.instance = Mock()
+        self.instance.verify_signature.return_value = True
+
+        self.router = _build_router(registry=self.registry, dao=self.dao)
+        self.router._store = Mock()
+        self.router._store.find_by_backend.return_value = self.instance
+        self.manager = self.router._delivery_loop
+
+    def _webhook(self) -> WebhookData:
+        return WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
+
+    def test_valid_signature_resolves_tenant_by_recipient_and_enqueues(self) -> None:
+        data = WebhookData(
+            body={
+                'From': '+15559876',
+                'To': '+15551234',
+                'Body': 'hi',
+                'MessageSid': 'msg-1',
+            }
+        )
+
+        self.router.dispatch_webhook(data, backend='twilio')
+
+        self.dao.user_identity.find_tenant_by_identity.assert_called_once_with(
+            '+15551234', 'twilio'
+        )
+        self.router._store.find_by_backend.assert_called_once_with(
+            'twilio', 'tenant-uuid'
+        )
+        self.instance.verify_signature.assert_called_once_with(data)
+        self.manager.enqueue_message.assert_called_once()
+
+    def test_invalid_signature_raises_401_and_skips_enqueue(self) -> None:
+        self.instance.verify_signature.return_value = False
+
+        with pytest.raises(ConnectorAuthException):
+            self.router.dispatch_webhook(self._webhook(), backend='twilio')
+
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_unknown_recipient_raises_parse_error(self) -> None:
+        self.dao.user_identity.find_tenant_by_identity.return_value = None
+
+        with pytest.raises(ConnectorParseError):
+            self.router.dispatch_webhook(self._webhook(), backend='twilio')
+
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_store_cache_miss_raises_parse_error(self) -> None:
+        self.router._store.find_by_backend.return_value = None
+
+        with pytest.raises(ConnectorParseError):
+            self.router.dispatch_webhook(self._webhook(), backend='twilio')
+
+        self.manager.enqueue_message.assert_not_called()
 
 
 class TestConnectorRouterValidateOutbound(unittest.TestCase):

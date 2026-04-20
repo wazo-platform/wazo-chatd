@@ -3,7 +3,7 @@
 
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, distinct, or_, text
+from sqlalchemy import and_, distinct, or_, select, text
 from sqlalchemy.dialects.postgresql import array_agg
 from sqlalchemy.orm import Query, aliased
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
@@ -78,6 +78,19 @@ class RoomDAO:
         room.messages.append(message)
         self.session.flush()
         return message
+
+    def find_tenant_by_external_id(self, external_id: str, backend: str) -> str | None:
+        stmt = (
+            select(RoomMessage.tenant_uuid)
+            .join(MessageMeta, MessageMeta.message_uuid == RoomMessage.uuid)
+            .where(
+                MessageMeta.external_id == external_id,
+                MessageMeta.backend == backend,
+            )
+            .limit(1)
+        )
+        result = self.session.execute(stmt).scalars().first()
+        return str(result) if result is not None else None
 
     def add_message_meta(self, meta, initial_record):
         self.session.add(meta)

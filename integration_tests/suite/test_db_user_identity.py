@@ -146,3 +146,46 @@ class TestUserIdentity(DBIntegrationTest):
             str(USER_UUID_1), tenant_uuids=[str(TENANT_2)]
         )
         assert cross_tenant_results == []
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_find_tenant_by_identity(self, user, identity):
+        result = self._dao.user_identity.find_tenant_by_identity(
+            '+15551234567', 'twilio'
+        )
+
+        assert result == str(TENANT_1)
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_find_tenant_by_identity_unknown_returns_none(self, user, identity):
+        assert (
+            self._dao.user_identity.find_tenant_by_identity('+15559999999', 'twilio')
+            is None
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_find_tenant_by_identity_wrong_backend_returns_none(self, user, identity):
+        assert (
+            self._dao.user_identity.find_tenant_by_identity('+15551234567', 'vonage')
+            is None
+        )

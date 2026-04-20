@@ -6,8 +6,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from xivo.status import Status
+
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorAuthException,
     ConnectorParseError,
     MessageIdentityRequiredException,
 )
@@ -15,12 +18,17 @@ from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.store import ConnectorStore
-from wazo_chatd.plugins.connectors.types import WebhookData
+from wazo_chatd.plugins.connectors.types import (
+    InboundMessage,
+    StatusUpdate,
+    WebhookData,
+)
 
 if TYPE_CHECKING:
     from wazo_auth_client import Client as AuthClient
 
     from wazo_chatd.database.models import Room
+    from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +48,11 @@ class ConnectorRouter:
         registry: ConnectorRegistry,
         service: ConnectorService,
         auth_client: AuthClient,
+        dao: DAO,
     ) -> None:
         self._registry = registry
         self._service = service
+        self._dao = dao
         connectors_config = config.get('connectors') or {}
         delivery_config = config.get('delivery') or {}
         self._store = ConnectorStore(
@@ -83,7 +93,7 @@ class ConnectorRouter:
         loop = self._delivery_loop
         is_running = loop.is_running
         status['connectors'] = {
-            'status': 'ok' if is_running else 'fail',
+            'status': Status.ok if is_running else Status.fail,
             'in_flight': loop.in_flight_count,
             'restart_count': loop.restart_count,
             'instances': len(self._store),
@@ -97,14 +107,19 @@ class ConnectorRouter:
         data: WebhookData,
         backend: str | None = None,
     ) -> None:
-        """Parse an incoming webhook and enqueue the result.
+        """Parse, authenticate, and enqueue an incoming webhook.
 
-        Uses backend classes from the registry directly — inbound parsing
-        is stateless (no auth config needed).  The store is only required
-        for the outbound ``send()`` path.
+        Parsing (``can_handle`` / ``on_event``) is stateless (classmethods).
+        Signature verification requires the per-tenant instance held in
+        the store: the recipient identity (or external_id for status
+        updates) resolves the tenant; the store yields the instance;
+        the instance verifies.
 
         Raises:
-            ConnectorParseError: If no connector can handle the webhook.
+            ConnectorParseError: No connector handled the payload, or
+                the tenant could not be resolved, or no instance is
+                cached for (tenant, backend).
+            ConnectorAuthException: The connector rejected the signature.
         """
         backends = self._registry.available_backends()
         if not backends:
@@ -121,7 +136,42 @@ class ConnectorRouter:
                 continue
             result = cls.on_event(data)
             if result is not None:
-                self._delivery_loop.enqueue_message(result)
+                self._verify_and_enqueue(data, result, backend=name)
                 return
 
         raise ConnectorParseError('No connector matched the webhook payload')
+
+    def _verify_and_enqueue(
+        self,
+        data: WebhookData,
+        result: InboundMessage | StatusUpdate,
+        backend: str,
+    ) -> None:
+        tenant_uuid = self._resolve_tenant(result, backend)
+        if tenant_uuid is None:
+            raise ConnectorParseError(
+                f'Cannot resolve tenant for inbound {backend!r} event'
+            )
+
+        instance = self._store.find_by_backend(backend, tenant_uuid)
+        if instance is None:
+            raise ConnectorParseError(
+                f'No connector instance cached for tenant {tenant_uuid!r} '
+                f'backend {backend!r}'
+            )
+
+        if not instance.verify_signature(data):
+            raise ConnectorAuthException()
+
+        self._delivery_loop.enqueue_message(result)
+
+    def _resolve_tenant(
+        self, event: InboundMessage | StatusUpdate, backend: str
+    ) -> str | None:
+        match event:
+            case InboundMessage(recipient=recipient):
+                return self._dao.user_identity.find_tenant_by_identity(
+                    recipient, backend
+                )
+            case StatusUpdate(external_id=external_id):
+                return self._dao.room.find_tenant_by_external_id(external_id, backend)

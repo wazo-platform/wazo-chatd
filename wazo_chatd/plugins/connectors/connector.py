@@ -54,12 +54,18 @@ class Connector(Protocol):
 
     def __init__(
         self,
+        tenant_uuid: str,
         provider_config: Mapping[str, Any],
         connector_config: Mapping[str, Any],
     ) -> None:
-        """Initialize the connector with two configuration sources.
+        """Initialize the connector with tenant scope and configuration.
 
         Args:
+            tenant_uuid: Identifies the tenant this instance serves.
+                One instance per (tenant_uuid, backend); the store
+                reconstructs the instance when provider_config changes.
+                Used for self-identification in logs, metrics, and
+                outbound messages emitted by poll/listen modes.
             provider_config: Per-tenant configuration from wazo-auth
                 external auth config (credentials, API keys — managed
                 via ``PUT /external/{backend}/config``).
@@ -67,8 +73,11 @@ class Connector(Protocol):
                 ``/etc/wazo-chatd/conf.d/`` (polling interval, inbound
                 mode, network settings).
 
-        Must be reconstructable from these arguments alone, as the same
-        arguments are serialized over the pipe to the server process.
+        Lifecycle contract: one instance per (tenant_uuid, backend),
+        reconstructed whenever provider_config changes (credential
+        rotation, TTL expiry). Do not put process-global state in
+        ``__init__``; class-level attributes (e.g. shared HTTP pools)
+        are the right place for cross-tenant resources.
         """
         ...
 
@@ -108,6 +117,24 @@ class Connector(Protocol):
         """
         ...
 
+    def verify_signature(self, data: TransportData) -> bool:
+        """Verify that an inbound event is authentic.
+
+        Called by the service layer before :meth:`on_event`'s result is
+        enqueued for async processing. Instance method — has access to
+        per-tenant credentials loaded in :meth:`__init__`.
+
+        Returns:
+            ``True`` if the event is authentic (or this transport is
+            trusted), ``False`` to reject. A ``False`` return causes the
+            service to raise :class:`ConnectorAuthException` (HTTP 401).
+
+        Default implementation (for transports without signatures) may
+        return ``True`` unconditionally. For webhook-based providers,
+        implement HMAC verification using the signature header.
+        """
+        ...
+
     @classmethod
     def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
         """Parse an incoming event from any transport.
@@ -123,12 +150,16 @@ class Connector(Protocol):
         """
         ...
 
-    def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
+    def listen(
+        self, on_message: Callable[[InboundMessage | StatusUpdate], None]
+    ) -> None:
         """Begin listening for incoming messages via connector-controlled transports.
 
         For polling:
             Start a loop, wrap results in :class:`PollData`, call
             :meth:`on_event`, forward non-None results to *on_message*.
+            Both :class:`InboundMessage` and :class:`StatusUpdate` are
+            accepted by the callback.
 
         For webhook-only connectors:
             No-op — chatd's HTTP adapter calls :meth:`on_event` directly.

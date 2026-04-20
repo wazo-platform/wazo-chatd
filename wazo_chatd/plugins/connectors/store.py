@@ -93,7 +93,7 @@ class ConnectorStore:
             return None
 
         cls = self._registry.get_backend(backend)
-        instance = cls(config, self._connectors_config.get(backend, {}))
+        instance = cls(tenant_uuid, config, self._connectors_config.get(backend, {}))
         self._cache[key] = instance
         self._timestamps[key] = time.monotonic()
         logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)

@@ -36,9 +36,11 @@ class TestConnector:
 
     def __init__(
         self,
+        tenant_uuid: str,
         provider_config: Mapping[str, Any],
         connector_config: Mapping[str, Any],
     ) -> None:
+        self._tenant_uuid = tenant_uuid
         self._mock_url: str = MOCK_URL
         mock_url = provider_config.get('mock_url')
         if mock_url:

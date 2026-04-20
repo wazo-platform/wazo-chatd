@@ -21,9 +21,14 @@ class _SmsConnector:
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
     def __init__(
-        self, provider_config: dict | None = None, connector_config: dict | None = None
+        self,
+        tenant_uuid: str,
+        provider_config: dict | None = None,
+        connector_config: dict | None = None,
     ) -> None:
-        pass
+        self.tenant_uuid = tenant_uuid
+        self.provider_config = provider_config
+        self.connector_config = connector_config
 
 
 class _EmailConnector:
@@ -31,9 +36,12 @@ class _EmailConnector:
     supported_types: ClassVar[tuple[str, ...]] = ('email',)
 
     def __init__(
-        self, provider_config: dict | None = None, connector_config: dict | None = None
+        self,
+        tenant_uuid: str,
+        provider_config: dict | None = None,
+        connector_config: dict | None = None,
     ) -> None:
-        pass
+        self.tenant_uuid = tenant_uuid
 
 
 def _build_registry(*backends: type) -> ConnectorRegistry:
@@ -82,6 +90,16 @@ class TestConnectorStoreRefresh(unittest.IsolatedAsyncioTestCase):
 
         assert a is not b
         assert auth_client.external.get_config.call_count == 2
+
+    async def test_instance_is_constructed_with_tenant_uuid(self) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.return_value = {'api_key': 'secret'}
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        instance = await store.refresh('twilio', TENANT_A)
+
+        assert instance is not None
+        assert instance.tenant_uuid == TENANT_A  # type: ignore[attr-defined]
 
     async def test_refetches_after_ttl_expires(self) -> None:
         auth_client = Mock()

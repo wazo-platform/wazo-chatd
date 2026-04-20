@@ -46,7 +46,7 @@ class Plugin:
         notifier = UserIdentityNotifier(bus_publisher)
         service = ConnectorService(dao, registry, notifier, auth_client)
 
-        router = ConnectorRouter(config, registry, service, auth_client)
+        router = ConnectorRouter(config, registry, service, auth_client, dao)
         next_token_changed_subscribe(router.on_token_acquired)
         thread_manager.manage(router)
         status_aggregator.add_provider(router.provide_status)

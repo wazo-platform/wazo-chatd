@@ -16,6 +16,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     InvalidIdentityFormatException,
     UnknownBackendException,
 )
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.services import ConnectorService
 
 TENANT_A = 'tenant-a-uuid'
@@ -133,6 +134,31 @@ class TestUserIdentityDAODelete(unittest.TestCase):
         dao.session.flush.assert_called_once()
 
 
+class TestUserIdentityDAOFindTenantByIdentity(unittest.TestCase):
+    def _make_dao_returning(self, tenant_uuid: str | None) -> UserIdentityDAO:
+        scalars = Mock()
+        scalars.first.return_value = tenant_uuid
+        execute_result = Mock()
+        execute_result.scalars.return_value = scalars
+        session = Mock()
+        session.execute.return_value = execute_result
+        return UserIdentityDAO(lambda: session)
+
+    def test_returns_tenant_uuid_for_match(self) -> None:
+        dao = self._make_dao_returning(TENANT_A)
+
+        result = dao.find_tenant_by_identity('+15551234', BACKEND)
+
+        assert result == TENANT_A
+
+    def test_returns_none_when_no_match(self) -> None:
+        dao = self._make_dao_returning(None)
+
+        result = dao.find_tenant_by_identity('+15559999', BACKEND)
+
+        assert result is None
+
+
 class _StubConnector:
     backend = BACKEND
     supported_types = ('sms',)
@@ -144,8 +170,6 @@ class _StubConnector:
 
 class TestConnectorServiceIdentityCRUD(unittest.TestCase):
     def _build_service(self) -> ConnectorService:
-        from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
-
         dao = Mock()
         registry = ConnectorRegistry()
         registry.register_backend(_StubConnector)  # type: ignore[arg-type]
@@ -242,8 +266,6 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
 
 class TestConnectorServiceResolveRoomParticipants(unittest.TestCase):
     def _build_service(self) -> ConnectorService:
-        from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
-
         dao = Mock()
         registry = ConnectorRegistry()
         registry.register_backend(_StubConnector)  # type: ignore[arg-type]
