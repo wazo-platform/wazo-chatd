@@ -50,7 +50,7 @@ class ConnectorWebhookResource(Resource):
             self._router.dispatch_webhook(data, backend=backend)
         except ConnectorParseError:
             logger.info('No connector matched webhook (backend=%s)', backend)
-            return {'error': 'No connector matched the webhook'}, 404
+            return {'error': 'Unrecognized request'}, 400
 
         return '', 204
 
@@ -87,14 +87,15 @@ class UserIdentityListResource(AuthResource):
         tenant_uuids = get_tenant_uuids(recurse=True)
         body = UserIdentitySchema().load(request.get_json(force=True))
         tenant_uuid = self._service.get_user_tenant_uuid(tenant_uuids, user_uuid)
-        self._router.validate_tenant_backend(tenant_uuid, body['backend'])
+        backend = body['backend']
+        self._router.validate_tenant_backend(tenant_uuid, backend)
         identity = UserIdentity(
             tenant_uuid=tenant_uuid,
             user_uuid=user_uuid,
             **body,
         )
         created = self._service.create_identity(identity)
-        self._router.reconcile_tenant_backend(tenant_uuid, body['backend'])
+        self._router.reconcile_tenant_backend(tenant_uuid, backend)
         return UserIdentitySchema().dump(created), 201
 
 
@@ -128,10 +129,10 @@ class UserIdentityItemResource(AuthResource):
         identity = self._service.get_identity(
             tenant_uuids, identity_uuid, user_uuid=user_uuid
         )
+        tenant_uuid = str(identity.tenant_uuid)
+        backend = str(identity.backend)
         self._service.delete_identity(identity)
-        self._router.reconcile_tenant_backend(
-            str(identity.tenant_uuid), str(identity.backend)
-        )
+        self._router.reconcile_tenant_backend(tenant_uuid, backend)
         return '', 204
 
 
