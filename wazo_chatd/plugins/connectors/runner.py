@@ -39,6 +39,27 @@ def _backoff() -> itertools.chain[int]:
     return itertools.chain([1, 2, 4, 8, 16, 32], itertools.repeat(32))
 
 
+def _observe_future(
+    source: concurrent.futures.Future[None],
+    loop: asyncio.AbstractEventLoop,
+) -> asyncio.Future[None]:
+    """Read-only asyncio.Future that resolves when ``source`` completes; cancelling the returned future does not cancel ``source``."""
+    target: asyncio.Future[None] = loop.create_future()
+    if source.done():
+        target.set_result(None)
+        return target
+
+    def _mark_done() -> None:
+        if not target.done():
+            target.set_result(None)
+
+    def _on_source_done(_: concurrent.futures.Future[None]) -> None:
+        loop.call_soon_threadsafe(_mark_done)
+
+    source.add_done_callback(_on_source_done)
+    return target
+
+
 class Runner:
     """Event loop running on a dedicated daemon thread.
 
@@ -109,10 +130,10 @@ class Runner:
         self._loop = asyncio.get_running_loop()
         self._ready.set()
         start_task: asyncio.Task[None] = asyncio.create_task(self._on_start())
-        close_future = asyncio.wrap_future(self._closing)
+        closing = _observe_future(self._closing, self._loop)
         try:
             done, pending = await asyncio.wait(
-                [start_task, close_future],
+                [start_task, closing],
                 return_when=asyncio.FIRST_COMPLETED,
             )
             if start_task in pending:
@@ -126,7 +147,7 @@ class Runner:
                 # _on_start completed — re-raise if it crashed, so
                 # run() can log and trigger the restart path.
                 start_task.result()
-                await close_future
+                await closing
         finally:
             await self._on_stop()
 
@@ -184,7 +205,7 @@ class Runner:
 
     async def _wait_closing(self) -> None:
         """Subclass helper: resolve when shutdown has been requested."""
-        await asyncio.wrap_future(self._closing)
+        await _observe_future(self._closing, self.loop)
 
     async def _on_start(self) -> None:
         """Override to schedule work when the loop starts."""
@@ -204,7 +225,6 @@ class DeliveryRunner(Runner):
     ) -> None:
         super().__init__()
         self._config = config
-        self._registry = registry
         self._store = store
         self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
         self._poll_min = float(config['delivery'].get('poll_interval_min', 5))

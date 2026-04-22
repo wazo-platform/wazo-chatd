@@ -51,6 +51,14 @@ def _mock_session_factory() -> Mock:
     return Mock(return_value=session)
 
 
+def _mock_store() -> Mock:
+    """Store mock whose iteration helpers behave like an empty real store."""
+    store = Mock()
+    store.items.return_value = []
+    store.wait_populated = AsyncMock()
+    return store
+
+
 class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
     async def test_on_start_exception_propagates(self) -> None:
         class _CrashyRunner(Runner):
@@ -92,7 +100,7 @@ class TestDeliveryRunnerLifecycle(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        loop = DeliveryRunner(_make_config(), Mock(), Mock())
+        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
         loop.start()
 
         try:
@@ -110,7 +118,7 @@ class TestDeliveryRunnerLifecycle(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        loop = DeliveryRunner(_make_config(), Mock(), Mock())
+        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
         loop.start()
         loop.shutdown()
 
@@ -124,7 +132,7 @@ class TestDeliveryRunnerLifecycle(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        with DeliveryRunner(_make_config(), Mock(), Mock()) as loop:
+        with DeliveryRunner(_make_config(), Mock(), _mock_store()) as loop:
             assert loop._loop is not None
             assert loop._loop.is_running()
 
@@ -143,7 +151,7 @@ class TestDeliveryRunnerStatus(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        loop = DeliveryRunner(_make_config(), Mock(), Mock())
+        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
         loop.start()
 
         try:
@@ -157,7 +165,7 @@ class TestDeliveryRunnerStatus(unittest.TestCase):
         mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
         mock_bus.from_config.return_value = Mock()
 
-        loop = DeliveryRunner(_make_config(), Mock(), Mock())
+        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
 
         assert loop.is_running is False
 
@@ -173,7 +181,7 @@ class TestDeliveryRunnerEnqueue(unittest.TestCase):
         mock_bus.from_config.return_value = Mock()
         mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
 
-        with DeliveryRunner(_make_config(), Mock(), Mock()) as loop:
+        with DeliveryRunner(_make_config(), Mock(), _mock_store()) as loop:
             loop.enqueue_message(_make_inbound())
             time.sleep(0.1)
 
