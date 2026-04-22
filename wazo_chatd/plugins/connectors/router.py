@@ -219,10 +219,9 @@ class ConnectorRouter:
                 f'backend {backend!r}'
             )
 
-        verify = getattr(instance, 'verify_signature', None)
-        if verify is not None:
+        if instance.verifies_signatures:
             try:
-                valid = verify(data)
+                valid = instance.verify_signature(data)
             except Exception:
                 logger.exception(
                     'verify_signature raised for backend %r tenant %s',

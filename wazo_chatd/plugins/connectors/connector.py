@@ -52,6 +52,20 @@ class Connector(Protocol):
         }
     """
 
+    verifies_signatures: ClassVar[bool]
+    """Whether this backend authenticates inbound events via signature.
+
+    Must be ``True`` for backends handling webhook traffic from
+    untrusted networks (external SMS/messaging providers). Set
+    ``False`` only for trusted transports (internal, tests, polling).
+
+    When ``True``, :meth:`verify_signature` is called before
+    :meth:`on_event`'s result is enqueued — a falsy return or a
+    raised exception causes :class:`ConnectorAuthException` (HTTP 401).
+    When ``False``, :meth:`verify_signature` is not called and may be
+    omitted entirely.
+    """
+
     def __init__(
         self,
         tenant_uuid: str,
@@ -120,13 +134,10 @@ class Connector(Protocol):
     def verify_signature(self, data: TransportData) -> bool:
         """Verify that an inbound event is authentic.
 
-        Optional — connectors that don't need signature verification
-        (trusted internal transports, tests) may omit this method
-        entirely; the router skips the check in that case.
-
-        Called by the router before :meth:`on_event`'s result is
-        enqueued for async processing. Instance method — has access to
-        per-tenant credentials loaded in :meth:`__init__`.
+        Called by the router when :attr:`verifies_signatures` is
+        ``True``, before :meth:`on_event`'s result is enqueued for
+        async processing. Instance method — has access to per-tenant
+        credentials loaded in :meth:`__init__`.
 
         Returns:
             ``True`` if the event is authentic, ``False`` to reject.
@@ -135,6 +146,9 @@ class Connector(Protocol):
 
         For webhook-based providers, implement HMAC verification
         using the signature header.
+
+        Backends with :attr:`verifies_signatures` = ``False`` may
+        omit this method entirely.
         """
         ...
 

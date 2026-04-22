@@ -33,6 +33,7 @@ class TestConnector:
         'delivered': DeliveryStatus.DELIVERED,
         'failed': DeliveryStatus.FAILED,
     }
+    verifies_signatures: ClassVar[bool] = False
 
     def __init__(
         self,
@@ -128,9 +129,7 @@ class TestConnector:
         updates: list[StatusUpdate] = []
         for sid in external_ids:
             try:
-                response = requests.get(
-                    f'{self._mock_url}/track/{sid}', timeout=2
-                )
+                response = requests.get(f'{self._mock_url}/track/{sid}', timeout=2)
                 data = response.json()
             except requests.RequestException:
                 logger.warning('Failed to track_outbound for %s', sid)
