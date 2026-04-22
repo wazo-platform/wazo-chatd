@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import functools
-import inspect
 import itertools
 import logging
 import threading
@@ -374,7 +373,7 @@ class DeliveryRunner(Runner):
             retry_delay: float | None = None
             try:
                 async with async_session_scope(self._session_factory):
-                    meta = await self._executor._room_dao.get_message_meta(message_uuid)
+                    meta = await self._executor.get_message_meta(message_uuid)
                     if not meta:
                         logger.error(
                             'No MessageMeta found for notified message %s',
@@ -479,7 +478,7 @@ class DeliveryRunner(Runner):
             task.cancel()
 
     async def _invoke_poll_method(self, fn: Any, *args: Any) -> Any:
-        if inspect.iscoroutinefunction(fn):
+        if asyncio.iscoroutinefunction(fn):
             return await fn(*args)
         return await asyncio.to_thread(fn, *args)
 
@@ -497,7 +496,7 @@ class DeliveryRunner(Runner):
 
         try:
             async with async_session_scope(self._session_factory):
-                pending = await self._executor._room_dao.list_pending_external_ids(
+                pending = await self._executor.list_pending_external_ids(
                     tenant_uuid, backend
                 )
             if pending:

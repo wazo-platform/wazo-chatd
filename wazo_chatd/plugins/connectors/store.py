@@ -221,7 +221,7 @@ class ConnectorStore:
             raise UnknownBackendException(backend)
 
         try:
-            auth_config = dict(
+            provider_config = dict(
                 self._auth_client.external.get_config(backend, tenant_uuid=tenant_uuid)
             )
         except HTTPError as e:
@@ -234,8 +234,8 @@ class ConnectorStore:
             raise AuthServiceUnavailableException()
 
         backend_cls = self._registry.get_backend(backend)
-        backend_config = self._connectors_config.get(backend, {})
-        instance = backend_cls(tenant_uuid, auth_config, backend_config)
+        connector_config = self._connectors_config.get(backend, {})
+        instance = backend_cls(tenant_uuid, provider_config, connector_config)
 
         self._cache[key] = instance
         self._timestamps[key] = time.monotonic()

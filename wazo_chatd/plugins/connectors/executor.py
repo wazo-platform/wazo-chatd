@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import inspect
 import logging
 from typing import Any
 
@@ -78,7 +77,6 @@ class DeliveryExecutor:
         store: ConnectorStore,
     ) -> None:
         self._wazo_uuid: str = str(config.get('uuid', ''))
-        self._connector_config: dict[str, Any] = dict(config.get('connectors', {}))
         self._registry = registry
         self._notifier = notifier
         self._store = store
@@ -381,6 +379,14 @@ class DeliveryExecutor:
         logger.info('Recovery: %d message(s) to re-enqueue', len(recoverable))
         return recoverable
 
+    async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
+        return await self._room_dao.get_message_meta(message_uuid)
+
+    async def list_pending_external_ids(
+        self, tenant_uuid: str, backend: str
+    ) -> list[str]:
+        return await self._room_dao.list_pending_external_ids(tenant_uuid, backend)
+
     async def execute(
         self,
         outbound: OutboundMessage,
@@ -464,7 +470,7 @@ class DeliveryExecutor:
         outbound: OutboundMessage,
     ) -> str:
         """Call connector.send(), wrapping sync implementations."""
-        if inspect.iscoroutinefunction(connector.send):
+        if asyncio.iscoroutinefunction(connector.send):
             return await connector.send(outbound)  # type: ignore[misc]
         return await asyncio.to_thread(connector.send, outbound)
 
