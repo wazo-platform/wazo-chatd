@@ -243,7 +243,7 @@ class DeliveryExecutor:
                 await self._confirm_delivery(original_meta)
                 return
 
-        extra: dict[str, str] = {'external_id': inbound.external_id}
+        extra: dict[str, str] = {}
         if idempotency_key:
             extra['idempotency_key'] = str(idempotency_key)
 
@@ -251,6 +251,7 @@ class DeliveryExecutor:
         meta = MessageMeta(
             backend=inbound.backend,
             type_=inbound.message_type,
+            external_id=inbound.external_id,
             extra=extra,
             records=[record],
         )
