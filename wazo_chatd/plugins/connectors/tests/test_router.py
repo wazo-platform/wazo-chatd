@@ -129,7 +129,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         instance = Mock()
         instance.verify_signature.return_value = True
         self.router._store = Mock()
-        self.router._store.find_by_backend.return_value = instance
+        self.router._store.load.return_value = instance
         self.manager = self.router._delivery_runner
 
     def test_dispatch_enqueues_inbound_message(self) -> None:
@@ -207,7 +207,7 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
 
         self.router = _build_router(registry=self.registry, dao=self.dao)
         self.router._store = Mock()
-        self.router._store.find_by_backend.return_value = self.instance
+        self.router._store.load.return_value = self.instance
         self.manager = self.router._delivery_runner
 
     def _webhook(self) -> WebhookData:
@@ -230,7 +230,7 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.dao.user_identity.find_tenant_by_identity.assert_called_once_with(
             '+15551234', 'twilio'
         )
-        self.router._store.find_by_backend.assert_called_once_with(
+        self.router._store.load.assert_called_once_with(
             'twilio', 'tenant-uuid'
         )
         self.instance.verify_signature.assert_called_once_with(data)
@@ -253,12 +253,20 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     def test_store_cache_miss_raises_parse_error(self) -> None:
-        self.router._store.find_by_backend.return_value = None
+        self.router._store.load.return_value = None
 
         with pytest.raises(ConnectorParseError):
             self.router.dispatch_webhook(self._webhook(), backend='twilio')
 
         self.manager.enqueue_message.assert_not_called()
+
+    def test_missing_verify_signature_skips_check(self) -> None:
+        instance = Mock(spec=['backend'])  # no verify_signature attr
+        self.router._store.load.return_value = instance
+
+        self.router.dispatch_webhook(self._webhook(), backend='twilio')
+
+        self.manager.enqueue_message.assert_called_once()
 
 
 class TestConnectorRouterValidateOutbound(unittest.TestCase):

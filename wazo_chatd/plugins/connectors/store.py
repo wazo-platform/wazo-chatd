@@ -129,6 +129,11 @@ class ConnectorStore:
     def _fetch_batch(self, pairs: set[tuple[str, str]]) -> None:
         # At scale, consider direct async httpx (bypasses the
         # wazo_auth_client sync pool) — trades off wire-format coupling.
+        pairs = {
+            (tenant, backend)
+            for (tenant, backend) in pairs
+            if self._is_expired(self._timestamps.get((tenant, backend), 0.0))
+        }
         if not pairs:
             return
 
@@ -153,6 +158,22 @@ class ConnectorStore:
             return None
 
         return await asyncio.to_thread(self._fetch_and_cache, backend, tenant_uuid)
+
+    def load(self, backend: str, tenant_uuid: str) -> Connector | None:
+        """Sync ``get-or-fetch`` — returns cached instance, or fetches
+        from wazo-auth and caches, blocking the caller. Use from sync
+        paths (Flask webhook dispatch) where :meth:`refresh` can't be
+        awaited.
+        """
+        key = (tenant_uuid, backend)
+        ts = self._timestamps.get(key, 0.0)
+        if not self._is_expired(ts):
+            return self._cache.get(key)
+
+        if backend not in self._registry.available_backends():
+            return None
+
+        return self._fetch_and_cache(backend, tenant_uuid)
 
     def _is_expired(self, timestamp: float) -> bool:
         return (time.monotonic() - timestamp) > self._cache_ttl

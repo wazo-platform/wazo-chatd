@@ -28,7 +28,7 @@ from wazo_chatd.plugins.connectors.types import (
 if TYPE_CHECKING:
     from wazo_auth_client import Client as AuthClient
 
-    from wazo_chatd.database.models import Room
+    from wazo_chatd.database.models import Room, UserIdentity
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,14 @@ class ConnectorRouter:
             self._store.populate(tenant_backends)
         except Exception:
             logger.exception('Failed to populate connector store')
+
+    def on_identity_created(self, identity: UserIdentity) -> None:
+        """React to a new UserIdentity: load instance + resync runners."""
+        backend = str(identity.backend)
+        tenant_uuid = str(identity.tenant_uuid)
+        self._store.load(backend, tenant_uuid)
+        self._delivery_runner.resync_pollers()
+        self._listener_runner.resync()
 
     def start(self) -> None:
         self._delivery_runner.start()
@@ -180,24 +188,26 @@ class ConnectorRouter:
                 f'Cannot resolve tenant for inbound {backend!r} event'
             )
 
-        instance = self._store.find_by_backend(backend, tenant_uuid)
+        instance = self._store.load(backend, tenant_uuid)
         if instance is None:
             raise ConnectorParseError(
-                f'No connector instance cached for tenant {tenant_uuid!r} '
+                f'No connector instance for tenant {tenant_uuid!r} '
                 f'backend {backend!r}'
             )
 
-        try:
-            valid = instance.verify_signature(data)
-        except Exception:
-            logger.exception(
-                'verify_signature raised for backend %r tenant %s',
-                backend,
-                tenant_uuid,
-            )
-            valid = False
-        if not valid:
-            raise ConnectorAuthException()
+        verify = getattr(instance, 'verify_signature', None)
+        if verify is not None:
+            try:
+                valid = verify(data)
+            except Exception:
+                logger.exception(
+                    'verify_signature raised for backend %r tenant %s',
+                    backend,
+                    tenant_uuid,
+                )
+                valid = False
+            if not valid:
+                raise ConnectorAuthException()
 
         self._delivery_runner.enqueue_message(result)
 

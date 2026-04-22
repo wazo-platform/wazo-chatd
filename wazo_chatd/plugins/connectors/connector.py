@@ -120,18 +120,21 @@ class Connector(Protocol):
     def verify_signature(self, data: TransportData) -> bool:
         """Verify that an inbound event is authentic.
 
-        Called by the service layer before :meth:`on_event`'s result is
+        Optional — connectors that don't need signature verification
+        (trusted internal transports, tests) may omit this method
+        entirely; the router skips the check in that case.
+
+        Called by the router before :meth:`on_event`'s result is
         enqueued for async processing. Instance method — has access to
         per-tenant credentials loaded in :meth:`__init__`.
 
         Returns:
-            ``True`` if the event is authentic (or this transport is
-            trusted), ``False`` to reject. A ``False`` return causes the
-            service to raise :class:`ConnectorAuthException` (HTTP 401).
+            ``True`` if the event is authentic, ``False`` to reject.
+            A ``False`` return causes the router to raise
+            :class:`ConnectorAuthException` (HTTP 401).
 
-        Default implementation (for transports without signatures) may
-        return ``True`` unconditionally. For webhook-based providers,
-        implement HMAC verification using the signature header.
+        For webhook-based providers, implement HMAC verification
+        using the signature header.
         """
         ...
 
