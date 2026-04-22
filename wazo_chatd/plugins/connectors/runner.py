@@ -82,8 +82,7 @@ class Runner:
 
     @property
     def is_running(self) -> bool:
-        loop_running = self._loop is not None and self._loop.is_running()
-        return loop_running and self._thread.is_alive()
+        return self._loop is not None and self._loop.is_running()
 
     @property
     def is_closing(self) -> bool:

@@ -37,7 +37,7 @@ class ConnectorStore:
     """Lazy, TTL-based cache of configured connector instances.
 
     Keyed by ``(tenant_uuid, backend)``.  Both sync and async sides
-    read from cache via :meth:`find_by_backend`.  The async side
+    read from cache via :meth:`peek`.  The async side
     drives fetches via :meth:`refresh`.
     """
 
@@ -79,7 +79,7 @@ class ConnectorStore:
             return False
         return self._populated.exception() is None
 
-    def find_by_backend(self, backend: str, tenant_uuid: str) -> Connector | None:
+    def peek(self, backend: str, tenant_uuid: str) -> Connector | None:
         return self._cache.get((tenant_uuid, backend))
 
     def populate(self, tenant_backends: Iterable[tuple[str, str]]) -> None:
@@ -89,7 +89,7 @@ class ConnectorStore:
         as soon as they are ready so pollers/listeners can spawn.
         Webhook-mode backends are populated afterwards in the same
         thread — webhook dispatch tolerates brief startup lag (cache
-        miss → ``find_by_backend`` returns None, provider retries).
+        miss → ``peek`` returns None, provider retries).
 
         Idempotent and non-blocking — concurrent callers return
         immediately instead of racing.
@@ -145,11 +145,6 @@ class ConnectorStore:
     def _fetch_batch(self, pairs: set[tuple[str, str]]) -> None:
         # At scale, consider direct async httpx (bypasses the
         # wazo_auth_client sync pool) — trades off wire-format coupling.
-        pairs = {
-            (tenant, backend)
-            for (tenant, backend) in pairs
-            if self._is_expired(self._timestamps.get((tenant, backend), 0.0))
-        }
         if not pairs:
             return
 
@@ -159,47 +154,68 @@ class ConnectorStore:
         ) as pool:
             list(
                 pool.map(
-                    lambda pair: self._fetch_and_cache(pair[1], pair[0]),
+                    lambda pair: self.find(pair[1], pair[0]),
                     pairs,
                 )
             )
-
-    async def refresh(self, backend: str, tenant_uuid: str) -> Connector | None:
-        key = (tenant_uuid, backend)
-        ts = self._timestamps.get(key, 0.0)
-        if not self._is_expired(ts):
-            return self._cache.get(key)
-
-        if backend not in self._registry.available_backends():
-            return None
-
-        return await asyncio.to_thread(self._fetch_and_cache, backend, tenant_uuid)
 
     def drop(self, backend: str, tenant_uuid: str) -> None:
         key = (tenant_uuid, backend)
         self._cache.pop(key, None)
         self._timestamps.pop(key, None)
 
-    def fetch(self, backend: str, tenant_uuid: str) -> Connector:
-        """Sync get-or-fetch that raises on failure.
+    def get(self, backend: str, tenant_uuid: str) -> Connector:
+        """Get cached instance if fresh, else fetch from wazo-auth; raises on failure.
 
-        Returns the cached instance if fresh, otherwise fetches from
-        wazo-auth and caches. Raises:
-
-        - :class:`UnknownBackendException` (400) when the backend is
-          not registered with stevedore.
-        - :class:`BackendNotConfiguredException` (400) when the backend
-          is registered but has no tenant-level config (404 from
-          wazo-auth).
-        - :class:`AuthServiceUnavailableException` (503) on transient
-          failures (5xx, connection error).
+        Raises:
+          - :class:`UnknownBackendException` (400) — backend not registered.
+          - :class:`BackendNotConfiguredException` (400) — no tenant config.
+          - :class:`AuthServiceUnavailableException` (503) — transient.
         """
+        if (cached := self._get_cached(backend, tenant_uuid)) is not None:
+            return cached
+        return self._fetch(backend, tenant_uuid)
+
+    def find(self, backend: str, tenant_uuid: str) -> Connector | None:
+        """Silent variant of :meth:`get` — logs and returns None on failure."""
+        try:
+            return self.get(backend, tenant_uuid)
+        except UnknownBackendException:
+            logger.warning(
+                'Unknown backend %r referenced for tenant %s', backend, tenant_uuid
+            )
+        except BackendNotConfiguredException:
+            logger.debug(
+                'No auth config for backend %r tenant %s', backend, tenant_uuid
+            )
+        except AuthServiceUnavailableException:
+            logger.error(
+                'Failed to fetch auth config for backend %r tenant %s',
+                backend,
+                tenant_uuid,
+            )
+        except Exception:
+            logger.exception(
+                'Failed to instantiate backend %r for tenant %s', backend, tenant_uuid
+            )
+        return None
+
+    async def refresh(self, backend: str, tenant_uuid: str) -> Connector | None:
+        """Async variant of :meth:`find` that runs off the event loop."""
+        return await asyncio.to_thread(self.find, backend, tenant_uuid)
+
+    def _get_cached(self, backend: str, tenant_uuid: str) -> Connector | None:
         key = (tenant_uuid, backend)
-        ts = self._timestamps.get(key, 0.0)
-        if not self._is_expired(ts):
-            cached = self._cache.get(key)
-            if cached is not None:
-                return cached
+        if self._is_expired(self._timestamps.get(key, 0.0)):
+            return None
+        return self._cache.get(key)
+
+    def _is_expired(self, timestamp: float) -> bool:
+        return (time.monotonic() - timestamp) > self._cache_ttl
+
+    def _fetch(self, backend: str, tenant_uuid: str) -> Connector:
+        """Talk to wazo-auth, instantiate, cache, and return; raises on failure."""
+        key = (tenant_uuid, backend)
 
         if backend not in self._registry.available_backends():
             raise UnknownBackendException(backend)
@@ -220,71 +236,9 @@ class ConnectorStore:
         backend_cls = self._registry.get_backend(backend)
         backend_config = self._connectors_config.get(backend, {})
         instance = backend_cls(tenant_uuid, auth_config, backend_config)
-        self._cache[key] = instance
-        self._timestamps[key] = time.monotonic()
-        logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)
-        return instance
-
-    def load(self, backend: str, tenant_uuid: str) -> Connector | None:
-        """Sync ``get-or-fetch`` — returns cached instance, or fetches
-        from wazo-auth and caches, blocking the caller. Use from sync
-        paths (Flask webhook dispatch) where :meth:`refresh` can't be
-        awaited.
-        """
-        key = (tenant_uuid, backend)
-        ts = self._timestamps.get(key, 0.0)
-        if not self._is_expired(ts):
-            return self._cache.get(key)
-
-        if backend not in self._registry.available_backends():
-            return None
-
-        return self._fetch_and_cache(backend, tenant_uuid)
-
-    def _is_expired(self, timestamp: float) -> bool:
-        return (time.monotonic() - timestamp) > self._cache_ttl
-
-    def _fetch_and_cache(self, backend: str, tenant_uuid: str) -> Connector | None:
-        key = (tenant_uuid, backend)
-        try:
-            auth_config = dict(
-                self._auth_client.external.get_config(backend, tenant_uuid=tenant_uuid)
-            )
-        except HTTPError as e:
-            status = getattr(e.response, 'status_code', None)
-            if status == 404:
-                logger.debug(
-                    'No auth config for backend %r tenant %s', backend, tenant_uuid
-                )
-            else:
-                logger.error(
-                    'Failed to fetch auth config for backend %r tenant %s: %s',
-                    backend,
-                    tenant_uuid,
-                    e,
-                )
-            self._cache.pop(key, None)
-            self._timestamps.pop(key, None)
-            return None
-
-        try:
-            backend_cls = self._registry.get_backend(backend)
-        except KeyError:
-            logger.warning(
-                'Unknown backend %r referenced for tenant %s', backend, tenant_uuid
-            )
-            return None
-
-        backend_config = self._connectors_config.get(backend, {})
-        try:
-            instance = backend_cls(tenant_uuid, auth_config, backend_config)
-        except Exception:
-            logger.exception(
-                'Failed to instantiate backend %r for tenant %s', backend, tenant_uuid
-            )
-            return None
 
         self._cache[key] = instance
         self._timestamps[key] = time.monotonic()
+
         logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)
         return instance

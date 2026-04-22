@@ -438,7 +438,7 @@ class DeliveryExecutor:
 
     async def _find_connector(self, backend: str, tenant_uuid: str) -> Connector | None:
         """Find a connector instance, refreshing the cache if needed."""
-        connector = self._store.find_by_backend(backend, tenant_uuid)
+        connector = self._store.peek(backend, tenant_uuid)
         if connector:
             return connector
 

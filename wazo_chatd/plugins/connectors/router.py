@@ -84,7 +84,7 @@ class ConnectorRouter:
         except Exception:
             logger.exception('Failed to populate connector store')
 
-    def probe_backend(self, tenant_uuid: str, backend: str) -> None:
+    def validate_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
         """Validate a backend is usable for a tenant; caches on success.
 
         Raises:
@@ -92,24 +92,18 @@ class ConnectorRouter:
           - :class:`BackendNotConfiguredException` (400) — no tenant config.
           - :class:`AuthServiceUnavailableException` (503) — auth transient error.
         """
-        self._store.fetch(backend, tenant_uuid)
+        self._store.get(backend, tenant_uuid)
 
     def reconcile_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
-        """Reconcile store + runners with current identity state.
+        """Drop cached instance when no identity remains; always resync runners.
 
-        Called after a UserIdentity create or delete. Loads the
-        connector instance when an identity exists and the store is
-        cold; drops the instance when no identity remains and the
-        store still has it. Always resyncs pollers and listeners.
+        Called after a UserIdentity create or delete. The create path
+        relies on :meth:`validate_tenant_backend` to have warmed the cache.
         """
         has_any = self._dao.user_identity.has_identities_for_backend(
             tenant_uuid, backend
         )
-        in_store = self._store.find_by_backend(backend, tenant_uuid) is not None
-
-        if has_any and not in_store:
-            self._store.load(backend, tenant_uuid)
-        elif not has_any and in_store:
+        if not has_any and self._store.peek(backend, tenant_uuid) is not None:
             self._store.drop(backend, tenant_uuid)
 
         self._delivery_runner.resync_pollers()
@@ -212,7 +206,7 @@ class ConnectorRouter:
                 f'Cannot resolve tenant for inbound {backend!r} event'
             )
 
-        instance = self._store.load(backend, tenant_uuid)
+        instance = self._store.find(backend, tenant_uuid)
         if instance is None:
             raise ConnectorParseError(
                 f'No connector instance for tenant {tenant_uuid!r} '

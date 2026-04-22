@@ -87,7 +87,7 @@ class UserIdentityListResource(AuthResource):
         tenant_uuids = get_tenant_uuids(recurse=True)
         body = UserIdentitySchema().load(request.get_json(force=True))
         tenant_uuid = self._service.get_user_tenant_uuid(tenant_uuids, user_uuid)
-        self._router.probe_backend(tenant_uuid, body['backend'])
+        self._router.validate_tenant_backend(tenant_uuid, body['backend'])
         identity = UserIdentity(
             tenant_uuid=tenant_uuid,
             user_uuid=user_uuid,

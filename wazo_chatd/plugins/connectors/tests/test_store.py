@@ -145,19 +145,19 @@ class TestConnectorStoreRefresh(unittest.IsolatedAsyncioTestCase):
         )
 
         await store.refresh('sms_backend', TENANT_A)
-        assert store.find_by_backend('sms_backend', TENANT_A) is not None
+        assert store.peek('sms_backend', TENANT_A) is not None
 
         auth_client.external.get_config.side_effect = _not_found()
         await store.refresh('sms_backend', TENANT_A)
-        assert store.find_by_backend('sms_backend', TENANT_A) is None
+        assert store.peek('sms_backend', TENANT_A) is None
 
 
-class TestConnectorStoreFindByBackend(unittest.TestCase):
+class TestConnectorStorePeek(unittest.TestCase):
     def test_returns_none_when_not_cached(self) -> None:
         auth_client = Mock()
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
 
-        result = store.find_by_backend('sms_backend', TENANT_A)
+        result = store.peek('sms_backend', TENANT_A)
 
         assert result is None
         auth_client.external.get_config.assert_not_called()
@@ -169,11 +169,11 @@ class TestConnectorStoreDrop(unittest.IsolatedAsyncioTestCase):
         auth_client.external.get_config.return_value = {'api_key': 'secret'}
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
         await store.refresh('sms_backend', TENANT_A)
-        assert store.find_by_backend('sms_backend', TENANT_A) is not None
+        assert store.peek('sms_backend', TENANT_A) is not None
 
         store.drop('sms_backend', TENANT_A)
 
-        assert store.find_by_backend('sms_backend', TENANT_A) is None
+        assert store.peek('sms_backend', TENANT_A) is None
 
     async def test_is_idempotent_when_entry_missing(self) -> None:
         auth_client = Mock()
@@ -181,7 +181,7 @@ class TestConnectorStoreDrop(unittest.IsolatedAsyncioTestCase):
 
         store.drop('sms_backend', TENANT_A)
 
-        assert store.find_by_backend('sms_backend', TENANT_A) is None
+        assert store.peek('sms_backend', TENANT_A) is None
 
     async def test_only_drops_target_tenant(self) -> None:
         auth_client = Mock()
@@ -192,8 +192,8 @@ class TestConnectorStoreDrop(unittest.IsolatedAsyncioTestCase):
 
         store.drop('sms_backend', TENANT_A)
 
-        assert store.find_by_backend('sms_backend', TENANT_A) is None
-        assert store.find_by_backend('sms_backend', TENANT_B) is not None
+        assert store.peek('sms_backend', TENANT_A) is None
+        assert store.peek('sms_backend', TENANT_B) is not None
 
     async def test_refetches_after_drop(self) -> None:
         auth_client = Mock()
@@ -205,27 +205,27 @@ class TestConnectorStoreDrop(unittest.IsolatedAsyncioTestCase):
         await store.refresh('sms_backend', TENANT_A)
 
         assert auth_client.external.get_config.call_count == 2
-        assert store.find_by_backend('sms_backend', TENANT_A) is not None
+        assert store.peek('sms_backend', TENANT_A) is not None
 
 
-class TestConnectorStoreFetch(unittest.TestCase):
+class TestConnectorStoreGet(unittest.TestCase):
     def test_success_returns_instance_and_populates_cache(self) -> None:
         auth_client = Mock()
         auth_client.external.get_config.return_value = {'api_key': 'secret'}
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
 
-        instance = store.fetch('sms_backend', TENANT_A)
+        instance = store.get('sms_backend', TENANT_A)
 
         assert instance.backend == 'sms_backend'
-        assert store.find_by_backend('sms_backend', TENANT_A) is instance
+        assert store.peek('sms_backend', TENANT_A) is instance
 
     def test_returns_cached_instance_when_fresh(self) -> None:
         auth_client = Mock()
         auth_client.external.get_config.return_value = {'api_key': 'secret'}
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
 
-        first = store.fetch('sms_backend', TENANT_A)
-        second = store.fetch('sms_backend', TENANT_A)
+        first = store.get('sms_backend', TENANT_A)
+        second = store.get('sms_backend', TENANT_A)
 
         assert first is second
         auth_client.external.get_config.assert_called_once()
@@ -236,7 +236,7 @@ class TestConnectorStoreFetch(unittest.TestCase):
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
 
         with self.assertRaises(BackendNotConfiguredException):
-            store.fetch('sms_backend', TENANT_A)
+            store.get('sms_backend', TENANT_A)
 
     def test_raises_auth_unavailable_on_5xx(self) -> None:
         auth_client = Mock()
@@ -245,7 +245,7 @@ class TestConnectorStoreFetch(unittest.TestCase):
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
 
         with self.assertRaises(AuthServiceUnavailableException):
-            store.fetch('sms_backend', TENANT_A)
+            store.get('sms_backend', TENANT_A)
 
     def test_raises_auth_unavailable_on_connection_error(self) -> None:
         auth_client = Mock()
@@ -253,7 +253,7 @@ class TestConnectorStoreFetch(unittest.TestCase):
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
 
         with self.assertRaises(AuthServiceUnavailableException):
-            store.fetch('sms_backend', TENANT_A)
+            store.get('sms_backend', TENANT_A)
 
     def test_raises_auth_unavailable_when_http_error_has_no_response(self) -> None:
         auth_client = Mock()
@@ -261,7 +261,7 @@ class TestConnectorStoreFetch(unittest.TestCase):
         store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
 
         with self.assertRaises(AuthServiceUnavailableException):
-            store.fetch('sms_backend', TENANT_A)
+            store.get('sms_backend', TENANT_A)
 
     def test_raises_unknown_backend_for_unregistered_backend(self) -> None:
         auth_client = Mock()
@@ -269,7 +269,7 @@ class TestConnectorStoreFetch(unittest.TestCase):
         store = ConnectorStore(auth_client, _build_registry())
 
         with self.assertRaises(UnknownBackendException):
-            store.fetch('sms_backend', TENANT_A)
+            store.get('sms_backend', TENANT_A)
 
         auth_client.external.get_config.assert_not_called()
 
