@@ -72,7 +72,7 @@ class Runner:
         self._closing: concurrent.futures.Future[None] = concurrent.futures.Future()
         self._backoff = _backoff()
         self._restart_count: int = 0
-        self._healthy: bool = False
+        self._healthy: threading.Event = threading.Event()
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -125,7 +125,9 @@ class Runner:
                 except (asyncio.CancelledError, Exception):
                     pass
             else:
-                # _on_start completed; now wait for shutdown.
+                # _on_start completed — re-raise if it crashed, so
+                # run() can log and trigger the restart path.
+                start_task.result()
                 await close_future
         finally:
             await self._on_stop()
@@ -164,9 +166,9 @@ class Runner:
         (caller should exit), ``True`` otherwise (caller should
         restart).
         """
-        if self._healthy:
+        if self._healthy.is_set():
             self._backoff = _backoff()
-            self._healthy = False
+            self._healthy.clear()
 
         delay = next(self._backoff)
         self._restart_count += 1
@@ -233,6 +235,7 @@ class DeliveryRunner(Runner):
         self._pollers: dict[CacheKey, asyncio.Task[None]] = {}
         self._queue: AsyncQueue[InboundMessage | StatusUpdate] = AsyncQueue()
         self._drain_task: asyncio.Task[None] | None = None
+        self._scheduled_timers: set[asyncio.TimerHandle] = set()
 
     @property
     def semaphore(self) -> asyncio.Semaphore:
@@ -256,12 +259,15 @@ class DeliveryRunner(Runner):
 
     async def _on_start(self) -> None:
         self._semaphore = asyncio.Semaphore(self._max_tasks)
-        await self._store.wait_populated()
-        await self._recover()
-        self._outbound_notify_task = asyncio.ensure_future(
-            self._listen_for_deliveries()
-        )
-        self._drain_task = asyncio.ensure_future(self._drain_queue())
+        try:
+            await self._store.wait_populated()
+        except Exception:
+            logger.exception(
+                '%s starting in degraded state: connector store populate failed',
+                self.thread_name,
+            )
+        self._outbound_notify_task = asyncio.create_task(self._listen_for_deliveries())
+        self._drain_task = asyncio.create_task(self._drain_queue())
         self._synchronize_pollers()
 
     async def _drain_queue(self) -> None:
@@ -293,6 +299,10 @@ class DeliveryRunner(Runner):
             await asyncio.gather(*self._pollers.values(), return_exceptions=True)
         self._pollers.clear()
 
+        for handle in self._scheduled_timers:
+            handle.cancel()
+        self._scheduled_timers.clear()
+
         if self._in_flight:
             logger.info(
                 'Waiting for %d in-flight task(s) to complete',
@@ -319,6 +329,11 @@ class DeliveryRunner(Runner):
                 logger.info('Listening for connector_delivery notifications')
                 backoff = _backoff()
 
+                # Run recovery after LISTEN is registered so any NOTIFY
+                # fired during the outage (or startup) is picked up
+                # either by the live listener or this catch-up scan.
+                await self._recover()
+
                 await self._wait_closing()
             except asyncio.CancelledError:
                 break
@@ -328,7 +343,13 @@ class DeliveryRunner(Runner):
                 await asyncio.sleep(delay)
             finally:
                 if connection and not connection.is_closed():
-                    await connection.close()
+                    try:
+                        await connection.close()
+                    except Exception:
+                        logger.warning(
+                            'Failed to close asyncpg listener connection',
+                            exc_info=True,
+                        )
 
         logger.info('Stopped listening for connector_delivery notifications')
 
@@ -397,12 +418,21 @@ class DeliveryRunner(Runner):
                     message_uuid,
                     delay,
                 )
-                self._loop.call_later(
-                    delay, self._schedule_outbound_notification, message_uuid
-                )
+                self._schedule_outbound_later(delay, message_uuid)
             else:
                 logger.info('Recovery: re-enqueuing %s immediately', message_uuid)
                 self._schedule_outbound_notification(message_uuid)
+
+    def _schedule_outbound_later(self, delay: float, message_uuid: str) -> None:
+        """Schedule a delayed outbound notification; handle tracked for shutdown cancel."""
+        assert self._loop is not None
+
+        def fire() -> None:
+            self._scheduled_timers.discard(handle)
+            self._schedule_outbound_notification(message_uuid)
+
+        handle = self._loop.call_later(delay, fire)
+        self._scheduled_timers.add(handle)
 
     def resync_pollers(self) -> None:
         """Thread-safe: schedule a poller reconcile on the delivery loop."""
@@ -509,7 +539,7 @@ class DeliveryRunner(Runner):
     def _task_done(self, task: asyncio.Task[None]) -> None:
         self._in_flight.discard(task)
         if task.exception() is None:
-            self._healthy = True
+            self._healthy.set()
 
     async def _process(
         self,
@@ -553,7 +583,13 @@ class ListenerRunner(Runner):
         self._listeners: dict[CacheKey, asyncio.Task[None]] = {}
 
     async def _on_start(self) -> None:
-        await self._store.wait_populated()
+        try:
+            await self._store.wait_populated()
+        except Exception:
+            logger.exception(
+                '%s starting in degraded state: connector store populate failed',
+                self.thread_name,
+            )
         self._reconcile(self._build_desired())
 
     def _build_desired(self) -> dict[CacheKey, Connector]:

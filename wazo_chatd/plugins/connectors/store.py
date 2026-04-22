@@ -75,7 +75,9 @@ class ConnectorStore:
 
     @property
     def is_populated(self) -> bool:
-        return self._populated.done()
+        if not self._populated.done():
+            return False
+        return self._populated.exception() is None
 
     def find_by_backend(self, backend: str, tenant_uuid: str) -> Connector | None:
         return self._cache.get((tenant_uuid, backend))
@@ -99,31 +101,40 @@ class ConnectorStore:
             if self._populated.done():
                 return
 
-            registered = set(self._registry.available_backends())
-            if unknown := set(self._connectors_config) - registered:
-                logger.warning(
-                    'Configuration found for unknown connector backend(s): %s',
-                    sorted(unknown),
-                )
+            try:
+                registered = set(self._registry.available_backends())
+                if unknown := set(self._connectors_config) - registered:
+                    logger.warning(
+                        'Configuration found for unknown connector backend(s): %s',
+                        sorted(unknown),
+                    )
 
-            priority_backends = {
-                backend
-                for backend, cfg in self._connectors_config.items()
-                if (cfg or {}).get('mode', 'webhook') != 'webhook'
-            }
+                priority_backends = {
+                    backend
+                    for backend, cfg in self._connectors_config.items()
+                    if (cfg or {}).get('mode', 'webhook') != 'webhook'
+                }
 
-            pairs = set(tenant_backends)
-            priority = {pair for pair in pairs if pair[1] in priority_backends}
-            deferred = pairs - priority
+                pairs = set(tenant_backends)
+                priority = {pair for pair in pairs if pair[1] in priority_backends}
+                deferred = pairs - priority
 
-            self._fetch_batch(priority)
+                self._fetch_batch(priority)
+            except Exception as e:
+                self._populated.set_exception(e)
+                raise
+
             self._populated.set_result(None)
             logger.info(
                 'Populated connector store (priority=%d, deferred=%d)',
                 len(priority),
                 len(deferred),
             )
-            self._fetch_batch(deferred)
+
+            try:
+                self._fetch_batch(deferred)
+            except Exception:
+                logger.exception('Deferred connector fetch failed, continuing')
         finally:
             self._populate_lock.release()
 

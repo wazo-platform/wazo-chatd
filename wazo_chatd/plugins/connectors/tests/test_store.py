@@ -264,3 +264,30 @@ class TestConnectorStoreFetch(unittest.TestCase):
             store.fetch('sms_backend', TENANT_A)
 
         auth_client.external.get_config.assert_not_called()
+
+
+class TestConnectorStorePopulate(unittest.IsolatedAsyncioTestCase):
+    async def test_wait_populated_resolves_on_success(self) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.return_value = {'api_key': 'secret'}
+        store = ConnectorStore(
+            auth_client,
+            _build_registry(_SmsConnector),
+            connectors_config={'sms_backend': {'mode': 'poll'}},
+        )
+
+        store.populate([(TENANT_A, 'sms_backend')])
+
+        await store.wait_populated()
+
+    async def test_wait_populated_raises_on_priority_fetch_failure(self) -> None:
+        auth_client = Mock()
+        registry = Mock()
+        registry.available_backends.side_effect = RuntimeError('registry boom')
+        store = ConnectorStore(auth_client, registry)
+
+        with self.assertRaises(RuntimeError):
+            store.populate([(TENANT_A, 'sms_backend')])
+
+        with self.assertRaises(RuntimeError):
+            await store.wait_populated()

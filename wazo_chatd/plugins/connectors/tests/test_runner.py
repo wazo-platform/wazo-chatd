@@ -11,7 +11,7 @@ import unittest.mock
 from unittest.mock import AsyncMock, Mock
 
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
-from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner
+from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner, Runner
 from wazo_chatd.plugins.connectors.types import InboundMessage, StatusUpdate
 
 
@@ -49,6 +49,36 @@ def _mock_session_factory() -> Mock:
     session = AsyncMock()
     session.execute.return_value = result_mock
     return Mock(return_value=session)
+
+
+class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
+    async def test_on_start_exception_propagates(self) -> None:
+        class _CrashyRunner(Runner):
+            async def _on_start(self) -> None:
+                raise RuntimeError('boom')
+
+        runner = _CrashyRunner()
+
+        with self.assertRaises(RuntimeError):
+            await runner._entrypoint()
+
+    async def test_on_start_exception_still_runs_on_stop(self) -> None:
+        stopped = False
+
+        class _CrashyRunner(Runner):
+            async def _on_start(self) -> None:
+                raise RuntimeError('boom')
+
+            async def _on_stop(self) -> None:
+                nonlocal stopped
+                stopped = True
+
+        runner = _CrashyRunner()
+
+        with self.assertRaises(RuntimeError):
+            await runner._entrypoint()
+
+        assert stopped is True
 
 
 @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.asyncpg')
@@ -469,7 +499,7 @@ class TestDeliveryRunnerWaitBackoff(unittest.TestCase):
         runner._wait_backoff()
         assert delays == [1, 2]
 
-        runner._healthy = True
+        runner._healthy.set()
         runner._wait_backoff()
         assert delays[-1] == 1
 
