@@ -76,6 +76,43 @@ class TestAsyncCheckDuplicateIdempotencyKey(unittest.IsolatedAsyncioTestCase):
         assert result is False
 
 
+class TestAsyncListPendingExternalIds(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.session = AsyncMock()
+        self.token = _current_session.set(self.session)
+        self.dao = AsyncRoomDAO()
+
+    def tearDown(self) -> None:
+        _current_session.reset(self.token)
+
+    async def test_returns_external_ids(self) -> None:
+        scalars = Mock()
+        scalars.all.return_value = ['sid-1', 'sid-2']
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars
+        self.session.execute.return_value = result_mock
+
+        result = await self.dao.list_pending_external_ids(
+            tenant_uuid='tenant-1', backend='twilio'
+        )
+
+        assert result == ['sid-1', 'sid-2']
+        self.session.execute.assert_awaited_once()
+
+    async def test_returns_empty_when_no_pending(self) -> None:
+        scalars = Mock()
+        scalars.all.return_value = []
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars
+        self.session.execute.return_value = result_mock
+
+        result = await self.dao.list_pending_external_ids(
+            tenant_uuid='tenant-1', backend='twilio'
+        )
+
+        assert result == []
+
+
 class TestAsyncFindOrCreateRoom(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.session = AsyncMock()

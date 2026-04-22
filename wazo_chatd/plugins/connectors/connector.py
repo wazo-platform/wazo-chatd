@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, ClassVar, Protocol
 
 from wazo_chatd.database.delivery import DeliveryStatus
@@ -150,24 +150,74 @@ class Connector(Protocol):
         """
         ...
 
-    def listen(
+    def scan_inbound(self) -> list[InboundMessage]:
+        """Return new inbound messages since the last scan.
+
+        Sync or async. Sync implementations are wrapped with
+        ``asyncio.to_thread`` by the delivery loop. Async
+        implementations (``httpx.AsyncClient``, ``aiohttp``) avoid
+        the thread hop.
+
+        Called periodically by the delivery loop when ``mode=poll``.
+        The connector owns its cursor internally (timestamp, last
+        external_id) — callers pass no arguments. Must not block
+        longer than the provider HTTP timeout.
+
+        Exceptions propagate; the delivery loop logs and schedules
+        the next cycle at the previous interval. Backends without
+        an inbound polling API may return ``[]``.
+        """
+        ...
+
+    def track_outbound(self, external_ids: Iterable[str]) -> list[StatusUpdate]:
+        """Return current status for each outbound ``external_id``.
+
+        Sync or async. Sync implementations are wrapped with
+        ``asyncio.to_thread`` by the delivery loop.
+
+        The delivery loop passes external_ids of outbound messages
+        whose latest :class:`DeliveryRecord` is still in a
+        non-terminal state. Implementations must be efficient with
+        large batches (hundreds of IDs) — prefer bulk endpoints
+        when the provider offers them.
+
+        Backends that receive status via webhook callbacks may
+        leave this as a no-op (return ``[]``).
+        """
+        ...
+
+    async def listen(
         self, on_message: Callable[[InboundMessage | StatusUpdate], None]
     ) -> None:
-        """Begin listening for incoming messages via connector-controlled transports.
+        """Run as an asyncio task on the dedicated listen loop.
 
-        For polling:
-            Start a loop, wrap results in :class:`PollData`, call
-            :meth:`on_event`, forward non-None results to *on_message*.
-            Both :class:`InboundMessage` and :class:`StatusUpdate` are
-            accepted by the callback.
+        Async-only — a sync ``listen`` blocks the event loop and
+        starves every peer listener on the same thread. Backends
+        with sync-only transport libraries must wrap themselves:
+        ``await asyncio.to_thread(self._blocking_listen_forever)``.
 
-        For webhook-only connectors:
-            No-op — chatd's HTTP adapter calls :meth:`on_event` directly.
+        Use async I/O: ``aiohttp`` for websockets, ``aio-pika`` for
+        AMQP, ``asyncio.DatagramProtocol`` for UDP.
+
+        Per-message work must be minimal (parse + forward). Heavy
+        processing happens downstream on the delivery loop after
+        ``on_message`` has enqueued the result.
+
+        Task cancellation is the shutdown signal — clean up in
+        ``finally``. Reconnect loops must use jittered backoff to
+        avoid thundering-herd storms when many tenants reconnect
+        after a network blip.
         """
         ...
 
     def stop(self) -> None:
-        """Stop listening and clean up resources."""
+        """Hint-only cleanup for listener resources.
+
+        The canonical shutdown mechanism is task cancellation; the
+        delivery loop cancels the ``listen`` task at shutdown.
+        This method exists for backends that hold external
+        resources that cancellation alone cannot release.
+        """
         ...
 
     @classmethod

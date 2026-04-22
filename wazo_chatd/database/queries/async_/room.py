@@ -28,6 +28,56 @@ class AsyncRoomDAO:
     def session(self) -> AsyncSession:
         return get_async_session()
 
+    async def list_pending_external_ids(
+        self,
+        tenant_uuid: str,
+        backend: str,
+        limit: int = 100,
+    ) -> list[str]:
+        """External IDs of outbound messages awaiting a terminal status.
+
+        Filters to messages whose latest :class:`DeliveryRecord` is not
+        in ``DELIVERED``, ``FAILED``, or ``DEAD_LETTER``, and that have
+        a non-null ``external_id`` (provider has accepted the send).
+
+        Results are ordered oldest-first so a transient backlog catches
+        up on subsequent poll cycles without starving older messages.
+        """
+        terminal = (
+            DeliveryStatus.DELIVERED.value,
+            DeliveryStatus.FAILED.value,
+            DeliveryStatus.DEAD_LETTER.value,
+        )
+        latest_record = (
+            select(
+                DeliveryRecord.message_uuid,
+                func.max(DeliveryRecord.id).label('max_id'),
+            )
+            .group_by(DeliveryRecord.message_uuid)
+            .subquery()
+        )
+
+        stmt = (
+            select(MessageMeta.external_id)
+            .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
+            .join(
+                latest_record,
+                MessageMeta.message_uuid == latest_record.c.message_uuid,
+            )
+            .join(
+                DeliveryRecord,
+                DeliveryRecord.id == latest_record.c.max_id,
+            )
+            .where(RoomMessage.tenant_uuid == tenant_uuid)
+            .where(MessageMeta.backend == backend)
+            .where(MessageMeta.external_id.isnot(None))
+            .where(DeliveryRecord.status.notin_(terminal))
+            .order_by(RoomMessage.created_at)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
         stmt = (
             select(MessageMeta)
