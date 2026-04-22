@@ -66,11 +66,11 @@ class ConnectorStore:
         return len(self._cache)
 
     def __iter__(self) -> Iterator[Connector]:
-        return iter(self._cache.values())
-
-    def items(self) -> Iterator[tuple[CacheKey, Connector]]:
         # Snapshot — protects iteration against concurrent writes from
         # populate's worker pool.
+        return iter(list(self._cache.values()))
+
+    def items(self) -> Iterator[tuple[CacheKey, Connector]]:
         return iter(list(self._cache.items()))
 
     @property

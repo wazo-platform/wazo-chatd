@@ -146,7 +146,7 @@ class UserMeIdentityListResource(AuthResource):
         user_uuid = str(token.user_uuid)
         tenant_uuids = [token.tenant_uuid]
 
-        if params['room_uuid']:
+        if params['room_uuid'] is not None:
             room_uuid = str(params['room_uuid'])
             identities = self._service.list_room_identities(
                 tenant_uuids, room_uuid, user_uuid

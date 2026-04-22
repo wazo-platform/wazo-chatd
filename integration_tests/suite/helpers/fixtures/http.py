@@ -45,9 +45,7 @@ def user_identity(**identity_args):
             identity_args.setdefault('backend', 'test')
             identity_args.setdefault('type', 'test')
 
-            identity = self.chatd.user_identities.create(
-                str(user_uuid), identity_args
-            )
+            identity = self.chatd.user_identities.create(str(user_uuid), identity_args)
 
             args = (*args, identity)
             try:

@@ -104,7 +104,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
             notifier=self.notifier,
             store=ConnectorStore(Mock(), ConnectorRegistry()),
         )
-        self.executor._store._cache[('tenant-uuid', 'twilio')] = self.connector
+        self.executor._store._cache[('tenant-uuid', 'twilio')] = self.connector  # type: ignore[assignment]
         self.executor._store._timestamps[('tenant-uuid', 'twilio')] = time.monotonic()
         self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
@@ -215,7 +215,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
             notifier=AsyncMock(),
             store=self.store,
         )
-        self.store._cache[('tenant-uuid', 'twilio')] = self.connector
+        self.store._cache[('tenant-uuid', 'twilio')] = self.connector  # type: ignore[assignment]
         self.store._timestamps[('tenant-uuid', 'twilio')] = time.monotonic()
         self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
@@ -466,7 +466,11 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
             side_effect=[RuntimeError('DB down'), AsyncMock()]
         )
 
-        await self.executor.route_inbound(inbound)
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.executor.asyncio.sleep',
+            new=AsyncMock(),
+        ):
+            await self.executor.route_inbound(inbound)
 
         assert self.executor._room_dao.add_message.await_count == 2
         self.notifier.message_created.assert_awaited_once()

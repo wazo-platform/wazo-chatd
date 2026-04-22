@@ -7,13 +7,13 @@ import uuid
 
 import pytest
 
-from wazo_chatd.database.models import Room, RoomUser, UserIdentity
+from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.exceptions import UnknownUserIdentityException
 
 from .helpers import fixtures
 from .helpers.base import TOKEN_SUBTENANT_UUID as TENANT_2
 from .helpers.base import TOKEN_TENANT_UUID as TENANT_1
-from .helpers.base import WAZO_UUID, DBIntegrationTest, use_asset
+from .helpers.base import DBIntegrationTest, use_asset
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()

@@ -81,14 +81,10 @@ class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
             }
         ],
     )
-    def test_track_outbound_records_terminal_status(
-        self, user, identity, room
-    ):
+    def test_track_outbound_records_terminal_status(self, user, identity, room):
         message = room.messages[0]
 
-        self.connector_mock.set_track(
-            'ext-out-001', {'status': 'delivered'}
-        )
+        self.connector_mock.set_track('ext-out-001', {'status': 'delivered'})
 
         def delivered_record_exists():
             statuses = {

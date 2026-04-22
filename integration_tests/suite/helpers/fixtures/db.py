@@ -242,18 +242,14 @@ def room(**room_args):
             self._session.add(room)
             self._session.flush()
 
-            for message, (meta_args, deliveries) in zip(
-                room.messages, message_extras
-            ):
+            for message, (meta_args, deliveries) in zip(room.messages, message_extras):
                 if meta_args or deliveries:
                     self._session.add(
                         MessageMeta(message_uuid=message.uuid, **meta_args)
                     )
                 for status in deliveries:
                     self._session.add(
-                        DeliveryRecord(
-                            message_uuid=message.uuid, status=status
-                        )
+                        DeliveryRecord(message_uuid=message.uuid, status=status)
                     )
             self._session.flush()
 

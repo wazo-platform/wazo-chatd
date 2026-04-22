@@ -29,7 +29,8 @@ def fail_on_thread_exception() -> Iterator[None]:
 
     if captured:
         args = captured[0]
+        thread_name = args.thread.name if args.thread is not None else '<unknown>'
         raise AssertionError(
-            f'Unhandled exception in thread {args.thread.name!r}: '
+            f'Unhandled exception in thread {thread_name!r}: '
             f'{args.exc_type.__name__}: {args.exc_value}'
         ) from args.exc_value
