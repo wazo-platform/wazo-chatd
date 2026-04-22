@@ -73,6 +73,21 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         assert result['extra'] == {'account_sid': 'AC123'}
 
     @fixtures.db.user(uuid=USER_UUID)
+    def test_create_unknown_backend_returns_400(self, user):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.user_identities.create(
+                str(USER_UUID),
+                {
+                    'backend': 'nonexistent-backend',
+                    'type': 'sms',
+                    'identity': '+15551112222',
+                },
+            )
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.error_id == 'unknown-backend'
+
+    @fixtures.db.user(uuid=USER_UUID)
     def test_create_missing_backend_returns_400(self, user):
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.user_identities.create(
@@ -343,9 +358,7 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
             {'uuid': USER_UUID},
         ],
     )
-    def test_list_with_room_uuid_internal_only_returns_empty(
-        self, me, recipient, room
-    ):
+    def test_list_with_room_uuid_internal_only_returns_empty(self, me, recipient, room):
         result = self.chatd.user_identities.list_from_user(room_uuid=str(room.uuid))
 
         assert result['total'] == 0

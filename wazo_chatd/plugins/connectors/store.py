@@ -12,9 +12,14 @@ from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, RequestException
 
 from wazo_chatd.plugins.connectors.connector import Connector
+from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
+    BackendNotConfiguredException,
+    UnknownBackendException,
+)
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 if TYPE_CHECKING:
@@ -158,6 +163,56 @@ class ConnectorStore:
             return None
 
         return await asyncio.to_thread(self._fetch_and_cache, backend, tenant_uuid)
+
+    def drop(self, backend: str, tenant_uuid: str) -> None:
+        key = (tenant_uuid, backend)
+        self._cache.pop(key, None)
+        self._timestamps.pop(key, None)
+
+    def fetch(self, backend: str, tenant_uuid: str) -> Connector:
+        """Sync get-or-fetch that raises on failure.
+
+        Returns the cached instance if fresh, otherwise fetches from
+        wazo-auth and caches. Raises:
+
+        - :class:`UnknownBackendException` (400) when the backend is
+          not registered with stevedore.
+        - :class:`BackendNotConfiguredException` (400) when the backend
+          is registered but has no tenant-level config (404 from
+          wazo-auth).
+        - :class:`AuthServiceUnavailableException` (503) on transient
+          failures (5xx, connection error).
+        """
+        key = (tenant_uuid, backend)
+        ts = self._timestamps.get(key, 0.0)
+        if not self._is_expired(ts):
+            cached = self._cache.get(key)
+            if cached is not None:
+                return cached
+
+        if backend not in self._registry.available_backends():
+            raise UnknownBackendException(backend)
+
+        try:
+            auth_config = dict(
+                self._auth_client.external.get_config(backend, tenant_uuid=tenant_uuid)
+            )
+        except HTTPError as e:
+            self._cache.pop(key, None)
+            self._timestamps.pop(key, None)
+            if e.response.status_code == 404:
+                raise BackendNotConfiguredException(backend, tenant_uuid)
+            raise AuthServiceUnavailableException()
+        except RequestException:
+            raise AuthServiceUnavailableException()
+
+        backend_cls = self._registry.get_backend(backend)
+        backend_config = self._connectors_config.get(backend, {})
+        instance = backend_cls(tenant_uuid, auth_config, backend_config)
+        self._cache[key] = instance
+        self._timestamps[key] = time.monotonic()
+        logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)
+        return instance
 
     def load(self, backend: str, tenant_uuid: str) -> Connector | None:
         """Sync ``get-or-fetch`` — returns cached instance, or fetches

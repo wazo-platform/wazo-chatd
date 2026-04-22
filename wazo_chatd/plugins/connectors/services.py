@@ -34,7 +34,6 @@ if TYPE_CHECKING:
         UserIdentity,
     )
     from wazo_chatd.database.queries import DAO
-    from wazo_chatd.plugin_helpers.hooks import Hooks
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +45,11 @@ class ConnectorService:
         registry: ConnectorRegistry,
         notifier: UserIdentityNotifier,
         auth_client: AuthClient,
-        hooks: Hooks,
     ) -> None:
         self._dao = dao
         self._registry = registry
         self._notifier = notifier
         self._auth_client = auth_client
-        self._hooks = hooks
 
     def get_user_tenant_uuid(self, tenant_uuids: Iterable[str], user_uuid: str) -> str:
         try:
@@ -119,14 +116,12 @@ class ConnectorService:
         self._validate_and_normalize_identity(identity)
         created = self._dao.user_identity.create(identity)
         self._notifier.created(created)
-        self._hooks.dispatch('user_identity_created', created)
         return created
 
     def update_identity(self, identity: UserIdentity) -> UserIdentity:
         self._validate_and_normalize_identity(identity)
         self._dao.user_identity.update(identity)
         self._notifier.updated(identity)
-        self._hooks.dispatch('user_identity_updated', identity)
         return identity
 
     def _validate_and_normalize_identity(self, identity: UserIdentity) -> None:
@@ -146,7 +141,6 @@ class ConnectorService:
     def delete_identity(self, identity: UserIdentity) -> None:
         self._dao.user_identity.delete(identity)
         self._notifier.deleted(identity)
-        self._hooks.dispatch('user_identity_deleted', identity)
 
     def prepare_outbound_delivery(
         self,

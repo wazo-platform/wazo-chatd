@@ -73,6 +73,17 @@ class UnknownBackendException(APIException):
         )
 
 
+class BackendNotConfiguredException(APIException):
+    def __init__(self, backend: str, tenant_uuid: str) -> None:
+        super().__init__(
+            400,
+            f'Backend {backend!r} is not configured for tenant {tenant_uuid!r}',
+            'backend-not-configured',
+            {'backend': backend, 'tenant_uuid': tenant_uuid},
+            'identities',
+        )
+
+
 class AuthServiceUnavailableException(APIException):
     def __init__(self) -> None:
         super().__init__(

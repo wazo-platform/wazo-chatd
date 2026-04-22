@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import exc, select
+from sqlalchemy import exc, exists, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, selectinload
 
@@ -149,6 +149,14 @@ class UserIdentityDAO:
     def list_tenant_backends(self) -> list[tuple[str, str]]:
         stmt = select(UserIdentity.tenant_uuid, UserIdentity.backend).distinct()
         return list(self.session.execute(stmt).all())  # type: ignore[arg-type]
+
+    def has_identities_for_backend(self, tenant_uuid: str, backend: str) -> bool:
+        stmt = select(
+            exists()
+            .where(UserIdentity.tenant_uuid == tenant_uuid)
+            .where(UserIdentity.backend == backend)
+        )
+        return bool(self.session.execute(stmt).scalar_one())
 
     def find_tenant_by_identity(self, identity: str, backend: str) -> str | None:
         stmt = (

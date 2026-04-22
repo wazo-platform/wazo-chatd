@@ -69,8 +69,9 @@ class ConnectorWebhookResource(Resource):
 
 
 class UserIdentityListResource(AuthResource):
-    def __init__(self, service: ConnectorService) -> None:
+    def __init__(self, service: ConnectorService, router: ConnectorRouter) -> None:
         self._service = service
+        self._router = router
 
     @required_acl('chatd.users.{user_uuid}.identities.read')
     def get(self, user_uuid: str) -> tuple[dict[str, Any], int]:
@@ -86,18 +87,21 @@ class UserIdentityListResource(AuthResource):
         tenant_uuids = get_tenant_uuids(recurse=True)
         body = UserIdentitySchema().load(request.get_json(force=True))
         tenant_uuid = self._service.get_user_tenant_uuid(tenant_uuids, user_uuid)
+        self._router.probe_backend(tenant_uuid, body['backend'])
         identity = UserIdentity(
             tenant_uuid=tenant_uuid,
             user_uuid=user_uuid,
             **body,
         )
         created = self._service.create_identity(identity)
+        self._router.reconcile_tenant_backend(tenant_uuid, body['backend'])
         return UserIdentitySchema().dump(created), 201
 
 
 class UserIdentityItemResource(AuthResource):
-    def __init__(self, service: ConnectorService) -> None:
+    def __init__(self, service: ConnectorService, router: ConnectorRouter) -> None:
         self._service = service
+        self._router = router
 
     @required_acl('chatd.users.{user_uuid}.identities.{identity_uuid}.read')
     def get(self, user_uuid: str, identity_uuid: str) -> tuple[dict[str, Any], int]:
@@ -125,6 +129,9 @@ class UserIdentityItemResource(AuthResource):
             tenant_uuids, identity_uuid, user_uuid=user_uuid
         )
         self._service.delete_identity(identity)
+        self._router.reconcile_tenant_backend(
+            str(identity.tenant_uuid), str(identity.backend)
+        )
         return '', 204
 
 

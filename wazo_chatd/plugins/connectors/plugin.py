@@ -33,30 +33,27 @@ class Plugin:
         hooks = dependencies['hooks']
         status_aggregator = dependencies['status_aggregator']
         thread_manager = dependencies['thread_manager']
+        token_changed_subscribe = dependencies['token_changed_subscribe']
+        next_token_changed_subscribe = dependencies['next_token_changed_subscribe']
+
+        auth_client = AuthClient(**config['auth'])
+        token_changed_subscribe(auth_client.set_token)
 
         registry = ConnectorRegistry()
         registry.discover(connectors_config=config.get('connectors', {}))
 
-        auth_client = AuthClient(**config['auth'])
-        token_changed_subscribe = dependencies['token_changed_subscribe']
-        next_token_changed_subscribe = dependencies['next_token_changed_subscribe']
-
-        token_changed_subscribe(auth_client.set_token)
-
         notifier = UserIdentityNotifier(bus_publisher)
-        service = ConnectorService(dao, registry, notifier, auth_client, hooks)
+        service = ConnectorService(dao, registry, notifier, auth_client)
 
         router = ConnectorRouter(config, registry, service, auth_client, dao)
-        next_token_changed_subscribe(router.on_auth_available)
         thread_manager.manage(router)
+        next_token_changed_subscribe(router.on_auth_available)
         status_aggregator.add_provider(router.provide_status)
-
         hooks.register(
             'before_room_schema_validation', router.resolve_room_participants
         )
         hooks.register('before_room_creation', router.validate_room_creation)
         hooks.register('before_message_creation', router.prepare_outbound)
-        hooks.register('user_identity_created', router.on_identity_created)
 
         bus_handler = ConnectorBusEventHandler(bus_consumer, router)
         bus_handler.subscribe()
@@ -70,14 +67,13 @@ class Plugin:
         api.add_resource(
             UserIdentityListResource,
             '/users/<uuid:user_uuid>/identities',
-            resource_class_args=[service],
+            resource_class_args=[service, router],
         )
         api.add_resource(
             UserIdentityItemResource,
             '/users/<uuid:user_uuid>/identities/<uuid:identity_uuid>',
-            resource_class_args=[service],
+            resource_class_args=[service, router],
         )
-
         api.add_resource(
             UserMeIdentityListResource,
             '/users/me/identities',

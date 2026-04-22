@@ -230,9 +230,7 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.dao.user_identity.find_tenant_by_identity.assert_called_once_with(
             '+15551234', 'twilio'
         )
-        self.router._store.load.assert_called_once_with(
-            'twilio', 'tenant-uuid'
-        )
+        self.router._store.load.assert_called_once_with('twilio', 'tenant-uuid')
         self.instance.verify_signature.assert_called_once_with(data)
         self.manager.enqueue_message.assert_called_once()
 
@@ -326,3 +324,73 @@ class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
         self.router.validate_room_creation(room)
 
         self.service.validate_room_reachability.assert_called_once_with(room)
+
+
+class TestConnectorRouterProbeBackend(unittest.TestCase):
+    def setUp(self) -> None:
+        self.router = _build_router()
+        self.router._store = Mock()
+
+    def test_delegates_to_store_fetch(self) -> None:
+        self.router.probe_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.fetch.assert_called_once_with('sms_backend', 'tenant-uuid')
+
+    def test_propagates_fetch_exceptions(self) -> None:
+        self.router._store.fetch.side_effect = RuntimeError('boom')
+
+        with self.assertRaises(RuntimeError):
+            self.router.probe_backend('tenant-uuid', 'sms_backend')
+
+
+class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dao = Mock()
+        self.router = _build_router(dao=self.dao)
+        self.router._store = Mock()
+        self.router._listener_runner = Mock()
+
+    def test_loads_when_identity_exists_and_store_empty(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = True
+        self.router._store.find_by_backend.return_value = None
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.load.assert_called_once_with('sms_backend', 'tenant-uuid')
+        self.router._store.drop.assert_not_called()
+
+    def test_noop_when_identity_exists_and_store_has_entry(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = True
+        self.router._store.find_by_backend.return_value = Mock()
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.load.assert_not_called()
+        self.router._store.drop.assert_not_called()
+
+    def test_drops_when_no_identity_and_store_has_entry(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = False
+        self.router._store.find_by_backend.return_value = Mock()
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_called_once_with('sms_backend', 'tenant-uuid')
+        self.router._store.load.assert_not_called()
+
+    def test_noop_when_no_identity_and_store_empty(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = False
+        self.router._store.find_by_backend.return_value = None
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.load.assert_not_called()
+        self.router._store.drop.assert_not_called()
+
+    def test_always_resyncs_pollers_and_listeners(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = False
+        self.router._store.find_by_backend.return_value = None
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._delivery_runner.resync_pollers.assert_called_once()
+        self.router._listener_runner.resync.assert_called_once()

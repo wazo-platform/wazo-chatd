@@ -28,7 +28,7 @@ from wazo_chatd.plugins.connectors.types import (
 if TYPE_CHECKING:
     from wazo_auth_client import Client as AuthClient
 
-    from wazo_chatd.database.models import Room, UserIdentity
+    from wazo_chatd.database.models import Room
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
@@ -70,6 +70,7 @@ class ConnectorRouter:
     def on_auth_available(self, token: str) -> None:
         if self._store.is_populated:
             return
+
         threading.Thread(
             target=self._populate_store,
             daemon=True,
@@ -83,11 +84,34 @@ class ConnectorRouter:
         except Exception:
             logger.exception('Failed to populate connector store')
 
-    def on_identity_created(self, identity: UserIdentity) -> None:
-        """React to a new UserIdentity: load instance + resync runners."""
-        backend = str(identity.backend)
-        tenant_uuid = str(identity.tenant_uuid)
-        self._store.load(backend, tenant_uuid)
+    def probe_backend(self, tenant_uuid: str, backend: str) -> None:
+        """Validate a backend is usable for a tenant; caches on success.
+
+        Raises:
+          - :class:`UnknownBackendException` (400) — backend not registered.
+          - :class:`BackendNotConfiguredException` (400) — no tenant config.
+          - :class:`AuthServiceUnavailableException` (503) — auth transient error.
+        """
+        self._store.fetch(backend, tenant_uuid)
+
+    def reconcile_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
+        """Reconcile store + runners with current identity state.
+
+        Called after a UserIdentity create or delete. Loads the
+        connector instance when an identity exists and the store is
+        cold; drops the instance when no identity remains and the
+        store still has it. Always resyncs pollers and listeners.
+        """
+        has_any = self._dao.user_identity.has_identities_for_backend(
+            tenant_uuid, backend
+        )
+        in_store = self._store.find_by_backend(backend, tenant_uuid) is not None
+
+        if has_any and not in_store:
+            self._store.load(backend, tenant_uuid)
+        elif not has_any and in_store:
+            self._store.drop(backend, tenant_uuid)
+
         self._delivery_runner.resync_pollers()
         self._listener_runner.resync()
 

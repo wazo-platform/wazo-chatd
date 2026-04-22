@@ -189,3 +189,59 @@ class TestUserIdentity(DBIntegrationTest):
             self._dao.user_identity.find_tenant_by_identity('+15551234567', 'vonage')
             is None
         )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_has_identities_for_backend_true_on_match(self, user, identity):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_1), 'sms_backend'
+            )
+            is True
+        )
+
+    def test_has_identities_for_backend_false_when_no_row(self):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_1), 'sms_backend'
+            )
+            is False
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_has_identities_for_backend_false_on_wrong_tenant(self, user, identity):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_2), 'sms_backend'
+            )
+            is False
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_has_identities_for_backend_false_on_wrong_backend(self, user, identity):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_1), 'other_backend'
+            )
+            is False
+        )
