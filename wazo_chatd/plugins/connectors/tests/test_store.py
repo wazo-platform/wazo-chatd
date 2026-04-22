@@ -255,6 +255,14 @@ class TestConnectorStoreFetch(unittest.TestCase):
         with self.assertRaises(AuthServiceUnavailableException):
             store.fetch('sms_backend', TENANT_A)
 
+    def test_raises_auth_unavailable_when_http_error_has_no_response(self) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.side_effect = HTTPError()
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        with self.assertRaises(AuthServiceUnavailableException):
+            store.fetch('sms_backend', TENANT_A)
+
     def test_raises_unknown_backend_for_unregistered_backend(self) -> None:
         auth_client = Mock()
         auth_client.external.get_config.return_value = {'api_key': 'secret'}

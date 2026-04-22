@@ -66,12 +66,10 @@ class ConnectorService:
             self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
             return tenant_uuid
         except HTTPError as e:
-            status = getattr(e.response, 'status_code', None)
-            if status != 404:
-                logger.error(
-                    'wazo-auth returned HTTP %s for user %s', status, user_uuid
-                )
-            raise UnknownUserException(user_uuid)
+            if (status := getattr(e.response, 'status_code', None)) == 404:
+                raise UnknownUserException(user_uuid)
+            logger.error('wazo-auth returned HTTP %s for user %s', status, user_uuid)
+            raise AuthServiceUnavailableException()
         except RequestException:
             raise AuthServiceUnavailableException()
 

@@ -91,6 +91,7 @@ class AuthServiceUnavailableException(APIException):
             'wazo-auth is unreachable',
             'wazo-auth-unreachable',
             {},
+            'identities',
         )
 
 

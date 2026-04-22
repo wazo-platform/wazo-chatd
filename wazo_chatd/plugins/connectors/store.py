@@ -211,7 +211,7 @@ class ConnectorStore:
         except HTTPError as e:
             self._cache.pop(key, None)
             self._timestamps.pop(key, None)
-            if e.response.status_code == 404:
+            if getattr(e.response, 'status_code', None) == 404:
                 raise BackendNotConfiguredException(backend, tenant_uuid)
             raise AuthServiceUnavailableException()
         except RequestException:

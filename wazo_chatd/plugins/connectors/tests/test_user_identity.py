@@ -7,12 +7,15 @@ import unittest
 from unittest.mock import Mock, patch
 
 import pytest
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import HTTPError
 
 from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.database.queries.user_identity import UserIdentityDAO
-from wazo_chatd.exceptions import UnknownUserIdentityException
+from wazo_chatd.exceptions import UnknownUserException, UnknownUserIdentityException
 from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
     InvalidIdentityFormatException,
     UnknownBackendException,
 )
@@ -262,6 +265,46 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
         service.delete_identity(identity)
 
         service._dao.user_identity.delete.assert_called_once_with(identity)
+
+
+class TestConnectorServiceGetUserTenantUuid(unittest.TestCase):
+    def _build_service(self) -> ConnectorService:
+        dao = Mock()
+        dao.user.get.side_effect = UnknownUserException(USER_UUID)
+        registry = ConnectorRegistry()
+        return ConnectorService(dao, registry, Mock(), Mock())
+
+    def _http_error(self, status: int) -> HTTPError:
+        response = Mock(status_code=status)
+        return HTTPError(response=response)
+
+    def test_404_from_auth_raises_unknown_user(self) -> None:
+        service = self._build_service()
+        service._auth_client.users.get.side_effect = self._http_error(404)
+
+        with pytest.raises(UnknownUserException):
+            service.get_user_tenant_uuid([TENANT_A], USER_UUID)
+
+    def test_500_from_auth_raises_auth_unavailable(self) -> None:
+        service = self._build_service()
+        service._auth_client.users.get.side_effect = self._http_error(500)
+
+        with pytest.raises(AuthServiceUnavailableException):
+            service.get_user_tenant_uuid([TENANT_A], USER_UUID)
+
+    def test_401_from_auth_raises_auth_unavailable(self) -> None:
+        service = self._build_service()
+        service._auth_client.users.get.side_effect = self._http_error(401)
+
+        with pytest.raises(AuthServiceUnavailableException):
+            service.get_user_tenant_uuid([TENANT_A], USER_UUID)
+
+    def test_connection_error_raises_auth_unavailable(self) -> None:
+        service = self._build_service()
+        service._auth_client.users.get.side_effect = RequestsConnectionError()
+
+        with pytest.raises(AuthServiceUnavailableException):
+            service.get_user_tenant_uuid([TENANT_A], USER_UUID)
 
 
 class TestConnectorServiceResolveRoomParticipants(unittest.TestCase):
