@@ -25,13 +25,7 @@ if TYPE_CHECKING:
     #  as inspect should be typed correctly
     from sqlalchemy_stubs import InstanceState
 
-from wazo_chatd.database.models import (
-    DeliveryRecord,
-    MessageMeta,
-    Room,
-    RoomMessage,
-    RoomUser,
-)
+from wazo_chatd.database.models import Room, RoomMessage, RoomUser
 from wazo_chatd.exceptions import UnknownRoomException
 
 from .helpers import fixtures
@@ -545,36 +539,40 @@ class TestRoomMessageRelationships(DBIntegrationTest):
 
 @use_asset('database')
 class TestRoomFindTenantByExternalId(DBIntegrationTest):
-    def _add_meta(
-        self, message: RoomMessage, backend: str, external_id: str
-    ) -> MessageMeta:
-        meta = MessageMeta(
-            message_uuid=message.uuid,
-            type_='sms',
-            backend=backend,
-            external_id=external_id,
-        )
-        record = DeliveryRecord(message_uuid=message.uuid, status='pending')
-        return self._dao.room.add_message_meta(meta, record)
-
     @fixtures.db.room(
         tenant_uuid=TENANT_1,
-        messages=[{'content': 'outbound'}],
+        messages=[
+            {
+                'content': 'outbound',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'some-backend',
+                    'external_id': 'ext-id-1',
+                },
+                'deliveries': ['pending'],
+            }
+        ],
     )
     def test_returns_tenant_when_external_id_matches(self, room):
-        self._add_meta(room.messages[0], 'some-backend', 'ext-id-1')
-
         result = self._dao.room.find_tenant_by_external_id('ext-id-1', 'some-backend')
 
         assert result == str(TENANT_1)
 
     @fixtures.db.room(
         tenant_uuid=TENANT_1,
-        messages=[{'content': 'outbound'}],
+        messages=[
+            {
+                'content': 'outbound',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'some-backend',
+                    'external_id': 'ext-id-1',
+                },
+                'deliveries': ['pending'],
+            }
+        ],
     )
     def test_returns_none_when_external_id_unknown(self, room):
-        self._add_meta(room.messages[0], 'some-backend', 'ext-id-1')
-
         assert (
             self._dao.room.find_tenant_by_external_id('unknown-id', 'some-backend')
             is None
@@ -582,11 +580,19 @@ class TestRoomFindTenantByExternalId(DBIntegrationTest):
 
     @fixtures.db.room(
         tenant_uuid=TENANT_1,
-        messages=[{'content': 'outbound'}],
+        messages=[
+            {
+                'content': 'outbound',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'some-backend',
+                    'external_id': 'ext-id-1',
+                },
+                'deliveries': ['pending'],
+            }
+        ],
     )
     def test_returns_none_when_backend_mismatches(self, room):
-        self._add_meta(room.messages[0], 'some-backend', 'ext-id-1')
-
         assert (
             self._dao.room.find_tenant_by_external_id('ext-id-1', 'other-backend')
             is None

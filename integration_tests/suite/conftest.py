@@ -60,6 +60,15 @@ def connectors():
         asset.ConnectorAssetLaunchingTestCase.tearDownClass()
 
 
+@pytest.fixture(scope='session')
+def connectors_polling():
+    asset.PollingConnectorAssetLaunchingTestCase.setUpClass()
+    try:
+        yield
+    finally:
+        asset.PollingConnectorAssetLaunchingTestCase.tearDownClass()
+
+
 @pytest.fixture(autouse=True, scope='function')
 def mark_logs(request):
     test_name = f'{request.cls.__name__}.{request.function.__name__}'

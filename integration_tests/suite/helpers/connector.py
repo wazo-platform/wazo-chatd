@@ -29,6 +29,12 @@ class ConnectorMockClient:
         response = requests.get(f'{self._base_url}/sent')
         return response.json()
 
+    def set_scan(self, payload: dict[str, str]) -> None:
+        requests.post(f'{self._base_url}/_set_scan', json=payload)
+
+    def set_track(self, external_id: str, status: dict[str, str]) -> None:
+        requests.post(f'{self._base_url}/_set_track/{external_id}', json=status)
+
     def reset(self) -> None:
         requests.post(f'{self._base_url}/reset')
 

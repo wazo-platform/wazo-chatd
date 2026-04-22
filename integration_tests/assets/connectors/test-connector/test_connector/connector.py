@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, ClassVar
 
 import requests
@@ -103,8 +103,55 @@ class TestConnector:
 
         return None
 
-    def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
-        pass
+    def scan_inbound(self) -> list[InboundMessage]:
+        try:
+            response = requests.get(f'{self._mock_url}/scan', timeout=2)
+            payload = response.json()
+        except requests.RequestException:
+            logger.warning('Failed to scan_inbound from mock')
+            return []
+
+        return [
+            InboundMessage(
+                sender=str(item.get('from', '')),
+                recipient=str(item.get('to', '')),
+                body=str(item.get('body', '')),
+                backend=self.backend,
+                message_type=str(item.get('type', 'test')),
+                external_id=str(item.get('message_id', '')),
+                metadata=dict(item),
+            )
+            for item in payload
+        ]
+
+    def track_outbound(self, external_ids: Iterable[str]) -> list[StatusUpdate]:
+        updates: list[StatusUpdate] = []
+        for sid in external_ids:
+            try:
+                response = requests.get(
+                    f'{self._mock_url}/track/{sid}', timeout=2
+                )
+                data = response.json()
+            except requests.RequestException:
+                logger.warning('Failed to track_outbound for %s', sid)
+                continue
+            status = data.get('status')
+            if not status:
+                continue
+            updates.append(
+                StatusUpdate(
+                    external_id=sid,
+                    status=str(status),
+                    backend=self.backend,
+                    error_code=str(data.get('error_code', '')),
+                )
+            )
+        return updates
+
+    async def listen(
+        self, on_message: Callable[[InboundMessage | StatusUpdate], None]
+    ) -> None:
+        return
 
     def stop(self) -> None:
         pass

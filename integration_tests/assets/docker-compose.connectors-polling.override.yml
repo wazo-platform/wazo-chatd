@@ -1,0 +1,22 @@
+services:
+  sync:
+    depends_on:
+      - auth
+      - chatd
+      - postgres
+      - rabbitmq
+      - connector-mock
+    environment:
+      TARGETS: "chatd:9304 auth:9497 postgres:5432 rabbitmq:5672 connector-mock:8080"
+
+  chatd:
+    image: wazo-chatd-connectors-test
+    environment:
+      TEST_CONNECTOR_MOCK_URL: 'http://connector-mock:8080'
+    volumes:
+      - ./etc/wazo-chatd/conf.d/71-connectors-polling.yml:/etc/wazo-chatd/conf.d/71-connectors-polling.yml:ro
+
+  connector-mock:
+    image: connector-mock-test
+    ports:
+      - '8080'
