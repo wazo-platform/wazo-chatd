@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import TYPE_CHECKING
 
 from xivo.status import Status
@@ -14,8 +15,8 @@ from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     MessageIdentityRequiredException,
 )
-from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
@@ -61,16 +62,34 @@ class ConnectorRouter:
             cache_ttl=float(delivery_config.get('provider_cache_ttl', 300)),
             connectors_config=connectors_config,
         )
-        self._delivery_loop = DeliveryLoop(config, registry, self._store)
+        self._delivery_runner = DeliveryRunner(config, registry, self._store)
+        self._listener_runner = ListenerRunner(
+            config, self._store, self._delivery_runner.enqueue_message
+        )
 
-    def on_token_acquired(self, token: str) -> None:
-        self._delivery_loop.on_token_acquired(token)
+    def on_auth_available(self, token: str) -> None:
+        if self._store.is_populated:
+            return
+        threading.Thread(
+            target=self._populate_store,
+            daemon=True,
+            name='connector-router-populate',
+        ).start()
+
+    def _populate_store(self) -> None:
+        try:
+            tenant_backends = self._dao.user_identity.list_tenant_backends()
+            self._store.populate(tenant_backends)
+        except Exception:
+            logger.exception('Failed to populate connector store')
 
     def start(self) -> None:
-        self._delivery_loop.start()
+        self._delivery_runner.start()
+        self._listener_runner.start()
 
     def stop(self) -> None:
-        self._delivery_loop.shutdown()
+        self._listener_runner.shutdown()
+        self._delivery_runner.shutdown()
 
     def validate_room_creation(self, room: Room) -> None:
         self._service.validate_room_reachability(room)
@@ -90,7 +109,7 @@ class ConnectorRouter:
             self._service.prepare_outbound_delivery(context.message, identity)
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
-        loop = self._delivery_loop
+        loop = self._delivery_runner
         is_running = loop.is_running
         status['connectors'] = {
             'status': Status.ok if is_running else Status.fail,
@@ -125,7 +144,15 @@ class ConnectorRouter:
         if not backends:
             raise ConnectorParseError('No connector backends registered')
 
-        if backend and backend in backends:
+        if backend and backend not in backends:
+            logger.warning(
+                'Webhook backend hint %r is not registered; '
+                'falling back to full registry scan',
+                backend,
+            )
+            backend = None
+
+        if backend:
             ordered = [backend] + [b for b in backends if b != backend]
         else:
             ordered = backends
@@ -160,10 +187,19 @@ class ConnectorRouter:
                 f'backend {backend!r}'
             )
 
-        if not instance.verify_signature(data):
+        try:
+            valid = instance.verify_signature(data)
+        except Exception:
+            logger.exception(
+                'verify_signature raised for backend %r tenant %s',
+                backend,
+                tenant_uuid,
+            )
+            valid = False
+        if not valid:
             raise ConnectorAuthException()
 
-        self._delivery_loop.enqueue_message(result)
+        self._delivery_runner.enqueue_message(result)
 
     def _resolve_tenant(
         self, event: InboundMessage | StatusUpdate, backend: str

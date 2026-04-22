@@ -109,7 +109,7 @@ def _build_router(
     auth_client: Mock | None = None,
     dao: Mock | None = None,
 ) -> ConnectorRouter:
-    with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+    with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryRunner'):
         return ConnectorRouter(
             config=config or {},
             registry=registry or ConnectorRegistry(),
@@ -130,7 +130,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         instance.verify_signature.return_value = True
         self.router._store = Mock()
         self.router._store.find_by_backend.return_value = instance
-        self.manager = self.router._delivery_loop
+        self.manager = self.router._delivery_runner
 
     def test_dispatch_enqueues_inbound_message(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
@@ -208,7 +208,7 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.router = _build_router(registry=self.registry, dao=self.dao)
         self.router._store = Mock()
         self.router._store.find_by_backend.return_value = self.instance
-        self.manager = self.router._delivery_loop
+        self.manager = self.router._delivery_runner
 
     def _webhook(self) -> WebhookData:
         return WebhookData(
