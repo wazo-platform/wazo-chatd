@@ -85,7 +85,8 @@ class DeliveryExecutor:
         self._room_dao = AsyncRoomDAO()
         self._user_identity_dao = AsyncUserIdentityDAO()
 
-    async def route_outbound(self, meta: MessageMeta) -> None:
+    async def route_outbound(self, meta: MessageMeta) -> float | None:
+        """Resolve the recipient, send, and record status. Returns retry delay if RETRYING."""
         assert (sender_record := meta.sender_identity)
 
         session = get_async_session()
@@ -100,7 +101,7 @@ class DeliveryExecutor:
             room, message, backend_name
         )
         if not recipient_identity:
-            return
+            return None
 
         has_internal_recipient = any(
             u.uuid != message.user_uuid and not u.identity for u in room.users
@@ -130,7 +131,7 @@ class DeliveryExecutor:
             metadata={'idempotency_key': str(meta.message_uuid)},
         )
 
-        await self.execute(
+        return await self.execute(
             outbound,
             meta,
             tenant_uuid=str(sender_record.tenant_uuid),
@@ -385,9 +386,16 @@ class DeliveryExecutor:
         outbound: OutboundMessage,
         delivery: MessageMeta,
         tenant_uuid: str = '',
-    ) -> None:
+    ) -> float | None:
+        """Send an outbound message and record delivery status.
+
+        Returns the delay (seconds) before the next retry attempt when
+        the send failed and the message transitioned to RETRYING. Returns
+        None for terminal outcomes (SENT, DEAD_LETTER).
+        """
         backend = str(delivery.backend)
         last_status = DeliveryStatus.PENDING
+        retry_delay: float | None = None
         connector = await self._find_connector(backend, tenant_uuid)
         if connector is None:
             last_status = DeliveryStatus.DEAD_LETTER
@@ -431,10 +439,16 @@ class DeliveryExecutor:
                 else:
                     last_status = DeliveryStatus.RETRYING
                     last_record = await self._add_record(delivery, last_status)
+                    retry_idx = min(
+                        int(delivery.retry_count),  # type: ignore[arg-type]
+                        len(OUTBOUND_RETRY_DELAYS) - 1,
+                    )
+                    retry_delay = float(OUTBOUND_RETRY_DELAYS[retry_idx])
 
         await self._notifier.delivery_status_updated(
             delivery, last_record, delivery.message.room
         )
+        return retry_delay
 
     async def _find_connector(self, backend: str, tenant_uuid: str) -> Connector | None:
         """Find a connector instance, refreshing the cache if needed."""

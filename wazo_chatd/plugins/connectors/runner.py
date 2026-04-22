@@ -371,6 +371,7 @@ class DeliveryRunner(Runner):
 
     async def _process_outbound_notification(self, message_uuid: str) -> None:
         async with self.semaphore:
+            retry_delay: float | None = None
             try:
                 async with async_session_scope(self._session_factory):
                     meta = await self._executor._room_dao.get_message_meta(message_uuid)
@@ -388,16 +389,21 @@ class DeliveryRunner(Runner):
                         )
                         return
 
-                    await self._executor.route_outbound(meta)
+                    retry_delay = await self._executor.route_outbound(meta)
             except (StaleDataError, IntegrityError):
                 logger.warning(
                     'Message %s was deleted during delivery, skipping',
                     message_uuid,
                 )
+                return
             except Exception:
                 logger.exception(
                     'Failed to process delivery notification for %s', message_uuid
                 )
+                return
+
+            if retry_delay is not None:
+                self._schedule_outbound_later(retry_delay, message_uuid)
 
     async def _recover(self) -> None:
         try:

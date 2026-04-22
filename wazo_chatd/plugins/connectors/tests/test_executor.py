@@ -167,6 +167,36 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         statuses = [call.args[1].status for call in dao_mock.call_args_list]
         assert DeliveryStatus.FAILED.value in statuses
 
+    async def test_execute_success_returns_no_retry(self) -> None:
+        outbound = _make_outbound()
+
+        result = await self.executor.execute(
+            outbound, self.delivery, tenant_uuid='tenant-uuid'
+        )
+
+        assert result is None
+
+    async def test_execute_retrying_returns_next_retry_delay(self) -> None:
+        self.connector.send_side_effect = ConnectorSendError('timeout')
+        outbound = _make_outbound()
+
+        result = await self.executor.execute(
+            outbound, self.delivery, tenant_uuid='tenant-uuid'
+        )
+
+        assert result == 120.0
+
+    async def test_execute_dead_letter_returns_no_retry(self) -> None:
+        self.connector.send_side_effect = ConnectorSendError('timeout')
+        self.delivery.retry_count = OUTBOUND_MAX_RETRIES - 1
+        outbound = _make_outbound()
+
+        result = await self.executor.execute(
+            outbound, self.delivery, tenant_uuid='tenant-uuid'
+        )
+
+        assert result is None
+
 
 class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
