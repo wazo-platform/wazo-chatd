@@ -8,7 +8,6 @@ import logging
 from wazo_auth_client import Client as AuthClient
 
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
-from wazo_chatd.plugins.connectors.bus_consume import ConnectorBusEventHandler
 from wazo_chatd.plugins.connectors.http import (
     ConnectorWebhookResource,
     UserIdentityItemResource,
@@ -28,7 +27,6 @@ class Plugin:
         config = dependencies['config']
         api = dependencies['api']
         dao = dependencies['dao']
-        bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
         hooks = dependencies['hooks']
         status_aggregator = dependencies['status_aggregator']
@@ -54,9 +52,6 @@ class Plugin:
         )
         hooks.register('before_room_creation', router.validate_room_creation)
         hooks.register('before_message_creation', router.prepare_outbound)
-
-        bus_handler = ConnectorBusEventHandler(bus_consumer, router)
-        bus_handler.subscribe()
 
         api.add_resource(
             ConnectorWebhookResource,
