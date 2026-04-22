@@ -173,7 +173,7 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
         dao = Mock()
         registry = ConnectorRegistry()
         registry.register_backend(_StubConnector)  # type: ignore[arg-type]
-        return ConnectorService(dao, registry, Mock(), Mock())
+        return ConnectorService(dao, registry, Mock(), Mock(), Mock())
 
     def test_list_identities(self) -> None:
         service = self._build_service()
@@ -269,7 +269,7 @@ class TestConnectorServiceResolveRoomParticipants(unittest.TestCase):
         dao = Mock()
         registry = ConnectorRegistry()
         registry.register_backend(_StubConnector)  # type: ignore[arg-type]
-        return ConnectorService(dao, registry, Mock(), Mock())
+        return ConnectorService(dao, registry, Mock(), Mock(), Mock())
 
     def test_uuid_only_participant_unchanged(self) -> None:
         service = self._build_service()

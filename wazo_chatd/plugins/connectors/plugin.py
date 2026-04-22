@@ -44,7 +44,7 @@ class Plugin:
         token_changed_subscribe(auth_client.set_token)
 
         notifier = UserIdentityNotifier(bus_publisher)
-        service = ConnectorService(dao, registry, notifier, auth_client)
+        service = ConnectorService(dao, registry, notifier, auth_client, hooks)
 
         router = ConnectorRouter(config, registry, service, auth_client, dao)
         next_token_changed_subscribe(router.on_auth_available)
@@ -56,6 +56,7 @@ class Plugin:
         )
         hooks.register('before_room_creation', router.validate_room_creation)
         hooks.register('before_message_creation', router.prepare_outbound)
+        hooks.register('user_identity_created', router.on_identity_created)
 
         bus_handler = ConnectorBusEventHandler(bus_consumer, router)
         bus_handler.subscribe()

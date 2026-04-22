@@ -404,6 +404,12 @@ class DeliveryRunner(Runner):
                 logger.info('Recovery: re-enqueuing %s immediately', message_uuid)
                 self._schedule_outbound_notification(message_uuid)
 
+    def resync_pollers(self) -> None:
+        """Thread-safe: schedule a poller reconcile on the delivery loop."""
+        loop = self._loop
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(self._synchronize_pollers)
+
     def _synchronize_pollers(self) -> None:
         """Reconcile pollers against the store.
 
@@ -565,6 +571,13 @@ class ListenerRunner(Runner):
         listen loop via ``call_soon_threadsafe``.
         """
         self.loop.call_soon_threadsafe(self._reconcile, desired)
+
+    def resync(self) -> None:
+        """Thread-safe: reconcile against current store state."""
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            return
+        self.synchronize(self._build_desired())
 
     def _reconcile(self, desired: dict[CacheKey, Connector]) -> None:
         running = {k for k, t in self._listeners.items() if not t.done()}
