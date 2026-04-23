@@ -170,20 +170,14 @@ class ConnectorRouter:
         if not backends:
             raise ConnectorParseError('No connector backends registered')
 
-        if backend and backend not in backends:
-            logger.warning(
-                'Webhook backend hint %r is not registered; '
-                'falling back to full registry scan',
-                backend,
-            )
-            backend = None
-
-        if backend:
-            ordered = [backend] + [b for b in backends if b != backend]
+        if backend is not None:
+            if backend not in backends:
+                raise ConnectorParseError(f'Unknown connector backend {backend!r}')
+            candidates = [backend]
         else:
-            ordered = backends
+            candidates = backends
 
-        for name in ordered:
+        for name in candidates:
             cls = self._registry.get_backend(name)
             if not cls.can_handle(data):
                 continue

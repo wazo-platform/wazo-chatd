@@ -108,12 +108,7 @@ class AsyncRoomDAO:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def add_delivery_record(
-        self,
-        meta: MessageMeta,
-        record: DeliveryRecord,
-    ) -> DeliveryRecord:
-        record.message_uuid = meta.message_uuid
+    async def add_delivery_record(self, record: DeliveryRecord) -> DeliveryRecord:
         self.session.add(record)
         await self.session.flush()
         return record

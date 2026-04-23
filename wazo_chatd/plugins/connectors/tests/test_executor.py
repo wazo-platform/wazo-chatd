@@ -31,8 +31,7 @@ FIXED_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def _mock_add_delivery_record() -> AsyncMock:
-    async def _side_effect(meta, record):
-        record.message_uuid = meta.message_uuid
+    async def _side_effect(record):
         record.timestamp = FIXED_NOW
         return record
 
@@ -146,7 +145,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
 
         dao_mock = self.executor._room_dao.add_delivery_record
-        statuses = [call.args[1].status for call in dao_mock.call_args_list]
+        statuses = [call.args[0].status for call in dao_mock.call_args_list]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
 
     async def test_execute_publishes_status_event(self) -> None:
@@ -164,7 +163,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
 
         assert self.delivery.retry_count == 1
         dao_mock = self.executor._room_dao.add_delivery_record
-        statuses = [call.args[1].status for call in dao_mock.call_args_list]
+        statuses = [call.args[0].status for call in dao_mock.call_args_list]
         assert DeliveryStatus.FAILED.value in statuses
 
     async def test_execute_success_returns_no_retry(self) -> None:
@@ -184,7 +183,7 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
             outbound, self.delivery, tenant_uuid='tenant-uuid'
         )
 
-        assert result == 120.0
+        assert result == 30.0
 
     async def test_execute_dead_letter_returns_no_retry(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
@@ -595,7 +594,7 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.route_status_update(_make_status_update())
 
-        record = self.executor._room_dao.add_delivery_record.call_args[0][1]
+        record = self.executor._room_dao.add_delivery_record.call_args[0][0]
         assert record.status == 'delivered'
 
     async def test_ignores_unmapped_status(self) -> None:
@@ -629,7 +628,7 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
             _make_status_update(status='failed', error_code='30003')
         )
 
-        record = self.executor._room_dao.add_delivery_record.call_args[0][1]
+        record = self.executor._room_dao.add_delivery_record.call_args[0][0]
         assert record.reason == '30003'
 
     async def test_publishes_notification(self) -> None:
@@ -702,7 +701,7 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
 
         assert len(result) == 1
         _, delay = result[0]
-        assert delay == 120.0
+        assert delay == 30.0
 
     async def test_sending_recovered(self) -> None:
         meta = self._make_meta()

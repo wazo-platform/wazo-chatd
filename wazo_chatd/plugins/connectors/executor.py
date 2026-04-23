@@ -162,11 +162,7 @@ class DeliveryExecutor:
 
         return str(identities[0].identity)
 
-    async def route_inbound(
-        self,
-        inbound: InboundMessage,
-        attempt: int = 0,
-    ) -> None:
+    async def route_inbound(self, inbound: InboundMessage) -> None:
         idempotency_key = inbound.metadata.get('idempotency_key')
         if idempotency_key:
             is_duplicate = await self._room_dao.check_duplicate_idempotency_key(
@@ -261,21 +257,23 @@ class DeliveryExecutor:
             wazo_uuid=wazo_uuid,
             meta=meta,
         )
-        try:
-            await self._room_dao.add_message(room, message)
-        except Exception:
-            if attempt < INBOUND_MAX_RETRIES:
-                delay = INBOUND_RETRY_DELAYS[attempt]
+
+        session = get_async_session()
+        delays = iter(INBOUND_RETRY_DELAYS)
+        while True:
+            try:
+                await self._room_dao.add_message(room, message)
+                break
+            except Exception:
+                if (delay := next(delays, None)) is None:
+                    raise
                 logger.warning(
-                    'Failed to persist inbound from %s, retrying in %ds (%d/%d)',
+                    'Failed to persist inbound from %s, retrying in %ds',
                     inbound.sender,
                     delay,
-                    attempt + 1,
-                    INBOUND_MAX_RETRIES,
                 )
+                await session.rollback()
                 await asyncio.sleep(delay)
-                return await self.route_inbound(inbound, attempt + 1)
-            raise
 
         await self._notifier.message_created(room, message)
         logger.info(
@@ -320,11 +318,41 @@ class DeliveryExecutor:
             )
             return
 
-        record = DeliveryRecord(
-            status=mapped_status.value,
-            reason=update.error_code or None,
-        )
-        await self._room_dao.add_delivery_record(meta, record)
+        message_uuid = meta.message_uuid
+        session = get_async_session()
+        delays = iter(INBOUND_RETRY_DELAYS)
+        rolled_back = False
+
+        while True:
+            record = DeliveryRecord(
+                message_uuid=message_uuid,
+                status=mapped_status.value,
+                reason=update.error_code or None,
+            )
+            try:
+                await self._room_dao.add_delivery_record(record)
+                break
+            except Exception:
+                if (delay := next(delays, None)) is None:
+                    raise
+                logger.warning(
+                    'Failed to persist status update for %s, retrying in %ds',
+                    update.external_id,
+                    delay,
+                )
+                await session.rollback()
+                rolled_back = True
+                await asyncio.sleep(delay)
+
+        if rolled_back:
+            if (
+                meta := await self._room_dao.get_message_meta(str(message_uuid))
+            ) is None:
+                logger.warning(
+                    'Meta for %s disappeared after retry, skipping notifier',
+                    message_uuid,
+                )
+                return
 
         room = meta.message.room
         await self._notifier.delivery_status_updated(meta, record, room)
@@ -333,7 +361,7 @@ class DeliveryExecutor:
             'Status update: %s → %s (message=%s, external_id=%s)',
             update.status,
             mapped_status.value,
-            meta.message_uuid,
+            message_uuid,
             update.external_id,
         )
 
@@ -341,8 +369,11 @@ class DeliveryExecutor:
         if meta.status == DeliveryStatus.DELIVERED.value:
             return
 
-        record = DeliveryRecord(status=DeliveryStatus.DELIVERED.value)
-        await self._room_dao.add_delivery_record(meta, record)
+        record = DeliveryRecord(
+            message_uuid=meta.message_uuid,
+            status=DeliveryStatus.DELIVERED.value,
+        )
+        await self._room_dao.add_delivery_record(record)
 
         room = meta.message.room
         await self._notifier.delivery_status_updated(meta, record, room)
@@ -367,7 +398,8 @@ class DeliveryExecutor:
 
             if status == DeliveryStatus.RETRYING.value:
                 retry_idx = min(
-                    int(meta.retry_count or 0), len(OUTBOUND_RETRY_DELAYS) - 1
+                    max(int(meta.retry_count or 0) - 1, 0),
+                    len(OUTBOUND_RETRY_DELAYS) - 1,
                 )
                 delay = float(OUTBOUND_RETRY_DELAYS[retry_idx])
             else:
@@ -444,11 +476,9 @@ class DeliveryExecutor:
                 else:
                     last_status = DeliveryStatus.RETRYING
                     last_record = await self._add_record(delivery, last_status)
-                    retry_idx = min(
-                        int(delivery.retry_count),  # type: ignore[arg-type]
-                        len(OUTBOUND_RETRY_DELAYS) - 1,
-                    )
-                    retry_delay = float(OUTBOUND_RETRY_DELAYS[retry_idx])
+                    retry_count = max(int(delivery.retry_count) - 1, 0)  # type: ignore[arg-type]
+                    idx = min(retry_count, len(OUTBOUND_RETRY_DELAYS) - 1)
+                    retry_delay = float(OUTBOUND_RETRY_DELAYS[idx])
 
         await self._notifier.delivery_status_updated(
             delivery, last_record, delivery.message.room
@@ -480,8 +510,9 @@ class DeliveryExecutor:
         reason: str | None = None,
     ) -> DeliveryRecord:
         record = DeliveryRecord(
+            message_uuid=delivery.message_uuid,
             status=status.value,
             reason=reason,
         )
-        await self._room_dao.add_delivery_record(delivery, record)
+        await self._room_dao.add_delivery_record(record)
         return record

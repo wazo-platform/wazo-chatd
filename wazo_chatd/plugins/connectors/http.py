@@ -19,6 +19,7 @@ from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
 from wazo_chatd.plugins.connectors.schemas import (
     IdentityListRequestSchema,
     UserIdentitySchema,
+    UserIdentityUpdateSchema,
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.types import WebhookData
@@ -118,7 +119,7 @@ class UserIdentityItemResource(AuthResource):
         identity = self._service.get_identity(
             tenant_uuids, identity_uuid, user_uuid=user_uuid
         )
-        body = UserIdentitySchema().load(request.get_json(force=True))
+        body = UserIdentityUpdateSchema().load(request.get_json(force=True))
         update_model_instance(identity, body)
         self._service.update_identity(identity)
         return '', 204

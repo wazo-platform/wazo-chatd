@@ -181,15 +181,26 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         with pytest.raises(ConnectorParseError):
             self.router.dispatch_webhook(WebhookData(body={}))
 
-    def test_dispatch_falls_back_to_non_hint_connectors(self) -> None:
+    def test_dispatch_unknown_backend_hint_raises(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
         data = WebhookData(
             body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
         )
 
-        self.router.dispatch_webhook(data, backend='vonage')
+        with pytest.raises(ConnectorParseError):
+            self.router.dispatch_webhook(data, backend='vonage')
 
-        self.manager.enqueue_message.assert_called_once()
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_dispatch_hint_restricts_to_that_backend(self) -> None:
+        self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+        self.registry.register_backend(_EmailConnector)  # type: ignore[arg-type]
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
+
+        self.router.dispatch_webhook(data, backend='twilio')
+
         result = self.manager.enqueue_message.call_args[0][0]
         assert result.backend == 'twilio'
 

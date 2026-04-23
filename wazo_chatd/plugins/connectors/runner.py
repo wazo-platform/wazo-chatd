@@ -533,17 +533,19 @@ class DeliveryRunner(Runner):
 
     async def _run_poller(self, key: CacheKey, instance: Connector) -> None:
         interval = self._poll_default
-        try:
-            while True:
-                poll = await self._run_poll_cycle(key, instance)
-                if poll:
+        while True:
+            try:
+                if poll := await self._run_poll_cycle(key, instance):
                     interval = self._poll_min
                 else:
                     interval = min(interval * 2, self._poll_max)
-                await asyncio.sleep(interval)
-        except asyncio.CancelledError:
-            logger.info('Poller for %s cancelled', key)
-            raise
+            except asyncio.CancelledError:
+                logger.info('Poller for %s cancelled', key)
+                raise
+            except Exception:
+                logger.exception('Poller for %s hit unexpected error, continuing', key)
+                interval = min(interval * 2, self._poll_max)
+            await asyncio.sleep(interval)
 
     def _schedule_task(self, message: InboundMessage | StatusUpdate) -> None:
         assert self._loop is not None
