@@ -280,14 +280,15 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         instance.verify_signature.assert_not_called()
         self.manager.enqueue_message.assert_called_once()
 
-    def test_missing_verifies_signatures_attr_raises(self) -> None:
-        instance = Mock(spec=['backend'])
+    def test_missing_verifies_signatures_attr_defaults_to_required(self) -> None:
+        instance = Mock(spec=['backend', 'verify_signature'])
+        instance.verify_signature.return_value = True
         self.router._store.find.return_value = instance
 
-        with pytest.raises(AttributeError):
-            self.router.dispatch_webhook(self._webhook(), backend='twilio')
+        self.router.dispatch_webhook(self._webhook(), backend='twilio')
 
-        self.manager.enqueue_message.assert_not_called()
+        instance.verify_signature.assert_called_once()
+        self.manager.enqueue_message.assert_called_once()
 
 
 class TestConnectorRouterValidateOutbound(unittest.TestCase):

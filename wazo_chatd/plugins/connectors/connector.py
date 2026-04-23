@@ -52,15 +52,16 @@ class Connector(Protocol):
         }
     """
 
-    verifies_signatures: ClassVar[bool]
+    verifies_signatures: ClassVar[bool] = True
     """Whether this backend authenticates inbound events via signature.
 
-    Must be ``True`` for backends handling webhook traffic from
-    untrusted networks (external SMS/messaging providers). Set
-    ``False`` only for trusted transports (internal, tests, polling).
+    Defaults to ``True`` (secure-by-default): backends that forget to
+    set it are assumed to require verification, and the router will
+    call :meth:`verify_signature`. Set to ``False`` only for trusted
+    transports (internal, tests, polling-only).
 
-    When ``True``, :meth:`verify_signature` is called before
-    :meth:`on_event`'s result is enqueued — a falsy return or a
+    When effectively ``True``, :meth:`verify_signature` is called
+    before :meth:`on_event`'s result is enqueued — a falsy return or
     raised exception causes :class:`ConnectorAuthException` (HTTP 401).
     When ``False``, :meth:`verify_signature` is not called and may be
     omitted entirely.

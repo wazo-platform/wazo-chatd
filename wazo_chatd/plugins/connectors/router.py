@@ -209,7 +209,7 @@ class ConnectorRouter:
                 f'backend {backend!r}'
             )
 
-        if instance.verifies_signatures:
+        if getattr(instance, 'verifies_signatures', True):
             try:
                 valid = instance.verify_signature(data)
             except Exception:

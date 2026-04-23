@@ -7,12 +7,11 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from flask import request
-from flask_restful import Resource
 from xivo.auth_verifier import required_acl
 from xivo.tenant_flask_helpers import token
 
 from wazo_chatd.database.models import UserIdentity
-from wazo_chatd.http import AuthResource
+from wazo_chatd.http import AuthResource, ErrorCatchingResource
 from wazo_chatd.plugin_helpers.http import update_model_instance
 from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
 from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
@@ -30,7 +29,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ConnectorWebhookResource(Resource):
+class ConnectorWebhookResource(ErrorCatchingResource):
     """Shared webhook endpoint for all connector backends.
 
     Routes:
