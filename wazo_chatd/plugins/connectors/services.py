@@ -167,14 +167,34 @@ class ConnectorService:
         if not others:
             return []
 
-        reachable_types: set[str] | None = None
-        for participant in others:
-            participant_types = self._resolve_participant_types(participant)
-            if reachable_types is None:
-                reachable_types = participant_types
-            else:
-                reachable_types &= participant_types
+        external_identities = [str(u.identity) for u in others if u.identity]
+        bound_identities = (
+            self._dao.user_identity.list_bound_identities(external_identities)
+            if external_identities
+            else set()
+        )
+        db_user_ids = [
+            str(u.uuid)
+            for u in others
+            if not u.identity or str(u.identity) in bound_identities
+        ]
+        db_types = (
+            self._dao.user_identity.list_types_by_users(db_user_ids)
+            if db_user_ids
+            else {}
+        )
 
+        types_per_participant: list[set[str]] = []
+        for u in others:
+            identity = str(u.identity) if u.identity else None
+            if identity and identity not in bound_identities:
+                types_per_participant.append(
+                    self._registry.resolve_reachable_types(identity)
+                )
+            else:
+                types_per_participant.append(db_types.get(str(u.uuid), set()))
+
+        reachable_types = set.intersection(*types_per_participant)
         if not reachable_types:
             return []
 
@@ -271,17 +291,3 @@ class ConnectorService:
                 )
 
         return record
-
-    def _resolve_participant_types(self, participant: RoomUser) -> set[str]:
-        identity: str | None = participant.identity  # type: ignore[assignment]
-
-        if identity is not None:
-            if self._dao.user_identity.is_identity_bound(identity):
-                user_id = str(participant.uuid)
-                types_map = self._dao.user_identity.list_types_by_users([user_id])
-                return types_map.get(user_id, set())
-            return self._registry.resolve_reachable_types(identity)
-
-        user_id = str(participant.uuid)
-        types_map = self._dao.user_identity.list_types_by_users([user_id])
-        return types_map.get(user_id, set())

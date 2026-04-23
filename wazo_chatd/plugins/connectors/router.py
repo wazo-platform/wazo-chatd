@@ -135,12 +135,14 @@ class ConnectorRouter:
             self._service.prepare_outbound_delivery(context.message, identity)
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
-        loop = self._delivery_runner
-        is_running = loop.is_running
+        delivery = self._delivery_runner
+        listener = self._listener_runner
+        both_running = delivery.is_running and listener.is_running
         status['connectors'] = {
-            'status': Status.ok if is_running else Status.fail,
-            'in_flight': loop.in_flight_count,
-            'restart_count': loop.restart_count,
+            'status': Status.ok if both_running else Status.fail,
+            'in_flight': delivery.in_flight_count,
+            'delivery_restart_count': delivery.restart_count,
+            'listener_restart_count': listener.restart_count,
             'instances': len(self._store),
         }
 
@@ -232,3 +234,5 @@ class ConnectorRouter:
                 )
             case StatusUpdate(external_id=external_id):
                 return self._dao.room.find_tenant_by_external_id(external_id, backend)
+            case _:
+                raise TypeError(f'Unexpected event type: {type(event).__name__}')
