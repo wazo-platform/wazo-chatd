@@ -156,7 +156,11 @@ class Runner:
             raise RuntimeError(f'{type(self).__name__} already started')
         logger.info('Starting %s', self.thread_name)
         self._thread.start()
-        self._ready.wait(timeout=self.shutdown_timeout)
+        if not self._ready.wait(timeout=self.shutdown_timeout):
+            raise RuntimeError(
+                f'{type(self).__name__} failed to start within '
+                f'{self.shutdown_timeout}s'
+            )
         logger.info('Started %s', self.thread_name)
 
     def shutdown(self) -> None:
@@ -461,8 +465,12 @@ class DeliveryRunner(Runner):
     def resync_pollers(self) -> None:
         """Thread-safe: schedule a poller reconcile on the delivery loop."""
         loop = self._loop
-        if loop is not None and loop.is_running():
+        if loop is None or not loop.is_running():
+            return
+        try:
             loop.call_soon_threadsafe(self._synchronize_pollers)
+        except RuntimeError:
+            pass
 
     def _synchronize_pollers(self) -> None:
         """Reconcile pollers against the store.
@@ -474,6 +482,20 @@ class DeliveryRunner(Runner):
         Mode is static config — not re-evaluated at runtime. This
         method handles only store-side churn.
         """
+        for key in list(self._pollers):
+            task = self._pollers[key]
+            if not task.done():
+                continue
+            if not task.cancelled() and (exc := task.exception()) is not None:
+                logger.error(
+                    'Poller for %s exited with %s: %s',
+                    key,
+                    type(exc).__name__,
+                    exc,
+                    exc_info=exc,
+                )
+            del self._pollers[key]
+
         connectors_config = self._config.get('connectors') or {}
         desired: dict[CacheKey, Connector] = {
             key: instance
@@ -481,7 +503,7 @@ class DeliveryRunner(Runner):
             if (connectors_config.get(instance.backend) or {}).get('mode') == 'poll'
         }
 
-        running = {k for k, t in self._pollers.items() if not t.done()}
+        running = set(self._pollers)
         wanted = set(desired)
 
         for key in running - wanted:
@@ -535,7 +557,7 @@ class DeliveryRunner(Runner):
         interval = self._poll_default
         while True:
             try:
-                if poll := await self._run_poll_cycle(key, instance):
+                if await self._run_poll_cycle(key, instance):
                     interval = self._poll_min
                 else:
                     interval = min(interval * 2, self._poll_max)
@@ -556,6 +578,10 @@ class DeliveryRunner(Runner):
             case StatusUpdate():
                 coro = self._executor.route_status_update(message)
             case _:
+                logger.warning(
+                    'Unknown message type in delivery queue: %s',
+                    type(message).__name__,
+                )
                 return
 
         task = self._loop.create_task(self._process(coro, message))
@@ -626,28 +652,37 @@ class ListenerRunner(Runner):
             if (connectors_config.get(instance.backend) or {}).get('mode') == 'listen'
         }
 
-    def synchronize(self, desired: dict[CacheKey, Connector]) -> None:
-        """Reconcile listener tasks against *desired*.
-
-        Idempotent. Thread-safe — schedules create/cancel on the
-        listen loop via ``call_soon_threadsafe``.
-        """
-        self.loop.call_soon_threadsafe(self._reconcile, desired)
-
     def resync(self) -> None:
-        """Thread-safe: reconcile against current store state."""
+        """Thread-safe: reconcile listener tasks against current store state."""
         loop = self._loop
         if loop is None or not loop.is_running():
             return
-        self.synchronize(self._build_desired())
+        try:
+            loop.call_soon_threadsafe(self._reconcile, self._build_desired())
+        except RuntimeError:
+            pass
 
     def _reconcile(self, desired: dict[CacheKey, Connector]) -> None:
-        running = {k for k, t in self._listeners.items() if not t.done()}
+        for key in list(self._listeners):
+            task = self._listeners[key]
+            if not task.done():
+                continue
+            if not task.cancelled() and (exc := task.exception()) is not None:
+                logger.error(
+                    'Listener for %s exited with %s: %s',
+                    key,
+                    type(exc).__name__,
+                    exc,
+                    exc_info=exc,
+                )
+            del self._listeners[key]
+
+        running = set(self._listeners)
         wanted = set(desired)
 
         for key in running - wanted:
-            task = self._listeners.pop(key, None)
-            if task and not task.done():
+            task = self._listeners.pop(key)
+            if not task.done():
                 task.cancel()
 
         for key in wanted - running:

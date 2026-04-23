@@ -103,7 +103,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         until.assert_(message_persisted, timeout=5, interval=0.1)
 
-    def test_webhook_unknown_connector_returns_404(self):
+    def test_webhook_unrecognized_payload_returns_400(self):
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(
             f'http://127.0.0.1:{port}/1.0/connectors/incoming',
@@ -111,7 +111,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             headers={'Content-Type': 'application/json'},
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 400
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
