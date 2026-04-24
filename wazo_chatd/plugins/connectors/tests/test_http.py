@@ -103,3 +103,85 @@ class TestConnectorWebhookResource(unittest.TestCase):
         assert isinstance(data, WebhookData)
         assert data.headers['X-Custom-Header'] == 'test-value'
         assert data.content_type == 'application/json'
+
+    def test_url_without_forwarded_headers_falls_back_to_request_url(self) -> None:
+        self.router.dispatch_webhook.return_value = None
+
+        with self.app.test_request_context(
+            '/connectors/incoming/twilio',
+            method='POST',
+            data='Body=hi',
+            content_type='application/x-www-form-urlencoded',
+        ):
+            self.resource.post(backend='twilio')
+
+        data = self.router.dispatch_webhook.call_args[0][0]
+        assert data.url == 'http://localhost/connectors/incoming/twilio'
+
+    def test_url_honors_forwarded_proto(self) -> None:
+        self.router.dispatch_webhook.return_value = None
+
+        with self.app.test_request_context(
+            '/connectors/incoming/twilio',
+            method='POST',
+            data='Body=hi',
+            content_type='application/x-www-form-urlencoded',
+            headers={'X-Forwarded-Proto': 'https'},
+        ):
+            self.resource.post(backend='twilio')
+
+        data = self.router.dispatch_webhook.call_args[0][0]
+        assert data.url == 'https://localhost/connectors/incoming/twilio'
+
+    def test_url_honors_x_script_name_prefix(self) -> None:
+        self.router.dispatch_webhook.return_value = None
+
+        with self.app.test_request_context(
+            '/connectors/incoming/twilio',
+            method='POST',
+            data='Body=hi',
+            content_type='application/x-www-form-urlencoded',
+            headers={'X-Script-Name': '/api/chatd'},
+        ):
+            self.resource.post(backend='twilio')
+
+        data = self.router.dispatch_webhook.call_args[0][0]
+        assert data.url == 'http://localhost/api/chatd/connectors/incoming/twilio'
+
+    def test_url_reconstructs_public_url_behind_wazo_nginx(self) -> None:
+        self.router.dispatch_webhook.return_value = None
+
+        with self.app.test_request_context(
+            '/connectors/incoming/twilio',
+            method='POST',
+            data='Body=hi',
+            content_type='application/x-www-form-urlencoded',
+            headers={
+                'Host': 'wazo.example.com',
+                'X-Forwarded-Proto': 'https',
+                'X-Script-Name': '/api/chatd',
+            },
+        ):
+            self.resource.post(backend='twilio')
+
+        data = self.router.dispatch_webhook.call_args[0][0]
+        assert data.url == (
+            'https://wazo.example.com/api/chatd/connectors/incoming/twilio'
+        )
+
+    def test_url_preserves_query_string(self) -> None:
+        self.router.dispatch_webhook.return_value = None
+
+        with self.app.test_request_context(
+            '/connectors/incoming/twilio?tenant=abc',
+            method='POST',
+            data='Body=hi',
+            content_type='application/x-www-form-urlencoded',
+            headers={'X-Forwarded-Proto': 'https', 'X-Script-Name': '/api/chatd'},
+        ):
+            self.resource.post(backend='twilio')
+
+        data = self.router.dispatch_webhook.call_args[0][0]
+        assert data.url == (
+            'https://localhost/api/chatd/connectors/incoming/twilio?tenant=abc'
+        )
