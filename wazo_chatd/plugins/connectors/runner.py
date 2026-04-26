@@ -387,8 +387,7 @@ class DeliveryRunner(Runner):
         self._schedule_outbound_notification(message_uuid)
 
     def _schedule_outbound_notification(self, message_uuid: str) -> None:
-        assert self._loop is not None
-        task = self._loop.create_task(self._process_outbound_notification(message_uuid))
+        task = self.loop.create_task(self._process_outbound_notification(message_uuid))
         self._in_flight.add(task)
         task.add_done_callback(self._task_done)
 
@@ -436,7 +435,6 @@ class DeliveryRunner(Runner):
             logger.exception('Recovery scan failed, continuing without recovery')
             return
 
-        assert self._loop is not None
         for meta, delay in recoverable:
             message_uuid = str(meta.message_uuid)
 
@@ -453,13 +451,12 @@ class DeliveryRunner(Runner):
 
     def _schedule_outbound_later(self, delay: float, message_uuid: str) -> None:
         """Schedule a delayed outbound notification; handle tracked for shutdown cancel."""
-        assert self._loop is not None
 
-        def fire() -> None:
+        def callback() -> None:
             self._scheduled_timers.discard(handle)
             self._schedule_outbound_notification(message_uuid)
 
-        handle = self._loop.call_later(delay, fire)
+        handle = self.loop.call_later(delay, callback)
         self._scheduled_timers.add(handle)
 
     def resync_pollers(self) -> None:
@@ -569,14 +566,17 @@ class DeliveryRunner(Runner):
                 interval = min(interval * 2, self._poll_max)
             await asyncio.sleep(interval)
 
-    def _schedule_task(self, message: InboundMessage | StatusUpdate) -> None:
-        assert self._loop is not None
-
+    def _schedule_task(
+        self,
+        message: InboundMessage | StatusUpdate,
+        *,
+        attempt: int = 0,
+    ) -> None:
         match message:
             case InboundMessage():
-                coro = self._executor.route_inbound(message)
+                coro = self._executor.route_inbound(message, attempt=attempt)
             case StatusUpdate():
-                coro = self._executor.route_status_update(message)
+                coro = self._executor.route_status_update(message, attempt=attempt)
             case _:
                 logger.warning(
                     'Unknown message type in delivery queue: %s',
@@ -584,7 +584,7 @@ class DeliveryRunner(Runner):
                 )
                 return
 
-        task = self._loop.create_task(self._process(coro, message))
+        task = self.loop.create_task(self._process(coro, message, attempt))
         self._in_flight.add(task)
         task.add_done_callback(self._task_done)
 
@@ -595,16 +595,34 @@ class DeliveryRunner(Runner):
 
     async def _process(
         self,
-        coro: Coroutine[Any, Any, None],
+        coro: Coroutine[Any, Any, float | None],
         message: InboundMessage | StatusUpdate,
+        attempt: int,
     ) -> None:
         async with self.semaphore:
             logger.debug('Processing %s', message)
             try:
                 async with async_session_scope(self._session_factory):
-                    await coro
+                    retry_delay = await coro
             except Exception:
                 logger.exception('Failed to process %s', message)
+                return
+
+        if retry_delay is not None:
+            self._schedule_message_later(retry_delay, message, attempt + 1)
+
+    def _schedule_message_later(
+        self,
+        delay: float,
+        message: InboundMessage | StatusUpdate,
+        attempt: int,
+    ) -> None:
+        def callback() -> None:
+            self._scheduled_timers.discard(handle)
+            self._schedule_task(message, attempt=attempt)
+
+        handle = self.loop.call_later(delay, callback)
+        self._scheduled_timers.add(handle)
 
 
 class ListenerRunner(Runner):

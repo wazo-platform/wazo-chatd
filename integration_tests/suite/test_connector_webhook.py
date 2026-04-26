@@ -204,7 +204,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             {'content': 'Hello external', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'sent')
+        self._assert_delivery_status(message['uuid'], 'accepted')
 
         meta = (
             self._session.query(MessageMeta)
@@ -259,7 +259,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
         ],
     )
-    def test_failed_delivery_creates_failed_record(self, user, identity, room):
+    def test_failed_delivery_creates_retrying_record(self, user, identity, room):
 
         self.connector_mock.reset()
         self.connector_mock.set_config(send_behavior='fail', error_message='API down')
@@ -269,7 +269,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             {'content': 'Will fail', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'failed')
+        self._assert_delivery_status(message['uuid'], 'retrying')
 
 
 @use_asset('connectors')
@@ -324,7 +324,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
             {'content': 'Track this', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'sent')
+        self._assert_delivery_status(message['uuid'], 'accepted')
 
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(
@@ -366,7 +366,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
             },
         )
 
-        self._assert_delivery_status(message['uuid'], 'sent')
+        self._assert_delivery_status(message['uuid'], 'accepted')
 
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(
@@ -417,7 +417,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
             {'content': 'Transient status', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'sent')
+        self._assert_delivery_status(message['uuid'], 'accepted')
 
         port = self.asset_cls.service_port(9304, 'chatd')
         response = requests.post(
@@ -747,7 +747,7 @@ class TestMessageVisibility(ConnectorIntegrationTest):
             },
         )
 
-        def sent():
+        def accepted():
             records = (
                 self._session.query(DeliveryRecord)
                 .join(MessageMeta)
@@ -756,9 +756,9 @@ class TestMessageVisibility(ConnectorIntegrationTest):
                 .all()
             )
             statuses = [r.status for r in records]
-            assert 'sent' in statuses
+            assert 'accepted' in statuses
 
-        until.assert_(sent, timeout=5, interval=0.1)
+        until.assert_(accepted, timeout=5, interval=0.1)
 
         port = self.asset_cls.service_port(9304, 'chatd')
         requests.post(

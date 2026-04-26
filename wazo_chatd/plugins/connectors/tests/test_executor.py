@@ -10,10 +10,14 @@ from datetime import datetime, timezone
 from typing import Any, ClassVar
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.exceptions import DuplicateExternalIdException
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.executor import (
+    INBOUND_RETRY_DELAYS,
     OUTBOUND_MAX_RETRIES,
     DeliveryExecutor,
     generate_message_signature,
@@ -88,7 +92,14 @@ class _FakeConnector:
         return raw_identity
 
 
-class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
+class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
+    """Covers the send + record-outcome path of route_outbound.
+
+    Tests build a fully-resolved meta (with recipient identity already
+    known) so they exercise the connector dispatch + retry decision in
+    isolation from the recipient-resolution code path.
+    """
+
     def setUp(self) -> None:
         self.session = AsyncMock()
         self.session.add = Mock()
@@ -107,92 +118,92 @@ class TestDeliveryExecutorExecute(unittest.IsolatedAsyncioTestCase):
         self.executor._store._timestamps[('tenant-uuid', 'twilio')] = time.monotonic()
         self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
+        sender_record = Mock(
+            identity='+15551234',
+            tenant_uuid='tenant-uuid',
+            backend='twilio',
+            type_='sms',
+        )
+        recipient_user = Mock(uuid='recipient-uuid', identity='+15559876')
+        sender_user = Mock(uuid='sender-uuid', identity=None)
+        room = Mock(uuid='room-uuid', users=[sender_user, recipient_user])
+        message = Mock(uuid='msg-uuid', user_uuid='sender-uuid', content='hello')
+        message.room = room
+
         self.delivery = Mock()
         self.delivery.message_uuid = 'delivery-1'
         self.delivery.backend = 'twilio'
         self.delivery.retry_count = 0
         self.delivery.external_id = None
         self.delivery.records = []
-        self.delivery.message = Mock(
-            room=Mock(
-                uuid='room-uuid', tenant_uuid='tenant-uuid', users=[Mock(uuid='user-1')]
-            )
-        )
+        self.delivery.sender_identity = sender_record
+        self.delivery.message = message
+        self.delivery.extra = {}
 
     def tearDown(self) -> None:
         _current_session.reset(self.token)
 
-    async def test_execute_success(self) -> None:
-        outbound = _make_outbound()
-
-        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
+    async def test_success_writes_external_id(self) -> None:
+        await self.executor.route_outbound(self.delivery)
 
         assert self.delivery.external_id == 'ext-msg-id-123'
 
-    async def test_execute_failure_increments_retry(self) -> None:
-        self.connector.send_side_effect = ConnectorSendError('timeout')
-        outbound = _make_outbound()
+    async def test_success_writes_accepted_only(self) -> None:
+        await self.executor.route_outbound(self.delivery)
 
-        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
+        dao_mock = self.executor._room_dao.add_delivery_record
+        statuses = [call.args[0].status for call in dao_mock.call_args_list]
+        assert statuses == [DeliveryStatus.ACCEPTED.value]
+
+    async def test_failure_increments_retry(self) -> None:
+        self.connector.send_side_effect = ConnectorSendError('timeout')
+
+        await self.executor.route_outbound(self.delivery)
 
         assert self.delivery.retry_count == 1
 
-    async def test_execute_max_retries_sets_dead_letter(self) -> None:
+    async def test_max_retries_sets_dead_letter(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
         self.delivery.retry_count = OUTBOUND_MAX_RETRIES - 1
-        outbound = _make_outbound()
 
-        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
+        await self.executor.route_outbound(self.delivery)
 
         dao_mock = self.executor._room_dao.add_delivery_record
         statuses = [call.args[0].status for call in dao_mock.call_args_list]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
 
-    async def test_execute_publishes_status_event(self) -> None:
-        outbound = _make_outbound()
-
-        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
+    async def test_publishes_status_event(self) -> None:
+        await self.executor.route_outbound(self.delivery)
 
         self.notifier.delivery_status_updated.assert_awaited_once()
 
-    async def test_execute_unexpected_error_treated_as_failure(self) -> None:
+    async def test_unexpected_error_treated_as_failure(self) -> None:
         self.connector.send_side_effect = RuntimeError('SDK crashed')
-        outbound = _make_outbound()
 
-        await self.executor.execute(outbound, self.delivery, tenant_uuid='tenant-uuid')
+        await self.executor.route_outbound(self.delivery)
 
         assert self.delivery.retry_count == 1
         dao_mock = self.executor._room_dao.add_delivery_record
         statuses = [call.args[0].status for call in dao_mock.call_args_list]
-        assert DeliveryStatus.FAILED.value in statuses
+        assert DeliveryStatus.RETRYING.value in statuses
 
-    async def test_execute_success_returns_no_retry(self) -> None:
-        outbound = _make_outbound()
-
-        result = await self.executor.execute(
-            outbound, self.delivery, tenant_uuid='tenant-uuid'
-        )
+    async def test_success_returns_no_retry(self) -> None:
+        result = await self.executor.route_outbound(self.delivery)
 
         assert result is None
 
-    async def test_execute_retrying_returns_next_retry_delay(self) -> None:
+    async def test_retrying_returns_next_retry_delay(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
-        outbound = _make_outbound()
 
-        result = await self.executor.execute(
-            outbound, self.delivery, tenant_uuid='tenant-uuid'
-        )
+        result = await self.executor.route_outbound(self.delivery)
 
         assert result == 30.0
 
-    async def test_execute_dead_letter_returns_no_retry(self) -> None:
+    async def test_dead_letter_returns_no_retry(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
         self.delivery.retry_count = OUTBOUND_MAX_RETRIES - 1
-        outbound = _make_outbound()
 
-        result = await self.executor.execute(
-            outbound, self.delivery, tenant_uuid='tenant-uuid'
-        )
+        result = await self.executor.route_outbound(self.delivery)
 
         assert result is None
 
@@ -450,7 +461,9 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
 
         self.executor._room_dao.add_message.assert_awaited_once()
 
-    async def test_route_inbound_retries_on_persist_failure(self) -> None:
+    async def test_route_inbound_returns_retry_delay_on_transient_failure(
+        self,
+    ) -> None:
         recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
         room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
         room.users = [Mock(uuid='recipient-uuid')]
@@ -462,17 +475,55 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
         self.executor._room_dao.add_message = AsyncMock(
-            side_effect=[RuntimeError('DB down'), AsyncMock()]
+            side_effect=RuntimeError('DB down')
         )
 
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.executor.asyncio.sleep',
-            new=AsyncMock(),
-        ):
-            await self.executor.route_inbound(inbound)
+        delay = await self.executor.route_inbound(inbound, attempt=0)
 
-        assert self.executor._room_dao.add_message.await_count == 2
-        self.notifier.message_created.assert_awaited_once()
+        assert delay == float(INBOUND_RETRY_DELAYS[0])
+        self.notifier.message_created.assert_not_awaited()
+
+    async def test_route_inbound_raises_after_attempts_exhausted(self) -> None:
+        recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='recipient-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient}
+        )
+        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.add_message = AsyncMock(
+            side_effect=RuntimeError('DB down')
+        )
+
+        with pytest.raises(RuntimeError):
+            await self.executor.route_inbound(
+                inbound, attempt=len(INBOUND_RETRY_DELAYS)
+            )
+
+    async def test_route_inbound_duplicate_external_id_dropped(self) -> None:
+        recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='recipient-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient}
+        )
+        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.add_message = AsyncMock(
+            side_effect=DuplicateExternalIdException(
+                inbound.external_id, inbound.backend
+            )
+        )
+
+        await self.executor.route_inbound(inbound)
+
+        assert self.executor._room_dao.add_message.await_count == 1
+        self.notifier.message_created.assert_not_awaited()
 
     async def test_route_inbound_external_sender_skips_dedup(self) -> None:
         recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
@@ -703,10 +754,10 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         _, delay = result[0]
         assert delay == 30.0
 
-    async def test_sending_recovered(self) -> None:
+    async def test_pending_recovered(self) -> None:
         meta = self._make_meta()
         self.executor._room_dao.get_recoverable_messages = AsyncMock(
-            return_value=[(meta, 'sending')]
+            return_value=[(meta, 'pending')]
         )
 
         result = await self.executor.recover_pending_deliveries()

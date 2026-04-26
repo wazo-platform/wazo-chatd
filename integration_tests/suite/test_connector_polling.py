@@ -77,7 +77,7 @@ class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
                     'backend': 'test',
                     'external_id': 'ext-out-001',
                 },
-                'deliveries': ['sent'],
+                'deliveries': ['accepted'],
             }
         ],
     )

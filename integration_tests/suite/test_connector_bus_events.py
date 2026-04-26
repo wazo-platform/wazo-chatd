@@ -127,15 +127,17 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
             {'content': 'Track delivery', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        def sent_event_received():
+        def accepted_event_received():
             events = accumulator.accumulate(with_headers=True)
-            sent = [e for e in events if e['message']['data'].get('status') == 'sent']
-            assert len(sent) >= 1
-            data = sent[0]['message']['data']
+            accepted = [
+                e for e in events if e['message']['data'].get('status') == 'accepted'
+            ]
+            assert len(accepted) >= 1
+            data = accepted[0]['message']['data']
             assert data['message_uuid'] == message['uuid']
             assert data['backend'] == 'test'
 
-        until.assert_(sent_event_received, timeout=5, interval=0.1)
+        until.assert_(accepted_event_received, timeout=5, interval=0.1)
 
         port = self.asset_cls.service_port(9304, 'chatd')
         requests.post(
