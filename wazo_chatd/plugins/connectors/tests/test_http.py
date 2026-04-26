@@ -169,6 +169,21 @@ class TestConnectorWebhookResource(unittest.TestCase):
             'https://wazo.example.com/api/chatd/connectors/incoming/twilio'
         )
 
+    def test_form_repeated_keys_preserved(self) -> None:
+        self.router.dispatch_webhook.return_value = None
+
+        with self.app.test_request_context(
+            '/connectors/incoming/twilio',
+            method='POST',
+            data='Tag=foo&Tag=bar&Body=hi',
+            content_type='application/x-www-form-urlencoded',
+        ):
+            self.resource.post(backend='twilio')
+
+        data = self.router.dispatch_webhook.call_args[0][0]
+        assert isinstance(data, WebhookData)
+        assert data.body.getlist('Tag') == ['foo', 'bar']
+
     def test_url_preserves_query_string(self) -> None:
         self.router.dispatch_webhook.return_value = None
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from flask import request
@@ -55,10 +56,11 @@ class ConnectorWebhookResource(ErrorCatchingResource):
         return '', 204
 
     def _build_webhook_data(self) -> WebhookData:
+        body: Mapping[str, Any]
         if request.is_json:
-            body: dict[str, Any] = request.get_json(force=True) or {}
+            body = request.get_json(force=True) or {}
         else:
-            body = request.form.to_dict()
+            body = request.form
 
         return WebhookData(
             body=body,
