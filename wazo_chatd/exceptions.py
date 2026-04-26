@@ -68,3 +68,15 @@ class DuplicateIdentityException(APIException):
         )
         details = {'backend': backend, 'identity': identity, 'type': type_}
         super().__init__(409, msg, 'duplicate-identity', details, 'identities')
+
+
+class DuplicateExternalIdException(Exception):
+    """A MessageMeta with the same (external_id, backend) already exists."""
+
+    def __init__(self, external_id: str, backend: str) -> None:
+        super().__init__(
+            f'MessageMeta already exists for external_id {external_id!r} '
+            f'backend {backend!r}'
+        )
+        self.external_id = external_id
+        self.backend = backend

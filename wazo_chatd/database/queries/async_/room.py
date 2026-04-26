@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, exc, func, select
 from sqlalchemy.orm import joinedload, selectinload
 
 from wazo_chatd.database.async_helpers import get_async_session
@@ -18,6 +18,9 @@ from wazo_chatd.database.models import (
     RoomMessage,
     RoomUser,
 )
+from wazo_chatd.exceptions import DuplicateExternalIdException
+
+_UNIQUE_VIOLATION = '23505'
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,7 +119,19 @@ class AsyncRoomDAO:
     async def add_message(self, room: Room, message: RoomMessage) -> RoomMessage:
         message.room_uuid = room.uuid
         self.session.add(message)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except exc.IntegrityError as e:
+            await self.session.rollback()
+            if (
+                getattr(e.orig, 'pgcode', None) == _UNIQUE_VIOLATION
+                and message.meta is not None
+            ):
+                raise DuplicateExternalIdException(
+                    str(message.meta.external_id),
+                    str(message.meta.backend),
+                )
+            raise
         return message
 
     async def add_message_meta(
@@ -237,7 +252,6 @@ class AsyncRoomDAO:
                 DeliveryRecord.status.in_(
                     [
                         DeliveryStatus.PENDING.value,
-                        DeliveryStatus.SENDING.value,
                         DeliveryStatus.RETRYING.value,
                     ]
                 )

@@ -315,7 +315,13 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
             'extra',
             postgresql_using='gin',
         ),
-        Index('chatd_message_meta__idx__external_id', 'external_id'),
+        Index(
+            'chatd_message_meta__uq__external_id_backend',
+            'external_id',
+            'backend',
+            unique=True,
+            postgresql_where=text('external_id IS NOT NULL'),
+        ),
     )
 
     message_uuid: UUIDType = Column(
