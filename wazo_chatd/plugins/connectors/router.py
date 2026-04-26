@@ -67,7 +67,7 @@ class ConnectorRouter:
             config, self._store, self._delivery_runner.enqueue_message
         )
 
-    def on_auth_available(self, token: str) -> None:
+    def on_auth_available(self, _token: str) -> None:
         if self._store.is_populated:
             return
 
@@ -209,7 +209,7 @@ class ConnectorRouter:
                 f'backend {backend!r}'
             )
 
-        if getattr(instance, 'verifies_signatures', True):
+        if instance.verifies_signatures:
             try:
                 valid = instance.verify_signature(data)
             except Exception:

@@ -49,15 +49,16 @@ class TestConnectorRegistry(unittest.TestCase):
         with pytest.raises(KeyError):
             self.registry.get_backend('nonexistent')
 
-    def test_register_backend_overwrites_duplicate(self) -> None:
+    def test_register_backend_raises_on_duplicate(self) -> None:
         class _DuplicateConnector:
             backend: ClassVar[str] = 'fake_a'
             supported_types: ClassVar[tuple[str, ...]] = ('mms',)
 
         self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
-        self.registry.register_backend(_DuplicateConnector)  # type: ignore[arg-type]
+        with pytest.raises(ValueError):
+            self.registry.register_backend(_DuplicateConnector)  # type: ignore[arg-type]
 
-        assert self.registry.get_backend('fake_a') is _DuplicateConnector
+        assert self.registry.get_backend('fake_a') is _FakeConnectorA
 
     def test_discover(self) -> None:
         mock_ext_a = Mock(spec=['name', 'plugin'])

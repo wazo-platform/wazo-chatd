@@ -58,10 +58,14 @@ class ConnectorRegistry:
 
         Args:
             cls: A class implementing the :class:`Connector` protocol.
+
+        Raises:
+            ValueError: If a backend with the same ``cls.backend`` name
+                is already registered.
         """
         name = cls.backend
         if name in self._backends:
-            logger.warning('Connector backend %r already registered, overwriting', name)
+            raise ValueError(f'Connector backend {name!r} already registered')
         logger.info(
             'Registered connector backend %r (types: %s)',
             name,
