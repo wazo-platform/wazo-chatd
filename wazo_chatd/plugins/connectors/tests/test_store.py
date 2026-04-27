@@ -7,7 +7,7 @@ import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from typing import ClassVar
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import HTTPError
@@ -324,6 +324,32 @@ class TestConnectorStoreGet(unittest.TestCase):
                 f2.result(timeout=2)
 
         assert auth_client.external.get_config.call_count == 1
+
+    def test_expiry_is_jittered_to_avoid_stampede(self) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.return_value = {'api_key': 'secret'}
+
+        with patch(
+            'wazo_chatd.plugins.connectors.store.time.monotonic', return_value=1000.0
+        ):
+            store = ConnectorStore(
+                auth_client, _build_registry(_SmsConnector), cache_ttl=100.0
+            )
+            for i in range(50):
+                store.get('sms_backend', f'tenant-{i}')
+
+        initial = auth_client.external.get_config.call_count
+        assert initial == 50
+
+        with patch(
+            'wazo_chatd.plugins.connectors.store.time.monotonic',
+            return_value=1000.0 + 100.5,
+        ):
+            for i in range(50):
+                store.get('sms_backend', f'tenant-{i}')
+
+        refreshed = auth_client.external.get_config.call_count - initial
+        assert 5 < refreshed < 45
 
     def test_sequential_gets_after_failure_can_retry(self) -> None:
         auth_client = Mock()

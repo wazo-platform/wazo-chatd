@@ -56,7 +56,7 @@ def _make_outbound(message_uuid: str = 'delivery-1') -> OutboundMessage:
 
 
 class _FakeConnector:
-    backend: ClassVar[str] = 'twilio'
+    backend: ClassVar[str] = 'sms_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('sms',)
     status_map: ClassVar[dict[str, DeliveryStatus]] = {}
 
@@ -114,14 +114,16 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
             notifier=self.notifier,
             store=ConnectorStore(Mock(), ConnectorRegistry()),
         )
-        self.executor._store._cache[('tenant-uuid', 'twilio')] = self.connector  # type: ignore[assignment]
-        self.executor._store._timestamps[('tenant-uuid', 'twilio')] = time.monotonic()
+        self.executor._store._cache[('tenant-uuid', 'sms_backend')] = self.connector  # type: ignore[assignment]
+        self.executor._store._expires_at[('tenant-uuid', 'sms_backend')] = (
+            time.monotonic() + 300.0
+        )
         self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
         sender_record = Mock(
             identity='+15551234',
             tenant_uuid='tenant-uuid',
-            backend='twilio',
+            backend='sms_backend',
             type_='sms',
         )
         recipient_user = Mock(uuid='recipient-uuid', identity='+15559876')
@@ -132,7 +134,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
         self.delivery = Mock()
         self.delivery.message_uuid = 'delivery-1'
-        self.delivery.backend = 'twilio'
+        self.delivery.backend = 'sms_backend'
         self.delivery.retry_count = 0
         self.delivery.external_id = None
         self.delivery.records = []
@@ -225,8 +227,10 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
             notifier=AsyncMock(),
             store=self.store,
         )
-        self.store._cache[('tenant-uuid', 'twilio')] = self.connector  # type: ignore[assignment]
-        self.store._timestamps[('tenant-uuid', 'twilio')] = time.monotonic()
+        self.store._cache[('tenant-uuid', 'sms_backend')] = self.connector  # type: ignore[assignment]
+        self.store._expires_at[('tenant-uuid', 'sms_backend')] = (
+            time.monotonic() + 300.0
+        )
         self.executor._room_dao.add_delivery_record = _mock_add_delivery_record()
 
     def tearDown(self) -> None:
@@ -236,7 +240,7 @@ class TestDeliveryExecutorRouteOutbound(unittest.IsolatedAsyncioTestCase):
         sender_identity = Mock(
             identity='+15551234',
             tenant_uuid='tenant-uuid',
-            backend='twilio',
+            backend='sms_backend',
             type_='sms',
         )
         recipient_user = Mock(uuid='recipient-uuid', identity=None)
@@ -271,7 +275,7 @@ def _make_inbound(
         sender='+15559876',
         recipient='+15551234',
         body='hello from outside',
-        backend='twilio',
+        backend='sms_backend',
         message_type='sms',
         external_id='ext-123',
         metadata=metadata,
@@ -349,7 +353,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._room_dao.add_message.assert_awaited_once()
         message = self.executor._room_dao.add_message.call_args[0][1]
         assert message.meta is not None
-        assert message.meta.backend == 'twilio'
+        assert message.meta.backend == 'sms_backend'
 
     async def test_route_inbound_publishes_message_event(self) -> None:
         recipient = Mock(uuid='wazo-user-uuid', tenant_uuid='tenant-uuid')

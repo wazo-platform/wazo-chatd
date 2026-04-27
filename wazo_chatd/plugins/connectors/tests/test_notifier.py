@@ -20,7 +20,7 @@ class TestUserIdentityNotifier(unittest.TestCase):
         identity.uuid = 'identity-uuid'
         identity.user_uuid = 'user-uuid'
         identity.tenant_uuid = 'tenant-uuid'
-        identity.backend = 'twilio'
+        identity.backend = 'sms_backend'
         identity.type_ = 'sms'
         identity.identity = '+15551234567'
         identity.extra = {}
@@ -35,7 +35,7 @@ class TestUserIdentityNotifier(unittest.TestCase):
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_user_identity_created'
         assert event.content['uuid'] == 'identity-uuid'
-        assert event.content['backend'] == 'twilio'
+        assert event.content['backend'] == 'sms_backend'
         assert event.content['type'] == 'sms'
         assert event.content['identity'] == '+15551234567'
 
@@ -83,7 +83,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         message.wazo_uuid = 'wazo-uuid'
         message.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         message.room = Mock(uuid='room-uuid')
-        message.meta = Mock(type_='sms', backend='twilio', status='delivered')
+        message.meta = Mock(type_='sms', backend='sms_backend', status='delivered')
         return message
 
     async def test_publishes_event_per_user(self) -> None:
@@ -118,7 +118,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         event = self.bus.publish.call_args[0][0]
         delivery = event.content['delivery']
         assert delivery['type'] == 'sms'
-        assert delivery['backend'] == 'twilio'
+        assert delivery['backend'] == 'sms_backend'
         assert delivery['status'] == 'delivered'
 
 
@@ -131,7 +131,7 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         )
 
     def _make_meta_and_record(self) -> tuple[Mock, Mock]:
-        meta = Mock(message_uuid='msg-uuid', backend='twilio')
+        meta = Mock(message_uuid='msg-uuid', backend='sms_backend')
         record = Mock(
             status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc)
         )
@@ -158,7 +158,7 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         )
         meta = Mock(
             message_uuid='msg-uuid',
-            backend='twilio',
+            backend='sms_backend',
             message=Mock(user_uuid='sender-uuid'),
         )
         record = Mock(

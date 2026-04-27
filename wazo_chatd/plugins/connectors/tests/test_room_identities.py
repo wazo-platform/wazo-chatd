@@ -18,7 +18,7 @@ from wazo_chatd.plugins.connectors.services import ConnectorService
 
 
 class _SmsConnector:
-    backend: ClassVar[str] = 'twilio'
+    backend: ClassVar[str] = 'sms_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
     @classmethod
@@ -194,7 +194,7 @@ class TestListRoomIdentities(unittest.TestCase):
             service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
 
-def _make_identity(backend: str = 'twilio', type_: str = 'sms') -> Mock:
+def _make_identity(backend: str = 'sms_backend', type_: str = 'sms') -> Mock:
     identity_mock = Mock()
     identity_mock.backend = backend
     identity_mock.type_ = type_
@@ -207,7 +207,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        identity = _make_identity('twilio')
+        identity = _make_identity('sms_backend')
         service = _build_service(
             room=room,
             types_by_user={'recipient-uuid': ['sms']},
@@ -221,7 +221,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        identity = _make_identity('twilio')
+        identity = _make_identity('sms_backend')
         service = _build_service(
             room=room,
             types_by_user={'recipient-uuid': []},
@@ -236,7 +236,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
         room = _make_room(users=[sender, external])
 
-        identity = _make_identity('twilio')
+        identity = _make_identity('sms_backend')
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},

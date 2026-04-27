@@ -29,7 +29,7 @@ def _make_inbound() -> InboundMessage:
         sender='+15559876',
         recipient='+15551234',
         body='hello',
-        backend='twilio',
+        backend='sms_backend',
         message_type='sms',
         external_id='ext-123',
     )
@@ -455,9 +455,9 @@ class TestListenerRunnerReconcile(unittest.IsolatedAsyncioTestCase):
 
 class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
     async def test_spawns_poller_for_poll_mode_instance(self) -> None:
-        loop = _build_loop_for_modes({'twilio': {'mode': 'poll'}})
-        key = ('tenant-a', 'twilio')
-        loop._store.items.return_value = [(key, _mock_instance('twilio'))]
+        loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
+        key = ('tenant-a', 'sms_backend')
+        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
 
@@ -466,18 +466,18 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
         loop._pollers[key].cancel()
 
     async def test_does_not_spawn_poller_for_webhook_mode(self) -> None:
-        loop = _build_loop_for_modes({'twilio': {'mode': 'webhook'}})
-        key = ('tenant-a', 'twilio')
-        loop._store.items.return_value = [(key, _mock_instance('twilio'))]
+        loop = _build_loop_for_modes({'sms_backend': {'mode': 'webhook'}})
+        key = ('tenant-a', 'sms_backend')
+        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
 
         assert key not in loop._pollers
 
     async def test_idempotent_does_not_spawn_duplicate(self) -> None:
-        loop = _build_loop_for_modes({'twilio': {'mode': 'poll'}})
-        key = ('tenant-a', 'twilio')
-        loop._store.items.return_value = [(key, _mock_instance('twilio'))]
+        loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
+        key = ('tenant-a', 'sms_backend')
+        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
         first_task = loop._pollers[key]
@@ -488,9 +488,9 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
         first_task.cancel()
 
     async def test_cancels_poller_for_evicted_instance(self) -> None:
-        loop = _build_loop_for_modes({'twilio': {'mode': 'poll'}})
-        key = ('tenant-a', 'twilio')
-        loop._store.items.return_value = [(key, _mock_instance('twilio'))]
+        loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
+        key = ('tenant-a', 'sms_backend')
+        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
         task = loop._pollers[key]

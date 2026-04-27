@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
+import random
 import threading
 import time
 from collections.abc import Iterable, Iterator
@@ -30,6 +31,7 @@ CacheKey = tuple[str, str]
 DEFAULT_CACHE_TTL: float = 300.0
 POPULATE_CONCURRENCY: int = 20
 POPULATE_FETCH_TIMEOUT: float = 30.0
+TTL_JITTER: float = 0.2
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ class ConnectorStore:
         self._cache_ttl = cache_ttl
         self._connectors_config = connectors_config or {}
         self._cache: dict[CacheKey, Connector] = {}
-        self._timestamps: dict[CacheKey, float] = {}
+        self._expires_at: dict[CacheKey, float] = {}
         # One-shot signal — set when priority (runner-driven) population
         # completes. Webhook-mode backends may still be populating in the
         # background when this fires.
@@ -180,7 +182,7 @@ class ConnectorStore:
     def drop(self, backend: str, tenant_uuid: str) -> None:
         key = (tenant_uuid, backend)
         self._cache.pop(key, None)
-        self._timestamps.pop(key, None)
+        self._expires_at.pop(key, None)
 
     def get(self, backend: str, tenant_uuid: str) -> Connector:
         """Get cached instance if fresh, else fetch from wazo-auth; raises on failure.
@@ -224,12 +226,9 @@ class ConnectorStore:
 
     def _get_cached(self, backend: str, tenant_uuid: str) -> Connector | None:
         key = (tenant_uuid, backend)
-        if self._is_expired(self._timestamps.get(key, 0.0)):
+        if time.monotonic() > self._expires_at.get(key, 0.0):
             return None
         return self._cache.get(key)
-
-    def _is_expired(self, timestamp: float) -> bool:
-        return (time.monotonic() - timestamp) > self._cache_ttl
 
     def _fetch(self, backend: str, tenant_uuid: str) -> Connector:
         """Talk to wazo-auth, instantiate, cache, and return; raises on failure.
@@ -275,7 +274,7 @@ class ConnectorStore:
             )
         except HTTPError as e:
             self._cache.pop(key, None)
-            self._timestamps.pop(key, None)
+            self._expires_at.pop(key, None)
             if getattr(e.response, 'status_code', None) == 404:
                 raise BackendNotConfiguredException(backend, tenant_uuid)
             raise AuthServiceUnavailableException()
@@ -286,8 +285,9 @@ class ConnectorStore:
         connector_config = self._connectors_config.get(backend, {})
         instance = backend_cls(tenant_uuid, provider_config, connector_config)
 
+        jitter = random.uniform(1.0 - TTL_JITTER, 1.0 + TTL_JITTER)
         self._cache[key] = instance
-        self._timestamps[key] = time.monotonic()
+        self._expires_at[key] = time.monotonic() + self._cache_ttl * jitter
 
         logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)
         return instance
