@@ -250,14 +250,12 @@ class DeliveryExecutor:
         )
         return None
 
-    async def recover_pending_deliveries(
-        self,
-    ) -> list[tuple[MessageMeta, float]]:
+    async def recover_pending_deliveries(self) -> list[tuple[str, float]]:
         metas = await self._room_dao.get_recoverable_messages()
         if not metas:
             return []
 
-        recoverable: list[tuple[MessageMeta, float]] = []
+        recoverable: list[tuple[str, float]] = []
         for meta, status in metas:
             if not meta.message or not meta.message.room:
                 logger.warning(
@@ -275,7 +273,7 @@ class DeliveryExecutor:
             else:
                 delay = 0.0
 
-            recoverable.append((meta, delay))
+            recoverable.append((str(meta.message_uuid), delay))
 
         logger.info('Recovery: %d message(s) to re-enqueue', len(recoverable))
         return recoverable

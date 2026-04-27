@@ -3,13 +3,14 @@
 
 from __future__ import annotations
 
+import abc
 import asyncio
 import concurrent.futures
 import functools
 import itertools
 import logging
 import threading
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Iterable
 from types import TracebackType
 from typing import Any, ClassVar
 
@@ -39,11 +40,23 @@ def _backoff() -> itertools.chain[int]:
     return itertools.chain([1, 2, 4, 8, 16, 32], itertools.repeat(32))
 
 
+async def _cancel_and_gather(tasks: Iterable[asyncio.Task[None]]) -> None:
+    """Cancel any unfinished task and gather their results, swallowing exceptions."""
+    pending = [t for t in tasks if not t.done()]
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
+
 def _observe_future(
     source: concurrent.futures.Future[None],
     loop: asyncio.AbstractEventLoop,
 ) -> asyncio.Future[None]:
-    """Read-only asyncio.Future that resolves when ``source`` completes; cancelling the returned future does not cancel ``source``."""
+    """
+    Read-only asyncio.Future that resolves when ``source`` completes;
+    cancelling the returned future does not cancel ``source``.
+    """
     target: asyncio.Future[None] = loop.create_future()
     if source.done():
         target.set_result(None)
@@ -60,21 +73,21 @@ def _observe_future(
     return target
 
 
-class Runner:
+class Runner(abc.ABC):
     """Event loop running on a dedicated daemon thread.
 
     Handles thread + loop lifecycle (via :func:`asyncio.run`), crash
     recovery with iterative exponential backoff, and a
     loop-independent close signal that survives restarts.
 
-    :meth:`run` is the thread target. :meth:`start` spawns that
-    thread; :meth:`shutdown` signals ``_closing`` and joins.
+    :meth:`start` spawns the thread; :meth:`shutdown` signals
+    ``_closing`` and joins.
 
-    Subclasses override :meth:`_on_start` (setup coroutine) and
-    :meth:`_on_stop` (async cleanup). Both run inside the loop. The
-    base guarantees ``_on_stop`` runs even if ``_on_start`` raises.
-    Rare cases that need interleaved setup/steady/teardown may
-    override :meth:`_entrypoint` directly.
+    Subclasses implement :meth:`_run` — a coroutine that owns the
+    full lifecycle (setup, steady state, cleanup via ``try/finally``).
+    The base races it against the close signal and cancels it on
+    shutdown; any exception from :meth:`_run` propagates so the
+    thread loop triggers a restart.
     """
 
     thread_name: ClassVar[str] = 'runner'
@@ -83,7 +96,7 @@ class Runner:
     def __init__(self) -> None:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread = threading.Thread(
-            target=self.run, name=self.thread_name, daemon=True
+            target=self._thread_target, name=self.thread_name, daemon=True
         )
         self._ready = threading.Event()
         # Loop-independent, created once, survives restarts.
@@ -112,8 +125,8 @@ class Runner:
     def restart_count(self) -> int:
         return self._restart_count
 
-    def run(self) -> None:
-        """Thread target: run the async lifecycle, restart on crash."""
+    def _thread_target(self) -> None:
+        """Thread target: drive the async lifecycle and restart on crash."""
         while True:
             try:
                 asyncio.run(self._entrypoint())
@@ -129,27 +142,24 @@ class Runner:
     async def _entrypoint(self) -> None:
         self._loop = asyncio.get_running_loop()
         self._ready.set()
-        start_task: asyncio.Task[None] = asyncio.create_task(self._on_start())
+        run_task: asyncio.Task[None] = asyncio.create_task(self._run())
         closing = _observe_future(self._closing, self._loop)
+
         try:
-            done, pending = await asyncio.wait(
-                [start_task, closing],
+            done, _ = await asyncio.wait(
+                [run_task, closing],
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            if start_task in pending:
-                # Shutdown signaled during _on_start — abort setup.
-                start_task.cancel()
+            if run_task in done and not run_task.cancelled():
+                if (exc := run_task.exception()) is not None:
+                    raise exc
+        finally:
+            if not run_task.done():
+                run_task.cancel()
                 try:
-                    await start_task
+                    await run_task
                 except (asyncio.CancelledError, Exception):
                     pass
-            else:
-                # _on_start completed — re-raise if it crashed, so
-                # run() can log and trigger the restart path.
-                start_task.result()
-                await closing
-        finally:
-            await self._on_stop()
 
     def start(self) -> None:
         if self._thread.is_alive() or self._thread.ident is not None:
@@ -211,11 +221,28 @@ class Runner:
         """Subclass helper: resolve when shutdown has been requested."""
         await _observe_future(self._closing, self.loop)
 
-    async def _on_start(self) -> None:
-        """Override to schedule work when the loop starts."""
+    @abc.abstractmethod
+    async def _run(self) -> None:
+        """Implement the runner lifecycle.
 
-    async def _on_stop(self) -> None:
-        """Override for cleanup before the loop stops."""
+        The base spawns this as a task and races it against the
+        ``_closing`` shutdown signal. On shutdown the base cancels
+        this coroutine, raising :class:`asyncio.CancelledError` —
+        cleanup belongs in a ``finally`` block::
+
+            async def _run(self):
+                resource = await self._setup()
+                try:
+                    # block on work until shutdown cancels us, or
+                    # until a critical task crashes
+                    await self._wait_closing()
+                finally:
+                    await resource.close()
+
+        Subclasses determine task criticality on their own: re-raise
+        a critical task's exception from inside this method to trigger
+        the runner's restart path.
+        """
 
 
 class DeliveryRunner(Runner):
@@ -256,7 +283,7 @@ class DeliveryRunner(Runner):
         self._outbound_notify_task: asyncio.Task[None] | None = None
         self._pollers: dict[CacheKey, asyncio.Task[None]] = {}
         self._queue: AsyncQueue[InboundMessage | StatusUpdate] = AsyncQueue()
-        self._drain_task: asyncio.Task[None] | None = None
+        self._dispatch_task: asyncio.Task[None] | None = None
         self._scheduled_timers: set[asyncio.TimerHandle] = set()
 
     @property
@@ -279,7 +306,14 @@ class DeliveryRunner(Runner):
                 message,
             )
 
-    async def _on_start(self) -> None:
+    def resync_pollers(self) -> None:
+        """Thread-safe: schedule a poller reconcile on the delivery loop."""
+        try:
+            self.loop.call_soon_threadsafe(self._synchronize_pollers)
+        except RuntimeError:
+            pass
+
+    async def _run(self) -> None:
         self._semaphore = asyncio.Semaphore(self._max_tasks)
         try:
             await self._store.wait_populated()
@@ -288,49 +322,40 @@ class DeliveryRunner(Runner):
                 '%s starting in degraded state: connector store populate failed',
                 self.thread_name,
             )
+
         self._outbound_notify_task = asyncio.create_task(self._listen_for_deliveries())
-        self._drain_task = asyncio.create_task(self._drain_queue())
+        self._dispatch_task = asyncio.create_task(self._dispatch())
         self._synchronize_pollers()
+        critical_tasks = (self._outbound_notify_task, self._dispatch_task)
 
-    async def _drain_queue(self) -> None:
         try:
-            async for message in self._queue:
-                self._schedule_task(message)
-        except asyncio.CancelledError:
-            raise
+            done, _ = await asyncio.wait(
+                critical_tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in done:
+                if task.cancelled():
+                    continue
+                if (exc := task.exception()) is not None:
+                    raise exc
+        finally:
+            await self._shutdown(critical_tasks)
 
-    async def _on_stop(self) -> None:
-        if self._drain_task and not self._drain_task.done():
-            self._drain_task.cancel()
-            try:
-                await self._drain_task
-            except asyncio.CancelledError:
-                pass
-
-        if self._outbound_notify_task and not self._outbound_notify_task.done():
-            self._outbound_notify_task.cancel()
-            try:
-                await self._outbound_notify_task
-            except asyncio.CancelledError:
-                pass
-
-        for task in list(self._pollers.values()):
-            if not task.done():
-                task.cancel()
-        if self._pollers:
-            await asyncio.gather(*self._pollers.values(), return_exceptions=True)
+    async def _shutdown(self, critical_tasks: tuple[asyncio.Task[None], ...]) -> None:
+        await _cancel_and_gather(critical_tasks)
+        await _cancel_and_gather(self._pollers.values())
         self._pollers.clear()
 
         for handle in self._scheduled_timers:
             handle.cancel()
+
         self._scheduled_timers.clear()
 
         if self._in_flight:
             logger.info(
-                'Waiting for %d in-flight task(s) to complete',
-                len(self._in_flight),
+                'Waiting for %d in-flight task(s) to complete', len(self._in_flight)
             )
             await asyncio.gather(*self._in_flight, return_exceptions=True)
+
         self._in_flight.clear()
 
         if self.is_closing and self._engine:
@@ -377,21 +402,47 @@ class DeliveryRunner(Runner):
 
     def _on_delivery_notify(
         self,
-        connection: asyncpg.Connection,
-        pid: int,
-        channel: str,
+        _connection: asyncpg.Connection,
+        _pid: int,
+        _channel: str,
         payload: str,
     ) -> None:
-        message_uuid = payload
-        logger.debug('Message %s scheduled for delivery', message_uuid)
-        self._schedule_outbound_notification(message_uuid)
+        self._schedule_outbound(payload)
 
-    def _schedule_outbound_notification(self, message_uuid: str) -> None:
-        task = self.loop.create_task(self._process_outbound_notification(message_uuid))
-        self._in_flight.add(task)
-        task.add_done_callback(self._task_done)
+    async def _recover(self) -> None:
+        try:
+            async with async_session_scope(self._session_factory):
+                recoverable = await self._executor.recover_pending_deliveries()
+        except Exception:
+            logger.exception('Recovery scan failed, continuing without recovery')
+            return
 
-    async def _process_outbound_notification(self, message_uuid: str) -> None:
+        for message_uuid, delay in recoverable:
+            if delay > 0:
+                logger.info(
+                    'Recovery: re-enqueuing %s with %.0fs delay',
+                    message_uuid,
+                    delay,
+                )
+                self._schedule_outbound_later(delay, message_uuid)
+            else:
+                logger.info('Recovery: re-enqueuing %s immediately', message_uuid)
+                self._schedule_outbound(message_uuid)
+
+    def _schedule_outbound(self, message_uuid: str) -> None:
+        self._create_tracked_task(self._process_outbound(message_uuid))
+
+    def _schedule_outbound_later(self, delay: float, message_uuid: str) -> None:
+        """Schedule a delayed outbound notification; handle tracked for shutdown cancel."""
+
+        def callback() -> None:
+            self._scheduled_timers.discard(handle)
+            self._schedule_outbound(message_uuid)
+
+        handle = self.loop.call_later(delay, callback)
+        self._scheduled_timers.add(handle)
+
+    async def _process_outbound(self, message_uuid: str) -> None:
         async with self.semaphore:
             retry_delay: float | None = None
             try:
@@ -427,47 +478,63 @@ class DeliveryRunner(Runner):
             if retry_delay is not None:
                 self._schedule_outbound_later(retry_delay, message_uuid)
 
-    async def _recover(self) -> None:
+    async def _dispatch(self) -> None:
         try:
-            async with async_session_scope(self._session_factory):
-                recoverable = await self._executor.recover_pending_deliveries()
-        except Exception:
-            logger.exception('Recovery scan failed, continuing without recovery')
-            return
+            async for message in self._queue:
+                self._schedule_inbound(message)
+        except asyncio.CancelledError:
+            raise
 
-        for meta, delay in recoverable:
-            message_uuid = str(meta.message_uuid)
-
-            if delay > 0:
-                logger.info(
-                    'Recovery: re-enqueuing %s with %.0fs delay',
-                    message_uuid,
-                    delay,
+    def _schedule_inbound(
+        self,
+        message: InboundMessage | StatusUpdate,
+        *,
+        attempt: int = 0,
+    ) -> None:
+        match message:
+            case InboundMessage():
+                coro = self._executor.route_inbound(message, attempt=attempt)
+            case StatusUpdate():
+                coro = self._executor.route_status_update(message, attempt=attempt)
+            case _:
+                logger.warning(
+                    'Unknown message type in delivery queue: %s',
+                    type(message).__name__,
                 )
-                self._schedule_outbound_later(delay, message_uuid)
-            else:
-                logger.info('Recovery: re-enqueuing %s immediately', message_uuid)
-                self._schedule_outbound_notification(message_uuid)
+                return
 
-    def _schedule_outbound_later(self, delay: float, message_uuid: str) -> None:
-        """Schedule a delayed outbound notification; handle tracked for shutdown cancel."""
+        self._create_tracked_task(self._process(coro, message, attempt))
 
+    def _schedule_inbound_later(
+        self,
+        delay: float,
+        message: InboundMessage | StatusUpdate,
+        attempt: int,
+    ) -> None:
         def callback() -> None:
             self._scheduled_timers.discard(handle)
-            self._schedule_outbound_notification(message_uuid)
+            self._schedule_inbound(message, attempt=attempt)
 
         handle = self.loop.call_later(delay, callback)
         self._scheduled_timers.add(handle)
 
-    def resync_pollers(self) -> None:
-        """Thread-safe: schedule a poller reconcile on the delivery loop."""
-        loop = self._loop
-        if loop is None or not loop.is_running():
-            return
-        try:
-            loop.call_soon_threadsafe(self._synchronize_pollers)
-        except RuntimeError:
-            pass
+    async def _process(
+        self,
+        coro: Coroutine[Any, Any, float | None],
+        message: InboundMessage | StatusUpdate,
+        attempt: int,
+    ) -> None:
+        async with self.semaphore:
+            logger.debug('Processing %s', message)
+            try:
+                async with async_session_scope(self._session_factory):
+                    retry_delay = await coro
+            except Exception:
+                logger.exception('Failed to process %s', message)
+                return
+
+        if retry_delay is not None:
+            self._schedule_inbound_later(retry_delay, message, attempt + 1)
 
     def _synchronize_pollers(self) -> None:
         """Reconcile pollers against the store.
@@ -516,48 +583,16 @@ class DeliveryRunner(Runner):
         if task and not task.done():
             task.cancel()
 
-    async def _invoke_poll_method(self, fn: Any, *args: Any) -> Any:
-        if asyncio.iscoroutinefunction(fn):
-            return await fn(*args)
-        return await asyncio.to_thread(fn, *args)
-
-    async def _run_poll_cycle(self, key: CacheKey, instance: Connector) -> bool:
-        tenant_uuid, backend = key
-        poll = False
-
-        try:
-            msgs = await self._invoke_poll_method(instance.scan_inbound)
-            for msg in msgs:
-                self.enqueue_message(msg)
-            poll = poll or bool(msgs)
-        except Exception:
-            logger.exception('scan_inbound failed for %s', key)
-
-        try:
-            async with async_session_scope(self._session_factory):
-                pending = await self._executor.list_pending_external_ids(
-                    tenant_uuid, backend
-                )
-            if pending:
-                updates = await self._invoke_poll_method(
-                    instance.track_outbound, pending
-                )
-                for update in updates:
-                    self.enqueue_message(update)
-                poll = poll or bool(updates)
-        except Exception:
-            logger.exception('track_outbound failed for %s', key)
-
-        return poll
-
     async def _run_poller(self, key: CacheKey, instance: Connector) -> None:
+        tenant_uuid, backend = key
         interval = self._poll_default
         while True:
             try:
-                if await self._run_poll_cycle(key, instance):
-                    interval = self._poll_min
-                else:
-                    interval = min(interval * 2, self._poll_max)
+                yielded = await self._scan_inbound(instance, key)
+                yielded |= await self._track_outbound(instance, tenant_uuid, backend)
+                interval = (
+                    self._poll_min if yielded else min(interval * 2, self._poll_max)
+                )
             except asyncio.CancelledError:
                 logger.info('Poller for %s cancelled', key)
                 raise
@@ -566,25 +601,41 @@ class DeliveryRunner(Runner):
                 interval = min(interval * 2, self._poll_max)
             await asyncio.sleep(interval)
 
-    def _schedule_task(
-        self,
-        message: InboundMessage | StatusUpdate,
-        *,
-        attempt: int = 0,
-    ) -> None:
-        match message:
-            case InboundMessage():
-                coro = self._executor.route_inbound(message, attempt=attempt)
-            case StatusUpdate():
-                coro = self._executor.route_status_update(message, attempt=attempt)
-            case _:
-                logger.warning(
-                    'Unknown message type in delivery queue: %s',
-                    type(message).__name__,
-                )
-                return
+    async def _scan_inbound(self, instance: Connector, key: CacheKey) -> bool:
+        try:
+            messages = await self._invoke_poll_method(instance.scan_inbound)
+        except Exception:
+            logger.exception('scan_inbound failed for %s', key)
+            return False
+        for message in messages:
+            self.enqueue_message(message)
+        return bool(messages)
 
-        task = self.loop.create_task(self._process(coro, message, attempt))
+    async def _track_outbound(
+        self, instance: Connector, tenant_uuid: str, backend: str
+    ) -> bool:
+        try:
+            async with async_session_scope(self._session_factory):
+                pending = await self._executor.list_pending_external_ids(
+                    tenant_uuid, backend
+                )
+            if not pending:
+                return False
+            updates = await self._invoke_poll_method(instance.track_outbound, pending)
+        except Exception:
+            logger.exception('track_outbound failed for %s', (tenant_uuid, backend))
+            return False
+        for update in updates:
+            self.enqueue_message(update)
+        return bool(updates)
+
+    async def _invoke_poll_method(self, fn: Any, *args: Any) -> Any:
+        if asyncio.iscoroutinefunction(fn):
+            return await fn(*args)
+        return await asyncio.to_thread(fn, *args)
+
+    def _create_tracked_task(self, coro: Coroutine[Any, Any, None]) -> None:
+        task = self.loop.create_task(coro)
         self._in_flight.add(task)
         task.add_done_callback(self._task_done)
 
@@ -592,37 +643,6 @@ class DeliveryRunner(Runner):
         self._in_flight.discard(task)
         if task.exception() is None:
             self._healthy.set()
-
-    async def _process(
-        self,
-        coro: Coroutine[Any, Any, float | None],
-        message: InboundMessage | StatusUpdate,
-        attempt: int,
-    ) -> None:
-        async with self.semaphore:
-            logger.debug('Processing %s', message)
-            try:
-                async with async_session_scope(self._session_factory):
-                    retry_delay = await coro
-            except Exception:
-                logger.exception('Failed to process %s', message)
-                return
-
-        if retry_delay is not None:
-            self._schedule_message_later(retry_delay, message, attempt + 1)
-
-    def _schedule_message_later(
-        self,
-        delay: float,
-        message: InboundMessage | StatusUpdate,
-        attempt: int,
-    ) -> None:
-        def callback() -> None:
-            self._scheduled_timers.discard(handle)
-            self._schedule_task(message, attempt=attempt)
-
-        handle = self.loop.call_later(delay, callback)
-        self._scheduled_timers.add(handle)
 
 
 class ListenerRunner(Runner):
@@ -652,7 +672,7 @@ class ListenerRunner(Runner):
         self._on_message = on_message
         self._listeners: dict[CacheKey, asyncio.Task[None]] = {}
 
-    async def _on_start(self) -> None:
+    async def _run(self) -> None:
         try:
             await self._store.wait_populated()
         except Exception:
@@ -661,6 +681,12 @@ class ListenerRunner(Runner):
                 self.thread_name,
             )
         self._reconcile(self._build_desired())
+
+        try:
+            await self._wait_closing()
+        finally:
+            await _cancel_and_gather(self._listeners.values())
+            self._listeners.clear()
 
     def _build_desired(self) -> dict[CacheKey, Connector]:
         connectors_config = self._config.get('connectors') or {}
@@ -672,11 +698,8 @@ class ListenerRunner(Runner):
 
     def resync(self) -> None:
         """Thread-safe: reconcile listener tasks against current store state."""
-        loop = self._loop
-        if loop is None or not loop.is_running():
-            return
         try:
-            loop.call_soon_threadsafe(self._reconcile, self._build_desired())
+            self.loop.call_soon_threadsafe(self._reconcile, self._build_desired())
         except RuntimeError:
             pass
 
@@ -714,11 +737,3 @@ class ListenerRunner(Runner):
         exc = task.exception()
         if exc is not None:
             logger.error('Listener for %s crashed: %s', key, exc, exc_info=exc)
-
-    async def _on_stop(self) -> None:
-        for task in list(self._listeners.values()):
-            if not task.done():
-                task.cancel()
-        if self._listeners:
-            await asyncio.gather(*self._listeners.values(), return_exceptions=True)
-        self._listeners.clear()

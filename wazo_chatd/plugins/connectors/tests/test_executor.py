@@ -739,8 +739,8 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         result = await self.executor.recover_pending_deliveries()
 
         assert len(result) == 1
-        outbound, delay = result[0]
-        assert outbound.message_uuid == 'msg-1'
+        message_uuid, delay = result[0]
+        assert message_uuid == 'msg-1'
         assert delay == 0.0
 
     async def test_retrying_message_recovered_with_delay(self) -> None:
@@ -763,8 +763,8 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         result = await self.executor.recover_pending_deliveries()
 
         assert len(result) == 1
-        recovered_meta, delay = result[0]
-        assert recovered_meta is meta
+        message_uuid, delay = result[0]
+        assert message_uuid == str(meta.message_uuid)
         assert delay == 0.0
 
     async def test_skips_meta_with_no_message(self) -> None:

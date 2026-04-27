@@ -60,9 +60,9 @@ def _mock_store() -> Mock:
 
 
 class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
-    async def test_on_start_exception_propagates(self) -> None:
+    async def test_run_exception_propagates(self) -> None:
         class _CrashyRunner(Runner):
-            async def _on_start(self) -> None:
+            async def _run(self) -> None:
                 raise RuntimeError('boom')
 
         runner = _CrashyRunner()
@@ -70,23 +70,63 @@ class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await runner._entrypoint()
 
-    async def test_on_start_exception_still_runs_on_stop(self) -> None:
-        stopped = False
+    async def test_run_finally_runs_on_exception(self) -> None:
+        cleaned = False
 
         class _CrashyRunner(Runner):
-            async def _on_start(self) -> None:
-                raise RuntimeError('boom')
-
-            async def _on_stop(self) -> None:
-                nonlocal stopped
-                stopped = True
+            async def _run(self_inner) -> None:
+                nonlocal cleaned
+                try:
+                    raise RuntimeError('boom')
+                finally:
+                    cleaned = True
 
         runner = _CrashyRunner()
 
         with self.assertRaises(RuntimeError):
             await runner._entrypoint()
 
-        assert stopped is True
+        assert cleaned is True
+
+    async def test_run_cancelled_when_closing_signaled(self) -> None:
+        cleaned = False
+
+        class _IdleRunner(Runner):
+            async def _run(self_inner) -> None:
+                nonlocal cleaned
+                self_inner.loop.call_later(
+                    0.05, lambda: self_inner._closing.set_result(None)
+                )
+                try:
+                    await self_inner._wait_closing()
+                    await asyncio.sleep(10)
+                finally:
+                    cleaned = True
+
+        runner = _IdleRunner()
+        await runner._entrypoint()
+
+        assert cleaned is True
+
+    async def test_critical_task_crash_propagates(self) -> None:
+        class _CrashyTaskRunner(Runner):
+            async def _run(self_inner) -> None:
+                task = asyncio.create_task(self_inner._crash())
+                try:
+                    await asyncio.wait([task])
+                    if (exc := task.exception()) is not None:
+                        raise exc
+                finally:
+                    if not task.done():
+                        task.cancel()
+
+            async def _crash(self_inner) -> None:
+                raise RuntimeError('drain crashed')
+
+        runner = _CrashyTaskRunner()
+
+        with self.assertRaises(RuntimeError):
+            await runner._entrypoint()
 
 
 @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.asyncpg')
@@ -212,23 +252,22 @@ class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
 
     async def test_scan_inbound_results_forwarded(self) -> None:
         loop = self._make_loop()
-        msg = _make_inbound()
-        instance = Mock(scan_inbound=Mock(return_value=[msg]))
-        instance.track_outbound = Mock(return_value=[])
+        message = _make_inbound()
+        instance = Mock(scan_inbound=Mock(return_value=[message]))
 
-        poll = await loop._run_poll_cycle(('tenant', 'backend'), instance)
+        yielded = await loop._scan_inbound(instance, ('tenant', 'backend'))
 
-        assert poll is True
-        loop.enqueue_message.assert_any_call(msg)
+        assert yielded is True
+        loop.enqueue_message.assert_any_call(message)
 
     async def test_track_outbound_skipped_when_no_pending(self) -> None:
         loop = self._make_loop(pending=[])
-        instance = Mock(scan_inbound=Mock(return_value=[]))
+        instance = Mock()
         instance.track_outbound = Mock(return_value=[])
 
-        poll = await loop._run_poll_cycle(('tenant', 'backend'), instance)
+        yielded = await loop._track_outbound(instance, 'tenant', 'backend')
 
-        assert poll is False
+        assert yielded is False
         instance.track_outbound.assert_not_called()
 
     async def test_track_outbound_called_with_pending_ids(self) -> None:
@@ -236,42 +275,37 @@ class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
         update = StatusUpdate(
             external_id='ext-1', status='delivered', backend='backend'
         )
-        instance = Mock(scan_inbound=Mock(return_value=[]))
+        instance = Mock()
         instance.track_outbound = Mock(return_value=[update])
 
-        poll = await loop._run_poll_cycle(('tenant', 'backend'), instance)
+        yielded = await loop._track_outbound(instance, 'tenant', 'backend')
 
-        assert poll is True
+        assert yielded is True
         instance.track_outbound.assert_called_once_with(['ext-1', 'ext-2'])
         loop.enqueue_message.assert_any_call(update)
 
     async def test_async_scan_inbound_awaited_inline(self) -> None:
         loop = self._make_loop()
-        msg = _make_inbound()
+        message = _make_inbound()
 
         async def async_scan() -> list:
-            return [msg]
+            return [message]
 
         instance = Mock(scan_inbound=async_scan)
-        instance.track_outbound = Mock(return_value=[])
 
-        poll = await loop._run_poll_cycle(('tenant', 'backend'), instance)
+        yielded = await loop._scan_inbound(instance, ('tenant', 'backend'))
 
-        assert poll is True
-        loop.enqueue_message.assert_any_call(msg)
+        assert yielded is True
+        loop.enqueue_message.assert_any_call(message)
 
-    async def test_scan_exception_logged_continues_to_track(self) -> None:
-        loop = self._make_loop(pending=['ext-1'])
-        update = StatusUpdate(
-            external_id='ext-1', status='delivered', backend='backend'
-        )
+    async def test_scan_exception_logged_returns_false(self) -> None:
+        loop = self._make_loop()
         instance = Mock(scan_inbound=Mock(side_effect=RuntimeError('boom')))
-        instance.track_outbound = Mock(return_value=[update])
 
-        poll = await loop._run_poll_cycle(('tenant', 'backend'), instance)
+        yielded = await loop._scan_inbound(instance, ('tenant', 'backend'))
 
-        assert poll is True
-        loop.enqueue_message.assert_called_once_with(update)
+        assert yielded is False
+        loop.enqueue_message.assert_not_called()
 
 
 class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
@@ -293,10 +327,14 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
         loop = self._make_loop()
         intervals: list[float] = []
 
-        async def fake_cycle(key: object, instance: object) -> bool:
+        async def fake_scan(*_args: object) -> bool:
             return False
 
-        loop._run_poll_cycle = fake_cycle  # type: ignore[method-assign]
+        async def fake_track(*_args: object) -> bool:
+            return False
+
+        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
+        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
 
         async def capture_sleep(d: float) -> None:
             intervals.append(d)
@@ -316,11 +354,15 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
         intervals: list[float] = []
         call_count = {'n': 0}
 
-        async def fake_cycle(key: object, instance: object) -> bool:
+        async def fake_scan(*_args: object) -> bool:
             call_count['n'] += 1
             return call_count['n'] == 3
 
-        loop._run_poll_cycle = fake_cycle  # type: ignore[method-assign]
+        async def fake_track(*_args: object) -> bool:
+            return False
+
+        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
+        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
 
         async def capture_sleep(d: float) -> None:
             intervals.append(d)
