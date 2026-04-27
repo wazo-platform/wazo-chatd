@@ -90,13 +90,13 @@ class AsyncRoomDAO:
                 .joinedload(Room.users),
                 joinedload(MessageMeta.sender_identity),
             )
-            .filter(MessageMeta.message_uuid == message_uuid)
+            .where(MessageMeta.message_uuid == message_uuid)
         )
         result = await self.session.execute(stmt)
         return result.unique().scalar_one_or_none()
 
     async def get_message_meta_by_external_id(
-        self, external_id: str
+        self, external_id: str, backend: str
     ) -> MessageMeta | None:
         stmt = (
             select(MessageMeta)
@@ -106,12 +106,26 @@ class AsyncRoomDAO:
                 .selectinload(RoomMessage.room)
                 .selectinload(Room.users),
             )
-            .filter(MessageMeta.external_id == external_id)
+            .where(
+                MessageMeta.external_id == external_id,
+                MessageMeta.backend == backend,
+            )
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def add_delivery_record(self, record: DeliveryRecord) -> DeliveryRecord:
+    async def add_delivery_record(
+        self,
+        meta: MessageMeta,
+        status: DeliveryStatus,
+        reason: str | None = None,
+    ) -> DeliveryRecord:
+        record = DeliveryRecord(
+            message_uuid=meta.message_uuid,
+            status=status.value,
+            reason=reason,
+        )
+        self.session.add(meta)
         self.session.add(record)
         await self.session.flush()
         return record
@@ -144,6 +158,10 @@ class AsyncRoomDAO:
         await self.session.flush()
         return meta
 
+    async def update_message_meta(self, meta: MessageMeta) -> None:
+        self.session.add(meta)
+        await self.session.flush()
+
     async def find_matching_signature(
         self,
         room_uuid: str,
@@ -175,9 +193,9 @@ class AsyncRoomDAO:
         self,
         idempotency_key: str,
     ) -> bool:
-        stmt = select(MessageMeta.message_uuid).filter(
+        stmt = select(MessageMeta.message_uuid).where(
             MessageMeta.extra.op('@>', is_comparison=True)(
-                {'idempotency_key': idempotency_key}
+                {'inbound_idempotency_key': idempotency_key}
             )
         )
         result = await self.session.execute(stmt)
@@ -206,7 +224,7 @@ class AsyncRoomDAO:
         stmt = (
             select(Room)
             .options(selectinload(Room.users))
-            .filter(
+            .where(
                 Room.tenant_uuid == tenant_uuid,
                 Room.uuid.in_(select(exact_match.c.room_uuid)),
             )
@@ -248,7 +266,7 @@ class AsyncRoomDAO:
                 .selectinload(RoomMessage.room)
                 .selectinload(Room.users)
             )
-            .filter(
+            .where(
                 DeliveryRecord.status.in_(
                     [
                         DeliveryStatus.PENDING.value,

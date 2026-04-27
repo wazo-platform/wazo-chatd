@@ -12,6 +12,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+from collections.abc import Awaitable
+from typing import TypeVar
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.delivery import DeliveryStatus
@@ -51,8 +55,43 @@ INBOUND_MAX_RETRIES: int = 3
 INBOUND_RETRY_DELAYS: list[int] = [2, 5, 10]
 ECHO_WINDOW_SECONDS: int = 60
 
+T = TypeVar('T')
 
-def generate_message_signature(sender_identity: str, body: str) -> str:
+
+def _compute_outbound_retry_delay(retry_count: int) -> float:
+    idx = min(retry_count - 1, len(OUTBOUND_RETRY_DELAYS) - 1)
+    return float(OUTBOUND_RETRY_DELAYS[idx])
+
+
+async def _db_persist_or_delay(
+    awaitable: Awaitable[T],
+    *,
+    attempt: int,
+    description: str,
+) -> float | None:
+    """Await a DB-touching coroutine; return a retry delay on transient failure."""
+    session = get_async_session()
+
+    try:
+        await awaitable
+    except (SQLAlchemyError, OSError):
+        if attempt >= len(INBOUND_RETRY_DELAYS):
+            raise
+
+        await session.rollback()
+        delay = float(INBOUND_RETRY_DELAYS[attempt])
+        logger.warning(
+            'Failed to persist %s, retrying in %ds (attempt %d)',
+            description,
+            delay,
+            attempt,
+        )
+        return delay
+
+    return None
+
+
+def _generate_message_signature(sender_identity: str, body: str) -> str:
     """Generate a dedup signature to detect inbound echoes of outbound messages.
 
     Combines the sender identity with a normalized body (lowercase, ASCII-only,
@@ -90,7 +129,11 @@ class DeliveryExecutor:
 
     async def route_outbound(self, meta: MessageMeta) -> float | None:
         """Resolve recipient, send, and record outcome. Returns retry delay if RETRYING."""
-        assert (sender_record := meta.sender_identity)
+        if (sender_record := meta.sender_identity) is None:
+            raise RuntimeError(
+                f'route_outbound called for meta {meta.message_uuid} '
+                'without a resolved sender_identity'
+            )
         backend = str(sender_record.backend)
         tenant_uuid = str(sender_record.tenant_uuid)
 
@@ -101,7 +144,6 @@ class DeliveryExecutor:
             return None
 
         await self._persist_outbound_extras(meta, str(sender_record.identity))
-        outbound = self._build_outbound(meta, sender_record, recipient_identity)
 
         try:
             connector = await self._find_connector(backend, tenant_uuid)
@@ -114,6 +156,18 @@ class DeliveryExecutor:
                 reason=f'Backend {backend!r} not available: {exc}',
             )
             return None
+
+        message = meta.message
+        outbound = OutboundMessage(
+            room_uuid=str(message.room.uuid),
+            message_uuid=str(message.uuid),
+            sender_uuid=str(message.user_uuid),
+            body=str(message.content or ''),
+            message_type=str(sender_record.type_),
+            sender_identity=str(sender_record.identity),
+            recipient_identity=recipient_identity,
+            metadata={'idempotency_key': str(message.uuid)},
+        )
 
         try:
             external_id = await self._send(connector, outbound)
@@ -140,23 +194,36 @@ class DeliveryExecutor:
             return None
 
         sender_identity = self._normalize_sender(inbound)
-        resolution = await self._resolve_participants(inbound, sender_identity)
-        if resolution is None:
+
+        if (
+            resolution := await self._resolve_inbound_room(inbound, sender_identity)
+        ) is None:
             return None
         room, sender_participant, sender_user = resolution
 
-        if await self._is_outbound_echo(
+        matching_outbound = await self._find_matching_outbound(
             room, sender_user, sender_identity, inbound.body
-        ):
+        )
+        if matching_outbound is not None:
+            logger.info(
+                'Inbound matches recent outbound, treating as delivery confirmation '
+                '(room=%s, sender=%s)',
+                room.uuid,
+                sender_identity,
+            )
+            await self._confirm_delivery(matching_outbound)
             return None
 
         message = self._build_inbound_message(
             inbound, room, sender_participant, idempotency_key
         )
 
-        session = get_async_session()
         try:
-            await self._room_dao.add_message(room, message)
+            delay = await _db_persist_or_delay(
+                self._room_dao.add_message(room, message),
+                attempt=attempt,
+                description=f'inbound from {inbound.sender}',
+            )
         except DuplicateExternalIdException:
             logger.info(
                 'Duplicate inbound dropped (backend=%s, external_id=%s)',
@@ -164,17 +231,8 @@ class DeliveryExecutor:
                 inbound.external_id,
             )
             return None
-        except Exception:
-            if attempt >= len(INBOUND_RETRY_DELAYS):
-                raise
-            await session.rollback()
-            delay = float(INBOUND_RETRY_DELAYS[attempt])
-            logger.warning(
-                'Failed to persist inbound from %s, retrying in %ds (attempt %d)',
-                inbound.sender,
-                delay,
-                attempt,
-            )
+
+        if delay is not None:
             return delay
 
         await self._notifier.message_created(room, message)
@@ -198,8 +256,7 @@ class DeliveryExecutor:
             return None
 
         status_map = getattr(backend_cls, 'status_map', {})
-        mapped_status = status_map.get(update.status)
-        if not mapped_status:
+        if (mapped_status := status_map.get(update.status)) is None:
             logger.debug(
                 'Ignoring unmapped provider status %r for %s',
                 update.status,
@@ -207,7 +264,9 @@ class DeliveryExecutor:
             )
             return None
 
-        meta = await self._room_dao.get_message_meta_by_external_id(update.external_id)
+        meta = await self._room_dao.get_message_meta_by_external_id(
+            update.external_id, update.backend
+        )
         if not meta:
             logger.warning(
                 'No MessageMeta found for external_id %s, dropping status update',
@@ -223,29 +282,13 @@ class DeliveryExecutor:
             )
             return None
 
-        record = DeliveryRecord(
-            message_uuid=meta.message_uuid,
-            status=mapped_status.value,
-            reason=update.error_code or None,
+        delay = await _db_persist_or_delay(
+            self._persist_status(meta, mapped_status, reason=update.error_code or None),
+            attempt=attempt,
+            description=f'status update for {update.external_id}',
         )
-        session = get_async_session()
-        try:
-            await self._room_dao.add_delivery_record(record)
-        except Exception:
-            if attempt >= len(INBOUND_RETRY_DELAYS):
-                raise
-            await session.rollback()
-            delay = float(INBOUND_RETRY_DELAYS[attempt])
-            logger.warning(
-                'Failed to persist status update for %s, retrying in %ds (attempt %d)',
-                update.external_id,
-                delay,
-                attempt,
-            )
+        if delay is not None:
             return delay
-
-        room = meta.message.room
-        await self._notifier.delivery_status_updated(meta, record, room)
 
         logger.info(
             'Status update: %s → %s (message=%s, external_id=%s)',
@@ -257,8 +300,7 @@ class DeliveryExecutor:
         return None
 
     async def recover_pending_deliveries(self) -> list[tuple[str, float]]:
-        metas = await self._room_dao.get_recoverable_messages()
-        if not metas:
+        if not (metas := await self._room_dao.get_recoverable_messages()):
             return []
 
         recoverable: list[tuple[str, float]] = []
@@ -271,11 +313,7 @@ class DeliveryExecutor:
                 continue
 
             if status == DeliveryStatus.RETRYING.value:
-                retry_idx = min(
-                    max(int(meta.retry_count or 0) - 1, 0),
-                    len(OUTBOUND_RETRY_DELAYS) - 1,
-                )
-                delay = float(OUTBOUND_RETRY_DELAYS[retry_idx])
+                delay = _compute_outbound_retry_delay(meta.retry_count)  # type: ignore[arg-type]
             else:
                 delay = 0.0
 
@@ -298,19 +336,27 @@ class DeliveryExecutor:
         message: RoomMessage,
         backend: str,
     ) -> str | None:
-        recipients = [u for u in room.users if u.uuid != message.user_uuid]
-        if not recipients:
+        if not (recipients := [u for u in room.users if u.uuid != message.user_uuid]):
             return None
 
+        if len(recipients) > 1:
+            # TODO: support multi-recipient outbound (MMS group / RCS /
+            # WhatsApp) — connector decides per protocol.
+            logger.warning(
+                'Room %s has %d recipients; sending only to the first',
+                room.uuid,
+                len(recipients),
+            )
         recipient = recipients[0]
 
         if recipient.identity:
             return str(recipient.identity)
 
-        identities = await self._user_identity_dao.list_by_user(
-            str(recipient.uuid), backends=[backend]
-        )
-        if not identities:
+        if not (
+            identities := await self._user_identity_dao.list_by_user(
+                str(recipient.uuid), backends=[backend]
+            )
+        ):
             logger.warning(
                 'No %s identity for recipient %s, skipping',
                 backend,
@@ -332,35 +378,17 @@ class DeliveryExecutor:
             'outbound_idempotency_key': str(meta.message_uuid),
         }
         if has_internal_recipient:
-            extra['message_signature'] = generate_message_signature(
+            extra['message_signature'] = _generate_message_signature(
                 sender_identity, str(message.content or '')
             )
         meta.extra = extra  # type: ignore[assignment]
-        session = get_async_session()
-        await session.flush()
-
-    @staticmethod
-    def _build_outbound(
-        meta: MessageMeta,
-        sender_record: UserIdentity,
-        recipient_identity: str,
-    ) -> OutboundMessage:
-        message = meta.message
-        return OutboundMessage(
-            room_uuid=str(message.room.uuid),
-            message_uuid=str(meta.message_uuid),
-            sender_uuid=str(message.user_uuid),
-            body=str(message.content or ''),
-            message_type=str(sender_record.type_),
-            sender_identity=str(sender_record.identity),
-            recipient_identity=recipient_identity,
-            metadata={'idempotency_key': str(meta.message_uuid)},
-        )
+        await self._room_dao.update_message_meta(meta)
 
     async def _record_send_failure(
         self, meta: MessageMeta, reason: str
     ) -> float | None:
-        meta.retry_count = int(meta.retry_count or 0) + 1  # type: ignore[assignment]
+        meta.retry_count += 1  # type: ignore[assignment]
+
         if meta.retry_count >= OUTBOUND_MAX_RETRIES:  # type: ignore[operator]
             await self._persist_status(
                 meta,
@@ -368,18 +396,19 @@ class DeliveryExecutor:
                 reason=f'Max retries exceeded ({reason})',
             )
             return None
+
         await self._persist_status(meta, DeliveryStatus.RETRYING, reason=reason)
-        idx = min(int(meta.retry_count) - 1, len(OUTBOUND_RETRY_DELAYS) - 1)  # type: ignore[arg-type]
-        return float(OUTBOUND_RETRY_DELAYS[idx])
+        return _compute_outbound_retry_delay(meta.retry_count)  # type: ignore[arg-type]
 
     async def _is_duplicate_idempotency(self, idempotency_key: str | None) -> bool:
         if not idempotency_key:
             return False
-        is_duplicate = await self._room_dao.check_duplicate_idempotency_key(
+
+        if is_duplicate := await self._room_dao.check_duplicate_idempotency_key(
             str(idempotency_key)
-        )
-        if is_duplicate:
+        ):
             logger.info('Duplicate inbound message skipped (key=%s)', idempotency_key)
+
         return is_duplicate
 
     def _normalize_sender(self, inbound: InboundMessage) -> str:
@@ -389,7 +418,7 @@ class DeliveryExecutor:
         except (KeyError, ValueError, TypeError):
             return inbound.sender
 
-    async def _resolve_participants(
+    async def _resolve_inbound_room(
         self, inbound: InboundMessage, sender_identity: str
     ) -> tuple[Room, RoomUser, User | None] | None:
         resolved = await self._user_identity_dao.resolve_users_by_identities(
@@ -431,31 +460,20 @@ class DeliveryExecutor:
 
         return room, sender_participant, sender_user
 
-    async def _is_outbound_echo(
+    async def _find_matching_outbound(
         self,
         room: Room,
         sender_user: User | None,
         sender_identity: str,
         body: str,
-    ) -> bool:
+    ) -> MessageMeta | None:
         if not sender_user or not body:
-            return False
+            return None
 
-        signature = generate_message_signature(sender_identity, body)
-        original_meta = await self._room_dao.find_matching_signature(
+        signature = _generate_message_signature(sender_identity, body)
+        return await self._room_dao.find_matching_signature(
             str(room.uuid), signature, ECHO_WINDOW_SECONDS
         )
-
-        if not original_meta:
-            return False
-
-        logger.info(
-            'Duplicate inbound message dropped (room=%s, sender=%s)',
-            room.uuid,
-            sender_identity,
-        )
-        await self._confirm_delivery(original_meta)
-        return True
 
     def _build_inbound_message(
         self,
@@ -466,7 +484,7 @@ class DeliveryExecutor:
     ) -> RoomMessage:
         extra: dict[str, str] = {}
         if idempotency_key:
-            extra['idempotency_key'] = str(idempotency_key)
+            extra['inbound_idempotency_key'] = str(idempotency_key)
 
         record = DeliveryRecord(status=DeliveryStatus.DELIVERED.value)
         meta = MessageMeta(
@@ -489,15 +507,7 @@ class DeliveryExecutor:
         if meta.status == DeliveryStatus.DELIVERED.value:
             return
 
-        record = DeliveryRecord(
-            message_uuid=meta.message_uuid,
-            status=DeliveryStatus.DELIVERED.value,
-        )
-        await self._room_dao.add_delivery_record(record)
-
-        room = meta.message.room
-        await self._notifier.delivery_status_updated(meta, record, room)
-
+        await self._persist_status(meta, DeliveryStatus.DELIVERED)
         logger.info('Confirmed delivery for message %s', meta.message_uuid)
 
     async def _persist_status(
@@ -510,7 +520,10 @@ class DeliveryExecutor:
     ) -> DeliveryRecord:
         if external_id is not None:
             delivery.external_id = external_id  # type: ignore[assignment]
-        record = await self._add_record(delivery, status, reason=reason)
+
+        record = await self._room_dao.add_delivery_record(
+            delivery, status, reason=reason
+        )
         await self._notifier.delivery_status_updated(
             delivery, record, delivery.message.room
         )
@@ -524,9 +537,9 @@ class DeliveryExecutor:
         :class:`AuthServiceUnavailableException`) so the caller can distinguish
         transient failures from permanent ones.
         """
-        connector = self._store.peek(backend, tenant_uuid)
-        if connector:
+        if connector := self._store.peek(backend, tenant_uuid):
             return connector
+
         return await asyncio.to_thread(self._store.get, backend, tenant_uuid)
 
     async def _send(
@@ -538,17 +551,3 @@ class DeliveryExecutor:
         if asyncio.iscoroutinefunction(connector.send):
             return await connector.send(outbound)  # type: ignore[misc]
         return await asyncio.to_thread(connector.send, outbound)
-
-    async def _add_record(
-        self,
-        delivery: MessageMeta,
-        status: DeliveryStatus,
-        reason: str | None = None,
-    ) -> DeliveryRecord:
-        record = DeliveryRecord(
-            message_uuid=delivery.message_uuid,
-            status=status.value,
-            reason=reason,
-        )
-        await self._room_dao.add_delivery_record(record)
-        return record

@@ -11,16 +11,18 @@ from typing import Any, ClassVar
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.database.models import DeliveryRecord
 from wazo_chatd.exceptions import DuplicateExternalIdException
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.executor import (
     INBOUND_RETRY_DELAYS,
     OUTBOUND_MAX_RETRIES,
     DeliveryExecutor,
-    generate_message_signature,
+    _generate_message_signature,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
@@ -35,9 +37,13 @@ FIXED_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def _mock_add_delivery_record() -> AsyncMock:
-    async def _side_effect(record):
-        record.timestamp = FIXED_NOW
-        return record
+    async def _side_effect(meta, status, reason=None):
+        return DeliveryRecord(
+            message_uuid=meta.message_uuid,
+            status=status.value,
+            reason=reason,
+            timestamp=FIXED_NOW,
+        )
 
     return AsyncMock(side_effect=_side_effect)
 
@@ -154,7 +160,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_outbound(self.delivery)
 
         dao_mock = self.executor._room_dao.add_delivery_record
-        statuses = [call.args[0].status for call in dao_mock.call_args_list]
+        statuses = [call.args[1].value for call in dao_mock.call_args_list]
         assert statuses == [DeliveryStatus.ACCEPTED.value]
 
     async def test_failure_increments_retry(self) -> None:
@@ -171,7 +177,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_outbound(self.delivery)
 
         dao_mock = self.executor._room_dao.add_delivery_record
-        statuses = [call.args[0].status for call in dao_mock.call_args_list]
+        statuses = [call.args[1].value for call in dao_mock.call_args_list]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
 
     async def test_publishes_status_event(self) -> None:
@@ -186,7 +192,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
         assert self.delivery.retry_count == 1
         dao_mock = self.executor._room_dao.add_delivery_record
-        statuses = [call.args[0].status for call in dao_mock.call_args_list]
+        statuses = [call.args[1].value for call in dao_mock.call_args_list]
         assert DeliveryStatus.RETRYING.value in statuses
 
     async def test_success_returns_no_retry(self) -> None:
@@ -479,7 +485,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
         self.executor._room_dao.add_message = AsyncMock(
-            side_effect=RuntimeError('DB down')
+            side_effect=OperationalError('SELECT', {}, BaseException('DB down'))
         )
 
         delay = await self.executor.route_inbound(inbound, attempt=0)
@@ -499,10 +505,10 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         )
         self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
         self.executor._room_dao.add_message = AsyncMock(
-            side_effect=RuntimeError('DB down')
+            side_effect=OperationalError('SELECT', {}, BaseException('DB down'))
         )
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(OperationalError):
             await self.executor.route_inbound(
                 inbound, attempt=len(INBOUND_RETRY_DELAYS)
             )
@@ -551,44 +557,44 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
 
 class TestGenerateMessageSignature(unittest.TestCase):
     def test_basic(self) -> None:
-        fp = generate_message_signature('+15551234', 'Hello world')
+        fp = _generate_message_signature('+15551234', 'Hello world')
         assert isinstance(fp, str)
         assert len(fp) == 16
 
     def test_same_input_same_output(self) -> None:
-        fp1 = generate_message_signature('+15551234', 'Hello world')
-        fp2 = generate_message_signature('+15551234', 'Hello world')
+        fp1 = _generate_message_signature('+15551234', 'Hello world')
+        fp2 = _generate_message_signature('+15551234', 'Hello world')
         assert fp1 == fp2
 
     def test_whitespace_ignored(self) -> None:
-        fp1 = generate_message_signature('+15551234', 'Hello world')
-        fp2 = generate_message_signature('+15551234', 'Hello  world')
-        fp3 = generate_message_signature('+15551234', ' Hello world ')
+        fp1 = _generate_message_signature('+15551234', 'Hello world')
+        fp2 = _generate_message_signature('+15551234', 'Hello  world')
+        fp3 = _generate_message_signature('+15551234', ' Hello world ')
         assert fp1 == fp2 == fp3
 
     def test_case_ignored(self) -> None:
-        fp1 = generate_message_signature('+15551234', 'Hello World')
-        fp2 = generate_message_signature('+15551234', 'hello world')
+        fp1 = _generate_message_signature('+15551234', 'Hello World')
+        fp2 = _generate_message_signature('+15551234', 'hello world')
         assert fp1 == fp2
 
     def test_non_ascii_stripped(self) -> None:
-        fp1 = generate_message_signature('+15551234', 'Hello wörld 🎉')
-        fp2 = generate_message_signature('+15551234', 'Hello wörld 🎉')
+        fp1 = _generate_message_signature('+15551234', 'Hello wörld 🎉')
+        fp2 = _generate_message_signature('+15551234', 'Hello wörld 🎉')
         assert fp1 == fp2
 
     def test_different_sender_different_fingerprint(self) -> None:
-        fp1 = generate_message_signature('+15551234', 'ok')
-        fp2 = generate_message_signature('+15559876', 'ok')
+        fp1 = _generate_message_signature('+15551234', 'ok')
+        fp2 = _generate_message_signature('+15559876', 'ok')
         assert fp1 != fp2
 
     def test_capped_at_160_chars(self) -> None:
         long_body = 'a' * 300
-        fp1 = generate_message_signature('+15551234', long_body)
-        fp2 = generate_message_signature('+15551234', 'a' * 160)
+        fp1 = _generate_message_signature('+15551234', long_body)
+        fp2 = _generate_message_signature('+15551234', 'a' * 160)
         assert fp1 == fp2
 
     def test_empty_body(self) -> None:
-        fp = generate_message_signature('+15551234', '')
+        fp = _generate_message_signature('+15551234', '')
         assert isinstance(fp, str)
         assert len(fp) == 16
 
@@ -649,8 +655,8 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
 
         await self.executor.route_status_update(_make_status_update())
 
-        record = self.executor._room_dao.add_delivery_record.call_args[0][0]
-        assert record.status == 'delivered'
+        status = self.executor._room_dao.add_delivery_record.call_args.args[1]
+        assert status.value == 'delivered'
 
     async def test_ignores_unmapped_status(self) -> None:
         self._register_connector({'delivered': DeliveryStatus.DELIVERED})
@@ -683,8 +689,8 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
             _make_status_update(status='failed', error_code='30003')
         )
 
-        record = self.executor._room_dao.add_delivery_record.call_args[0][0]
-        assert record.reason == '30003'
+        call = self.executor._room_dao.add_delivery_record.call_args
+        assert call.kwargs.get('reason') == '30003'
 
     async def test_publishes_notification(self) -> None:
         self._register_connector({'delivered': DeliveryStatus.DELIVERED})
