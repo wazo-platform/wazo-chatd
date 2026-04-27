@@ -798,3 +798,57 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         result = await self.executor.recover_pending_deliveries()
 
         assert result == []
+
+
+class TestGroupParticipantsField(unittest.TestCase):
+    def test_outbound_default_is_empty_tuple(self) -> None:
+        outbound = OutboundMessage(
+            room_uuid='room-uuid',
+            message_uuid='msg-uuid',
+            sender_uuid='user-uuid',
+            body='hi',
+            message_type='sms',
+            sender_identity='+15551234',
+            recipient_identity='+15559876',
+        )
+
+        assert outbound.group_participants == ()
+
+    def test_outbound_carries_explicit_participants(self) -> None:
+        outbound = OutboundMessage(
+            room_uuid='room-uuid',
+            message_uuid='msg-uuid',
+            sender_uuid='user-uuid',
+            body='hi',
+            message_type='mms',
+            sender_identity='+15551234',
+            recipient_identity='+15559876',
+            group_participants=('+15551111', '+15552222'),
+        )
+
+        assert outbound.group_participants == ('+15551111', '+15552222')
+
+    def test_inbound_default_is_empty_tuple(self) -> None:
+        inbound = InboundMessage(
+            sender='+15559876',
+            recipient='+15551234',
+            body='hello',
+            backend='sms_backend',
+            message_type='sms',
+            external_id='ext-1',
+        )
+
+        assert inbound.group_participants == ()
+
+    def test_inbound_carries_explicit_participants(self) -> None:
+        inbound = InboundMessage(
+            sender='+15559876',
+            recipient='+15551234',
+            body='hello',
+            backend='mms_backend',
+            message_type='mms',
+            external_id='ext-1',
+            group_participants=('+15553333',),
+        )
+
+        assert inbound.group_participants == ('+15553333',)
