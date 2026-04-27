@@ -15,7 +15,10 @@ from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.http import AuthResource, ErrorCatchingResource
 from wazo_chatd.plugin_helpers.http import build_public_url, update_model_instance
 from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
-from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorParseError,
+    ConnectorTransientError,
+)
 from wazo_chatd.plugins.connectors.schemas import (
     IdentityListRequestSchema,
     UserIdentitySchema,
@@ -52,6 +55,13 @@ class ConnectorWebhookResource(ErrorCatchingResource):
         except ConnectorParseError:
             logger.info('No connector matched webhook (backend=%s)', backend)
             return {'error': 'Unrecognized request'}, 400
+        except ConnectorTransientError as exc:
+            logger.warning(
+                'Webhook deferred (backend=%s): %s — provider should retry',
+                backend,
+                exc,
+            )
+            return {'error': 'Service temporarily unavailable'}, 503
 
         return '', 204
 

@@ -30,7 +30,10 @@ from wazo_chatd.exceptions import DuplicateExternalIdException
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.connector import Connector
-from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
+    ConnectorSendError,
+)
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
@@ -100,12 +103,15 @@ class DeliveryExecutor:
         await self._persist_outbound_extras(meta, str(sender_record.identity))
         outbound = self._build_outbound(meta, sender_record, recipient_identity)
 
-        connector = await self._find_connector(backend, tenant_uuid)
-        if connector is None:
+        try:
+            connector = await self._find_connector(backend, tenant_uuid)
+        except AuthServiceUnavailableException as exc:
+            return await self._record_send_failure(meta, str(exc))
+        except Exception as exc:
             await self._persist_status(
                 meta,
                 DeliveryStatus.DEAD_LETTER,
-                reason=f'Backend {backend!r} not available',
+                reason=f'Backend {backend!r} not available: {exc}',
             )
             return None
 
@@ -510,13 +516,18 @@ class DeliveryExecutor:
         )
         return record
 
-    async def _find_connector(self, backend: str, tenant_uuid: str) -> Connector | None:
-        """Find a connector instance, refreshing the cache if needed."""
+    async def _find_connector(self, backend: str, tenant_uuid: str) -> Connector:
+        """Return the connector instance, lazy-loading from wazo-auth if needed.
+
+        Raises the store's domain exceptions
+        (:class:`UnknownBackendException`, :class:`BackendNotConfiguredException`,
+        :class:`AuthServiceUnavailableException`) so the caller can distinguish
+        transient failures from permanent ones.
+        """
         connector = self._store.peek(backend, tenant_uuid)
         if connector:
             return connector
-
-        return await self._store.refresh(backend, tenant_uuid)
+        return await asyncio.to_thread(self._store.get, backend, tenant_uuid)
 
     async def _send(
         self,

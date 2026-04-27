@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from typing import ClassVar
 from unittest.mock import Mock
 
@@ -272,6 +274,72 @@ class TestConnectorStoreGet(unittest.TestCase):
             store.get('sms_backend', TENANT_A)
 
         auth_client.external.get_config.assert_not_called()
+
+    def test_concurrent_get_dedups_to_single_auth_call(self) -> None:
+        both_arrived = threading.Barrier(2)
+        release = threading.Event()
+
+        def slow_get_config(*_args: object, **_kwargs: object) -> dict:
+            both_arrived.wait(timeout=2)
+            release.wait(timeout=2)
+            return {'api_key': 'secret'}
+
+        auth_client = Mock()
+        auth_client.external.get_config.side_effect = slow_get_config
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f1 = pool.submit(store.get, 'sms_backend', TENANT_A)
+            f2 = pool.submit(store.get, 'sms_backend', TENANT_A)
+            both_arrived.wait(timeout=2)
+            release.set()
+            r1 = f1.result(timeout=2)
+            r2 = f2.result(timeout=2)
+
+        assert r1 is r2
+        assert auth_client.external.get_config.call_count == 1
+
+    def test_concurrent_get_propagates_exception_to_followers(self) -> None:
+        both_arrived = threading.Barrier(2)
+        release = threading.Event()
+
+        def slow_get_config(*_args: object, **_kwargs: object) -> dict:
+            both_arrived.wait(timeout=2)
+            release.wait(timeout=2)
+            raise RequestsConnectionError()
+
+        auth_client = Mock()
+        auth_client.external.get_config.side_effect = slow_get_config
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f1 = pool.submit(store.get, 'sms_backend', TENANT_A)
+            f2 = pool.submit(store.get, 'sms_backend', TENANT_A)
+            both_arrived.wait(timeout=2)
+            release.set()
+
+            with self.assertRaises(AuthServiceUnavailableException):
+                f1.result(timeout=2)
+            with self.assertRaises(AuthServiceUnavailableException):
+                f2.result(timeout=2)
+
+        assert auth_client.external.get_config.call_count == 1
+
+    def test_sequential_gets_after_failure_can_retry(self) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.side_effect = [
+            RequestsConnectionError(),
+            {'api_key': 'secret'},
+        ]
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        with self.assertRaises(AuthServiceUnavailableException):
+            store.get('sms_backend', TENANT_A)
+
+        instance = store.get('sms_backend', TENANT_A)
+
+        assert instance.backend == 'sms_backend'
+        assert auth_client.external.get_config.call_count == 2
 
 
 class TestConnectorStorePopulate(unittest.IsolatedAsyncioTestCase):

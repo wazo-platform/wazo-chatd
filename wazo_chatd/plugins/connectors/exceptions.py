@@ -18,6 +18,12 @@ class ConnectorParseError(ConnectorError):
     """Raised when a connector fails to parse an incoming event."""
 
 
+class ConnectorTransientError(ConnectorError):
+    """Raised when an inbound event can't be processed right now but
+    should be retried by the provider — e.g. wazo-auth unreachable, or
+    the connector instance hasn't been populated yet at startup."""
+
+
 class NoCommonConnectorException(APIException):
     def __init__(self) -> None:
         super().__init__(

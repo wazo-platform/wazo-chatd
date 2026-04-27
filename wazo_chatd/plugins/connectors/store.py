@@ -29,6 +29,7 @@ CacheKey = tuple[str, str]
 
 DEFAULT_CACHE_TTL: float = 300.0
 POPULATE_CONCURRENCY: int = 20
+POPULATE_FETCH_TIMEOUT: float = 30.0
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,11 @@ class ConnectorStore:
         # Ensures populate runs at most once concurrently. Non-blocking
         # acquire — second caller returns immediately.
         self._populate_lock = threading.Lock()
+        # Single-flight: concurrent fetches for the same key share one
+        # wazo-auth round-trip. Lock guards membership only; waiting
+        # happens off-lock.
+        self._pending_fetches: dict[CacheKey, concurrent.futures.Future[Connector]] = {}
+        self._fetch_lock = threading.Lock()
 
     def __len__(self) -> int:
         return len(self._cache)
@@ -148,16 +154,28 @@ class ConnectorStore:
         if not pairs:
             return
 
-        with ThreadPoolExecutor(
+        pool = ThreadPoolExecutor(
             max_workers=POPULATE_CONCURRENCY,
             thread_name_prefix='connector-store-populate',
-        ) as pool:
-            list(
-                pool.map(
-                    lambda pair: self.find(pair[1], pair[0]),
-                    pairs,
-                )
+        )
+        try:
+            futures = {
+                pool.submit(self.find, backend, tenant_uuid): (tenant_uuid, backend)
+                for tenant_uuid, backend in pairs
+            }
+            _, not_done = concurrent.futures.wait(
+                futures, timeout=POPULATE_FETCH_TIMEOUT
             )
+            for future in not_done:
+                tenant_uuid, backend = futures[future]
+                logger.warning(
+                    'Populate timed out after %.0fs for backend %r tenant %s',
+                    POPULATE_FETCH_TIMEOUT,
+                    backend,
+                    tenant_uuid,
+                )
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     def drop(self, backend: str, tenant_uuid: str) -> None:
         key = (tenant_uuid, backend)
@@ -214,7 +232,38 @@ class ConnectorStore:
         return (time.monotonic() - timestamp) > self._cache_ttl
 
     def _fetch(self, backend: str, tenant_uuid: str) -> Connector:
-        """Talk to wazo-auth, instantiate, cache, and return; raises on failure."""
+        """Talk to wazo-auth, instantiate, cache, and return; raises on failure.
+
+        Single-flight: concurrent callers for the same key share one
+        wazo-auth round-trip via :attr:`_pending_fetches`.
+        """
+        key = (tenant_uuid, backend)
+        is_leader = False
+
+        with self._fetch_lock:
+            if (cached := self._get_cached(backend, tenant_uuid)) is not None:
+                return cached
+
+            if (future := self._pending_fetches.get(key)) is None:
+                future = concurrent.futures.Future()
+                self._pending_fetches[key] = future
+                is_leader = True
+
+        if not is_leader:
+            return future.result()
+
+        try:
+            instance = self._do_fetch(backend, tenant_uuid)
+            future.set_result(instance)
+            return instance
+        except BaseException as exc:
+            future.set_exception(exc)
+            raise
+        finally:
+            with self._fetch_lock:
+                self._pending_fetches.pop(key, None)
+
+    def _do_fetch(self, backend: str, tenant_uuid: str) -> Connector:
         key = (tenant_uuid, backend)
 
         if backend not in self._registry.available_backends():

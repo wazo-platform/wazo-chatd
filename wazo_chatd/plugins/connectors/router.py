@@ -11,9 +11,13 @@ from xivo.status import Status
 
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
+    BackendNotConfiguredException,
     ConnectorAuthException,
     ConnectorParseError,
+    ConnectorTransientError,
     MessageIdentityRequiredException,
+    UnknownBackendException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner
@@ -202,12 +206,18 @@ class ConnectorRouter:
                 f'Cannot resolve tenant for inbound {backend!r} event'
             )
 
-        instance = self._store.find(backend, tenant_uuid)
-        if instance is None:
+        try:
+            instance = self._store.get(backend, tenant_uuid)
+        except (UnknownBackendException, BackendNotConfiguredException) as exc:
             raise ConnectorParseError(
                 f'No connector instance for tenant {tenant_uuid!r} '
                 f'backend {backend!r}'
-            )
+            ) from exc
+        except AuthServiceUnavailableException as exc:
+            raise ConnectorTransientError(
+                f'Auth service unavailable while resolving connector for '
+                f'tenant {tenant_uuid!r} backend {backend!r}'
+            ) from exc
 
         if instance.verifies_signatures:
             try:

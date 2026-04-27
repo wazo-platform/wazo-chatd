@@ -27,7 +27,7 @@ from wazo_chatd.plugins.connectors.types import (
 
 
 class _SmsConnector:
-    backend: ClassVar[str] = 'twilio'
+    backend: ClassVar[str] = 'sms_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
     @classmethod
@@ -138,7 +138,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
             body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-123'}
         )
 
-        self.router.dispatch_webhook(data, backend='twilio')
+        self.router.dispatch_webhook(data, backend='sms_backend')
 
         self.manager.enqueue_message.assert_called_once()
         result = self.manager.enqueue_message.call_args[0][0]
@@ -166,7 +166,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
         self.manager.enqueue_message.assert_called_once()
         result = self.manager.enqueue_message.call_args[0][0]
-        assert result.backend == 'twilio'
+        assert result.backend == 'sms_backend'
 
     def test_dispatch_skips_none_events(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
@@ -199,10 +199,10 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
             body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
         )
 
-        self.router.dispatch_webhook(data, backend='twilio')
+        self.router.dispatch_webhook(data, backend='sms_backend')
 
         result = self.manager.enqueue_message.call_args[0][0]
-        assert result.backend == 'twilio'
+        assert result.backend == 'sms_backend'
 
 
 class TestConnectorRouterWebhookVerify(unittest.TestCase):
@@ -219,7 +219,7 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
 
         self.router = _build_router(registry=self.registry, dao=self.dao)
         self.router._store = Mock()
-        self.router._store.find.return_value = self.instance
+        self.router._store.get.return_value = self.instance
         self.manager = self.router._delivery_runner
 
     def _webhook(self) -> WebhookData:
@@ -237,12 +237,12 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
             }
         )
 
-        self.router.dispatch_webhook(data, backend='twilio')
+        self.router.dispatch_webhook(data, backend='sms_backend')
 
         self.dao.user_identity.find_tenant_by_identity.assert_called_once_with(
-            '+15551234', 'twilio'
+            '+15551234', 'sms_backend'
         )
-        self.router._store.find.assert_called_once_with('twilio', 'tenant-uuid')
+        self.router._store.get.assert_called_once_with('sms_backend', 'tenant-uuid')
         self.instance.verify_signature.assert_called_once_with(data)
         self.manager.enqueue_message.assert_called_once()
 
@@ -250,7 +250,7 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.instance.verify_signature.return_value = False
 
         with pytest.raises(ConnectorAuthException):
-            self.router.dispatch_webhook(self._webhook(), backend='twilio')
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
 
         self.manager.enqueue_message.assert_not_called()
 
@@ -258,24 +258,43 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.dao.user_identity.find_tenant_by_identity.return_value = None
 
         with pytest.raises(ConnectorParseError):
-            self.router.dispatch_webhook(self._webhook(), backend='twilio')
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
 
         self.manager.enqueue_message.assert_not_called()
 
-    def test_store_cache_miss_raises_parse_error(self) -> None:
-        self.router._store.find.return_value = None
+    def test_unknown_backend_raises_parse_error(self) -> None:
+        from wazo_chatd.plugins.connectors.exceptions import (
+            BackendNotConfiguredException,
+        )
+
+        self.router._store.get.side_effect = BackendNotConfiguredException(
+            'sms_backend', 'tenant-uuid'
+        )
 
         with pytest.raises(ConnectorParseError):
-            self.router.dispatch_webhook(self._webhook(), backend='twilio')
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
+
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_auth_unavailable_raises_transient_error(self) -> None:
+        from wazo_chatd.plugins.connectors.exceptions import (
+            AuthServiceUnavailableException,
+            ConnectorTransientError,
+        )
+
+        self.router._store.get.side_effect = AuthServiceUnavailableException()
+
+        with pytest.raises(ConnectorTransientError):
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
 
         self.manager.enqueue_message.assert_not_called()
 
     def test_verifies_signatures_false_skips_check(self) -> None:
         instance = Mock()
         instance.verifies_signatures = False
-        self.router._store.find.return_value = instance
+        self.router._store.get.return_value = instance
 
-        self.router.dispatch_webhook(self._webhook(), backend='twilio')
+        self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
 
         instance.verify_signature.assert_not_called()
         self.manager.enqueue_message.assert_called_once()

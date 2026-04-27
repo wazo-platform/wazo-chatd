@@ -91,7 +91,8 @@ class Runner(abc.ABC):
     """
 
     thread_name: ClassVar[str] = 'runner'
-    shutdown_timeout: ClassVar[float] = 10.0
+    start_timeout: ClassVar[float] = 10.0
+    shutdown_timeout: ClassVar[float] = 30.0
 
     def __init__(self) -> None:
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -166,10 +167,10 @@ class Runner(abc.ABC):
             raise RuntimeError(f'{type(self).__name__} already started')
         logger.info('Starting %s', self.thread_name)
         self._thread.start()
-        if not self._ready.wait(timeout=self.shutdown_timeout):
+        if not self._ready.wait(timeout=self.start_timeout):
             raise RuntimeError(
                 f'{type(self).__name__} failed to start within '
-                f'{self.shutdown_timeout}s'
+                f'{self.start_timeout}s'
             )
         logger.info('Started %s', self.thread_name)
 
@@ -278,7 +279,7 @@ class DeliveryRunner(Runner):
             store=store,
         )
 
-        self._in_flight: set[asyncio.Task[None]] = set()
+        self._tasks: dict[tuple[str, ...], asyncio.Task[None]] = {}
         self._semaphore: asyncio.Semaphore | None = None
         self._outbound_notify_task: asyncio.Task[None] | None = None
         self._pollers: dict[CacheKey, asyncio.Task[None]] = {}
@@ -294,7 +295,7 @@ class DeliveryRunner(Runner):
 
     @property
     def in_flight_count(self) -> int:
-        return len(self._in_flight)
+        return len(self._tasks)
 
     def enqueue_message(self, message: InboundMessage | StatusUpdate) -> None:
         try:
@@ -350,13 +351,13 @@ class DeliveryRunner(Runner):
 
         self._scheduled_timers.clear()
 
-        if self._in_flight:
+        if self._tasks:
             logger.info(
-                'Waiting for %d in-flight task(s) to complete', len(self._in_flight)
+                'Waiting for %d in-flight task(s) to complete', len(self._tasks)
             )
-            await asyncio.gather(*self._in_flight, return_exceptions=True)
+            await asyncio.gather(*self._tasks.values(), return_exceptions=True)
 
-        self._in_flight.clear()
+        self._tasks.clear()
 
         if self.is_closing and self._engine:
             await self._engine.dispose()
@@ -430,7 +431,13 @@ class DeliveryRunner(Runner):
                 self._schedule_outbound(message_uuid)
 
     def _schedule_outbound(self, message_uuid: str) -> None:
-        self._create_tracked_task(self._process_outbound(message_uuid))
+        if (key := ('outbound', message_uuid)) in self._tasks:
+            return
+
+        task = self.loop.create_task(self._process_outbound(message_uuid))
+        self._tasks[key] = task
+        task.add_done_callback(self._mark_healthy)
+        task.add_done_callback(lambda _t: self._tasks.pop(key, None))
 
     def _schedule_outbound_later(self, delay: float, message_uuid: str) -> None:
         """Schedule a delayed outbound notification; handle tracked for shutdown cancel."""
@@ -491,11 +498,20 @@ class DeliveryRunner(Runner):
         *,
         attempt: int = 0,
     ) -> None:
+        key: tuple[str, ...]
         match message:
-            case InboundMessage():
+            case InboundMessage() as m:
+                key = ('inbound', m.backend, m.external_id, str(attempt))
+                if key in self._tasks:
+                    return
                 coro = self._executor.route_inbound(message, attempt=attempt)
-            case StatusUpdate():
+
+            case StatusUpdate() as m:
+                key = ('status', m.backend, m.external_id, m.status, str(attempt))
+                if key in self._tasks:
+                    return
                 coro = self._executor.route_status_update(message, attempt=attempt)
+
             case _:
                 logger.warning(
                     'Unknown message type in delivery queue: %s',
@@ -503,7 +519,10 @@ class DeliveryRunner(Runner):
                 )
                 return
 
-        self._create_tracked_task(self._process(coro, message, attempt))
+        task = self.loop.create_task(self._process(coro, message, attempt))
+        self._tasks[key] = task
+        task.add_done_callback(self._mark_healthy)
+        task.add_done_callback(lambda _t: self._tasks.pop(key, None))
 
     def _schedule_inbound_later(
         self,
@@ -634,14 +653,8 @@ class DeliveryRunner(Runner):
             return await fn(*args)
         return await asyncio.to_thread(fn, *args)
 
-    def _create_tracked_task(self, coro: Coroutine[Any, Any, None]) -> None:
-        task = self.loop.create_task(coro)
-        self._in_flight.add(task)
-        task.add_done_callback(self._task_done)
-
-    def _task_done(self, task: asyncio.Task[None]) -> None:
-        self._in_flight.discard(task)
-        if task.exception() is None:
+    def _mark_healthy(self, task: asyncio.Task[None]) -> None:
+        if not task.cancelled() and task.exception() is None:
             self._healthy.set()
 
 
