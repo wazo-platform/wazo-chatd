@@ -25,6 +25,7 @@ class ConnectorRegistry:
 
     def __init__(self) -> None:
         self._backends: dict[str, type[Connector]] = {}
+        self._reachable_types_cache: dict[str, frozenset[str]] = {}
 
     def discover(
         self,
@@ -72,6 +73,7 @@ class ConnectorRegistry:
             ', '.join(cls.supported_types),
         )
         self._backends[name] = cls
+        self._reachable_types_cache.clear()
 
     def get_backend(self, name: str) -> type[Connector]:
         """Look up a backend class by name.
@@ -107,8 +109,13 @@ class ConnectorRegistry:
 
         Iterates all registered backends, calling
         ``normalize_identity()`` on each. If it succeeds, the
-        backend's supported types can reach the identity.
+        backend's supported types can reach the identity. Results are
+        memoized per-identity; the cache is cleared when a new backend
+        registers.
         """
+        if (cached := self._reachable_types_cache.get(identity)) is not None:
+            return set(cached)
+
         reachable: set[str] = set()
         for backend_name, cls in self._backends.items():
             try:
@@ -116,6 +123,8 @@ class ConnectorRegistry:
             except (ValueError, TypeError):
                 continue
             reachable.update(cls.supported_types)
+
+        self._reachable_types_cache[identity] = frozenset(reachable)
         return reachable
 
     @staticmethod

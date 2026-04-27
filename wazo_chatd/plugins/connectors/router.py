@@ -185,9 +185,16 @@ class ConnectorRouter:
 
         for name in candidates:
             cls = self._registry.get_backend(name)
-            if not cls.can_handle(data):
+            try:
+                if not cls.can_handle(data):
+                    continue
+                result = cls.on_event(data)
+            except Exception:
+                logger.exception(
+                    'Backend %r raised during webhook dispatch; skipping',
+                    name,
+                )
                 continue
-            result = cls.on_event(data)
             if result is not None:
                 self._verify_and_enqueue(data, result, backend=name)
                 return

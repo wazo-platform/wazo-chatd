@@ -60,6 +60,40 @@ class TestConnectorRegistry(unittest.TestCase):
 
         assert self.registry.get_backend('fake_a') is _FakeConnectorA
 
+    def test_resolve_reachable_types_caches_results(self) -> None:
+        backend = Mock(
+            backend='cached_fake',
+            supported_types=('sms',),
+            normalize_identity=Mock(return_value='+15551234'),
+        )
+        self.registry.register_backend(backend)
+
+        self.registry.resolve_reachable_types('+15551234')
+        self.registry.resolve_reachable_types('+15551234')
+        self.registry.resolve_reachable_types('+15551234')
+
+        backend.normalize_identity.assert_called_once_with('+15551234')
+
+    def test_resolve_reachable_types_cache_invalidates_on_register(self) -> None:
+        backend_a = Mock(
+            backend='cached_a',
+            supported_types=('sms',),
+            normalize_identity=Mock(return_value='+15551234'),
+        )
+        self.registry.register_backend(backend_a)
+        self.registry.resolve_reachable_types('+15551234')
+
+        backend_b = Mock(
+            backend='cached_b',
+            supported_types=('mms',),
+            normalize_identity=Mock(return_value='+15551234'),
+        )
+        self.registry.register_backend(backend_b)
+
+        result = self.registry.resolve_reachable_types('+15551234')
+
+        assert result == {'sms', 'mms'}
+
     def test_discover(self) -> None:
         mock_ext_a = Mock(spec=['name', 'plugin'])
         mock_ext_a.name = 'fake_a'

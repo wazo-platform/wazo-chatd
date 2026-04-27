@@ -168,6 +168,37 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         result = self.manager.enqueue_message.call_args[0][0]
         assert result.backend == 'sms_backend'
 
+    def test_dispatch_skips_buggy_can_handle_and_tries_next(self) -> None:
+        class _BuggyConnector:
+            backend: ClassVar[str] = 'buggy'
+            supported_types: ClassVar[tuple[str, ...]] = ('sms',)
+
+            @classmethod
+            def normalize_identity(cls, raw_identity: str) -> str:
+                return raw_identity
+
+            @classmethod
+            def can_handle(cls, data: TransportData) -> bool:
+                raise RuntimeError('backend explodes')
+
+            @classmethod
+            def on_event(
+                cls, data: TransportData
+            ) -> InboundMessage | StatusUpdate | None:
+                return None
+
+        self.registry.register_backend(_BuggyConnector)  # type: ignore[arg-type]
+        self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
+
+        self.router.dispatch_webhook(data)
+
+        self.manager.enqueue_message.assert_called_once()
+        result = self.manager.enqueue_message.call_args[0][0]
+        assert result.backend == 'sms_backend'
+
     def test_dispatch_skips_none_events(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
         data = WebhookData(body={'no_body_or_status': True})
