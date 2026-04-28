@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
@@ -535,3 +535,65 @@ class TestRoomMessageRelationships(DBIntegrationTest):
 
         self._session.expire_all()
         assert_that(message.room, equal_to(room))
+
+
+@use_asset('database')
+class TestRoomFindTenantByExternalId(DBIntegrationTest):
+    @fixtures.db.room(
+        tenant_uuid=TENANT_1,
+        messages=[
+            {
+                'content': 'outbound',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'some-backend',
+                    'external_id': 'ext-id-1',
+                },
+                'deliveries': ['pending'],
+            }
+        ],
+    )
+    def test_returns_tenant_when_external_id_matches(self, room):
+        result = self._dao.room.find_tenant_by_external_id('ext-id-1', 'some-backend')
+
+        assert result == str(TENANT_1)
+
+    @fixtures.db.room(
+        tenant_uuid=TENANT_1,
+        messages=[
+            {
+                'content': 'outbound',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'some-backend',
+                    'external_id': 'ext-id-1',
+                },
+                'deliveries': ['pending'],
+            }
+        ],
+    )
+    def test_returns_none_when_external_id_unknown(self, room):
+        assert (
+            self._dao.room.find_tenant_by_external_id('unknown-id', 'some-backend')
+            is None
+        )
+
+    @fixtures.db.room(
+        tenant_uuid=TENANT_1,
+        messages=[
+            {
+                'content': 'outbound',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'some-backend',
+                    'external_id': 'ext-id-1',
+                },
+                'deliveries': ['pending'],
+            }
+        ],
+    )
+    def test_returns_none_when_backend_mismatches(self, room):
+        assert (
+            self._dao.room.find_tenant_by_external_id('ext-id-1', 'other-backend')
+            is None
+        )

@@ -5,10 +5,26 @@
 
 from __future__ import annotations
 
-from wazo_chatd.database.models import DeliveryRecord, MessageMeta, Room
+import pytest
+
+from wazo_chatd.database.models import DeliveryRecord, MessageMeta, Room, RoomMessage
+from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
+from wazo_chatd.exceptions import DuplicateExternalIdException
 
 from .helpers import fixtures
+from .helpers.async_ import run_async
 from .helpers.base import DBIntegrationTest, use_asset
+
+
+def _build_message(room: Room, *, backend: str, external_id: str | None) -> RoomMessage:
+    sender = room.users[0]
+    return RoomMessage(
+        content='hello',
+        user_uuid=sender.uuid,
+        tenant_uuid=room.tenant_uuid,
+        wazo_uuid=sender.wazo_uuid,
+        meta=MessageMeta(backend=backend, external_id=external_id),
+    )
 
 
 @use_asset('database')
@@ -53,7 +69,7 @@ class TestMessageMeta(DBIntegrationTest):
         )
         record_2 = DeliveryRecord(
             message_uuid=message.uuid,
-            status='sending',
+            status='accepted',
         )
         record_3 = DeliveryRecord(
             message_uuid=message.uuid,
@@ -91,6 +107,35 @@ class TestMessageMeta(DBIntegrationTest):
         assert meta.status == 'dead_letter'
         assert meta.records[0].reason == 'Max retries exceeded'
 
+    @fixtures.db.room(users=[{}])
+    @run_async
+    async def test_external_id_unique_per_backend(self, room):
+        dao = AsyncRoomDAO()
+        first = _build_message(room, backend='twilio', external_id='SM_DUP_1')
+        await dao.add_message(room, first)
+
+        second = _build_message(room, backend='twilio', external_id='SM_DUP_1')
+        with pytest.raises(DuplicateExternalIdException):
+            await dao.add_message(room, second)
+
+    @fixtures.db.room(users=[{}])
+    @run_async
+    async def test_external_id_can_repeat_across_backends(self, room):
+        dao = AsyncRoomDAO()
+        first = _build_message(room, backend='twilio', external_id='SM_REUSED')
+        second = _build_message(room, backend='vonage', external_id='SM_REUSED')
+        await dao.add_message(room, first)
+        await dao.add_message(room, second)
+
+    @fixtures.db.room(users=[{}])
+    @run_async
+    async def test_external_id_null_repeats_allowed(self, room):
+        dao = AsyncRoomDAO()
+        first = _build_message(room, backend='twilio', external_id=None)
+        second = _build_message(room, backend='twilio', external_id=None)
+        await dao.add_message(room, first)
+        await dao.add_message(room, second)
+
     @fixtures.db.room(messages=[{'content': 'extra data'}])
     def test_meta_extra_jsonb(self, room):
         message = room.messages[0]
@@ -127,7 +172,7 @@ class TestCascadeDeletes(DBIntegrationTest):
 
         record = DeliveryRecord(
             message_uuid=message.uuid,
-            status='sent',
+            status='accepted',
         )
         self._session.add(record)
         self._session.flush()

@@ -5,11 +5,15 @@ from __future__ import annotations
 
 import uuid
 
-from wazo_chatd.database.models import Room, RoomUser, UserIdentity
+import pytest
+
+from wazo_chatd.database.models import UserIdentity
+from wazo_chatd.exceptions import UnknownUserIdentityException
 
 from .helpers import fixtures
+from .helpers.base import TOKEN_SUBTENANT_UUID as TENANT_2
 from .helpers.base import TOKEN_TENANT_UUID as TENANT_1
-from .helpers.base import WAZO_UUID, DBIntegrationTest, use_asset
+from .helpers.base import DBIntegrationTest, use_asset
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
@@ -18,22 +22,82 @@ USER_UUID_2 = uuid.uuid4()
 @use_asset('database')
 class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
+    def test_create(self, user):
+        identity = UserIdentity(
+            user_uuid=USER_UUID_1,
+            tenant_uuid=TENANT_1,
+            backend='twilio',
+            type_='sms',
+            identity='+15551234567',
+        )
+
+        created = self._dao.user_identity.create(identity)
+
+        result = self._dao.user_identity.find(str(created.uuid))
+        assert result is not None
+        assert result.user_uuid == USER_UUID_1
+        assert result.backend == 'twilio'
+        assert result.identity == '+15551234567'
+
+        self._session.expunge_all()
+
+    @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         backend='twilio',
         type_='sms',
         identity='+15551234567',
     )
-    def test_create_identity(self, identity, user):
-        result = (
-            self._session.query(UserIdentity)
-            .filter(UserIdentity.identity == '+15551234567')
-            .first()
-        )
+    def test_get(self, user, identity):
+        result = self._dao.user_identity.get([str(TENANT_1)], str(identity.uuid))
 
-        assert result is not None
-        assert result.user_uuid == USER_UUID_1
+        assert result.uuid == identity.uuid
         assert result.backend == 'twilio'
+
+        with pytest.raises(UnknownUserIdentityException):
+            self._dao.user_identity.get([str(TENANT_1)], str(uuid.uuid4()))
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_2)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_2,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_get_wrong_tenant_raises(self, user, identity):
+        with pytest.raises(UnknownUserIdentityException):
+            self._dao.user_identity.get([str(TENANT_1)], str(identity.uuid))
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_update(self, user, identity):
+        identity.identity = '+15550000000'
+
+        self._dao.user_identity.update(identity)
+
+        self._session.expire_all()
+        stored = self._dao.user_identity.find(str(identity.uuid))
+        assert stored is not None
+        assert stored.identity == '+15550000000'
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_delete(self, user, identity):
+        self._dao.user_identity.delete(identity)
+
+        self._session.expire_all()
+        assert self._dao.user_identity.find(str(identity.uuid)) is None
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
@@ -48,69 +112,136 @@ class TestUserIdentity(DBIntegrationTest):
         type_='sms',
         identity='+15552222222',
     )
-    def test_user_multiple_identities(
-        self,
-        identity_2,
-        identity_1,
-        user,
-    ):
-        results = (
-            self._session.query(UserIdentity)
-            .filter(UserIdentity.user_uuid == USER_UUID_1)
-            .all()
-        )
+    def test_list_by_user(self, user, identity_1, identity_2):
+        results = self._dao.user_identity.list_by_user(str(USER_UUID_1))
 
         assert len(results) == 2
 
-
-@use_asset('database')
-class TestRoomUserIdentity(DBIntegrationTest):
-    @fixtures.db.room(
-        users=[
-            {'uuid': USER_UUID_1},
-            {'uuid': USER_UUID_2, 'identity': '+15559876543'},
-        ],
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551111111',
     )
-    def test_room_with_external_participant(self, room):
-        internal_user = next(u for u in room.users if u.uuid == USER_UUID_1)
-        external_user = next(u for u in room.users if u.uuid == USER_UUID_2)
-
-        assert internal_user.identity is None
-        assert external_user.identity == '+15559876543'
-
-    @fixtures.db.room(
-        users=[
-            {'uuid': USER_UUID_1},
-            {'uuid': USER_UUID_2},
-        ],
+    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_2)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_2,
+        tenant_uuid=TENANT_2,
+        backend='twilio',
+        type_='sms',
+        identity='+15552222222',
     )
-    def test_room_all_internal(self, room):
-        for user in room.users:
-            assert user.identity is None
+    def test_list_by_user_filters_by_tenant(
+        self, user_1, identity_1, user_2, identity_2
+    ):
+        tenant_1_results = self._dao.user_identity.list_by_user(
+            str(USER_UUID_1), tenant_uuids=[str(TENANT_1)]
+        )
+        assert len(tenant_1_results) == 1
+        assert tenant_1_results[0].identity == '+15551111111'
 
-    def test_query_by_identity(self):
-        ext_uuid = uuid.uuid4()
-        room = Room(tenant_uuid=TENANT_1)
-        room.users = [
-            RoomUser(
-                uuid=ext_uuid,
-                tenant_uuid=TENANT_1,
-                wazo_uuid=WAZO_UUID,
-                identity='+15559999999',
-            ),
-        ]
-        self._session.add(room)
-        self._session.flush()
+        cross_tenant_results = self._dao.user_identity.list_by_user(
+            str(USER_UUID_1), tenant_uuids=[str(TENANT_2)]
+        )
+        assert cross_tenant_results == []
 
-        results = (
-            self._session.query(RoomUser)
-            .filter(RoomUser.identity == '+15559999999')
-            .all()
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_find_tenant_by_identity(self, user, identity):
+        result = self._dao.user_identity.find_tenant_by_identity(
+            '+15551234567', 'twilio'
         )
 
-        assert len(results) == 1
-        assert results[0].uuid == ext_uuid
+        assert result == str(TENANT_1)
 
-        # cleanup
-        self._session.query(Room).filter(Room.uuid == room.uuid).delete()
-        self._session.commit()
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_find_tenant_by_identity_unknown_returns_none(self, user, identity):
+        assert (
+            self._dao.user_identity.find_tenant_by_identity('+15559999999', 'twilio')
+            is None
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_find_tenant_by_identity_wrong_backend_returns_none(self, user, identity):
+        assert (
+            self._dao.user_identity.find_tenant_by_identity('+15551234567', 'vonage')
+            is None
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_has_identities_for_backend_true_on_match(self, user, identity):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_1), 'sms_backend'
+            )
+            is True
+        )
+
+    def test_has_identities_for_backend_false_when_no_row(self):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_1), 'sms_backend'
+            )
+            is False
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_has_identities_for_backend_false_on_wrong_tenant(self, user, identity):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_2), 'sms_backend'
+            )
+            is False
+        )
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        type_='sms',
+        identity='+15551234567',
+    )
+    def test_has_identities_for_backend_false_on_wrong_backend(self, user, identity):
+        assert (
+            self._dao.user_identity.has_identities_for_backend(
+                str(TENANT_1), 'other_backend'
+            )
+            is False
+        )

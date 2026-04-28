@@ -9,8 +9,10 @@ from functools import wraps
 
 from wazo_chatd.database.models import (
     Channel,
+    DeliveryRecord,
     Endpoint,
     Line,
+    MessageMeta,
     RefreshToken,
     Room,
     RoomMessage,
@@ -217,12 +219,17 @@ def room(**room_args):
                 user_args.setdefault('wazo_uuid', WAZO_UUID)
 
             now = datetime.datetime.utcnow()
+            message_extras: list[tuple[dict, list[str]]] = []
             for i, message_args in enumerate(room_args['messages']):
                 created_at = now + datetime.timedelta(seconds=i)
                 message_args.setdefault('user_uuid', uuid.uuid4())
                 message_args.setdefault('tenant_uuid', room_args['tenant_uuid'])
                 message_args.setdefault('wazo_uuid', WAZO_UUID)
                 message_args.setdefault('created_at', created_at)
+                message_args.setdefault('uuid', uuid.uuid4())
+                meta = message_args.pop('meta', None) or {}
+                deliveries = message_args.pop('deliveries', None) or []
+                message_extras.append((meta, deliveries))
 
             room_args['users'] = [
                 RoomUser(**user_args) for user_args in room_args['users']
@@ -233,6 +240,17 @@ def room(**room_args):
             room = Room(**room_args)
 
             self._session.add(room)
+            self._session.flush()
+
+            for message, (meta_args, deliveries) in zip(room.messages, message_extras):
+                if meta_args or deliveries:
+                    self._session.add(
+                        MessageMeta(message_uuid=message.uuid, **meta_args)
+                    )
+                for status in deliveries:
+                    self._session.add(
+                        DeliveryRecord(message_uuid=message.uuid, status=status)
+                    )
             self._session.flush()
 
             self._session.commit()

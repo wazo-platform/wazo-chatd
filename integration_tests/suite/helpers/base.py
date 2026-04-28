@@ -255,6 +255,10 @@ class ConnectorAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
         return ConnectorMockClient('127.0.0.1', port=port)
 
 
+class PollingConnectorAssetLaunchingTestCase(ConnectorAssetLaunchingTestCase):
+    asset = 'connectors-polling'
+
+
 class InitAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'initialization'
     service = 'chatd'
@@ -473,6 +477,10 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
     def reset_clients(cls):
         super().reset_clients()
         cls.connector_mock = cls.asset_cls.make_connector_mock()
+
+
+class PollingConnectorIntegrationTest(ConnectorIntegrationTest):
+    asset_cls = PollingConnectorAssetLaunchingTestCase
 
 
 class TeamsIntegrationTest(_BaseIntegrationTest):
