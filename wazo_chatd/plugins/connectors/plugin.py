@@ -8,11 +8,11 @@ import logging
 from wazo_auth_client import Client as AuthClient
 
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
-from wazo_chatd.plugins.connectors.bus_consume import ConnectorBusEventHandler
 from wazo_chatd.plugins.connectors.http import (
-    RoomIdentityListResource,
+    ConnectorWebhookResource,
     UserIdentityItemResource,
     UserIdentityListResource,
+    UserMeIdentityListResource,
 )
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -27,47 +27,50 @@ class Plugin:
         config = dependencies['config']
         api = dependencies['api']
         dao = dependencies['dao']
-        bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
         hooks = dependencies['hooks']
         status_aggregator = dependencies['status_aggregator']
         thread_manager = dependencies['thread_manager']
+        token_changed_subscribe = dependencies['token_changed_subscribe']
+        next_token_changed_subscribe = dependencies['next_token_changed_subscribe']
+
+        auth_client = AuthClient(**config['auth'])
+        token_changed_subscribe(auth_client.set_token)
 
         registry = ConnectorRegistry()
         registry.discover(connectors_config=config.get('connectors', {}))
 
-        auth_client = AuthClient(**config['auth'])
-        token_changed_subscribe = dependencies['token_changed_subscribe']
-        token_changed_subscribe(auth_client.set_token)
-
         notifier = UserIdentityNotifier(bus_publisher)
-        service = ConnectorService(dao, registry, notifier=notifier)
+        service = ConnectorService(dao, registry, notifier, auth_client)
 
-        router = ConnectorRouter(config, registry, service, auth_client)
-        router.register_http_endpoints(api)
-
+        router = ConnectorRouter(config, registry, service, auth_client, dao)
+        thread_manager.manage(router)
+        next_token_changed_subscribe(router.on_auth_available)
+        status_aggregator.add_provider(router.provide_status)
+        hooks.register(
+            'before_room_schema_validation', router.resolve_room_participants
+        )
         hooks.register('before_room_creation', router.validate_room_creation)
         hooks.register('before_message_creation', router.prepare_outbound)
 
-        bus_handler = ConnectorBusEventHandler(bus_consumer, router)
-        bus_handler.subscribe()
-
+        api.add_resource(
+            ConnectorWebhookResource,
+            '/connectors/incoming',
+            '/connectors/incoming/<backend>',
+            resource_class_args=[router],
+        )
         api.add_resource(
             UserIdentityListResource,
             '/users/<uuid:user_uuid>/identities',
-            resource_class_args=[service],
+            resource_class_args=[service, router],
         )
         api.add_resource(
             UserIdentityItemResource,
             '/users/<uuid:user_uuid>/identities/<uuid:identity_uuid>',
-            resource_class_args=[service],
+            resource_class_args=[service, router],
         )
-
         api.add_resource(
-            RoomIdentityListResource,
-            '/users/me/rooms/<uuid:room_uuid>/identities',
+            UserMeIdentityListResource,
+            '/users/me/identities',
             resource_class_args=[service],
         )
-
-        thread_manager.manage(router)
-        status_aggregator.add_provider(router.provide_status)
