@@ -11,14 +11,14 @@ from unittest.mock import Mock
 import pytest
 
 from wazo_chatd.plugins.connectors.exceptions import (
-    InvalidIdentityError,
-    UnreachableParticipantError,
+    InvalidIdentityException,
+    UnreachableParticipantException,
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService
 
 
 class _SmsConnector:
-    backend: ClassVar[str] = 'twilio'
+    backend: ClassVar[str] = 'sms_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
     @classmethod
@@ -67,13 +67,16 @@ def _build_service(
     dao.user_identity.is_identity_bound.side_effect = lambda ident: bound_map.get(
         ident, False
     )
+    dao.user_identity.list_bound_identities.side_effect = lambda idents: {
+        ident for ident in idents if bound_map.get(ident, False)
+    }
 
     dao.user_identity.list_by_user.return_value = sender_identities or []
 
     registry = ConnectorRegistry()
     registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
 
-    return ConnectorService(dao, registry, Mock())
+    return ConnectorService(dao, registry, Mock(), Mock())
 
 
 SENDER_UUID = 'sender-uuid'
@@ -191,7 +194,7 @@ class TestListRoomIdentities(unittest.TestCase):
             service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
 
-def _make_identity(backend: str = 'twilio', type_: str = 'sms') -> Mock:
+def _make_identity(backend: str = 'sms_backend', type_: str = 'sms') -> Mock:
     identity_mock = Mock()
     identity_mock.backend = backend
     identity_mock.type_ = type_
@@ -204,7 +207,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        identity = _make_identity('twilio')
+        identity = _make_identity('sms_backend')
         service = _build_service(
             room=room,
             types_by_user={'recipient-uuid': ['sms']},
@@ -218,14 +221,14 @@ class TestValidateIdentityReachability(unittest.TestCase):
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        identity = _make_identity('twilio')
+        identity = _make_identity('sms_backend')
         service = _build_service(
             room=room,
             types_by_user={'recipient-uuid': []},
         )
         service._dao.user_identity.find.return_value = identity
 
-        with pytest.raises(UnreachableParticipantError):
+        with pytest.raises(UnreachableParticipantException):
             service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
     def test_external_participant_reachable_passes(self) -> None:
@@ -233,7 +236,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
         room = _make_room(users=[sender, external])
 
-        identity = _make_identity('twilio')
+        identity = _make_identity('sms_backend')
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},
@@ -241,6 +244,25 @@ class TestValidateIdentityReachability(unittest.TestCase):
         service._dao.user_identity.find.return_value = identity
 
         service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
+
+    def test_find_filters_by_user_uuid(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        recipient = _make_room_user(uuid='recipient-uuid')
+        room = _make_room(users=[sender, recipient])
+
+        identity = _make_identity()
+        service = _build_service(
+            room=room,
+            types_by_user={'recipient-uuid': ['sms']},
+        )
+        service._dao.user_identity.find.return_value = identity
+
+        identity_uuid = uuid.uuid4()
+        service.validate_identity_reachability(room, SENDER_UUID, identity_uuid)
+
+        service._dao.user_identity.find.assert_called_once_with(
+            identity_uuid, user_uuid=SENDER_UUID
+        )
 
     def test_invalid_identity_uuid_raises(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
@@ -250,7 +272,7 @@ class TestValidateIdentityReachability(unittest.TestCase):
         service = _build_service(room=room)
         service._dao.user_identity.find.return_value = None
 
-        with pytest.raises(InvalidIdentityError):
+        with pytest.raises(InvalidIdentityException):
             service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
 
@@ -286,7 +308,7 @@ class TestValidateRoomReachability(unittest.TestCase):
         service = _build_service(room=room)
         service._dao.user_identity.list_bound_identities.return_value = set()
 
-        with pytest.raises(UnreachableParticipantError):
+        with pytest.raises(UnreachableParticipantException):
             service.validate_room_reachability(room)
 
     def test_mixed_room_with_common_type_passes(self) -> None:

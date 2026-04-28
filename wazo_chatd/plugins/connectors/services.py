@@ -4,20 +4,35 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from wazo_chatd.exceptions import UnknownRoomException
+from requests.exceptions import HTTPError, RequestException
+
+from wazo_chatd.exceptions import UnknownRoomException, UnknownUserException
+from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.exceptions import (
-    InvalidIdentityError,
-    NoCommonConnectorError,
-    UnreachableParticipantError,
+    AuthServiceUnavailableException,
+    InvalidIdentityException,
+    InvalidIdentityFormatException,
+    NoCommonConnectorException,
+    UnknownBackendException,
+    UnreachableParticipantException,
 )
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 if TYPE_CHECKING:
-    from wazo_chatd.database.models import Room, RoomMessage, RoomUser, UserIdentity
+    from wazo_auth_client import Client as AuthClient
+
+    from wazo_chatd.database.models import (
+        Room,
+        RoomMessage,
+        RoomUser,
+        User,
+        UserIdentity,
+    )
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
@@ -29,10 +44,54 @@ class ConnectorService:
         dao: DAO,
         registry: ConnectorRegistry,
         notifier: UserIdentityNotifier,
+        auth_client: AuthClient,
     ) -> None:
         self._dao = dao
         self._registry = registry
         self._notifier = notifier
+        self._auth_client = auth_client
+
+    def get_user_tenant_uuid(self, tenant_uuids: Iterable[str], user_uuid: str) -> str:
+        try:
+            user = self._dao.user.get(tenant_uuids, user_uuid)
+            return str(user.tenant_uuid)
+        except UnknownUserException:
+            logger.debug(
+                'User %s not in wazo-chatd cache, querying wazo-auth', user_uuid
+            )
+
+        try:
+            user_data = self._auth_client.users.get(user_uuid)
+            tenant_uuid = str(user_data['tenant_uuid'])
+            self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
+            return tenant_uuid
+        except HTTPError as e:
+            if (status := getattr(e.response, 'status_code', None)) == 404:
+                raise UnknownUserException(user_uuid)
+            logger.error('wazo-auth returned HTTP %s for user %s', status, user_uuid)
+            raise AuthServiceUnavailableException()
+        except RequestException:
+            raise AuthServiceUnavailableException()
+
+    def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
+        return self._dao.user_identity.resolve_users_by_identities(identities)
+
+    def resolve_room_participants(self, body: dict, tenant_uuid: str) -> None:
+        users = body.get('users', [])
+        to_resolve = [u for u in users if u.get('identity') and not u.get('uuid')]
+        if not to_resolve:
+            return
+
+        identities = {u['identity'] for u in to_resolve}
+        resolved = self.resolve_users_by_identities(identities)
+
+        for user in to_resolve:
+            identity = user['identity']
+            if not (wazo_user := resolved.get(identity)):
+                user['uuid'] = str(make_uuid5(tenant_uuid, identity))
+                continue
+            user['uuid'] = str(wazo_user.uuid)
+            user.pop('identity', None)
 
     def list_identities(
         self, tenant_uuids: list[str], user_uuid: str
@@ -52,14 +111,30 @@ class ConnectorService:
         )
 
     def create_identity(self, identity: UserIdentity) -> UserIdentity:
+        self._validate_and_normalize_identity(identity)
         created = self._dao.user_identity.create(identity)
         self._notifier.created(created)
         return created
 
     def update_identity(self, identity: UserIdentity) -> UserIdentity:
+        self._validate_and_normalize_identity(identity)
         self._dao.user_identity.update(identity)
         self._notifier.updated(identity)
         return identity
+
+    def _validate_and_normalize_identity(self, identity: UserIdentity) -> None:
+        backend_name = str(identity.backend)
+        try:
+            backend_cls = self._registry.get_backend(backend_name)
+        except KeyError:
+            raise UnknownBackendException(backend_name)
+
+        try:
+            identity.identity = backend_cls.normalize_identity(identity.identity)  # type: ignore[assignment, arg-type]
+        except ValueError as e:
+            raise InvalidIdentityFormatException(
+                identity.identity, backend_name, str(e)  # type: ignore[arg-type]
+            )
 
     def delete_identity(self, identity: UserIdentity) -> None:
         self._dao.user_identity.delete(identity)
@@ -72,7 +147,7 @@ class ConnectorService:
     ) -> None:
         self._dao.room.prepare_pending_delivery(
             message,
-            sender_identity.uuid,
+            sender_identity.uuid,  # type: ignore[arg-type]
             backend=sender_identity.backend,  # type: ignore[arg-type]
             type_=sender_identity.type_,  # type: ignore[arg-type]
         )
@@ -92,14 +167,34 @@ class ConnectorService:
         if not others:
             return []
 
-        reachable_types: set[str] | None = None
-        for participant in others:
-            participant_types = self._resolve_participant_types(participant)
-            if reachable_types is None:
-                reachable_types = participant_types
-            else:
-                reachable_types &= participant_types
+        external_identities = [str(u.identity) for u in others if u.identity]
+        bound_identities = (
+            self._dao.user_identity.list_bound_identities(external_identities)
+            if external_identities
+            else set()
+        )
+        db_user_ids = [
+            str(u.uuid)
+            for u in others
+            if not u.identity or str(u.identity) in bound_identities
+        ]
+        db_types = (
+            self._dao.user_identity.list_types_by_users(db_user_ids)
+            if db_user_ids
+            else {}
+        )
 
+        types_per_participant: list[set[str]] = []
+        for u in others:
+            identity = str(u.identity) if u.identity else None
+            if identity and identity not in bound_identities:
+                types_per_participant.append(
+                    self._registry.resolve_reachable_types(identity)
+                )
+            else:
+                types_per_participant.append(db_types.get(str(u.uuid), set()))
+
+        reachable_types = set.intersection(*types_per_participant)
         if not reachable_types:
             return []
 
@@ -132,7 +227,7 @@ class ConnectorService:
             else:
                 reachable = self._registry.resolve_reachable_types(identity)
                 if not reachable:
-                    raise UnreachableParticipantError(identity)
+                    raise UnreachableParticipantException(identity)
                 types_by_participant[str(user.uuid)] = reachable
 
         internal = [u for u in participants if not u.identity]
@@ -145,7 +240,9 @@ class ConnectorService:
             for user in needs_db_lookup:
                 user_types = db_types.get(str(user.uuid), set())
                 if not user_types:
-                    raise UnreachableParticipantError(str(user.identity or user.uuid))
+                    raise UnreachableParticipantException(
+                        str(user.identity or user.uuid)
+                    )
                 types_by_participant[str(user.uuid)] = user_types
 
         common_types: set[str] | None = None
@@ -156,21 +253,21 @@ class ConnectorService:
                 common_types &= types
 
         if not common_types:
-            raise NoCommonConnectorError()
+            raise NoCommonConnectorException()
 
     def validate_identity_reachability(
         self,
         room: Room,
-        sender_uuid: str,
+        user_uuid: str,
         sender_identity_uuid: UUID,
     ) -> UserIdentity:
-        record = self._dao.user_identity.find(str(sender_identity_uuid))
+        record = self._dao.user_identity.find(sender_identity_uuid, user_uuid=user_uuid)
         if not record:
-            raise InvalidIdentityError(str(sender_identity_uuid))
+            raise InvalidIdentityException(str(sender_identity_uuid))
 
         sender_backend = str(record.backend)
         sender_type = str(record.type_)
-        others = [u for u in room.users if str(u.uuid) != sender_uuid]
+        others = [u for u in room.users if str(u.uuid) != user_uuid]
 
         internal = [u for u in others if not u.identity]
         external = [u for u in others if u.identity]
@@ -182,25 +279,15 @@ class ConnectorService:
             for user in internal:
                 user_types = internal_types.get(str(user.uuid), set())
                 if sender_type not in user_types:
-                    raise UnreachableParticipantError(str(user.uuid), sender_backend)
+                    raise UnreachableParticipantException(
+                        str(user.uuid), sender_backend
+                    )
 
         for user in external:
             reachable_types = self._registry.resolve_reachable_types(str(user.identity))
             if sender_type not in reachable_types:
-                raise UnreachableParticipantError(str(user.identity), sender_backend)
+                raise UnreachableParticipantException(
+                    str(user.identity), sender_backend
+                )
 
         return record
-
-    def _resolve_participant_types(self, participant: RoomUser) -> set[str]:
-        identity: str | None = participant.identity  # type: ignore[assignment]
-
-        if identity is not None:
-            if self._dao.user_identity.is_identity_bound(identity):
-                user_id = str(participant.uuid)
-                types_map = self._dao.user_identity.list_types_by_users([user_id])
-                return types_map.get(user_id, set())
-            return self._registry.resolve_reachable_types(identity)
-
-        user_id = str(participant.uuid)
-        types_map = self._dao.user_identity.list_types_by_users([user_id])
-        return types_map.get(user_id, set())

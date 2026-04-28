@@ -4,12 +4,19 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import exc, exists, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session, selectinload
 
-from wazo_chatd.database.models import UserIdentity
-from wazo_chatd.exceptions import UnknownUserIdentityException
+from wazo_chatd.database.models import Tenant, User, UserIdentity
+from wazo_chatd.exceptions import (
+    DuplicateIdentityException,
+    UnknownUserIdentityException,
+)
+
+_UNIQUE_VIOLATION = '23505'
 
 
 class UserIdentityDAO:
@@ -20,9 +27,28 @@ class UserIdentityDAO:
     def session(self) -> Session:
         return self._session()
 
+    def ensure_tenant_and_user_exist(self, tenant_uuid: str, user_uuid: str) -> None:
+        self.session.execute(
+            pg_insert(Tenant).values(uuid=tenant_uuid).on_conflict_do_nothing()
+        )
+        self.session.execute(
+            pg_insert(User)
+            .values(uuid=user_uuid, tenant_uuid=tenant_uuid, state='unavailable')
+            .on_conflict_do_nothing()
+        )
+
     def create(self, identity: UserIdentity) -> UserIdentity:
         self.session.add(identity)
-        self.session.flush()
+        try:
+            self.session.flush()
+        except exc.IntegrityError as e:
+            self.session.rollback()
+            if e.orig.pgcode == _UNIQUE_VIOLATION:
+                raise DuplicateIdentityException(
+                    identity.backend, identity.identity, identity.type_  # type: ignore[arg-type]
+                )
+            raise
+
         return identity
 
     def get(
@@ -42,8 +68,12 @@ class UserIdentityDAO:
             raise UnknownUserIdentityException(identity_uuid)
         return result
 
-    def find(self, identity_uuid: str) -> UserIdentity | None:
+    def find(
+        self, identity_uuid: str | UUID, user_uuid: str | None = None
+    ) -> UserIdentity | None:
         stmt = select(UserIdentity).where(UserIdentity.uuid == identity_uuid)
+        if user_uuid is not None:
+            stmt = stmt.where(UserIdentity.user_uuid == user_uuid)
         return self.session.execute(stmt).scalars().first()
 
     def list_by_user(
@@ -103,6 +133,39 @@ class UserIdentityDAO:
         stmt = select(UserIdentity).where(UserIdentity.identity == identity)
         return self.session.execute(stmt).scalars().first() is not None
 
+    def resolve_users_by_identities(
+        self,
+        identities: Iterable[str],
+    ) -> dict[str, User]:
+        stmt = (
+            select(UserIdentity)
+            .options(selectinload(UserIdentity.user))
+            .where(UserIdentity.identity.in_(list(identities)))
+        )
+        return {
+            str(r.identity): r.user for r in self.session.execute(stmt).scalars().all()
+        }
+
     def list_tenant_backends(self) -> list[tuple[str, str]]:
         stmt = select(UserIdentity.tenant_uuid, UserIdentity.backend).distinct()
         return list(self.session.execute(stmt).all())  # type: ignore[arg-type]
+
+    def has_identities_for_backend(self, tenant_uuid: str, backend: str) -> bool:
+        stmt = select(
+            exists()
+            .where(UserIdentity.tenant_uuid == tenant_uuid)
+            .where(UserIdentity.backend == backend)
+        )
+        return bool(self.session.execute(stmt).scalar_one())
+
+    def find_tenant_by_identity(self, identity: str, backend: str) -> str | None:
+        stmt = (
+            select(UserIdentity.tenant_uuid)
+            .where(
+                UserIdentity.identity == identity,
+                UserIdentity.backend == backend,
+            )
+            .limit(1)
+        )
+        result = self.session.execute(stmt).scalars().first()
+        return str(result) if result is not None else None

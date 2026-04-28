@@ -90,16 +90,25 @@ paths:
           $ref: '#/responses/ResourceUpdated'
         '404':
           $ref: '#/responses/NotFoundError'
-  /users/me/rooms/{room_uuid}/identities:
+  /users/me/identities:
     get:
-      operationId: list_room_identities
-      summary: List usable identities for a room
-      description: '**Required ACL:** `chatd.users.me.rooms.{room_uuid}.identities.read`'
+      operationId: list_user_me_identities
+      summary: List identities for the authenticated user
+      description: |
+        **Required ACL:** `chatd.users.me.identities.read`
+
+        Returns all identities of the authenticated user. When a
+        `room_uuid` is provided, returns only identities usable to
+        reach the other participants of that room.
       tags:
       - identities
-      - rooms
       parameters:
-      - $ref: '#/parameters/room_uuid'
+      - name: room_uuid
+        in: query
+        type: string
+        format: uuid
+        required: false
+        description: Filter identities by reachability for a specific room
       responses:
         '200':
           description: Identity list
