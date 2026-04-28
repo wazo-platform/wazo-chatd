@@ -14,6 +14,14 @@ class ConnectorSendError(ConnectorError):
     """Raised when a connector fails to send a message."""
 
 
+class ConnectorRateLimited(ConnectorSendError):
+    """Provider rate-limited the call; ``retry_after`` is the requested back-off in seconds."""
+
+    def __init__(self, message: str, *, retry_after: float) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 class ConnectorParseError(ConnectorError):
     """Raised when a connector fails to parse an incoming event."""
 

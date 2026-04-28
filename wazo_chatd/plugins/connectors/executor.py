@@ -26,7 +26,6 @@ from wazo_chatd.database.models import (
     RoomMessage,
     RoomUser,
     User,
-    UserIdentity,
 )
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
@@ -36,6 +35,7 @@ from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableException,
+    ConnectorRateLimited,
     ConnectorSendError,
 )
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
@@ -54,6 +54,7 @@ OUTBOUND_RETRY_DELAYS: list[int] = [30, 120, 300]
 INBOUND_MAX_RETRIES: int = 3
 INBOUND_RETRY_DELAYS: list[int] = [2, 5, 10]
 ECHO_WINDOW_SECONDS: int = 60
+MAX_RETRY_AFTER: float = 3600.0
 
 T = TypeVar('T')
 
@@ -171,6 +172,10 @@ class DeliveryExecutor:
 
         try:
             external_id = await self._send(connector, outbound)
+        except ConnectorRateLimited as exc:
+            return await self._record_send_failure(
+                meta, str(exc), retry_after=exc.retry_after
+            )
         except ConnectorSendError as exc:
             return await self._record_send_failure(meta, str(exc))
         except Exception as exc:
@@ -385,7 +390,11 @@ class DeliveryExecutor:
         await self._room_dao.update_message_meta(meta)
 
     async def _record_send_failure(
-        self, meta: MessageMeta, reason: str
+        self,
+        meta: MessageMeta,
+        reason: str,
+        *,
+        retry_after: float | None = None,
     ) -> float | None:
         meta.retry_count += 1  # type: ignore[assignment]
 
@@ -398,6 +407,10 @@ class DeliveryExecutor:
             return None
 
         await self._persist_status(meta, DeliveryStatus.RETRYING, reason=reason)
+
+        if retry_after is not None:
+            return min(retry_after, MAX_RETRY_AFTER)
+
         return _compute_outbound_retry_delay(meta.retry_count)  # type: ignore[arg-type]
 
     async def _is_duplicate_idempotency(self, idempotency_key: str | None) -> bool:

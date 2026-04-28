@@ -17,7 +17,10 @@ from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import DeliveryRecord
 from wazo_chatd.exceptions import DuplicateExternalIdException
-from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
+from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorRateLimited,
+    ConnectorSendError,
+)
 from wazo_chatd.plugins.connectors.executor import (
     INBOUND_RETRY_DELAYS,
     OUTBOUND_MAX_RETRIES,
@@ -206,6 +209,44 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
         result = await self.executor.route_outbound(self.delivery)
 
         assert result == 30.0
+
+    async def test_rate_limited_returns_provider_retry_after(self) -> None:
+        self.connector.send_side_effect = ConnectorRateLimited(
+            'rate limited', retry_after=42.0
+        )
+
+        result = await self.executor.route_outbound(self.delivery)
+
+        assert result == 42.0
+
+    async def test_rate_limited_caps_retry_after_at_max(self) -> None:
+        self.connector.send_side_effect = ConnectorRateLimited(
+            'rate limited', retry_after=999_999.0
+        )
+
+        result = await self.executor.route_outbound(self.delivery)
+
+        assert result == 3600.0
+
+    async def test_rate_limited_still_increments_retry_count(self) -> None:
+        self.connector.send_side_effect = ConnectorRateLimited(
+            'rate limited', retry_after=10.0
+        )
+
+        await self.executor.route_outbound(self.delivery)
+
+        assert self.delivery.retry_count == 1
+
+    async def test_rate_limited_writes_retrying_status(self) -> None:
+        self.connector.send_side_effect = ConnectorRateLimited(
+            'rate limited', retry_after=10.0
+        )
+
+        await self.executor.route_outbound(self.delivery)
+
+        dao_mock = self.executor._room_dao.add_delivery_record
+        statuses = [call.args[1].value for call in dao_mock.call_args_list]
+        assert DeliveryStatus.RETRYING.value in statuses
 
     async def test_dead_letter_returns_no_retry(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
@@ -798,6 +839,19 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
         result = await self.executor.recover_pending_deliveries()
 
         assert result == []
+
+
+class TestConnectorRateLimitedException(unittest.TestCase):
+    def test_carries_retry_after(self) -> None:
+        exc = ConnectorRateLimited('rate limited', retry_after=120.0)
+
+        assert exc.retry_after == 120.0
+        assert str(exc) == 'rate limited'
+
+    def test_is_subclass_of_connector_send_error(self) -> None:
+        exc = ConnectorRateLimited('rate limited', retry_after=10.0)
+
+        assert isinstance(exc, ConnectorSendError)
 
 
 class TestGroupParticipantsField(unittest.TestCase):

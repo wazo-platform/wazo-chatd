@@ -27,7 +27,8 @@ from wazo_chatd.database.async_helpers import (
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugin_helpers.queue import AsyncQueue, QueueFull
 from wazo_chatd.plugins.connectors.connector import Connector
-from wazo_chatd.plugins.connectors.executor import DeliveryExecutor
+from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
+from wazo_chatd.plugins.connectors.executor import MAX_RETRY_AFTER, DeliveryExecutor
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import CacheKey, ConnectorStore
@@ -615,6 +616,9 @@ class DeliveryRunner(Runner):
             except asyncio.CancelledError:
                 logger.info('Poller for %s cancelled', key)
                 raise
+            except ConnectorRateLimited as exc:
+                interval = min(exc.retry_after, MAX_RETRY_AFTER)
+                logger.info('Poller for %s rate-limited, sleeping %.1fs', key, interval)
             except Exception:
                 logger.exception('Poller for %s hit unexpected error, continuing', key)
                 interval = min(interval * 2, self._poll_max)
@@ -623,6 +627,8 @@ class DeliveryRunner(Runner):
     async def _scan_inbound(self, instance: Connector, key: CacheKey) -> bool:
         try:
             messages = await self._invoke_poll_method(instance.scan_inbound)
+        except ConnectorRateLimited:
+            raise
         except Exception:
             logger.exception('scan_inbound failed for %s', key)
             return False
@@ -641,6 +647,8 @@ class DeliveryRunner(Runner):
             if not pending:
                 return False
             updates = await self._invoke_poll_method(instance.track_outbound, pending)
+        except ConnectorRateLimited:
+            raise
         except Exception:
             logger.exception('track_outbound failed for %s', (tenant_uuid, backend))
             return False
