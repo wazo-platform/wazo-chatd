@@ -25,10 +25,17 @@ class RoomSchema(Schema):
     users = fields.Nested('RoomUserSchema', many=True, load_default=list)
 
 
+_INTERNAL_DELIVERY = {
+    'type': 'internal',
+    'backend': None,
+    'status': 'delivered',
+}
+
+
 class MessageDeliverySchema(Schema):
-    type = fields.String(dump_default='internal', attribute='type_')
-    backend = fields.String(dump_default=None, allow_none=True)
-    status = fields.String(dump_default='delivered')
+    type = fields.String(attribute='type_')
+    backend = fields.String(allow_none=True)
+    status = fields.String(dump_default='pending')
 
 
 class MessageSchema(Schema):
@@ -47,7 +54,7 @@ class MessageSchema(Schema):
     @post_dump
     def _default_delivery(self, data: dict, **kwargs) -> dict:
         if data.get('delivery') is None:
-            data['delivery'] = MessageDeliverySchema().dump({})
+            data['delivery'] = dict(_INTERNAL_DELIVERY)
         return data
 
 
