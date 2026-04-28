@@ -14,11 +14,25 @@ class ConnectorSendError(ConnectorError):
     """Raised when a connector fails to send a message."""
 
 
+class ConnectorRateLimited(ConnectorSendError):
+    """Provider rate-limited the call; ``retry_after`` is the requested back-off in seconds."""
+
+    def __init__(self, message: str, *, retry_after: float) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 class ConnectorParseError(ConnectorError):
     """Raised when a connector fails to parse an incoming event."""
 
 
-class NoCommonConnectorError(APIException):
+class ConnectorTransientError(ConnectorError):
+    """Raised when an inbound event can't be processed right now but
+    should be retried by the provider — e.g. wazo-auth unreachable, or
+    the connector instance hasn't been populated yet at startup."""
+
+
+class NoCommonConnectorException(APIException):
     def __init__(self) -> None:
         super().__init__(
             409,
@@ -29,7 +43,7 @@ class NoCommonConnectorError(APIException):
         )
 
 
-class MessageIdentityRequiredError(APIException):
+class MessageIdentityRequiredException(APIException):
     def __init__(self) -> None:
         super().__init__(
             409,
@@ -40,7 +54,7 @@ class MessageIdentityRequiredError(APIException):
         )
 
 
-class InvalidIdentityError(APIException):
+class InvalidIdentityException(APIException):
     def __init__(self, identity_uuid: str) -> None:
         super().__init__(
             400,
@@ -51,7 +65,62 @@ class InvalidIdentityError(APIException):
         )
 
 
-class UnreachableParticipantError(APIException):
+class InvalidIdentityFormatException(APIException):
+    def __init__(self, identity: str, backend: str, reason: str) -> None:
+        super().__init__(
+            400,
+            f'Identity {identity!r} is not valid for backend {backend!r}: {reason}',
+            'invalid-identity-format',
+            {'identity': identity, 'backend': backend, 'reason': reason},
+            'identities',
+        )
+
+
+class UnknownBackendException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            400,
+            f'Unknown connector backend {backend!r}',
+            'unknown-backend',
+            {'backend': backend},
+            'identities',
+        )
+
+
+class BackendNotConfiguredException(APIException):
+    def __init__(self, backend: str, tenant_uuid: str) -> None:
+        super().__init__(
+            400,
+            f'Backend {backend!r} is not configured for tenant {tenant_uuid!r}',
+            'backend-not-configured',
+            {'backend': backend, 'tenant_uuid': tenant_uuid},
+            'identities',
+        )
+
+
+class AuthServiceUnavailableException(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            503,
+            'wazo-auth is unreachable',
+            'wazo-auth-unreachable',
+            {},
+            'identities',
+        )
+
+
+class ConnectorAuthException(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            401,
+            'Webhook signature verification failed',
+            'connector-signature-invalid',
+            {},
+            'connectors',
+        )
+
+
+class UnreachableParticipantException(APIException):
     def __init__(self, participant: str, connector_type: str = '') -> None:
         detail = f'participant {participant!r}'
         if connector_type:

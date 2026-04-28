@@ -50,6 +50,7 @@ class OutboundMessage:
     sender_identity: str = ''
     recipient_identity: str = ''
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    group_participants: tuple[str, ...] = ()
 
     def __str__(self) -> str:
         return f'OutboundMessage(message={self.message_uuid})'
@@ -84,6 +85,8 @@ class InboundMessage:
     ``idempotency_key``.  The router uses this to deduplicate inbound
     messages via a GIN-indexed JSONB lookup on MessageMeta.extra.
     """
+
+    group_participants: tuple[str, ...] = ()
 
     def __str__(self) -> str:
         return f'InboundMessage(backend={self.backend}, external_id={self.external_id})'

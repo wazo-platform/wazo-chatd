@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, ClassVar, Protocol
 
 from wazo_chatd.database.delivery import DeliveryStatus
@@ -52,14 +52,35 @@ class Connector(Protocol):
         }
     """
 
+    verifies_signatures: ClassVar[bool] = True
+    """Whether this backend authenticates inbound events via signature.
+
+    Defaults to ``True`` (secure-by-default): backends that forget to
+    set it are assumed to require verification, and the router will
+    call :meth:`verify_signature`. Set to ``False`` only for trusted
+    transports (internal, tests, polling-only).
+
+    When effectively ``True``, :meth:`verify_signature` is called
+    before :meth:`on_event`'s result is enqueued — a falsy return or
+    raised exception causes :class:`ConnectorAuthException` (HTTP 401).
+    When ``False``, :meth:`verify_signature` is not called and may be
+    omitted entirely.
+    """
+
     def __init__(
         self,
+        tenant_uuid: str,
         provider_config: Mapping[str, Any],
         connector_config: Mapping[str, Any],
     ) -> None:
-        """Initialize the connector with two configuration sources.
+        """Initialize the connector with tenant scope and configuration.
 
         Args:
+            tenant_uuid: Identifies the tenant this instance serves.
+                One instance per (tenant_uuid, backend); the store
+                reconstructs the instance when provider_config changes.
+                Used for self-identification in logs, metrics, and
+                outbound messages emitted by poll/listen modes.
             provider_config: Per-tenant configuration from wazo-auth
                 external auth config (credentials, API keys — managed
                 via ``PUT /external/{backend}/config``).
@@ -67,8 +88,11 @@ class Connector(Protocol):
                 ``/etc/wazo-chatd/conf.d/`` (polling interval, inbound
                 mode, network settings).
 
-        Must be reconstructable from these arguments alone, as the same
-        arguments are serialized over the pipe to the server process.
+        Lifecycle contract: one instance per (tenant_uuid, backend),
+        reconstructed whenever provider_config changes (credential
+        rotation, TTL expiry). Do not put process-global state in
+        ``__init__``; class-level attributes (e.g. shared HTTP pools)
+        are the right place for cross-tenant resources.
         """
         ...
 
@@ -108,6 +132,27 @@ class Connector(Protocol):
         """
         ...
 
+    def verify_signature(self, data: TransportData) -> bool:
+        """Verify that an inbound event is authentic.
+
+        Called by the router when :attr:`verifies_signatures` is
+        ``True``, before :meth:`on_event`'s result is enqueued for
+        async processing. Instance method — has access to per-tenant
+        credentials loaded in :meth:`__init__`.
+
+        Returns:
+            ``True`` if the event is authentic, ``False`` to reject.
+            A ``False`` return causes the router to raise
+            :class:`ConnectorAuthException` (HTTP 401).
+
+        For webhook-based providers, implement HMAC verification
+        using the signature header.
+
+        Backends with :attr:`verifies_signatures` = ``False`` may
+        omit this method entirely.
+        """
+        ...
+
     @classmethod
     def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
         """Parse an incoming event from any transport.
@@ -123,20 +168,74 @@ class Connector(Protocol):
         """
         ...
 
-    def listen(self, on_message: Callable[[InboundMessage], None]) -> None:
-        """Begin listening for incoming messages via connector-controlled transports.
+    def scan_inbound(self) -> list[InboundMessage]:
+        """Return new inbound messages since the last scan.
 
-        For polling:
-            Start a loop, wrap results in :class:`PollData`, call
-            :meth:`on_event`, forward non-None results to *on_message*.
+        Sync or async. Sync implementations are wrapped with
+        ``asyncio.to_thread`` by the delivery loop. Async
+        implementations (``httpx.AsyncClient``, ``aiohttp``) avoid
+        the thread hop.
 
-        For webhook-only connectors:
-            No-op — chatd's HTTP adapter calls :meth:`on_event` directly.
+        Called periodically by the delivery loop when ``mode=poll``.
+        The connector owns its cursor internally (timestamp, last
+        external_id) — callers pass no arguments. Must not block
+        longer than the provider HTTP timeout.
+
+        Exceptions propagate; the delivery loop logs and schedules
+        the next cycle at the previous interval. Backends without
+        an inbound polling API may return ``[]``.
+        """
+        ...
+
+    def track_outbound(self, external_ids: Iterable[str]) -> list[StatusUpdate]:
+        """Return current status for each outbound ``external_id``.
+
+        Sync or async. Sync implementations are wrapped with
+        ``asyncio.to_thread`` by the delivery loop.
+
+        The delivery loop passes external_ids of outbound messages
+        whose latest :class:`DeliveryRecord` is still in a
+        non-terminal state. Implementations must be efficient with
+        large batches (hundreds of IDs) — prefer bulk endpoints
+        when the provider offers them.
+
+        Backends that receive status via webhook callbacks may
+        leave this as a no-op (return ``[]``).
+        """
+        ...
+
+    async def listen(
+        self, on_message: Callable[[InboundMessage | StatusUpdate], None]
+    ) -> None:
+        """Run as an asyncio task on the dedicated listen loop.
+
+        Async-only — a sync ``listen`` blocks the event loop and
+        starves every peer listener on the same thread. Backends
+        with sync-only transport libraries must wrap themselves:
+        ``await asyncio.to_thread(self._blocking_listen_forever)``.
+
+        Use async I/O: ``aiohttp`` for websockets, ``aio-pika`` for
+        AMQP, ``asyncio.DatagramProtocol`` for UDP.
+
+        Per-message work must be minimal (parse + forward). Heavy
+        processing happens downstream on the delivery loop after
+        ``on_message`` has enqueued the result.
+
+        Task cancellation is the shutdown signal — clean up in
+        ``finally``. Reconnect loops must use jittered backoff to
+        avoid thundering-herd storms when many tenants reconnect
+        after a network blip.
         """
         ...
 
     def stop(self) -> None:
-        """Stop listening and clean up resources."""
+        """Hint-only cleanup for listener resources.
+
+        The canonical shutdown mechanism is task cancellation; the
+        delivery loop cancels the ``listen`` task at shutdown.
+        This method exists for backends that hold external
+        resources that cancellation alone cannot release.
+        """
         ...
 
     @classmethod
