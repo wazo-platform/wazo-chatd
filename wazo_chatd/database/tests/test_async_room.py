@@ -76,7 +76,44 @@ class TestAsyncCheckDuplicateIdempotencyKey(unittest.IsolatedAsyncioTestCase):
         assert result is False
 
 
-class TestAsyncFindOrCreateRoom(unittest.IsolatedAsyncioTestCase):
+class TestAsyncListPendingExternalIds(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.session = AsyncMock()
+        self.token = _current_session.set(self.session)
+        self.dao = AsyncRoomDAO()
+
+    def tearDown(self) -> None:
+        _current_session.reset(self.token)
+
+    async def test_returns_external_ids(self) -> None:
+        scalars = Mock()
+        scalars.all.return_value = ['sid-1', 'sid-2']
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars
+        self.session.execute.return_value = result_mock
+
+        result = await self.dao.list_pending_external_ids(
+            tenant_uuid='tenant-1', backend='twilio'
+        )
+
+        assert result == ['sid-1', 'sid-2']
+        self.session.execute.assert_awaited_once()
+
+    async def test_returns_empty_when_no_pending(self) -> None:
+        scalars = Mock()
+        scalars.all.return_value = []
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars
+        self.session.execute.return_value = result_mock
+
+        result = await self.dao.list_pending_external_ids(
+            tenant_uuid='tenant-1', backend='twilio'
+        )
+
+        assert result == []
+
+
+class TestAsyncFindRoom(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.session = AsyncMock()
         self.session.add = Mock()
@@ -97,7 +134,7 @@ class TestAsyncFindOrCreateRoom(unittest.IsolatedAsyncioTestCase):
             _make_room_user('ext-1', identity='+15559876'),
         ]
 
-        room = await self.dao.find_or_create_room(
+        room = await self.dao.find_room(
             tenant_uuid='tenant-1',
             participants=participants,
         )
@@ -105,38 +142,53 @@ class TestAsyncFindOrCreateRoom(unittest.IsolatedAsyncioTestCase):
         assert room is existing_room
         self.session.add.assert_not_called()
 
-    async def test_creates_room_when_not_found(self) -> None:
+    async def test_returns_none_when_not_found(self) -> None:
         result_mock = Mock()
         result_mock.scalar_one_or_none.return_value = None
         self.session.execute.return_value = result_mock
 
+        room = await self.dao.find_room(
+            tenant_uuid='tenant-1',
+            participants=[_make_room_user('user-1')],
+        )
+
+        assert room is None
+        self.session.add.assert_not_called()
+
+
+class TestAsyncCreateRoom(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.session = AsyncMock()
+        self.session.add = Mock()
+        self.token = _current_session.set(self.session)
+        self.dao = AsyncRoomDAO()
+
+    def tearDown(self) -> None:
+        _current_session.reset(self.token)
+
+    async def test_creates_room(self) -> None:
         participants = [
             _make_room_user('user-1'),
             _make_room_user('ext-1', identity='+15559876'),
         ]
 
-        room = await self.dao.find_or_create_room(
+        room = await self.dao.create_room(
             tenant_uuid='tenant-1',
             participants=participants,
         )
 
         self.session.add.assert_called_once()
         self.session.flush.assert_awaited_once()
-        assert room is not None
         assert len(room.users) == 2
 
     async def test_creates_room_with_multiple_participants(self) -> None:
-        result_mock = Mock()
-        result_mock.scalar_one_or_none.return_value = None
-        self.session.execute.return_value = result_mock
-
         participants = [
             _make_room_user('user-1'),
             _make_room_user('user-2'),
             _make_room_user('ext-1', identity='+15559876'),
         ]
 
-        room = await self.dao.find_or_create_room(
+        room = await self.dao.create_room(
             tenant_uuid='tenant-1',
             participants=participants,
         )

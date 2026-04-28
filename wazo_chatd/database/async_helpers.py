@@ -30,13 +30,14 @@ def get_async_session() -> AsyncSession:
     return _current_session.get()
 
 
-def _build_async_engine_args(uri: str) -> tuple[str, dict[str, Any]]:
-    """Translate a Postgres URI into (async_uri, connect_args) for asyncpg.
+def build_asyncpg_connect_args(uri: str) -> tuple[str, dict[str, Any]]:
+    """Translate a Postgres URI into (driver_uri, connect_args) for asyncpg.
 
-    SQLAlchemy's asyncpg dialect forwards URI query params as kwargs to
-    ``asyncpg.connect()``.  ``sslmode`` must become an ``ssl`` bool and
-    Postgres GUCs (e.g. ``application_name``) must be routed through
-    ``server_settings``.
+    ``sslmode`` is translated into an ``ssl`` bool and Postgres GUCs
+    (e.g. ``application_name``) are routed through ``server_settings``.
+    Any ``+dialect`` suffix in the URI scheme is stripped so the result
+    is directly usable by ``asyncpg.connect()``. SQLAlchemy callers
+    must re-apply the ``+asyncpg`` dialect themselves.
     """
     parsed = urlparse(uri)
     params = parse_qs(parsed.query)
@@ -52,18 +53,20 @@ def _build_async_engine_args(uri: str) -> tuple[str, dict[str, Any]]:
     if server_settings:
         connect_args['server_settings'] = server_settings
 
-    scheme = parsed.scheme if '+' in parsed.scheme else 'postgresql+asyncpg'
-    async_uri = urlunparse(
+    scheme = parsed.scheme.split('+', 1)[0]
+    driver_uri = urlunparse(
         parsed._replace(scheme=scheme, query=urlencode(params, doseq=True))
     )
-    return async_uri, connect_args
+    return driver_uri, connect_args
 
 
 def init_async_db(
     db_uri: str,
     pool_size: int = 5,
 ) -> tuple[AsyncEngine, sessionmaker]:
-    async_uri, connect_args = _build_async_engine_args(db_uri)
+    driver_uri, connect_args = build_asyncpg_connect_args(db_uri)
+    parsed = urlparse(driver_uri)
+    async_uri = urlunparse(parsed._replace(scheme='postgresql+asyncpg'))
     engine = create_async_engine(
         async_uri,
         pool_size=pool_size,
