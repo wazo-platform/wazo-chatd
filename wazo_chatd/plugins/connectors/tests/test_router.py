@@ -12,8 +12,9 @@ import pytest
 
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorAuthException,
     ConnectorParseError,
-    MessageIdentityRequiredError,
+    MessageIdentityRequiredException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
@@ -26,7 +27,7 @@ from wazo_chatd.plugins.connectors.types import (
 
 
 class _SmsConnector:
-    backend: ClassVar[str] = 'twilio'
+    backend: ClassVar[str] = 'sms_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
     @classmethod
@@ -106,21 +107,30 @@ def _build_router(
     registry: ConnectorRegistry | None = None,
     service: Mock | None = None,
     auth_client: Mock | None = None,
+    dao: Mock | None = None,
 ) -> ConnectorRouter:
-    with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryLoop'):
+    with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryRunner'):
         return ConnectorRouter(
             config=config or {},
             registry=registry or ConnectorRegistry(),
             service=service or Mock(),
             auth_client=auth_client or Mock(),
+            dao=dao or Mock(),
         )
 
 
 class TestConnectorRouterDispatchWebhook(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = ConnectorRegistry()
-        self.router = _build_router(registry=self.registry)
-        self.manager = self.router._delivery_loop
+        self.dao = Mock()
+        self.dao.user_identity.find_tenant_by_identity.return_value = 'tenant-uuid'
+        self.dao.room.find_tenant_by_external_id.return_value = 'tenant-uuid'
+        self.router = _build_router(registry=self.registry, dao=self.dao)
+        instance = Mock()
+        instance.verify_signature.return_value = True
+        self.router._store = Mock()
+        self.router._store.find.return_value = instance
+        self.manager = self.router._delivery_runner
 
     def test_dispatch_enqueues_inbound_message(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
@@ -128,7 +138,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
             body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-123'}
         )
 
-        self.router.dispatch_webhook(data, backend='twilio')
+        self.router.dispatch_webhook(data, backend='sms_backend')
 
         self.manager.enqueue_message.assert_called_once()
         result = self.manager.enqueue_message.call_args[0][0]
@@ -156,7 +166,38 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
 
         self.manager.enqueue_message.assert_called_once()
         result = self.manager.enqueue_message.call_args[0][0]
-        assert result.backend == 'twilio'
+        assert result.backend == 'sms_backend'
+
+    def test_dispatch_skips_buggy_can_handle_and_tries_next(self) -> None:
+        class _BuggyConnector:
+            backend: ClassVar[str] = 'buggy'
+            supported_types: ClassVar[tuple[str, ...]] = ('sms',)
+
+            @classmethod
+            def normalize_identity(cls, raw_identity: str) -> str:
+                return raw_identity
+
+            @classmethod
+            def can_handle(cls, data: TransportData) -> bool:
+                raise RuntimeError('backend explodes')
+
+            @classmethod
+            def on_event(
+                cls, data: TransportData
+            ) -> InboundMessage | StatusUpdate | None:
+                return None
+
+        self.registry.register_backend(_BuggyConnector)  # type: ignore[arg-type]
+        self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
+
+        self.router.dispatch_webhook(data)
+
+        self.manager.enqueue_message.assert_called_once()
+        result = self.manager.enqueue_message.call_args[0][0]
+        assert result.backend == 'sms_backend'
 
     def test_dispatch_skips_none_events(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
@@ -171,17 +212,123 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         with pytest.raises(ConnectorParseError):
             self.router.dispatch_webhook(WebhookData(body={}))
 
-    def test_dispatch_falls_back_to_non_hint_connectors(self) -> None:
+    def test_dispatch_unknown_backend_hint_raises(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
         data = WebhookData(
             body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
         )
 
-        self.router.dispatch_webhook(data, backend='vonage')
+        with pytest.raises(ConnectorParseError):
+            self.router.dispatch_webhook(data, backend='vonage')
 
-        self.manager.enqueue_message.assert_called_once()
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_dispatch_hint_restricts_to_that_backend(self) -> None:
+        self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+        self.registry.register_backend(_EmailConnector)  # type: ignore[arg-type]
+        data = WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
+
+        self.router.dispatch_webhook(data, backend='sms_backend')
+
         result = self.manager.enqueue_message.call_args[0][0]
-        assert result.backend == 'twilio'
+        assert result.backend == 'sms_backend'
+
+
+class TestConnectorRouterWebhookVerify(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = ConnectorRegistry()
+        self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+        self.dao = Mock()
+        self.dao.user_identity.find_tenant_by_identity.return_value = 'tenant-uuid'
+        self.dao.room.find_tenant_by_external_id.return_value = 'tenant-uuid'
+
+        self.instance = Mock()
+        self.instance.verifies_signatures = True
+        self.instance.verify_signature.return_value = True
+
+        self.router = _build_router(registry=self.registry, dao=self.dao)
+        self.router._store = Mock()
+        self.router._store.get.return_value = self.instance
+        self.manager = self.router._delivery_runner
+
+    def _webhook(self) -> WebhookData:
+        return WebhookData(
+            body={'From': '+15559876', 'Body': 'hello', 'MessageSid': 'msg-1'}
+        )
+
+    def test_valid_signature_resolves_tenant_by_recipient_and_enqueues(self) -> None:
+        data = WebhookData(
+            body={
+                'From': '+15559876',
+                'To': '+15551234',
+                'Body': 'hi',
+                'MessageSid': 'msg-1',
+            }
+        )
+
+        self.router.dispatch_webhook(data, backend='sms_backend')
+
+        self.dao.user_identity.find_tenant_by_identity.assert_called_once_with(
+            '+15551234', 'sms_backend'
+        )
+        self.router._store.get.assert_called_once_with('sms_backend', 'tenant-uuid')
+        self.instance.verify_signature.assert_called_once_with(data)
+        self.manager.enqueue_message.assert_called_once()
+
+    def test_invalid_signature_raises_401_and_skips_enqueue(self) -> None:
+        self.instance.verify_signature.return_value = False
+
+        with pytest.raises(ConnectorAuthException):
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
+
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_unknown_recipient_raises_parse_error(self) -> None:
+        self.dao.user_identity.find_tenant_by_identity.return_value = None
+
+        with pytest.raises(ConnectorParseError):
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
+
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_unknown_backend_raises_parse_error(self) -> None:
+        from wazo_chatd.plugins.connectors.exceptions import (
+            BackendNotConfiguredException,
+        )
+
+        self.router._store.get.side_effect = BackendNotConfiguredException(
+            'sms_backend', 'tenant-uuid'
+        )
+
+        with pytest.raises(ConnectorParseError):
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
+
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_auth_unavailable_raises_transient_error(self) -> None:
+        from wazo_chatd.plugins.connectors.exceptions import (
+            AuthServiceUnavailableException,
+            ConnectorTransientError,
+        )
+
+        self.router._store.get.side_effect = AuthServiceUnavailableException()
+
+        with pytest.raises(ConnectorTransientError):
+            self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
+
+        self.manager.enqueue_message.assert_not_called()
+
+    def test_verifies_signatures_false_skips_check(self) -> None:
+        instance = Mock()
+        instance.verifies_signatures = False
+        self.router._store.get.return_value = instance
+
+        self.router.dispatch_webhook(self._webhook(), backend='sms_backend')
+
+        instance.verify_signature.assert_not_called()
+        self.manager.enqueue_message.assert_called_once()
 
 
 class TestConnectorRouterValidateOutbound(unittest.TestCase):
@@ -207,7 +354,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         )
         ctx = MessageContext(room, Mock(), sender_identity_uuid=None)
 
-        with pytest.raises(MessageIdentityRequiredError):
+        with pytest.raises(MessageIdentityRequiredException):
             self.router.prepare_outbound(ctx)
 
     def test_sender_identity_uuid_validates_and_prepares_delivery(self) -> None:
@@ -241,3 +388,61 @@ class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
         self.router.validate_room_creation(room)
 
         self.service.validate_room_reachability.assert_called_once_with(room)
+
+
+class TestConnectorRouterValidateTenantBackend(unittest.TestCase):
+    def setUp(self) -> None:
+        self.router = _build_router()
+        self.router._store = Mock()
+
+    def test_delegates_to_store_get(self) -> None:
+        self.router.validate_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.get.assert_called_once_with('sms_backend', 'tenant-uuid')
+
+    def test_propagates_get_exceptions(self) -> None:
+        self.router._store.get.side_effect = RuntimeError('boom')
+
+        with self.assertRaises(RuntimeError):
+            self.router.validate_tenant_backend('tenant-uuid', 'sms_backend')
+
+
+class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dao = Mock()
+        self.router = _build_router(dao=self.dao)
+        self.router._store = Mock()
+        self.router._listener_runner = Mock()
+
+    def test_drops_when_no_identity_and_store_has_entry(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = False
+        self.router._store.peek.return_value = Mock()
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_called_once_with('sms_backend', 'tenant-uuid')
+
+    def test_noop_when_no_identity_and_store_empty(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = False
+        self.router._store.peek.return_value = None
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_not_called()
+
+    def test_noop_when_identity_exists(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = True
+        self.router._store.peek.return_value = Mock()
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_not_called()
+
+    def test_always_resyncs_pollers_and_listeners(self) -> None:
+        self.dao.user_identity.has_identities_for_backend.return_value = False
+        self.router._store.peek.return_value = None
+
+        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+        self.router._delivery_runner.resync_pollers.assert_called_once()
+        self.router._listener_runner.resync.assert_called_once()

@@ -4,26 +4,36 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import TYPE_CHECKING
 
-from flask_restful import Api
+from xivo.status import Status
 
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
+    BackendNotConfiguredException,
+    ConnectorAuthException,
     ConnectorParseError,
-    MessageIdentityRequiredError,
+    ConnectorTransientError,
+    MessageIdentityRequiredException,
+    UnknownBackendException,
 )
-from wazo_chatd.plugins.connectors.http import ConnectorWebhookResource
-from wazo_chatd.plugins.connectors.loop import DeliveryLoop
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
+from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.store import ConnectorStore
-from wazo_chatd.plugins.connectors.types import WebhookData
+from wazo_chatd.plugins.connectors.types import (
+    InboundMessage,
+    StatusUpdate,
+    WebhookData,
+)
 
 if TYPE_CHECKING:
     from wazo_auth_client import Client as AuthClient
 
     from wazo_chatd.database.models import Room
+    from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +53,11 @@ class ConnectorRouter:
         registry: ConnectorRegistry,
         service: ConnectorService,
         auth_client: AuthClient,
+        dao: DAO,
     ) -> None:
         self._registry = registry
         self._service = service
+        self._dao = dao
         connectors_config = config.get('connectors') or {}
         delivery_config = config.get('delivery') or {}
         self._store = ConnectorStore(
@@ -54,21 +66,60 @@ class ConnectorRouter:
             cache_ttl=float(delivery_config.get('provider_cache_ttl', 300)),
             connectors_config=connectors_config,
         )
-        self._delivery_loop = DeliveryLoop(config, registry, self._store)
-
-    def register_http_endpoints(self, api: Api) -> None:
-        api.add_resource(
-            ConnectorWebhookResource,
-            '/connectors/incoming',
-            '/connectors/incoming/<backend>',
-            resource_class_args=[self],
+        self._delivery_runner = DeliveryRunner(config, registry, self._store)
+        self._listener_runner = ListenerRunner(
+            config, self._store, self._delivery_runner.enqueue_message
         )
 
+    def on_auth_available(self, _token: str) -> None:
+        if self._store.is_populated:
+            return
+
+        threading.Thread(
+            target=self._populate_store,
+            daemon=True,
+            name='connector-router-populate',
+        ).start()
+
+    def _populate_store(self) -> None:
+        try:
+            tenant_backends = self._dao.user_identity.list_tenant_backends()
+            self._store.populate(tenant_backends)
+        except Exception:
+            logger.exception('Failed to populate connector store')
+
+    def validate_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
+        """Validate a backend is usable for a tenant; caches on success.
+
+        Raises:
+          - :class:`UnknownBackendException` (400) — backend not registered.
+          - :class:`BackendNotConfiguredException` (400) — no tenant config.
+          - :class:`AuthServiceUnavailableException` (503) — auth transient error.
+        """
+        self._store.get(backend, tenant_uuid)
+
+    def reconcile_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
+        """Drop cached instance when no identity remains; always resync runners.
+
+        Called after a UserIdentity create or delete. The create path
+        relies on :meth:`validate_tenant_backend` to have warmed the cache.
+        """
+        has_any = self._dao.user_identity.has_identities_for_backend(
+            tenant_uuid, backend
+        )
+        if not has_any and self._store.peek(backend, tenant_uuid) is not None:
+            self._store.drop(backend, tenant_uuid)
+
+        self._delivery_runner.resync_pollers()
+        self._listener_runner.resync()
+
     def start(self) -> None:
-        self._delivery_loop.start()
+        self._delivery_runner.start()
+        self._listener_runner.start()
 
     def stop(self) -> None:
-        self._delivery_loop.shutdown()
+        self._listener_runner.shutdown()
+        self._delivery_runner.shutdown()
 
     def validate_room_creation(self, room: Room) -> None:
         self._service.validate_room_reachability(room)
@@ -76,7 +127,7 @@ class ConnectorRouter:
     def prepare_outbound(self, context: MessageContext) -> None:
         has_external = any(u.identity for u in context.room.users)
         if has_external and not context.sender_identity_uuid:
-            raise MessageIdentityRequiredError()
+            raise MessageIdentityRequiredException()
 
         if context.sender_identity_uuid:
             identity = self._service.validate_identity_reachability(
@@ -88,45 +139,117 @@ class ConnectorRouter:
             self._service.prepare_outbound_delivery(context.message, identity)
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
-        loop = self._delivery_loop
-        is_running = loop.is_running
+        delivery = self._delivery_runner
+        listener = self._listener_runner
+        both_running = delivery.is_running and listener.is_running
         status['connectors'] = {
-            'status': 'ok' if is_running else 'fail',
-            'in_flight': loop.in_flight_count,
-            'restart_count': loop.restart_count,
+            'status': Status.ok if both_running else Status.fail,
+            'in_flight': delivery.in_flight_count,
+            'delivery_restart_count': delivery.restart_count,
+            'listener_restart_count': listener.restart_count,
             'instances': len(self._store),
         }
+
+    def resolve_room_participants(self, body: dict, tenant_uuid: str) -> None:
+        self._service.resolve_room_participants(body, tenant_uuid)
 
     def dispatch_webhook(
         self,
         data: WebhookData,
         backend: str | None = None,
     ) -> None:
-        """Parse an incoming webhook and enqueue the result.
+        """Parse, authenticate, and enqueue an incoming webhook.
 
-        Uses backend classes from the registry directly — inbound parsing
-        is stateless (no auth config needed).  The store is only required
-        for the outbound ``send()`` path.
+        Parsing (``can_handle`` / ``on_event``) is stateless (classmethods).
+        Signature verification requires the per-tenant instance held in
+        the store: the recipient identity (or external_id for status
+        updates) resolves the tenant; the store yields the instance;
+        the instance verifies.
 
         Raises:
-            ConnectorParseError: If no connector can handle the webhook.
+            ConnectorParseError: No connector handled the payload, or
+                the tenant could not be resolved, or no instance is
+                cached for (tenant, backend).
+            ConnectorAuthException: The connector rejected the signature.
         """
         backends = self._registry.available_backends()
         if not backends:
             raise ConnectorParseError('No connector backends registered')
 
-        if backend and backend in backends:
-            ordered = [backend] + [b for b in backends if b != backend]
+        if backend is not None:
+            if backend not in backends:
+                raise ConnectorParseError(f'Unknown connector backend {backend!r}')
+            candidates = [backend]
         else:
-            ordered = backends
+            candidates = backends
 
-        for name in ordered:
+        for name in candidates:
             cls = self._registry.get_backend(name)
-            if not cls.can_handle(data):
+            try:
+                if not cls.can_handle(data):
+                    continue
+                result = cls.on_event(data)
+            except Exception:
+                logger.exception(
+                    'Backend %r raised during webhook dispatch; skipping',
+                    name,
+                )
                 continue
-            result = cls.on_event(data)
             if result is not None:
-                self._delivery_loop.enqueue_message(result)
+                self._verify_and_enqueue(data, result, backend=name)
                 return
 
         raise ConnectorParseError('No connector matched the webhook payload')
+
+    def _verify_and_enqueue(
+        self,
+        data: WebhookData,
+        result: InboundMessage | StatusUpdate,
+        backend: str,
+    ) -> None:
+        tenant_uuid = self._resolve_tenant(result, backend)
+        if tenant_uuid is None:
+            raise ConnectorParseError(
+                f'Cannot resolve tenant for inbound {backend!r} event'
+            )
+
+        try:
+            instance = self._store.get(backend, tenant_uuid)
+        except (UnknownBackendException, BackendNotConfiguredException) as exc:
+            raise ConnectorParseError(
+                f'No connector instance for tenant {tenant_uuid!r} '
+                f'backend {backend!r}'
+            ) from exc
+        except AuthServiceUnavailableException as exc:
+            raise ConnectorTransientError(
+                f'Auth service unavailable while resolving connector for '
+                f'tenant {tenant_uuid!r} backend {backend!r}'
+            ) from exc
+
+        if instance.verifies_signatures:
+            try:
+                valid = instance.verify_signature(data)
+            except Exception:
+                logger.exception(
+                    'verify_signature raised for backend %r tenant %s',
+                    backend,
+                    tenant_uuid,
+                )
+                valid = False
+            if not valid:
+                raise ConnectorAuthException()
+
+        self._delivery_runner.enqueue_message(result)
+
+    def _resolve_tenant(
+        self, event: InboundMessage | StatusUpdate, backend: str
+    ) -> str | None:
+        match event:
+            case InboundMessage(recipient=recipient):
+                return self._dao.user_identity.find_tenant_by_identity(
+                    recipient, backend
+                )
+            case StatusUpdate(external_id=external_id):
+                return self._dao.room.find_tenant_by_external_id(external_id, backend)
+            case _:
+                raise TypeError(f'Unexpected event type: {type(event).__name__}')
