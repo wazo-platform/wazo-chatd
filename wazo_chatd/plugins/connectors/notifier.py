@@ -12,6 +12,7 @@ from wazo_bus.resources.chatd.events import (
     UserIdentityCreatedEvent,
     UserIdentityDeletedEvent,
     UserIdentityUpdatedEvent,
+    UserRoomCreatedEvent,
     UserRoomMessageCreatedEvent,
 )
 from wazo_bus.resources.chatd.types import DeliveryStatusDict, MessageDict
@@ -26,6 +27,7 @@ from wazo_chatd.database.models import (
     UserIdentity,
 )
 from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
+from wazo_chatd.plugins.rooms.schemas import RoomSchema
 
 if TYPE_CHECKING:
     from wazo_chatd.bus import BusPublisher
@@ -62,6 +64,14 @@ class UserIdentityNotifier:
 class AsyncNotifier:
     def __init__(self, bus_publisher: BusPublisher) -> None:
         self._bus = bus_publisher
+
+    async def room_created(self, room: Room) -> None:
+        room_data = RoomSchema().dump(room)
+        for user in room.users:
+            event = UserRoomCreatedEvent(
+                room_data, str(room.tenant_uuid), str(user.uuid)
+            )
+            await self._publish(event)
 
     async def message_created(self, room: Room, message: RoomMessage) -> None:
         message_data = self._build_message_payload(message)
