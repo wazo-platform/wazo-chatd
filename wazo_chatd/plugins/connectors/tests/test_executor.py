@@ -392,7 +392,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
@@ -412,12 +413,81 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
         self.notifier.message_created.assert_awaited_once()
+
+    async def test_route_inbound_publishes_room_created_event_for_new_room(
+        self,
+    ) -> None:
+        recipient = Mock(uuid='wazo-user-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='wazo-user-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient}
+        )
+        self.executor._room_dao.find_room = AsyncMock(return_value=None)
+        self.executor._room_dao.create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.add_message = AsyncMock()
+
+        await self.executor.route_inbound(inbound)
+
+        self.notifier.room_created.assert_awaited_once_with(room)
+
+    async def test_route_inbound_does_not_publish_room_created_for_existing_room(
+        self,
+    ) -> None:
+        recipient = Mock(uuid='wazo-user-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='wazo-user-uuid')]
+
+        inbound = _make_inbound()
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient}
+        )
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
+        self.executor._room_dao.add_message = AsyncMock()
+
+        await self.executor.route_inbound(inbound)
+
+        self.notifier.room_created.assert_not_awaited()
+        self.executor._room_dao.create_room.assert_not_awaited()
+
+    async def test_route_inbound_concurrent_serializes_room_creation(self) -> None:
+        recipient = Mock(uuid='wazo-user-uuid', tenant_uuid='tenant-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = [Mock(uuid='wazo-user-uuid')]
+
+        find_results: list[Mock | None] = [None, room]
+
+        async def fake_find(*_a: object, **_kw: object) -> Mock | None:
+            return find_results.pop(0)
+
+        self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
+            return_value={'+15551234': recipient}
+        )
+        self.executor._room_dao.find_room = AsyncMock(side_effect=fake_find)
+        self.executor._room_dao.create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.add_message = AsyncMock()
+
+        import asyncio
+
+        await asyncio.gather(
+            self.executor.route_inbound(_make_inbound()),
+            self.executor.route_inbound(_make_inbound()),
+        )
+
+        assert self.executor._room_dao.create_room.await_count == 1
+        self.notifier.room_created.assert_awaited_once_with(room)
 
     async def test_route_inbound_resolves_sender_to_wazo_user(self) -> None:
         recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
@@ -430,14 +500,15 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient, '+15559876': sender}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.find_matching_signature = AsyncMock(return_value=None)
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
-        call_args = self.executor._room_dao.find_or_create_room.call_args
-        participants = call_args.kwargs['participants']
+        call_args = self.executor._room_dao.find_room.call_args
+        participants = call_args.args[1]
         sender_participant = [
             p for p in participants if str(p.uuid) == 'sender-wazo-uuid'
         ][0]
@@ -453,13 +524,14 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock()
 
         await self.executor.route_inbound(inbound)
 
-        call_args = self.executor._room_dao.find_or_create_room.call_args
-        participants = call_args.kwargs['participants']
+        call_args = self.executor._room_dao.find_room.call_args
+        participants = call_args.args[1]
         sender_participant = [p for p in participants if p.identity is not None][0]
         assert sender_participant.identity == '+15559876'
 
@@ -474,7 +546,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient, '+15559876': sender}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         original_meta = Mock(
             status='sent',
             message_uuid='original-msg-uuid',
@@ -504,7 +577,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient, '+15559876': sender}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.find_matching_signature = AsyncMock(return_value=None)
         self.executor._room_dao.add_message = AsyncMock()
 
@@ -524,7 +598,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock(
             side_effect=OperationalError('SELECT', {}, BaseException('DB down'))
         )
@@ -544,7 +619,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock(
             side_effect=OperationalError('SELECT', {}, BaseException('DB down'))
         )
@@ -564,7 +640,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock(
             side_effect=DuplicateExternalIdException(
                 inbound.external_id, inbound.backend
@@ -586,7 +663,8 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._user_identity_dao.resolve_users_by_identities = AsyncMock(
             return_value={'+15551234': recipient}
         )
-        self.executor._room_dao.find_or_create_room = AsyncMock(return_value=room)
+        self.executor._room_dao.find_room = AsyncMock(return_value=room)
+        self.executor._room_dao.create_room = AsyncMock()
         self.executor._room_dao.find_matching_signature = AsyncMock()
         self.executor._room_dao.add_message = AsyncMock()
 

@@ -201,11 +201,11 @@ class AsyncRoomDAO:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
-    async def find_or_create_room(
+    async def find_room(
         self,
         tenant_uuid: str,
         participants: list[RoomUser],
-    ) -> Room:
+    ) -> Room | None:
         participant_uuids = [p.uuid for p in participants]
         n = len(participant_uuids)
 
@@ -230,10 +230,13 @@ class AsyncRoomDAO:
             )
         )
         result = await self.session.execute(stmt)
-        existing = result.scalar_one_or_none()
-        if existing:
-            return existing
+        return result.scalar_one_or_none()
 
+    async def create_room(
+        self,
+        tenant_uuid: str,
+        participants: list[RoomUser],
+    ) -> Room:
         room = Room(tenant_uuid=tenant_uuid, users=participants)
         self.session.add(room)
         await self.session.flush()

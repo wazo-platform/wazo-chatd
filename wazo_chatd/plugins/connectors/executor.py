@@ -30,6 +30,7 @@ from wazo_chatd.database.models import (
 from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
 from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
 from wazo_chatd.exceptions import DuplicateExternalIdException
+from wazo_chatd.plugin_helpers.async_lock import KeyedLock
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.connector import Connector
@@ -127,6 +128,7 @@ class DeliveryExecutor:
         self._store = store
         self._room_dao = AsyncRoomDAO()
         self._user_identity_dao = AsyncUserIdentityDAO()
+        self._room_creation_lock = KeyedLock()
 
     async def route_outbound(self, meta: MessageMeta) -> float | None:
         """Resolve recipient, send, and record outcome. Returns retry delay if RETRYING."""
@@ -466,12 +468,22 @@ class DeliveryExecutor:
             wazo_uuid=self._wazo_uuid,
         )
 
-        room = await self._room_dao.find_or_create_room(
-            tenant_uuid=tenant_uuid,
-            participants=[sender_participant, recipient_participant],
-        )
+        participants = [sender_participant, recipient_participant]
+        room = await self._get_or_create_room(tenant_uuid, participants)
 
         return room, sender_participant, sender_user
+
+    async def _get_or_create_room(
+        self, tenant_uuid: str, participants: list[RoomUser]
+    ) -> Room:
+        lock_key = (tenant_uuid, tuple(sorted(str(p.uuid) for p in participants)))
+        async with self._room_creation_lock.acquire(lock_key):
+            existing = await self._room_dao.find_room(tenant_uuid, participants)
+            if existing is not None:
+                return existing
+            room = await self._room_dao.create_room(tenant_uuid, participants)
+        await self._notifier.room_created(room)
+        return room
 
     async def _find_matching_outbound(
         self,
