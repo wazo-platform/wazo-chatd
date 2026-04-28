@@ -28,6 +28,12 @@ class RoomService:
         self._wazo_uuid = wazo_uuid
         self._hooks = hooks
 
+    def prepare_room_request(self, body: dict, tenant_uuid: str) -> dict:
+        self._hooks.dispatch(
+            'before_room_schema_validation', body, tenant_uuid, allow_raise=True
+        )
+        return body
+
     def create(self, room):
         self._set_default_room_values(room)
         self._hooks.dispatch('before_room_creation', room, allow_raise=True)
