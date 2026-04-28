@@ -13,7 +13,7 @@ class TestMessageDeliveryStatusEvent(unittest.TestCase):
         event = MessageDeliveryStatusEvent(
             delivery_data={'status': 'sent', 'message_uuid': 'msg-1'},
             tenant_uuid='tenant-1',
-            user_uuids=['user-1'],
+            user_uuid='user-1',
             room_uuid='room-1',
             message_uuid='msg-1',
         )
@@ -24,7 +24,7 @@ class TestMessageDeliveryStatusEvent(unittest.TestCase):
         event = MessageDeliveryStatusEvent(
             delivery_data={'status': 'sent', 'message_uuid': 'msg-1'},
             tenant_uuid='tenant-1',
-            user_uuids=['user-1'],
+            user_uuid='user-1',
             room_uuid='room-1',
             message_uuid='msg-1',
         )
@@ -36,7 +36,7 @@ class TestMessageDeliveryStatusEvent(unittest.TestCase):
         event = MessageDeliveryStatusEvent(
             delivery_data=data,
             tenant_uuid='tenant-1',
-            user_uuids=['user-1', 'user-2'],
+            user_uuid='user-1',
             room_uuid='room-1',
             message_uuid='msg-1',
         )

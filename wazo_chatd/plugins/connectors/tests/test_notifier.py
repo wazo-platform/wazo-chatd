@@ -131,7 +131,11 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         )
 
     def _make_meta_and_record(self) -> tuple[Mock, Mock]:
-        meta = Mock(message_uuid='msg-uuid', backend='sms_backend')
+        meta = Mock(
+            message_uuid='msg-uuid',
+            backend='sms_backend',
+            message=Mock(user_uuid='user-1'),
+        )
         record = Mock(
             status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc)
         )
@@ -145,6 +149,28 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         self.bus.publish.assert_called_once()
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_message_delivery_status'
+
+    async def test_delivery_status_event_targets_sender_only(self) -> None:
+        sender = Mock(uuid='sender-uuid')
+        other = Mock(uuid='other-uuid')
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid', users=[sender, other])
+        meta = Mock(
+            message_uuid='msg-uuid',
+            backend='sms_backend',
+            message=Mock(user_uuid='sender-uuid'),
+        )
+        record = Mock(
+            status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc)
+        )
+
+        await self.notifier.delivery_status_updated(meta, record, room)
+
+        event = next(
+            e
+            for e in (call.args[0] for call in self.bus.publish.call_args_list)
+            if e.name == 'chatd_message_delivery_status'
+        )
+        assert event.user_uuid == 'sender-uuid'
 
     async def test_delivered_status_publishes_message_created_to_other_users(
         self,

@@ -98,7 +98,7 @@ class AsyncNotifier:
             room_uuid=str(room.uuid),
             message_uuid=str(meta.message_uuid),
             tenant_uuid=str(room.tenant_uuid),
-            user_uuids=[str(u.uuid) for u in room.users],
+            user_uuid=str(meta.message.user_uuid),
         )
         await self._publish(event)
 
