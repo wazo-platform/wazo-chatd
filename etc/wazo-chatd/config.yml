@@ -73,9 +73,8 @@ enabled_plugins:
 # Each key is a backend name (discovered via stevedore entry points).
 # Set enabled: true to activate. Additional keys are passed to
 # the connector constructor as connector_config.
-connectors:
-  internal:
-    enabled: true
+connectors: []
+
 # Example:
 #   twilio:
 #     enabled: true
