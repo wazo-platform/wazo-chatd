@@ -219,13 +219,8 @@ definitions:
       alias:
         type: string
         description: Alias/nickname of the sender
-      type:
-        type: string
-        description: The messaging type (e.g. 'internal', 'sms')
-        readOnly: true
-      backend:
-        type: string
-        description: The connector backend name (e.g. 'twilio'). Null for internal messages.
+      delivery:
+        $ref: '#/definitions/MessageDelivery'
         readOnly: true
       user_uuid:
         type: string
@@ -242,6 +237,45 @@ definitions:
         readOnly: true
       room:
         $ref: '#/definitions/RoomRelationBase'
+
+  MessageDelivery:
+    description: |
+      Delivery metadata for the message. Always present on the response.
+      Internal messages report `type=internal`, `backend=null`, and an empty
+      `recipients` array. External messages carry the channel info and one
+      recipient per outbound leg.
+    properties:
+      type:
+        type: string
+        description: The messaging type (e.g. 'internal', 'sms')
+        readOnly: true
+      backend:
+        type: string
+        description: The connector backend name (e.g. 'twilio'). Null for internal messages.
+        readOnly: true
+      recipients:
+        type: array
+        description: Per-recipient delivery state. Empty for internal messages.
+        readOnly: true
+        items:
+          $ref: '#/definitions/MessageRecipient'
+
+  MessageRecipient:
+    properties:
+      identity:
+        type: string
+        description: The recipient's external address (e.g. phone number)
+        readOnly: true
+      status:
+        type: string
+        description: |
+          Current delivery state for this recipient. One of: pending,
+          retrying, accepted, sent, delivered, failed, dead_letter.
+        readOnly: true
+      updated_at:
+        type: string
+        description: Timestamp of the latest status transition for this recipient
+        readOnly: true
 
   Messages:
     title: UserItems

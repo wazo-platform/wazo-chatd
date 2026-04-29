@@ -7,9 +7,15 @@ import time
 import uuid
 
 import requests
+from sqlalchemy import select
 from wazo_test_helpers import until
 
-from wazo_chatd.database.models import DeliveryRecord, MessageMeta, RoomMessage
+from wazo_chatd.database.models import (
+    DeliveryRecord,
+    MessageDelivery,
+    MessageMeta,
+    RoomMessage,
+)
 
 from .helpers import fixtures
 from .helpers.base import (
@@ -51,18 +57,14 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def message_persisted():
-            message = (
-                self._session.query(RoomMessage)
-                .filter(RoomMessage.content == 'Hello from outside')
-                .first()
-            )
+            message = self._session.execute(
+                select(RoomMessage).where(RoomMessage.content == 'Hello from outside')
+            ).scalar_one_or_none()
             assert message is not None
 
-            meta = (
-                self._session.query(MessageMeta)
-                .filter(MessageMeta.message_uuid == message.uuid)
-                .first()
-            )
+            meta = self._session.execute(
+                select(MessageMeta).where(MessageMeta.message_uuid == message.uuid)
+            ).scalar_one_or_none()
             assert meta is not None
             assert meta.backend == 'test'
             assert meta.type_ == 'test'
@@ -94,11 +96,9 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def message_persisted():
-            message = (
-                self._session.query(RoomMessage)
-                .filter(RoomMessage.content == 'Hello with hint')
-                .first()
-            )
+            message = self._session.execute(
+                select(RoomMessage).where(RoomMessage.content == 'Hello with hint')
+            ).scalar_one_or_none()
             assert message is not None
 
         until.assert_(message_persisted, timeout=5, interval=0.1)
@@ -139,10 +139,10 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def first_message_persisted():
-            messages = (
-                self._session.query(RoomMessage)
-                .filter(RoomMessage.content == 'Dedup test')
-                .all()
+            messages = list(
+                self._session.execute(
+                    select(RoomMessage).where(RoomMessage.content == 'Dedup test')
+                ).scalars()
             )
             assert len(messages) == 1
 
@@ -156,10 +156,10 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def still_one_message():
-            messages = (
-                self._session.query(RoomMessage)
-                .filter(RoomMessage.content == 'Dedup test')
-                .all()
+            messages = list(
+                self._session.execute(
+                    select(RoomMessage).where(RoomMessage.content == 'Dedup test')
+                ).scalars()
             )
             assert len(messages) == 1
 
@@ -170,12 +170,16 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 class TestOutboundDelivery(ConnectorIntegrationTest):
     def _assert_delivery_status(self, message_uuid: str, expected_status: str) -> None:
         def check():
-            records = (
-                self._session.query(DeliveryRecord)
-                .filter(DeliveryRecord.message_uuid == message_uuid)
+            stmt = (
+                select(DeliveryRecord)
+                .join(
+                    MessageDelivery,
+                    MessageDelivery.id == DeliveryRecord.delivery_id,
+                )
+                .where(MessageDelivery.message_uuid == message_uuid)
                 .order_by(DeliveryRecord.timestamp)
-                .all()
             )
+            records = list(self._session.execute(stmt).scalars())
             statuses = [r.status for r in records]
             assert expected_status in statuses
 
@@ -206,11 +210,9 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
 
         self._assert_delivery_status(message['uuid'], 'accepted')
 
-        meta = (
-            self._session.query(MessageMeta)
-            .filter(MessageMeta.message_uuid == message['uuid'])
-            .first()
-        )
+        meta = self._session.execute(
+            select(MessageMeta).where(MessageMeta.message_uuid == message['uuid'])
+        ).scalar_one_or_none()
         assert meta is not None
         assert meta.backend == 'test'
         assert meta.type_ == 'test'
@@ -276,12 +278,16 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
 class TestStatusUpdate(ConnectorIntegrationTest):
     def _assert_delivery_status(self, message_uuid: str, expected_status: str) -> None:
         def check():
-            records = (
-                self._session.query(DeliveryRecord)
-                .filter(DeliveryRecord.message_uuid == message_uuid)
+            stmt = (
+                select(DeliveryRecord)
+                .join(
+                    MessageDelivery,
+                    MessageDelivery.id == DeliveryRecord.delivery_id,
+                )
+                .where(MessageDelivery.message_uuid == message_uuid)
                 .order_by(DeliveryRecord.timestamp)
-                .all()
             )
+            records = list(self._session.execute(stmt).scalars())
             statuses = [r.status for r in records]
             assert expected_status in statuses
 
@@ -289,14 +295,14 @@ class TestStatusUpdate(ConnectorIntegrationTest):
 
     def _get_external_id(self, message_uuid: str) -> str:
         def check():
-            meta = (
-                self._session.query(MessageMeta)
-                .filter(MessageMeta.message_uuid == message_uuid)
-                .first()
-            )
+            meta = self._session.execute(
+                select(MessageMeta).where(MessageMeta.message_uuid == message_uuid)
+            ).scalar_one_or_none()
             assert meta is not None
-            assert meta.external_id is not None
-            return meta.external_id
+            assert len(meta.deliveries) == 1
+            external_id = meta.deliveries[0].external_id
+            assert external_id is not None
+            return external_id
 
         return until.return_(check, timeout=5, interval=0.1)
 
@@ -381,12 +387,13 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def has_failed_with_reason():
-            records = (
-                self._session.query(DeliveryRecord)
-                .filter(DeliveryRecord.message_uuid == message['uuid'])
+            stmt = (
+                select(DeliveryRecord)
+                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
+                .where(MessageDelivery.message_uuid == message['uuid'])
                 .order_by(DeliveryRecord.timestamp)
-                .all()
             )
+            records = list(self._session.execute(stmt).scalars())
             failed = [r for r in records if r.status == 'failed']
             assert len(failed) >= 1
             assert failed[0].reason == '30003'
@@ -431,12 +438,13 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def no_queued_record():
-            records = (
-                self._session.query(DeliveryRecord)
-                .filter(DeliveryRecord.message_uuid == message['uuid'])
+            stmt = (
+                select(DeliveryRecord)
+                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
+                .where(MessageDelivery.message_uuid == message['uuid'])
                 .order_by(DeliveryRecord.timestamp)
-                .all()
             )
+            records = list(self._session.execute(stmt).scalars())
             statuses = [r.status for r in records]
             assert 'queued' not in statuses
 
@@ -501,10 +509,10 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def all_messages_in_same_room():
-            messages = (
-                self._session.query(RoomMessage)
-                .filter(RoomMessage.room_uuid == room_uuid)
-                .all()
+            messages = list(
+                self._session.execute(
+                    select(RoomMessage).where(RoomMessage.room_uuid == room_uuid)
+                ).scalars()
             )
             contents = [m.content for m in messages]
             assert 'Internal hello' in contents
@@ -570,10 +578,10 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
 
         time.sleep(1)
 
-        messages = (
-            self._session.query(RoomMessage)
-            .filter(RoomMessage.room_uuid == room_uuid)
-            .all()
+        messages = list(
+            self._session.execute(
+                select(RoomMessage).where(RoomMessage.room_uuid == room_uuid)
+            ).scalars()
         )
         echo_messages = [m for m in messages if m.content == 'Echo test message']
         assert len(echo_messages) == 1
@@ -594,7 +602,7 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
         message = messages['items'][0]
         assert message['delivery']['type'] == 'internal'
         assert message['delivery']['backend'] is None
-        assert message['delivery']['status'] == 'delivered'
+        assert message['delivery']['recipients'] == []
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(
@@ -748,13 +756,17 @@ class TestMessageVisibility(ConnectorIntegrationTest):
         )
 
         def accepted():
-            records = (
-                self._session.query(DeliveryRecord)
-                .join(MessageMeta)
-                .join(RoomMessage)
-                .filter(RoomMessage.content == 'Will be delivered')
-                .all()
+            stmt = (
+                select(DeliveryRecord)
+                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
+                .join(
+                    MessageMeta,
+                    MessageMeta.message_uuid == MessageDelivery.message_uuid,
+                )
+                .join(RoomMessage, RoomMessage.uuid == MessageMeta.message_uuid)
+                .where(RoomMessage.content == 'Will be delivered')
             )
+            records = list(self._session.execute(stmt).scalars())
             statuses = [r.status for r in records]
             assert 'accepted' in statuses
 

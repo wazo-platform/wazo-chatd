@@ -93,7 +93,6 @@ class TestInboundMessageEvent(ConnectorIntegrationTest):
             delivery = data['delivery']
             assert delivery['type'] == 'test'
             assert delivery['backend'] == 'test'
-            assert delivery['status'] == 'delivered'
 
         until.assert_(event_received, timeout=5, interval=0.1)
 
@@ -136,6 +135,7 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
             data = accepted[0]['message']['data']
             assert data['message_uuid'] == message['uuid']
             assert data['backend'] == 'test'
+            assert data['recipient_identity']
 
         until.assert_(accepted_event_received, timeout=5, interval=0.1)
 

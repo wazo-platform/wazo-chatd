@@ -13,6 +13,7 @@ from wazo_chatd.database.async_helpers import get_async_session
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
     DeliveryRecord,
+    MessageDelivery,
     MessageMeta,
     Room,
     RoomMessage,
@@ -37,9 +38,9 @@ class AsyncRoomDAO:
         backend: str,
         limit: int = 100,
     ) -> list[str]:
-        """External IDs of outbound messages awaiting a terminal status.
+        """External IDs of outbound deliveries awaiting a terminal status.
 
-        Filters to messages whose latest :class:`DeliveryRecord` is not
+        Filters to deliveries whose latest :class:`DeliveryRecord` is not
         in ``DELIVERED``, ``FAILED``, or ``DEAD_LETTER``, and that have
         a non-null ``external_id`` (provider has accepted the send).
 
@@ -53,27 +54,22 @@ class AsyncRoomDAO:
         )
         latest_record = (
             select(
-                DeliveryRecord.message_uuid,
+                DeliveryRecord.delivery_id,
                 func.max(DeliveryRecord.id).label('max_id'),
             )
-            .group_by(DeliveryRecord.message_uuid)
+            .group_by(DeliveryRecord.delivery_id)
             .subquery()
         )
 
         stmt = (
-            select(MessageMeta.external_id)
+            select(MessageDelivery.external_id)
+            .join(MessageMeta, MessageMeta.message_uuid == MessageDelivery.message_uuid)
             .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
-            .join(
-                latest_record,
-                MessageMeta.message_uuid == latest_record.c.message_uuid,
-            )
-            .join(
-                DeliveryRecord,
-                DeliveryRecord.id == latest_record.c.max_id,
-            )
+            .join(latest_record, MessageDelivery.id == latest_record.c.delivery_id)
+            .join(DeliveryRecord, DeliveryRecord.id == latest_record.c.max_id)
             .where(RoomMessage.tenant_uuid == tenant_uuid)
             .where(MessageMeta.backend == backend)
-            .where(MessageMeta.external_id.isnot(None))
+            .where(MessageDelivery.external_id.isnot(None))
             .where(DeliveryRecord.status.notin_(terminal))
             .order_by(RoomMessage.created_at)
             .limit(limit)
@@ -89,6 +85,9 @@ class AsyncRoomDAO:
                 .joinedload(RoomMessage.room)
                 .joinedload(Room.users),
                 joinedload(MessageMeta.sender_identity),
+                joinedload(MessageMeta.deliveries).selectinload(
+                    MessageDelivery.records
+                ),
             )
             .where(MessageMeta.message_uuid == message_uuid)
         )
@@ -100,14 +99,20 @@ class AsyncRoomDAO:
     ) -> MessageMeta | None:
         stmt = (
             select(MessageMeta)
+            .join(
+                MessageDelivery,
+                MessageDelivery.message_uuid == MessageMeta.message_uuid,
+            )
             .options(
-                selectinload(MessageMeta.records),
+                selectinload(MessageMeta.deliveries).selectinload(
+                    MessageDelivery.records
+                ),
                 selectinload(MessageMeta.message)
                 .selectinload(RoomMessage.room)
                 .selectinload(Room.users),
             )
             .where(
-                MessageMeta.external_id == external_id,
+                MessageDelivery.external_id == external_id,
                 MessageMeta.backend == backend,
             )
         )
@@ -116,16 +121,15 @@ class AsyncRoomDAO:
 
     async def add_delivery_record(
         self,
-        meta: MessageMeta,
+        delivery: MessageDelivery,
         status: DeliveryStatus,
         reason: str | None = None,
     ) -> DeliveryRecord:
         record = DeliveryRecord(
-            message_uuid=meta.message_uuid,
+            delivery_id=delivery.id,
             status=status.value,
             reason=reason,
         )
-        self.session.add(meta)
         self.session.add(record)
         await self.session.flush()
         return record
@@ -137,16 +141,27 @@ class AsyncRoomDAO:
             await self.session.flush()
         except exc.IntegrityError as e:
             await self.session.rollback()
-            if (
-                getattr(e.orig, 'pgcode', None) == _UNIQUE_VIOLATION
-                and message.meta is not None
-            ):
+            duplicate = self._find_duplicate_external_id(e, message)
+            if duplicate is not None:
                 raise DuplicateExternalIdException(
-                    str(message.meta.external_id),
+                    str(duplicate.external_id),
                     str(message.meta.backend),
                 )
             raise
         return message
+
+    @staticmethod
+    def _find_duplicate_external_id(
+        error: exc.IntegrityError, message: RoomMessage
+    ) -> MessageDelivery | None:
+        if getattr(error.orig, 'pgcode', None) != _UNIQUE_VIOLATION:
+            return None
+        if message.meta is None:
+            return None
+        return next(
+            (d for d in message.meta.deliveries if d.external_id is not None),
+            None,
+        )
 
     async def add_message_meta(
         self,
@@ -173,7 +188,9 @@ class AsyncRoomDAO:
             select(MessageMeta)
             .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
             .options(
-                selectinload(MessageMeta.records),
+                selectinload(MessageMeta.deliveries).selectinload(
+                    MessageDelivery.records
+                ),
                 selectinload(MessageMeta.message)
                 .selectinload(RoomMessage.room)
                 .selectinload(Room.users),
@@ -247,27 +264,28 @@ class AsyncRoomDAO:
     ) -> list[tuple[MessageMeta, str]]:
         latest_record = (
             select(
-                DeliveryRecord.message_uuid,
+                DeliveryRecord.delivery_id,
                 func.max(DeliveryRecord.id).label('max_id'),
             )
-            .group_by(DeliveryRecord.message_uuid)
+            .group_by(DeliveryRecord.delivery_id)
             .subquery()
         )
 
         stmt = (
             select(MessageMeta, DeliveryRecord.status)
             .join(
-                latest_record,
-                MessageMeta.message_uuid == latest_record.c.message_uuid,
+                MessageDelivery,
+                MessageDelivery.message_uuid == MessageMeta.message_uuid,
             )
-            .join(
-                DeliveryRecord,
-                DeliveryRecord.id == latest_record.c.max_id,
-            )
+            .join(latest_record, MessageDelivery.id == latest_record.c.delivery_id)
+            .join(DeliveryRecord, DeliveryRecord.id == latest_record.c.max_id)
             .options(
+                selectinload(MessageMeta.deliveries).selectinload(
+                    MessageDelivery.records
+                ),
                 selectinload(MessageMeta.message)
                 .selectinload(RoomMessage.room)
-                .selectinload(Room.users)
+                .selectinload(Room.users),
             )
             .where(
                 DeliveryRecord.status.in_(

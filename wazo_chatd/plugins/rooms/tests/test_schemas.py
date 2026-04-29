@@ -3,6 +3,7 @@
 
 import unittest
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, Mock
 
 from hamcrest import assert_that, calling, has_entries, has_length, not_, raises
@@ -43,7 +44,7 @@ class TestMessageListRequestSchema(unittest.TestCase):
 
 
 class TestMessageSchemaDelivery(unittest.TestCase):
-    def test_internal_message_has_delivery_with_delivered_status(self) -> None:
+    def test_internal_message_has_empty_recipients(self) -> None:
         message = Mock(
             meta=None,
             spec=[
@@ -64,28 +65,45 @@ class TestMessageSchemaDelivery(unittest.TestCase):
         assert result['delivery'] == {
             'type': 'internal',
             'backend': None,
-            'status': 'delivered',
+            'recipients': [],
         }
 
-    def test_connector_message_has_delivery_from_meta(self) -> None:
-        meta = Mock(type_='sms', backend='twilio', status='sent')
+    def test_connector_message_includes_recipients(self) -> None:
+        delivery = Mock(
+            recipient_identity='+15559876',
+            status='sent',
+            updated_at=datetime(2026, 4, 28, 12, tzinfo=timezone.utc),
+        )
+        meta = Mock(type_='sms', backend='twilio', deliveries=[delivery])
         message = Mock(meta=meta)
 
         result = MessageSchema().dump(message)
 
-        assert result['delivery'] == {
-            'type': 'sms',
-            'backend': 'twilio',
-            'status': 'sent',
-        }
+        assert result['delivery']['type'] == 'sms'
+        assert result['delivery']['backend'] == 'twilio'
+        assert result['delivery']['recipients'] == [
+            {
+                'identity': '+15559876',
+                'status': 'sent',
+                'updated_at': '2026-04-28T12:00:00+00:00',
+            }
+        ]
 
-    def test_connector_message_with_null_status(self) -> None:
-        meta = Mock(type_='sms', backend='twilio', status=None)
+    def test_connector_message_with_no_records(self) -> None:
+        delivery = Mock(
+            recipient_identity='+15559876',
+            status=None,
+            updated_at=None,
+        )
+        meta = Mock(type_='sms', backend='twilio', deliveries=[delivery])
         message = Mock(meta=meta)
 
         result = MessageSchema().dump(message)
 
-        assert result['delivery']['status'] is None
+        recipient = result['delivery']['recipients'][0]
+        assert recipient['identity'] == '+15559876'
+        assert recipient['status'] is None
+        assert recipient['updated_at'] is None
 
 
 class TestRoomListRequestSchema(unittest.TestCase):

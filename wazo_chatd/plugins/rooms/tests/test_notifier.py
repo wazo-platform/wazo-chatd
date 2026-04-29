@@ -33,7 +33,7 @@ class TestRoomNotifierMessageCreated(unittest.TestCase):
             Mock(uuid='user-b', identity=None),
         ]
         message = Mock(user_uuid='user-a')
-        message.meta.status = 'pending'
+        message.meta.deliveries = [Mock(status='pending')]
 
         self.notifier.message_created(room, message)
 
@@ -48,7 +48,7 @@ class TestRoomNotifierMessageCreated(unittest.TestCase):
             Mock(uuid='user-b', identity=None),
         ]
         message = Mock(user_uuid='user-a')
-        message.meta.status = 'delivered'
+        message.meta.deliveries = [Mock(status='delivered')]
 
         self.notifier.message_created(room, message)
 

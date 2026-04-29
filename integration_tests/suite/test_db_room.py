@@ -547,9 +547,8 @@ class TestRoomFindTenantByExternalId(DBIntegrationTest):
                 'meta': {
                     'type_': 'sms',
                     'backend': 'some-backend',
-                    'external_id': 'ext-id-1',
                 },
-                'deliveries': ['pending'],
+                'deliveries': [{'external_id': 'ext-id-1', 'statuses': ['pending']}],
             }
         ],
     )
@@ -566,9 +565,8 @@ class TestRoomFindTenantByExternalId(DBIntegrationTest):
                 'meta': {
                     'type_': 'sms',
                     'backend': 'some-backend',
-                    'external_id': 'ext-id-1',
                 },
-                'deliveries': ['pending'],
+                'deliveries': [{'external_id': 'ext-id-1', 'statuses': ['pending']}],
             }
         ],
     )
@@ -586,9 +584,8 @@ class TestRoomFindTenantByExternalId(DBIntegrationTest):
                 'meta': {
                     'type_': 'sms',
                     'backend': 'some-backend',
-                    'external_id': 'ext-id-1',
                 },
-                'deliveries': ['pending'],
+                'deliveries': [{'external_id': 'ext-id-1', 'statuses': ['pending']}],
             }
         ],
     )

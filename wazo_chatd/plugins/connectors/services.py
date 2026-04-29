@@ -142,15 +142,44 @@ class ConnectorService:
 
     def prepare_outbound_delivery(
         self,
+        room: Room,
         message: RoomMessage,
         sender_identity: UserIdentity,
     ) -> None:
+        backend = str(sender_identity.backend)
+        recipient_identities = self._resolve_outbound_recipients(
+            room, str(message.user_uuid), backend
+        )
+        if len(recipient_identities) != 1:
+            raise UnreachableParticipantException(
+                f'expected exactly 1 recipient, got {len(recipient_identities)}'
+            )
+
         self._dao.room.prepare_pending_delivery(
             message,
-            sender_identity.uuid,  # type: ignore[arg-type]
+            recipient_identities=recipient_identities,
+            sender_identity_uuid=sender_identity.uuid,  # type: ignore[arg-type]
             backend=sender_identity.backend,  # type: ignore[arg-type]
             type_=sender_identity.type_,  # type: ignore[arg-type]
         )
+
+    def _resolve_outbound_recipients(
+        self,
+        room: Room,
+        sender_uuid: str,
+        backend: str,
+    ) -> list[str]:
+        others = [u for u in room.users if str(u.uuid) != sender_uuid]
+        identities = [str(u.identity) for u in others if u.identity]
+
+        internal_uuids = [str(u.uuid) for u in others if not u.identity]
+        if internal_uuids:
+            resolved = self._dao.user_identity.list_identities_by_users(
+                internal_uuids, backend
+            )
+            identities.extend(resolved[u] for u in internal_uuids if u in resolved)
+
+        return identities
 
     def list_room_identities(
         self,
@@ -164,7 +193,10 @@ class ConnectorService:
             raise UnknownRoomException(room_uuid)
 
         others = [u for u in room.users if str(u.uuid) != user_uuid]
-        if not others:
+        # Single-recipient invariant: group rooms can't surface a sender
+        # identity since dispatching to multiple recipients is not supported.
+        # Drop this check when multi-recipient delivery lands.
+        if len(others) != 1:
             return []
 
         external_identities = [str(u.identity) for u in others if u.identity]
@@ -208,6 +240,11 @@ class ConnectorService:
         external = [u for u in participants if u.identity]
         if not external:
             return
+
+        if len(participants) > 2:
+            raise UnreachableParticipantException(
+                'Group rooms with external participants are not supported'
+            )
 
         needs_db_lookup: list[RoomUser] = []
 

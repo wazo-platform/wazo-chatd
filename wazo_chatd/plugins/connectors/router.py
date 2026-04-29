@@ -136,7 +136,9 @@ class ConnectorRouter:
                 context.sender_identity_uuid,
             )
             context.resolved_sender_identity = identity
-            self._service.prepare_outbound_delivery(context.message, identity)
+            self._service.prepare_outbound_delivery(
+                context.room, context.message, identity
+            )
 
     def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
         delivery = self._delivery_runner

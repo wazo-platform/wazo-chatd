@@ -61,19 +61,22 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
         backend='test',
         identity='test:+15551234',
     )
-    def test_room_with_multiple_reachable_external_participants(self, user, identity):
+    def test_room_with_multiple_external_participants_returns_409(
+        self, user, identity
+    ):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.rooms.create_from_user(
+                {
+                    'users': [
+                        {'uuid': str(TOKEN_USER_UUID)},
+                        {'uuid': str(uuid.uuid4()), 'identity': EXTERNAL_IDENTITY},
+                        {'uuid': str(uuid.uuid4()), 'identity': EXTERNAL_IDENTITY_2},
+                    ],
+                }
+            )
 
-        room = self.chatd.rooms.create_from_user(
-            {
-                'users': [
-                    {'uuid': str(TOKEN_USER_UUID)},
-                    {'uuid': str(uuid.uuid4()), 'identity': EXTERNAL_IDENTITY},
-                    {'uuid': str(uuid.uuid4()), 'identity': EXTERNAL_IDENTITY_2},
-                ],
-            }
-        )
-
-        assert room['uuid'] is not None
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.error_id == 'unreachable-participant'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     def test_room_with_one_reachable_one_unreachable_returns_409(self, user):
@@ -241,16 +244,17 @@ class TestMessageValidation(ConnectorIntegrationTest):
             {'uuid': uuid.uuid4(), 'identity': EXTERNAL_IDENTITY},
         ],
     )
-    def test_mixed_room_with_sender_identity_uuid_succeeds(
+    def test_mixed_room_with_sender_identity_uuid_rejects_multi_recipient(
         self, user, internal_user, sender_identity, internal_identity, room
     ):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.rooms.create_message_from_user(
+                str(room.uuid),
+                {
+                    'content': 'Mixed room with alias',
+                    'sender_identity_uuid': str(sender_identity.uuid),
+                },
+            )
 
-        message = self.chatd.rooms.create_message_from_user(
-            str(room.uuid),
-            {
-                'content': 'Mixed room with alias',
-                'sender_identity_uuid': str(sender_identity.uuid),
-            },
-        )
-
-        assert message['content'] == 'Mixed room with alias'
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.error_id == 'unreachable-participant'
