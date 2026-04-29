@@ -116,6 +116,7 @@ class RoomDAO:
         sender_identity_uuid: UUID | None = None,
         backend: str | None = None,
         type_: str | None = None,
+        extra: dict[str, str] | None = None,
     ) -> None:
         if not message.uuid:
             message.uuid = uuid4()  # type: ignore[assignment]
@@ -131,12 +132,16 @@ class RoomDAO:
             backend=backend,
             type_=type_,
             deliveries=deliveries,
+            extra=extra or {},
         )
         message.meta = meta
+        self.session.add(message)
+        self.session.flush()
 
+        payload = ','.join(str(d.id) for d in deliveries)
         self.session.execute(
             text("SELECT pg_notify('connector_delivery', :payload)"),
-            {'payload': str(message.uuid)},
+            {'payload': payload},
         )
 
     def list_messages(self, room, viewer_uuid=None, **filter_parameters):

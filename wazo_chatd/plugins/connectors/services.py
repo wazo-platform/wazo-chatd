@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from requests.exceptions import HTTPError, RequestException
 
@@ -20,6 +20,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     UnknownBackendException,
     UnreachableParticipantException,
 )
+from wazo_chatd.plugins.connectors.executor import generate_message_signature
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
@@ -147,13 +148,19 @@ class ConnectorService:
         sender_identity: UserIdentity,
     ) -> None:
         backend = str(sender_identity.backend)
+        sender_uuid = str(message.user_uuid)
         recipient_identities = self._resolve_outbound_recipients(
-            room, str(message.user_uuid), backend
+            room, sender_uuid, backend
         )
         if len(recipient_identities) != 1:
             raise UnreachableParticipantException(
                 f'expected exactly 1 recipient, got {len(recipient_identities)}'
             )
+
+        if not message.uuid:
+            message.uuid = uuid4()  # type: ignore[assignment]
+        message.room_uuid = room.uuid
+        extra = self._build_outbound_extras(message, sender_identity, room, sender_uuid)
 
         self._dao.room.prepare_pending_delivery(
             message,
@@ -161,7 +168,27 @@ class ConnectorService:
             sender_identity_uuid=sender_identity.uuid,  # type: ignore[arg-type]
             backend=sender_identity.backend,  # type: ignore[arg-type]
             type_=sender_identity.type_,  # type: ignore[arg-type]
+            extra=extra,
         )
+
+    @staticmethod
+    def _build_outbound_extras(
+        message: RoomMessage,
+        sender_identity: UserIdentity,
+        room: Room,
+        sender_uuid: str,
+    ) -> dict[str, str]:
+        extra: dict[str, str] = {
+            'outbound_idempotency_key': str(message.uuid) if message.uuid else '',
+        }
+        has_internal_recipient = any(
+            str(u.uuid) != sender_uuid and not u.identity for u in room.users
+        )
+        if has_internal_recipient:
+            extra['message_signature'] = generate_message_signature(
+                str(sender_identity.identity), str(message.content or '')
+            )
+        return extra
 
     def _resolve_outbound_recipients(
         self,

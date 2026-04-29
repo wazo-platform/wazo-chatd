@@ -77,6 +77,25 @@ class AsyncRoomDAO:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_message_delivery(
+        self, delivery_id: int | str
+    ) -> MessageDelivery | None:
+        stmt = (
+            select(MessageDelivery)
+            .options(
+                selectinload(MessageDelivery.records),
+                joinedload(MessageDelivery.meta).options(
+                    joinedload(MessageMeta.sender_identity),
+                    joinedload(MessageMeta.message)
+                    .joinedload(RoomMessage.room)
+                    .joinedload(Room.users),
+                ),
+            )
+            .where(MessageDelivery.id == int(delivery_id))
+        )
+        result = await self.session.execute(stmt)
+        return result.unique().scalar_one_or_none()
+
     async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
         stmt = (
             select(MessageMeta)
@@ -115,6 +134,7 @@ class AsyncRoomDAO:
                 MessageDelivery.external_id == external_id,
                 MessageMeta.backend == backend,
             )
+            .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -202,6 +222,8 @@ class AsyncRoomDAO:
                 )
             )
             .where(RoomMessage.created_at > cutoff)
+            .order_by(RoomMessage.created_at.desc())
+            .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -259,9 +281,9 @@ class AsyncRoomDAO:
         await self.session.flush()
         return room
 
-    async def get_recoverable_messages(
+    async def get_recoverable_deliveries(
         self,
-    ) -> list[tuple[MessageMeta, str]]:
+    ) -> list[tuple[MessageDelivery, str]]:
         latest_record = (
             select(
                 DeliveryRecord.delivery_id,
@@ -272,21 +294,10 @@ class AsyncRoomDAO:
         )
 
         stmt = (
-            select(MessageMeta, DeliveryRecord.status)
-            .join(
-                MessageDelivery,
-                MessageDelivery.message_uuid == MessageMeta.message_uuid,
-            )
+            select(MessageDelivery, DeliveryRecord.status)
             .join(latest_record, MessageDelivery.id == latest_record.c.delivery_id)
             .join(DeliveryRecord, DeliveryRecord.id == latest_record.c.max_id)
-            .options(
-                selectinload(MessageMeta.deliveries).selectinload(
-                    MessageDelivery.records
-                ),
-                selectinload(MessageMeta.message)
-                .selectinload(RoomMessage.room)
-                .selectinload(Room.users),
-            )
+            .options(selectinload(MessageDelivery.records))
             .where(
                 DeliveryRecord.status.in_(
                     [

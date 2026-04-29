@@ -344,7 +344,7 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
 
 
 @use_asset('database')
-class TestAsyncGetRecoverableMessages(DBIntegrationTest):
+class TestAsyncGetRecoverableDeliveries(DBIntegrationTest):
     @fixtures.db.room(
         messages=[
             {
@@ -389,7 +389,7 @@ class TestAsyncGetRecoverableMessages(DBIntegrationTest):
     @run_async
     async def test_returns_only_pending_and_retrying(self, room):
         dao = AsyncRoomDAO()
-        recoverable = await dao.get_recoverable_messages()
+        recoverable = await dao.get_recoverable_deliveries()
 
         statuses = sorted(status for _, status in recoverable)
         assert statuses == ['pending', 'retrying']

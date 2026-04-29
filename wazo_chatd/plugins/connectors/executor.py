@@ -94,21 +94,14 @@ async def _db_persist_or_delay(
     return None
 
 
-def _single_delivery(meta: MessageMeta) -> MessageDelivery:
-    """Return the only MessageDelivery on a meta.
-
-    The single-recipient invariant is enforced at the service layer in
-    :meth:`ConnectorService.prepare_outbound_delivery`.
-    """
-    if len(meta.deliveries) != 1:
-        raise RuntimeError(
-            f'meta {meta.message_uuid} has {len(meta.deliveries)} deliveries; '
-            'single-recipient invariant violated'
-        )
-    return meta.deliveries[0]
+def is_delivery_dispatchable(delivery: MessageDelivery) -> bool:
+    return delivery.status in (
+        DeliveryStatus.PENDING.value,
+        DeliveryStatus.RETRYING.value,
+    )
 
 
-def _generate_message_signature(sender_identity: str, body: str) -> str:
+def generate_message_signature(sender_identity: str, body: str) -> str:
     """Generate a dedup signature to detect inbound echoes of outbound messages.
 
     Combines the sender identity with a normalized body (lowercase, ASCII-only,
@@ -145,18 +138,47 @@ class DeliveryExecutor:
         self._user_identity_dao = AsyncUserIdentityDAO()
         self._room_creation_lock = KeyedLock()
 
-    async def route_outbound(self, meta: MessageMeta) -> float | None:
-        """Resolve recipient, send, and record outcome. Returns retry delay if RETRYING."""
-        if (sender_record := meta.sender_identity) is None:
-            raise RuntimeError(
-                f'route_outbound called for meta {meta.message_uuid} '
-                'without a resolved sender_identity'
+    async def route_outbound_delivery(self, delivery_id: str) -> float | None:
+        """Send a single delivery. Returns retry delay if RETRYING.
+
+        Loads the delivery per leg (1 query per leg). Future optimization:
+        pass primitives from the publisher to skip the per-leg read.
+        """
+        delivery = await self._room_dao.get_message_delivery(delivery_id)
+        if delivery is None:
+            logger.warning(
+                'No MessageDelivery for delivery_id %s, skipping', delivery_id
             )
+            return None
+
+        if not is_delivery_dispatchable(delivery):
+            logger.debug(
+                'Delivery %s is not dispatchable (status=%s), skipping',
+                delivery_id,
+                delivery.status,
+            )
+            return None
+
+        meta = delivery.meta
+        if not meta.message or not meta.message.room:
+            logger.warning(
+                'Delivery %s lost its message or room before dispatch', delivery_id
+            )
+            return None
+
+        if (sender_record := meta.sender_identity) is None:
+            logger.error(
+                'Delivery %s has no resolved sender_identity, dead-lettering',
+                delivery_id,
+            )
+            await self._persist_status(
+                delivery,
+                DeliveryStatus.DEAD_LETTER,
+                reason='No sender_identity resolved for message',
+            )
+            return None
         backend = str(sender_record.backend)
         tenant_uuid = str(sender_record.tenant_uuid)
-        delivery = _single_delivery(meta)
-
-        await self._persist_outbound_extras(meta, str(sender_record.identity))
 
         try:
             connector = await self._find_connector(backend, tenant_uuid)
@@ -330,27 +352,19 @@ class DeliveryExecutor:
         return None
 
     async def recover_pending_deliveries(self) -> list[tuple[str, float]]:
-        if not (metas := await self._room_dao.get_recoverable_messages()):
+        deliveries = await self._room_dao.get_recoverable_deliveries()
+        if not deliveries:
             return []
 
         recoverable: list[tuple[str, float]] = []
-        for meta, status in metas:
-            if not meta.message or not meta.message.room:
-                logger.warning(
-                    'Recovery: meta %s has no message or room, skipping',
-                    meta.message_uuid,
-                )
-                continue
-
+        for delivery, status in deliveries:
             if status == DeliveryStatus.RETRYING.value:
-                delivery = _single_delivery(meta)
                 delay = _compute_outbound_retry_delay(int(delivery.retry_count))
             else:
                 delay = 0.0
+            recoverable.append((str(delivery.id), delay))
 
-            recoverable.append((str(meta.message_uuid), delay))
-
-        logger.info('Recovery: %d message(s) to re-enqueue', len(recoverable))
+        logger.info('Recovery: %d delivery(ies) to re-enqueue', len(recoverable))
         return recoverable
 
     async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
@@ -360,24 +374,6 @@ class DeliveryExecutor:
         self, tenant_uuid: str, backend: str
     ) -> list[str]:
         return await self._room_dao.list_pending_external_ids(tenant_uuid, backend)
-
-    async def _persist_outbound_extras(
-        self, meta: MessageMeta, sender_identity: str
-    ) -> None:
-        message = meta.message
-        has_internal_recipient = any(
-            u.uuid != message.user_uuid and not u.identity for u in message.room.users
-        )
-        extra = {
-            **(meta.extra or {}),
-            'outbound_idempotency_key': str(meta.message_uuid),
-        }
-        if has_internal_recipient:
-            extra['message_signature'] = _generate_message_signature(
-                sender_identity, str(message.content or '')
-            )
-        meta.extra = extra  # type: ignore[assignment]
-        await self._room_dao.update_message_meta(meta)
 
     async def _record_send_failure(
         self,
@@ -483,7 +479,7 @@ class DeliveryExecutor:
         if not sender_user or not body:
             return None
 
-        signature = _generate_message_signature(sender_identity, body)
+        signature = generate_message_signature(sender_identity, body)
         return await self._room_dao.find_matching_signature(
             str(room.uuid), signature, ECHO_WINDOW_SECONDS
         )
