@@ -12,7 +12,14 @@ from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.helpers import get_query_main_entity
 
 from ...exceptions import UnknownRoomException
-from ..models import DeliveryRecord, MessageMeta, Room, RoomMessage, RoomUser
+from ..models import (
+    DeliveryRecord,
+    MessageDelivery,
+    MessageMeta,
+    Room,
+    RoomMessage,
+    RoomUser,
+)
 
 
 class unaccent(ReturnTypeFromArgs):
@@ -83,8 +90,12 @@ class RoomDAO:
         stmt = (
             select(RoomMessage.tenant_uuid)
             .join(MessageMeta, MessageMeta.message_uuid == RoomMessage.uuid)
+            .join(
+                MessageDelivery,
+                MessageDelivery.message_uuid == MessageMeta.message_uuid,
+            )
             .where(
-                MessageMeta.external_id == external_id,
+                MessageDelivery.external_id == external_id,
                 MessageMeta.backend == backend,
             )
             .limit(1)
@@ -101,25 +112,36 @@ class RoomDAO:
     def prepare_pending_delivery(
         self,
         message: RoomMessage,
+        recipient_identities: list[str],
         sender_identity_uuid: UUID | None = None,
         backend: str | None = None,
         type_: str | None = None,
+        extra: dict[str, str] | None = None,
     ) -> None:
         if not message.uuid:
             message.uuid = uuid4()  # type: ignore[assignment]
+
+        deliveries = []
+        for recipient_identity in recipient_identities:
+            delivery = MessageDelivery(recipient_identity=recipient_identity)
+            delivery.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
+            deliveries.append(delivery)
 
         meta = MessageMeta(
             sender_identity_uuid=sender_identity_uuid,
             backend=backend,
             type_=type_,
+            deliveries=deliveries,
+            extra=extra or {},
         )
-        meta.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
         message.meta = meta
+        self.session.add(message)
+        self.session.flush()
 
-        # On commit, signal the async delivery loop from the sync Flask path
+        payload = ','.join(str(d.id) for d in deliveries)
         self.session.execute(
             text("SELECT pg_notify('connector_delivery', :payload)"),
-            {'payload': str(message.uuid)},
+            {'payload': payload},
         )
 
     def list_messages(self, room, viewer_uuid=None, **filter_parameters):
@@ -165,14 +187,17 @@ class RoomDAO:
         )
 
     def _filter_visible_messages(self, query, viewer_uuid):
-        return query.filter(
-            or_(
-                RoomMessage.user_uuid == viewer_uuid,
-                ~RoomMessage.meta.has(),
-                RoomMessage.meta.has(
-                    MessageMeta.status == DeliveryStatus.DELIVERED.value
-                ),
+        own_message = RoomMessage.user_uuid == viewer_uuid
+        internal_message = ~RoomMessage.meta.has()
+        delivered_to_any_recipient = RoomMessage.meta.has(
+            MessageMeta.deliveries.any(
+                MessageDelivery.records.any(
+                    DeliveryRecord.status == DeliveryStatus.DELIVERED.value
+                )
             )
+        )
+        return query.filter(
+            or_(own_message, internal_message, delivered_to_any_recipient)
         )
 
     def _paginate(

@@ -409,7 +409,9 @@ class DeliveryRunner(Runner):
         _channel: str,
         payload: str,
     ) -> None:
-        self._schedule_outbound(payload)
+        for delivery_id in payload.split(','):
+            if delivery_id:
+                self._schedule_outbound_delivery(delivery_id)
 
     async def _recover(self) -> None:
         try:
@@ -419,72 +421,56 @@ class DeliveryRunner(Runner):
             logger.exception('Recovery scan failed, continuing without recovery')
             return
 
-        for message_uuid, delay in recoverable:
+        for delivery_id, delay in recoverable:
             if delay > 0:
                 logger.info(
-                    'Recovery: re-enqueuing %s with %.0fs delay',
-                    message_uuid,
+                    'Recovery: re-enqueuing delivery %s with %.0fs delay',
+                    delivery_id,
                     delay,
                 )
-                self._schedule_outbound_later(delay, message_uuid)
+                self._schedule_outbound_delivery_later(delay, delivery_id)
             else:
-                logger.info('Recovery: re-enqueuing %s immediately', message_uuid)
-                self._schedule_outbound(message_uuid)
+                logger.info(
+                    'Recovery: re-enqueuing delivery %s immediately', delivery_id
+                )
+                self._schedule_outbound_delivery(delivery_id)
 
-    def _schedule_outbound(self, message_uuid: str) -> None:
-        if (key := ('outbound', message_uuid)) in self._tasks:
+    def _schedule_outbound_delivery(self, delivery_id: str) -> None:
+        if (key := ('outbound_delivery', delivery_id)) in self._tasks:
             return
 
-        task = self.loop.create_task(self._process_outbound(message_uuid))
+        task = self.loop.create_task(self._process_outbound_delivery(delivery_id))
         self._tasks[key] = task
         task.add_done_callback(self._mark_healthy)
         task.add_done_callback(lambda _t: self._tasks.pop(key, None))
 
-    def _schedule_outbound_later(self, delay: float, message_uuid: str) -> None:
-        """Schedule a delayed outbound notification; handle tracked for shutdown cancel."""
-
+    def _schedule_outbound_delivery_later(self, delay: float, delivery_id: str) -> None:
         def callback() -> None:
             self._scheduled_timers.discard(handle)
-            self._schedule_outbound(message_uuid)
+            self._schedule_outbound_delivery(delivery_id)
 
         handle = self.loop.call_later(delay, callback)
         self._scheduled_timers.add(handle)
 
-    async def _process_outbound(self, message_uuid: str) -> None:
+    async def _process_outbound_delivery(self, delivery_id: str) -> None:
         async with self.semaphore:
             retry_delay: float | None = None
             try:
                 async with async_session_scope(self._session_factory):
-                    meta = await self._executor.get_message_meta(message_uuid)
-                    if not meta:
-                        logger.error(
-                            'No MessageMeta found for notified message %s',
-                            message_uuid,
-                        )
-                        return
-
-                    if not meta.message or not meta.message.room:
-                        logger.warning(
-                            'Message %s or its room was deleted before delivery',
-                            message_uuid,
-                        )
-                        return
-
-                    retry_delay = await self._executor.route_outbound(meta)
+                    retry_delay = await self._executor.route_outbound_delivery(
+                        delivery_id
+                    )
             except (StaleDataError, IntegrityError):
                 logger.warning(
-                    'Message %s was deleted during delivery, skipping',
-                    message_uuid,
+                    'Delivery %s was deleted before dispatch, skipping', delivery_id
                 )
                 return
             except Exception:
-                logger.exception(
-                    'Failed to process delivery notification for %s', message_uuid
-                )
+                logger.exception('Failed to process outbound delivery %s', delivery_id)
                 return
 
             if retry_delay is not None:
-                self._schedule_outbound_later(retry_delay, message_uuid)
+                self._schedule_outbound_delivery_later(retry_delay, delivery_id)
 
     async def _dispatch(self) -> None:
         try:

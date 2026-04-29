@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from requests.exceptions import HTTPError, RequestException
 
@@ -20,6 +20,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     UnknownBackendException,
     UnreachableParticipantException,
 )
+from wazo_chatd.plugins.connectors.executor import generate_message_signature
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
@@ -142,15 +143,70 @@ class ConnectorService:
 
     def prepare_outbound_delivery(
         self,
+        room: Room,
         message: RoomMessage,
         sender_identity: UserIdentity,
     ) -> None:
+        backend = str(sender_identity.backend)
+        sender_uuid = str(message.user_uuid)
+        recipient_identities = self._resolve_outbound_recipients(
+            room, sender_uuid, backend
+        )
+        if len(recipient_identities) != 1:
+            raise UnreachableParticipantException(
+                f'expected exactly 1 recipient, got {len(recipient_identities)}'
+            )
+
+        if not message.uuid:
+            message.uuid = uuid4()  # type: ignore[assignment]
+        message.room_uuid = room.uuid
+        extra = self._build_outbound_extras(message, sender_identity, room, sender_uuid)
+
         self._dao.room.prepare_pending_delivery(
             message,
-            sender_identity.uuid,  # type: ignore[arg-type]
+            recipient_identities=recipient_identities,
+            sender_identity_uuid=sender_identity.uuid,  # type: ignore[arg-type]
             backend=sender_identity.backend,  # type: ignore[arg-type]
             type_=sender_identity.type_,  # type: ignore[arg-type]
+            extra=extra,
         )
+
+    @staticmethod
+    def _build_outbound_extras(
+        message: RoomMessage,
+        sender_identity: UserIdentity,
+        room: Room,
+        sender_uuid: str,
+    ) -> dict[str, str]:
+        extra: dict[str, str] = {
+            'outbound_idempotency_key': str(message.uuid) if message.uuid else '',
+        }
+        has_internal_recipient = any(
+            str(u.uuid) != sender_uuid and not u.identity for u in room.users
+        )
+        if has_internal_recipient:
+            extra['message_signature'] = generate_message_signature(
+                str(sender_identity.identity), str(message.content or '')
+            )
+        return extra
+
+    def _resolve_outbound_recipients(
+        self,
+        room: Room,
+        sender_uuid: str,
+        backend: str,
+    ) -> list[str]:
+        others = [u for u in room.users if str(u.uuid) != sender_uuid]
+        identities = [str(u.identity) for u in others if u.identity]
+
+        internal_uuids = [str(u.uuid) for u in others if not u.identity]
+        if internal_uuids:
+            resolved = self._dao.user_identity.list_identities_by_users(
+                internal_uuids, backend
+            )
+            identities.extend(resolved[u] for u in internal_uuids if u in resolved)
+
+        return identities
 
     def list_room_identities(
         self,
@@ -164,7 +220,10 @@ class ConnectorService:
             raise UnknownRoomException(room_uuid)
 
         others = [u for u in room.users if str(u.uuid) != user_uuid]
-        if not others:
+        # Single-recipient invariant: group rooms can't surface a sender
+        # identity since dispatching to multiple recipients is not supported.
+        # Drop this check when multi-recipient delivery lands.
+        if len(others) != 1:
             return []
 
         external_identities = [str(u.identity) for u in others if u.identity]
@@ -208,6 +267,11 @@ class ConnectorService:
         external = [u for u in participants if u.identity]
         if not external:
             return
+
+        if len(participants) > 2:
+            raise UnreachableParticipantException(
+                'Group rooms with external participants are not supported'
+            )
 
         needs_db_lookup: list[RoomUser] = []
 

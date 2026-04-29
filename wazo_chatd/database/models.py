@@ -13,6 +13,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    SmallInteger,
     String,
     Text,
     select,
@@ -315,13 +316,6 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
             'extra',
             postgresql_using='gin',
         ),
-        Index(
-            'chatd_message_meta__uq__external_id_backend',
-            'external_id',
-            'backend',
-            unique=True,
-            postgresql_where=text('external_id IS NOT NULL'),
-        ),
     )
 
     message_uuid: UUIDType = Column(
@@ -336,8 +330,6 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         ForeignKey('chatd_user_identity.uuid', ondelete='SET NULL'),
         nullable=True,
     )
-    retry_count = Column(Integer, nullable=False, default=0, server_default='0')
-    external_id = Column(String, nullable=True)
     extra = Column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
@@ -348,8 +340,50 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
     message: RelationshipProperty[RoomMessage] = relationship(
         'RoomMessage', uselist=False, back_populates='meta'
     )
+    deliveries: RelationshipProperty[list[MessageDelivery]] = relationship(
+        'MessageDelivery',
+        back_populates='meta',
+        uselist=True,
+        cascade='all,delete-orphan',
+        order_by='MessageDelivery.id',
+    )
+
+
+@generic_repr
+class MessageDelivery(Base):  # type: ignore[misc, valid-type]
+    __tablename__ = 'chatd_message_delivery'
+    __table_args__ = (
+        UniqueConstraint(
+            'message_uuid',
+            'recipient_identity',
+            name='chatd_message_delivery__uq__msg_recipient',
+        ),
+        Index(
+            'chatd_message_delivery__uq__external_id',
+            'external_id',
+            unique=True,
+            postgresql_where=text('external_id IS NOT NULL'),
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    message_uuid: UUIDType = Column(
+        UUIDType(),
+        ForeignKey('chatd_message_meta.message_uuid', ondelete='CASCADE'),
+        nullable=False,
+    )
+    recipient_identity = Column(String, nullable=False)
+    external_id = Column(String, nullable=True)
+    retry_count = Column(SmallInteger, nullable=False, default=0, server_default='0')
+
+    meta: RelationshipProperty[MessageMeta] = relationship(
+        'MessageMeta',
+        back_populates='deliveries',
+        uselist=False,
+    )
     records: RelationshipProperty[list[DeliveryRecord]] = relationship(
         'DeliveryRecord',
+        back_populates='delivery',
         uselist=True,
         cascade='all,delete-orphan',
         order_by='DeliveryRecord.timestamp, DeliveryRecord.id',
@@ -363,7 +397,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
     def status(cls):
         return (
             select(DeliveryRecord.status)
-            .where(DeliveryRecord.message_uuid == cls.message_uuid)
+            .where(DeliveryRecord.delivery_id == cls.id)
             .order_by(DeliveryRecord.timestamp.desc(), DeliveryRecord.id.desc())
             .limit(1)
             .correlate_except(DeliveryRecord)
@@ -378,7 +412,7 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
     def updated_at(cls):
         return (
             select(DeliveryRecord.timestamp)
-            .where(DeliveryRecord.message_uuid == cls.message_uuid)
+            .where(DeliveryRecord.delivery_id == cls.id)
             .order_by(DeliveryRecord.timestamp.desc(), DeliveryRecord.id.desc())
             .limit(1)
             .correlate_except(DeliveryRecord)
@@ -389,14 +423,12 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
 @generic_repr
 class DeliveryRecord(Base):  # type: ignore[misc, valid-type]
     __tablename__ = 'chatd_delivery_record'
-    __table_args__ = (
-        Index('chatd_delivery_record__idx__message_uuid', 'message_uuid'),
-    )
+    __table_args__ = (Index('chatd_delivery_record__idx__delivery_id', 'delivery_id'),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    message_uuid: UUIDType = Column(
-        UUIDType(),
-        ForeignKey('chatd_message_meta.message_uuid', ondelete='CASCADE'),
+    delivery_id = Column(
+        Integer,
+        ForeignKey('chatd_message_delivery.id', ondelete='CASCADE'),
         nullable=False,
     )
     status = Column(String, nullable=False)
@@ -406,4 +438,10 @@ class DeliveryRecord(Base):  # type: ignore[misc, valid-type]
         default=lambda: datetime.now(timezone.utc),
         server_default=text("(now() at time zone 'utc')"),
         nullable=False,
+    )
+
+    delivery: RelationshipProperty[MessageDelivery] = relationship(
+        'MessageDelivery',
+        back_populates='records',
+        uselist=False,
     )

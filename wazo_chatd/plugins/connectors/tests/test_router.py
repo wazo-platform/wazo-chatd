@@ -371,7 +371,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
             room, 'user-a', identity_uuid
         )
         self.service.prepare_outbound_delivery.assert_called_once_with(
-            message, identity
+            room, message, identity
         )
         assert ctx.resolved_sender_identity is identity
 

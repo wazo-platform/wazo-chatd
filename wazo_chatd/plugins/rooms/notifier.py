@@ -23,7 +23,9 @@ class RoomNotifier:
         message_json = MessageSchema().dump(message)
         recipients = [u for u in room.users if not u.identity]
 
-        if message.meta and message.meta.status != 'delivered':
+        if message.meta and not any(
+            d.status == 'delivered' for d in message.meta.deliveries
+        ):
             recipients = [
                 u for u in recipients if str(u.uuid) == str(message.user_uuid)
             ]

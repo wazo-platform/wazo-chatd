@@ -117,6 +117,46 @@ class TestUserIdentity(DBIntegrationTest):
 
         assert len(results) == 2
 
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user(uuid=USER_UUID_2)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='twilio',
+        type_='sms',
+        identity='+15551111111',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='vonage',
+        type_='sms',
+        identity='+15551111122',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_2,
+        backend='twilio',
+        type_='sms',
+        identity='+15552222222',
+    )
+    def test_list_identities_by_users_filters_by_backend(
+        self, user_1, user_2, ident_1, ident_2, ident_3
+    ):
+        result = self._dao.user_identity.list_identities_by_users(
+            [str(USER_UUID_1), str(USER_UUID_2)], backend='twilio'
+        )
+
+        assert result == {
+            str(USER_UUID_1): '+15551111111',
+            str(USER_UUID_2): '+15552222222',
+        }
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    def test_list_identities_by_users_returns_empty_when_no_match(self, user):
+        result = self._dao.user_identity.list_identities_by_users(
+            [str(USER_UUID_1)], backend='twilio'
+        )
+
+        assert result == {}
+
     @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,

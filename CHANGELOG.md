@@ -18,17 +18,19 @@
 * New parameters have been added to the message creation endpoint:
   * `sender_identity_uuid`
 
-* New read only parameters have been added to the message resource:
-  * `type`
-  * `backend`
+* New read only parameter has been added to the message resource:
+  * `delivery` (nested object with `type`, `backend`, and a `recipients` array
+    containing per-recipient `identity`, `status`, and `updated_at`).
+    Internal messages report `type=internal`, `backend=null`, and an empty
+    `recipients` array.
 
 * `POST /1.0/users/me/rooms` may now return `409` when a participant is unreachable
 
 * `POST /1.0/users/me/rooms/{room_uuid}/messages` may now return:
   * `202` when outbound delivery is accepted
-  * `409` when `sender_identity_uuid` is required but missing
+  * `409` when `sender_identity_uuid` is required but missing, or when the resolved identity is not reachable
 
-* New configuration: `enabled_connectors` to control which connector backends are loaded
+* New configuration: `connectors` to control which connector backends are loaded
 
 ## 26.02
 

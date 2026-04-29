@@ -146,25 +146,21 @@ class TestListRoomIdentities(unittest.TestCase):
 
         assert result == []
 
-    def test_multiple_participants_intersects_reachable_types(self) -> None:
+    def test_multiple_participants_returns_empty(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
         user_a = _make_room_user(uuid='user-a')
         user_b = _make_room_user(uuid='user-b')
         room = _make_room(users=[sender, user_a, user_b])
 
-        identity_mock = Mock()
         service = _build_service(
             room=room,
-            types_by_user={
-                'user-a': ['sms'],
-                'user-b': ['sms'],
-            },
-            sender_identities=[identity_mock],
+            types_by_user={'user-a': ['sms'], 'user-b': ['sms']},
+            sender_identities=[Mock()],
         )
 
         result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
-        assert result == [identity_mock]
+        assert result == []
 
     def test_sender_has_no_matching_identities_returns_empty(self) -> None:
         sender = _make_room_user(uuid=SENDER_UUID)
@@ -311,7 +307,7 @@ class TestValidateRoomReachability(unittest.TestCase):
         with pytest.raises(UnreachableParticipantException):
             service.validate_room_reachability(room)
 
-    def test_mixed_room_with_common_type_passes(self) -> None:
+    def test_group_room_with_external_is_rejected(self) -> None:
         user_a = _make_room_user(uuid='user-a')
         user_b = _make_room_user(uuid='user-b')
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
@@ -323,4 +319,5 @@ class TestValidateRoomReachability(unittest.TestCase):
         )
         service._dao.user_identity.list_bound_identities.return_value = set()
 
-        service.validate_room_reachability(room)
+        with pytest.raises(UnreachableParticipantException):
+            service.validate_room_reachability(room)

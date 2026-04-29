@@ -133,6 +133,20 @@ class UserIdentityDAO:
         stmt = select(UserIdentity).where(UserIdentity.identity == identity)
         return self.session.execute(stmt).scalars().first() is not None
 
+    def list_identities_by_users(
+        self,
+        user_uuids: Iterable[str],
+        backend: str,
+    ) -> dict[str, str]:
+        stmt = select(UserIdentity.user_uuid, UserIdentity.identity).where(
+            UserIdentity.user_uuid.in_(list(user_uuids)),
+            UserIdentity.backend == backend,
+        )
+        return {
+            str(user_uuid): str(identity)
+            for user_uuid, identity in self.session.execute(stmt).all()
+        }
+
     def resolve_users_by_identities(
         self,
         identities: Iterable[str],

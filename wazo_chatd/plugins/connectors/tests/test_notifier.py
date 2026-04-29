@@ -83,7 +83,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         message.wazo_uuid = 'wazo-uuid'
         message.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         message.room = Mock(uuid='room-uuid')
-        message.meta = Mock(type_='sms', backend='sms_backend', status='delivered')
+        message.meta = Mock(type_='sms', backend='sms_backend')
         return message
 
     async def test_publishes_event_per_user(self) -> None:
@@ -119,51 +119,60 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         delivery = event.content['delivery']
         assert delivery['type'] == 'sms'
         assert delivery['backend'] == 'sms_backend'
-        assert delivery['status'] == 'delivered'
+        assert 'status' not in delivery
 
 
 class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.bus = Mock()
         self.notifier = AsyncNotifier(self.bus)
-        self.room = Mock(
-            uuid='room-uuid', tenant_uuid='tenant-uuid', users=[Mock(uuid='user-1')]
-        )
 
-    def _make_meta_and_record(self) -> tuple[Mock, Mock]:
-        meta = Mock(
-            message_uuid='msg-uuid',
-            backend='sms_backend',
-            message=Mock(user_uuid='user-1'),
+    def _make_delivery_and_record(
+        self,
+        status: str = 'sent',
+        sender_uuid: str = 'user-1',
+        room_users: list[Mock] | None = None,
+    ) -> tuple[Mock, Mock]:
+        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
+        room.users = room_users if room_users is not None else [Mock(uuid='user-1')]
+        message = Mock(user_uuid=sender_uuid, room=room)
+        meta = Mock(message_uuid='msg-uuid', backend='sms_backend', message=message)
+        delivery = Mock(
+            id=1,
+            recipient_identity='+15559876',
+            external_id='ext-1',
+            meta=meta,
         )
         record = Mock(
-            status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc)
+            status=status, timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc)
         )
-        return meta, record
+        return delivery, record
 
     async def test_publishes_delivery_status_event(self) -> None:
-        meta, record = self._make_meta_and_record()
+        delivery, record = self._make_delivery_and_record()
 
-        await self.notifier.delivery_status_updated(meta, record, self.room)
+        await self.notifier.delivery_status_updated(delivery, record)
 
         self.bus.publish.assert_called_once()
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_message_delivery_status'
 
+    async def test_event_includes_recipient_identity(self) -> None:
+        delivery, record = self._make_delivery_and_record()
+
+        await self.notifier.delivery_status_updated(delivery, record)
+
+        event = self.bus.publish.call_args[0][0]
+        assert event.content['recipient_identity'] == '+15559876'
+
     async def test_delivery_status_event_targets_sender_only(self) -> None:
         sender = Mock(uuid='sender-uuid')
         other = Mock(uuid='other-uuid')
-        room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid', users=[sender, other])
-        meta = Mock(
-            message_uuid='msg-uuid',
-            backend='sms_backend',
-            message=Mock(user_uuid='sender-uuid'),
-        )
-        record = Mock(
-            status='sent', timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc)
+        delivery, record = self._make_delivery_and_record(
+            sender_uuid='sender-uuid', room_users=[sender, other]
         )
 
-        await self.notifier.delivery_status_updated(meta, record, room)
+        await self.notifier.delivery_status_updated(delivery, record)
 
         event = next(
             e
@@ -177,22 +186,13 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         sender = Mock(uuid='sender-uuid', identity=None)
         recipient = Mock(uuid='recipient-uuid', identity=None)
-        room = Mock(
-            uuid='room-uuid',
-            tenant_uuid='tenant-uuid',
-            users=[sender, recipient],
-        )
-        meta = Mock(
-            message_uuid='msg-uuid',
-            backend='sms_backend',
-            message=Mock(user_uuid='sender-uuid'),
-        )
-        record = Mock(
+        delivery, record = self._make_delivery_and_record(
             status='delivered',
-            timestamp=datetime(2026, 3, 30, 14, tzinfo=timezone.utc),
+            sender_uuid='sender-uuid',
+            room_users=[sender, recipient],
         )
 
-        await self.notifier.delivery_status_updated(meta, record, room)
+        await self.notifier.delivery_status_updated(delivery, record)
 
         events = [call.args[0] for call in self.bus.publish.call_args_list]
         status_events = [e for e in events if e.name == 'chatd_message_delivery_status']
@@ -204,9 +204,9 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         assert message_events[0].user_uuid == 'recipient-uuid'
 
     async def test_non_delivered_status_does_not_publish_message_created(self) -> None:
-        meta, record = self._make_meta_and_record()
+        delivery, record = self._make_delivery_and_record()
 
-        await self.notifier.delivery_status_updated(meta, record, self.room)
+        await self.notifier.delivery_status_updated(delivery, record)
 
         events = [call.args[0] for call in self.bus.publish.call_args_list]
         message_events = [
@@ -216,6 +216,6 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
 
     async def test_publish_error_does_not_propagate(self) -> None:
         self.bus.publish.side_effect = RuntimeError('connection lost')
-        meta, record = self._make_meta_and_record()
+        delivery, record = self._make_delivery_and_record()
 
-        await self.notifier.delivery_status_updated(meta, record, self.room)
+        await self.notifier.delivery_status_updated(delivery, record)

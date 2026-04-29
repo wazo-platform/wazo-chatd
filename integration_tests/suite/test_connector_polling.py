@@ -5,9 +5,15 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import select
 from wazo_test_helpers import until
 
-from wazo_chatd.database.models import DeliveryRecord, MessageMeta, RoomMessage
+from wazo_chatd.database.models import (
+    DeliveryRecord,
+    MessageDelivery,
+    MessageMeta,
+    RoomMessage,
+)
 
 from .helpers import fixtures
 from .helpers.base import PollingConnectorIntegrationTest, use_asset
@@ -51,7 +57,8 @@ class TestPollingInbound(PollingConnectorIntegrationTest):
             )
             assert meta is not None
             assert meta.backend == 'test'
-            assert meta.external_id == 'ext-poll-001'
+            assert len(meta.deliveries) == 1
+            assert meta.deliveries[0].external_id == 'ext-poll-001'
 
         until.assert_(message_persisted, timeout=10, interval=0.2)
 
@@ -72,12 +79,10 @@ class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
         messages=[
             {
                 'content': 'outbound hello',
-                'meta': {
-                    'type_': 'test',
-                    'backend': 'test',
-                    'external_id': 'ext-out-001',
-                },
-                'deliveries': ['accepted'],
+                'meta': {'type_': 'test', 'backend': 'test'},
+                'deliveries': [
+                    {'external_id': 'ext-out-001', 'statuses': ['accepted']}
+                ],
             }
         ],
     )
@@ -87,12 +92,12 @@ class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
         self.connector_mock.set_track('ext-out-001', {'status': 'delivered'})
 
         def delivered_record_exists():
-            statuses = {
-                r.status
-                for r in self._session.query(DeliveryRecord).filter(
-                    DeliveryRecord.message_uuid == message.uuid
-                )
-            }
+            stmt = (
+                select(DeliveryRecord)
+                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
+                .where(MessageDelivery.message_uuid == message.uuid)
+            )
+            statuses = {r.status for r in self._session.execute(stmt).scalars()}
             assert 'delivered' in statuses
 
         until.assert_(delivered_record_exists, timeout=10, interval=0.2)

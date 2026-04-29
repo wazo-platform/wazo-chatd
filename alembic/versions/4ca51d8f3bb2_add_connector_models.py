@@ -78,7 +78,7 @@ def upgrade() -> None:
         ['user_uuid'],
     )
 
-    # MessageMeta: optional 1:1 delivery metadata for RoomMessage
+    # MessageMeta: per-message metadata (channel, sender, opaque extras)
     op.create_table(
         'chatd_message_meta',
         sa.Column(
@@ -95,8 +95,6 @@ def upgrade() -> None:
             sa.ForeignKey('chatd_user_identity.uuid', ondelete='SET NULL'),
             nullable=True,
         ),
-        sa.Column('retry_count', sa.Integer, nullable=False, server_default='0'),
-        sa.Column('external_id', sa.String, nullable=True),
         sa.Column(
             'extra',
             JSONB,
@@ -110,22 +108,42 @@ def upgrade() -> None:
         ['extra'],
         postgresql_using='gin',
     )
-    op.create_index(
-        'chatd_message_meta__uq__external_id_backend',
-        'chatd_message_meta',
-        ['external_id', 'backend'],
-        unique=True,
-        postgresql_where='external_id IS NOT NULL',
-    )
 
-    # DeliveryRecord: append-only status updates from connectors
+    # MessageDelivery: per-recipient delivery state (1 row per leg)
     op.create_table(
-        'chatd_delivery_record',
+        'chatd_message_delivery',
         sa.Column('id', sa.Integer, primary_key=True, autoincrement=True),
         sa.Column(
             'message_uuid',
             UUIDType(),
             sa.ForeignKey('chatd_message_meta.message_uuid', ondelete='CASCADE'),
+            nullable=False,
+        ),
+        sa.Column('recipient_identity', sa.String, nullable=False),
+        sa.Column('external_id', sa.String, nullable=True),
+        sa.Column('retry_count', sa.SmallInteger, nullable=False, server_default='0'),
+        sa.UniqueConstraint(
+            'message_uuid',
+            'recipient_identity',
+            name='chatd_message_delivery__uq__msg_recipient',
+        ),
+    )
+    op.create_index(
+        'chatd_message_delivery__uq__external_id',
+        'chatd_message_delivery',
+        ['external_id'],
+        unique=True,
+        postgresql_where='external_id IS NOT NULL',
+    )
+
+    # DeliveryRecord: append-only status timeline per delivery
+    op.create_table(
+        'chatd_delivery_record',
+        sa.Column('id', sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column(
+            'delivery_id',
+            sa.Integer,
+            sa.ForeignKey('chatd_message_delivery.id', ondelete='CASCADE'),
             nullable=False,
         ),
         sa.Column('status', sa.String, nullable=False),
@@ -138,15 +156,16 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        'chatd_delivery_record__idx__message_uuid',
+        'chatd_delivery_record__idx__delivery_id',
         'chatd_delivery_record',
-        ['message_uuid'],
+        ['delivery_id'],
     )
 
 
 def downgrade() -> None:
-    op.drop_table('chatd_delivery_record')
-    op.drop_table('chatd_message_meta')
-    op.drop_table('chatd_user_identity')
+    op.execute('DROP TABLE IF EXISTS chatd_delivery_record CASCADE')
+    op.execute('DROP TABLE IF EXISTS chatd_message_delivery CASCADE')
+    op.execute('DROP TABLE IF EXISTS chatd_message_meta CASCADE')
+    op.execute('DROP TABLE IF EXISTS chatd_user_identity CASCADE')
     op.drop_index('chatd_room_user__idx__identity', 'chatd_room_user')
     op.drop_column('chatd_room_user', 'identity')

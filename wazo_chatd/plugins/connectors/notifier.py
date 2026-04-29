@@ -21,7 +21,7 @@ from wazo_bus.resources.common.event import ServiceEvent
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
     DeliveryRecord,
-    MessageMeta,
+    MessageDelivery,
     Room,
     RoomMessage,
     UserIdentity,
@@ -83,12 +83,14 @@ class AsyncNotifier:
 
     async def delivery_status_updated(
         self,
-        meta: MessageMeta,
+        delivery: MessageDelivery,
         record: DeliveryRecord,
-        room: Room,
     ) -> None:
+        meta = delivery.meta
+        room = meta.message.room
         delivery_data: DeliveryStatusDict = {
             'message_uuid': str(meta.message_uuid),
+            'recipient_identity': str(delivery.recipient_identity),
             'status': str(record.status),
             'timestamp': record.timestamp.isoformat(),
             'backend': str(meta.backend),
@@ -103,12 +105,10 @@ class AsyncNotifier:
         await self._publish(event)
 
         if record.status == DeliveryStatus.DELIVERED.value:
-            await self._notify_message_delivered(meta, room)
+            await self._notify_message_delivered(meta.message, room)
 
     @staticmethod
-    def _build_message_payload(
-        message: RoomMessage, status_override: str | None = None
-    ) -> MessageDict:
+    def _build_message_payload(message: RoomMessage) -> MessageDict:
         meta = message.meta
         return {
             'uuid': str(message.uuid),
@@ -117,7 +117,6 @@ class AsyncNotifier:
             'delivery': {
                 'type': meta.type_,
                 'backend': meta.backend,
-                'status': status_override or meta.status,
             },
             'user_uuid': str(message.user_uuid),
             'tenant_uuid': str(message.tenant_uuid),
@@ -126,8 +125,7 @@ class AsyncNotifier:
             'room': {'uuid': str(message.room.uuid)},
         }
 
-    async def _notify_message_delivered(self, meta: MessageMeta, room: Room) -> None:
-        message = meta.message
+    async def _notify_message_delivered(self, message: RoomMessage, room: Room) -> None:
         sender_uuid = str(message.user_uuid)
         recipients = [
             u for u in room.users if not u.identity and str(u.uuid) != sender_uuid
@@ -135,9 +133,7 @@ class AsyncNotifier:
         if not recipients:
             return
 
-        message_data = self._build_message_payload(
-            message, status_override=DeliveryStatus.DELIVERED.value
-        )
+        message_data = self._build_message_payload(message)
         for user in recipients:
             event = UserRoomMessageCreatedEvent(
                 message_data, room.uuid, room.tenant_uuid, user.uuid

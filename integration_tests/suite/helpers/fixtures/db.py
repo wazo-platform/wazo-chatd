@@ -12,6 +12,7 @@ from wazo_chatd.database.models import (
     DeliveryRecord,
     Endpoint,
     Line,
+    MessageDelivery,
     MessageMeta,
     RefreshToken,
     Room,
@@ -219,7 +220,7 @@ def room(**room_args):
                 user_args.setdefault('wazo_uuid', WAZO_UUID)
 
             now = datetime.datetime.utcnow()
-            message_extras: list[tuple[dict, list[str]]] = []
+            message_extras: list[tuple[dict, list[dict]]] = []
             for i, message_args in enumerate(room_args['messages']):
                 created_at = now + datetime.timedelta(seconds=i)
                 message_args.setdefault('user_uuid', uuid.uuid4())
@@ -242,15 +243,26 @@ def room(**room_args):
             self._session.add(room)
             self._session.flush()
 
-            for message, (meta_args, deliveries) in zip(room.messages, message_extras):
-                if meta_args or deliveries:
-                    self._session.add(
-                        MessageMeta(message_uuid=message.uuid, **meta_args)
+            for message, (meta_args, deliveries_args) in zip(
+                room.messages, message_extras
+            ):
+                if not (meta_args or deliveries_args):
+                    continue
+                meta = MessageMeta(message_uuid=message.uuid, **meta_args)
+                self._session.add(meta)
+                self._session.flush()
+                for delivery_args in deliveries_args:
+                    statuses = delivery_args.pop('statuses', None) or []
+                    delivery_args.setdefault('recipient_identity', '+15559876')
+                    delivery = MessageDelivery(
+                        message_uuid=message.uuid, **delivery_args
                     )
-                for status in deliveries:
-                    self._session.add(
-                        DeliveryRecord(message_uuid=message.uuid, status=status)
-                    )
+                    self._session.add(delivery)
+                    self._session.flush()
+                    for status in statuses:
+                        self._session.add(
+                            DeliveryRecord(delivery_id=delivery.id, status=status)
+                        )
             self._session.flush()
 
             self._session.commit()

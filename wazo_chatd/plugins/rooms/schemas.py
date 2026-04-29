@@ -25,17 +25,28 @@ class RoomSchema(Schema):
     users = fields.Nested('RoomUserSchema', many=True, load_default=list)
 
 
-_INTERNAL_DELIVERY = {
+_INTERNAL_DELIVERY: dict = {
     'type': 'internal',
     'backend': None,
-    'status': 'delivered',
+    'recipients': [],
 }
+
+
+class RecipientSchema(Schema):
+    identity = fields.String(attribute='recipient_identity')
+    status = fields.String()
+    updated_at = fields.DateTime()
 
 
 class MessageDeliverySchema(Schema):
     type = fields.String(attribute='type_')
     backend = fields.String(allow_none=True)
-    status = fields.String(dump_default='pending')
+    recipients = fields.Nested(
+        RecipientSchema,
+        many=True,
+        dump_only=True,
+        attribute='deliveries',
+    )
 
 
 class MessageSchema(Schema):
