@@ -187,18 +187,17 @@ class RoomDAO:
         )
 
     def _filter_visible_messages(self, query, viewer_uuid):
-        return query.filter(
-            or_(
-                RoomMessage.user_uuid == viewer_uuid,
-                ~RoomMessage.meta.has(),
-                RoomMessage.meta.has(
-                    MessageMeta.deliveries.any(
-                        MessageDelivery.records.any(
-                            DeliveryRecord.status == DeliveryStatus.DELIVERED.value
-                        )
-                    )
-                ),
+        own_message = RoomMessage.user_uuid == viewer_uuid
+        internal_message = ~RoomMessage.meta.has()
+        delivered_to_any_recipient = RoomMessage.meta.has(
+            MessageMeta.deliveries.any(
+                MessageDelivery.records.any(
+                    DeliveryRecord.status == DeliveryStatus.DELIVERED.value
+                )
             )
+        )
+        return query.filter(
+            or_(own_message, internal_message, delivered_to_any_recipient)
         )
 
     def _paginate(

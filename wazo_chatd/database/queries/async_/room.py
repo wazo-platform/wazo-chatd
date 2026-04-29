@@ -102,7 +102,7 @@ class AsyncRoomDAO:
             .options(
                 joinedload(MessageMeta.message)
                 .joinedload(RoomMessage.room)
-                .joinedload(Room.users),
+                .selectinload(Room.users),
                 joinedload(MessageMeta.sender_identity),
                 joinedload(MessageMeta.deliveries).selectinload(
                     MessageDelivery.records

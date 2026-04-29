@@ -94,13 +94,6 @@ async def _db_persist_or_delay(
     return None
 
 
-def is_delivery_dispatchable(delivery: MessageDelivery) -> bool:
-    return delivery.status in (
-        DeliveryStatus.PENDING.value,
-        DeliveryStatus.RETRYING.value,
-    )
-
-
 def generate_message_signature(sender_identity: str, body: str) -> str:
     """Generate a dedup signature to detect inbound echoes of outbound messages.
 
@@ -148,14 +141,6 @@ class DeliveryExecutor:
         if delivery is None:
             logger.warning(
                 'No MessageDelivery for delivery_id %s, skipping', delivery_id
-            )
-            return None
-
-        if not is_delivery_dispatchable(delivery):
-            logger.debug(
-                'Delivery %s is not dispatchable (status=%s), skipping',
-                delivery_id,
-                delivery.status,
             )
             return None
 
