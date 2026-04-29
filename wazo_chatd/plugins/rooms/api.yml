@@ -28,7 +28,10 @@ paths:
         '400':
           $ref: '#/responses/InvalidRequest'
         '409':
-          description: A participant is unreachable via any registered connector
+          description: |
+            Either a participant is unreachable via any registered connector
+            (`unreachable-participant`) or no connector type is shared by all
+            participants (`no-common-connector`).
     get:
       operationId: get_room
       summary: Get room

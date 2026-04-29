@@ -25,6 +25,7 @@
     `recipients` array.
 
 * `POST /1.0/users/me/rooms` may now return `409` when a participant is unreachable
+  via any registered connector or when no connector type is shared by all participants
 
 * `POST /1.0/users/me/rooms/{room_uuid}/messages` may now return:
   * `202` when outbound delivery is accepted
