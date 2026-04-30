@@ -65,8 +65,21 @@ bus:
 enabled_plugins:
   api: true
   config: true
-  status: true
+  connectors: true
   presences: true
+  rooms: true
+  status: true
+
+# Connector backends configuration
+# Each key is a backend name (discovered via stevedore entry points).
+# Set enabled: true to activate. Additional keys are passed to
+# the connector constructor as connector_config.
+connectors: {}
+
+# Example:
+#   twilio:
+#     enabled: true
+#     mode: webhook
 
 service_discovery:
   enabled: false

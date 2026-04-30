@@ -102,6 +102,24 @@ def teams():
         _teardown('teams')
 
 
+@pytest.fixture(scope='session')
+def connectors():
+    _setup('connectors', asset.ConnectorAssetLaunchingTestCase)
+    try:
+        yield
+    finally:
+        _teardown('connectors')
+
+
+@pytest.fixture(scope='session')
+def connectors_polling():
+    _setup('connectors_polling', asset.PollingConnectorAssetLaunchingTestCase)
+    try:
+        yield
+    finally:
+        _teardown('connectors_polling')
+
+
 @pytest.fixture(autouse=True, scope='function')
 def mark_logs(request):
     test_name = f'{request.cls.__name__}.{request.function.__name__}'

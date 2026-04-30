@@ -27,6 +27,11 @@ paths:
             $ref: '#/definitions/Room'
         '400':
           $ref: '#/responses/InvalidRequest'
+        '409':
+          description: |
+            Either a participant is unreachable via any registered connector
+            (`unreachable-participant`) or no connector type is shared by all
+            participants (`no-common-connector`).
     get:
       operationId: get_room
       summary: Get room
@@ -82,13 +87,19 @@ paths:
           $ref: '#/definitions/UserMessagePOST'
       responses:
         '201':
-          description: Message created
+          description: Message created (no outbound delivery)
+          schema:
+            $ref: '#/definitions/Message'
+        '202':
+          description: Message created, outbound delivery accepted
           schema:
             $ref: '#/definitions/Message'
         '400':
           $ref: '#/responses/InvalidRequest'
         '404':
           $ref: '#/responses/NotFoundError'
+        '409':
+          description: sender_identity_uuid is required but missing, or identity is not reachable
     get:
       operationId: list_room_message
       summary: List room messages
@@ -164,6 +175,10 @@ definitions:
       wazo_uuid:
         type: string
         description: The wazo of the tenant_uuid. Default to the same wazo as the token owner
+      identity:
+        type: string
+        description: The external identity of this participant (e.g. a phone number for SMS).
+          When set, the participant is reachable via the matching connector backend.
     required:
       - uuid
 
@@ -187,9 +202,13 @@ definitions:
       alias:
         type: string
         description: Alias/nickname of the sender
+      sender_identity_uuid:
+        type: string
+        format: uuid
+        description: The UUID of the sender's identity to use for outbound delivery.
+          Required when the room contains external participants.
     required:
       - content
-      - alias
 
   Message:
     properties:
@@ -203,6 +222,9 @@ definitions:
       alias:
         type: string
         description: Alias/nickname of the sender
+      delivery:
+        $ref: '#/definitions/MessageDelivery'
+        readOnly: true
       user_uuid:
         type: string
         description: user uuid of the sender
@@ -218,6 +240,45 @@ definitions:
         readOnly: true
       room:
         $ref: '#/definitions/RoomRelationBase'
+
+  MessageDelivery:
+    description: |
+      Delivery metadata for the message. Always present on the response.
+      Internal messages report `type=internal`, `backend=null`, and an empty
+      `recipients` array. External messages carry the channel info and one
+      recipient per outbound leg.
+    properties:
+      type:
+        type: string
+        description: The messaging type (e.g. 'internal', 'sms')
+        readOnly: true
+      backend:
+        type: string
+        description: The connector backend name (e.g. 'twilio'). Null for internal messages.
+        readOnly: true
+      recipients:
+        type: array
+        description: Per-recipient delivery state. Empty for internal messages.
+        readOnly: true
+        items:
+          $ref: '#/definitions/MessageRecipient'
+
+  MessageRecipient:
+    properties:
+      identity:
+        type: string
+        description: The recipient's external address (e.g. phone number)
+        readOnly: true
+      status:
+        type: string
+        description: |
+          Current delivery state for this recipient. One of: pending,
+          retrying, accepted, sent, delivered, failed, dead_letter.
+        readOnly: true
+      updated_at:
+        type: string
+        description: Timestamp of the latest status transition for this recipient
+        readOnly: true
 
   Messages:
     title: UserItems

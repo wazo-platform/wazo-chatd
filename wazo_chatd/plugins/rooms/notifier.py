@@ -1,4 +1,4 @@
-# Copyright 2019-2024 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from wazo_bus.resources.chatd.events import (
@@ -21,7 +21,16 @@ class RoomNotifier:
 
     def message_created(self, room, message):
         message_json = MessageSchema().dump(message)
-        for user in room.users:
+        recipients = [u for u in room.users if not u.identity]
+
+        if message.meta and not any(
+            d.status == 'delivered' for d in message.meta.deliveries
+        ):
+            recipients = [
+                u for u in recipients if str(u.uuid) == str(message.user_uuid)
+            ]
+
+        for user in recipients:
             event = UserRoomMessageCreatedEvent(
                 message_json, room.uuid, room.tenant_uuid, user.uuid
             )

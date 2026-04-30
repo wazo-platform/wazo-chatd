@@ -1,0 +1,4 @@
+connectors:
+  test:
+    enabled: true
+    mode: webhook

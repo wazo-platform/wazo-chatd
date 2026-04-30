@@ -1,15 +1,25 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from sqlalchemy import and_, distinct, text
+from uuid import UUID, uuid4
+
+from sqlalchemy import and_, distinct, or_, select, text
 from sqlalchemy.dialects.postgresql import array_agg
 from sqlalchemy.orm import Query, aliased
 from sqlalchemy.sql.functions import ReturnTypeFromArgs
 
+from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.helpers import get_query_main_entity
 
 from ...exceptions import UnknownRoomException
-from ..models import Room, RoomMessage, RoomUser
+from ..models import (
+    DeliveryRecord,
+    MessageDelivery,
+    MessageMeta,
+    Room,
+    RoomMessage,
+    RoomUser,
+)
 
 
 class unaccent(ReturnTypeFromArgs):
@@ -74,15 +84,78 @@ class RoomDAO:
     def add_message(self, room, message):
         room.messages.append(message)
         self.session.flush()
+        return message
 
-    def list_messages(self, room, **filter_parameters):
+    def find_tenant_by_external_id(self, external_id: str, backend: str) -> str | None:
+        stmt = (
+            select(RoomMessage.tenant_uuid)
+            .join(MessageMeta, MessageMeta.message_uuid == RoomMessage.uuid)
+            .join(
+                MessageDelivery,
+                MessageDelivery.message_uuid == MessageMeta.message_uuid,
+            )
+            .where(
+                MessageDelivery.external_id == external_id,
+                MessageMeta.backend == backend,
+            )
+            .limit(1)
+        )
+        result = self.session.execute(stmt).scalars().first()
+        return str(result) if result is not None else None
+
+    def add_message_meta(self, meta, initial_record):
+        self.session.add(meta)
+        self.session.add(initial_record)
+        self.session.flush()
+        return meta
+
+    def prepare_pending_delivery(
+        self,
+        message: RoomMessage,
+        recipient_identities: list[str],
+        sender_identity_uuid: UUID | None = None,
+        backend: str | None = None,
+        type_: str | None = None,
+        extra: dict[str, str] | None = None,
+    ) -> None:
+        if not message.uuid:
+            message.uuid = uuid4()  # type: ignore[assignment]
+
+        deliveries = []
+        for recipient_identity in recipient_identities:
+            delivery = MessageDelivery(recipient_identity=recipient_identity)
+            delivery.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
+            deliveries.append(delivery)
+
+        meta = MessageMeta(
+            sender_identity_uuid=sender_identity_uuid,
+            backend=backend,
+            type_=type_,
+            deliveries=deliveries,
+            extra=extra or {},
+        )
+        message.meta = meta
+        self.session.add(message)
+        self.session.flush()
+
+        payload = ','.join(str(d.id) for d in deliveries)
+        self.session.execute(
+            text("SELECT pg_notify('connector_delivery', :payload)"),
+            {'payload': payload},
+        )
+
+    def list_messages(self, room, viewer_uuid=None, **filter_parameters):
         query = self._build_messages_query(room.uuid)
+        if viewer_uuid:
+            query = self._filter_visible_messages(query, viewer_uuid)
         query = self._list_filter(query, **filter_parameters)
         query = self._paginate(query, **filter_parameters)
         return query.all()
 
-    def count_messages(self, room, **filter_parameters):
+    def count_messages(self, room, viewer_uuid=None, **filter_parameters):
         query = self._build_messages_query(room.uuid)
+        if viewer_uuid:
+            query = self._filter_visible_messages(query, viewer_uuid)
         query = self._list_filter(query, **filter_parameters)
         return query.count()
 
@@ -93,12 +166,14 @@ class RoomDAO:
 
     def list_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         query = self._build_user_messages_query(tenant_uuid, user_uuid)
+        query = self._filter_visible_messages(query, user_uuid)
         query = self._list_filter(query, **filter_parameters)
         query = self._paginate(query, **filter_parameters)
         return query.all()
 
     def count_user_messages(self, tenant_uuid, user_uuid, **filter_parameters):
         query = self._build_user_messages_query(tenant_uuid, user_uuid)
+        query = self._filter_visible_messages(query, user_uuid)
         query = self._list_filter(query, **filter_parameters)
         return query.count()
 
@@ -109,6 +184,20 @@ class RoomDAO:
             .join(RoomUser)
             .filter(RoomUser.tenant_uuid == tenant_uuid)
             .filter(RoomUser.uuid == user_uuid)
+        )
+
+    def _filter_visible_messages(self, query, viewer_uuid):
+        own_message = RoomMessage.user_uuid == viewer_uuid
+        internal_message = ~RoomMessage.meta.has()
+        delivered_to_any_recipient = RoomMessage.meta.has(
+            MessageMeta.deliveries.any(
+                MessageDelivery.records.any(
+                    DeliveryRecord.status == DeliveryStatus.DELIVERED.value
+                )
+            )
+        )
+        return query.filter(
+            or_(own_message, internal_message, delivered_to_any_recipient)
         )
 
     def _paginate(

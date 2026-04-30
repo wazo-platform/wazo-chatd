@@ -65,10 +65,19 @@ _DEFAULT_CONFIG = {
     'enabled_plugins': {
         'api': True,
         'config': True,
+        'connectors': True,
         'presences': True,
         'rooms': True,
         'status': True,
         'teams_presence': False,
+    },
+    'connectors': {},
+    'delivery': {
+        'max_concurrent_tasks': 100,
+        'provider_cache_ttl': 300,
+        'poll_interval_min': 5,
+        'poll_interval_max': 60,
+        'poll_interval_default': 30,
     },
     'initialization': {
         'enabled': True,

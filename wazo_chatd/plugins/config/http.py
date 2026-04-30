@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
@@ -19,8 +19,10 @@ class ConfigResource(AuthResource):
 
     def _toggle_debug_flag(self):
         logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG) if self._config['debug'] else logger.setLevel(
-            self._config['log_level']
+        (
+            logger.setLevel(logging.DEBUG)
+            if self._config['debug']
+            else logger.setLevel(self._config['log_level'])
         )
 
     @required_master_tenant()

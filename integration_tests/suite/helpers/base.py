@@ -33,6 +33,7 @@ from wazo_chatd.database.queries import DAO
 from .amid import AmidClient
 from .bus import BusClient
 from .confd import ConfdClient
+from .connector import ConnectorMockClient
 from .microsoft import MicrosoftGraphClient
 from .wait_strategy import (
     EverythingOkWaitStrategy,
@@ -240,6 +241,24 @@ class TeamsAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
         return MicrosoftGraphClient('127.0.0.1', port=port)
 
 
+class ConnectorAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
+    asset = 'connectors'
+    service = 'chatd'
+    wait_strategy = EverythingOkWaitStrategy()
+
+    @classmethod
+    def make_connector_mock(cls):
+        try:
+            port = cls.service_port(8080, 'connector-mock')
+        except (NoSuchService, NoSuchPort):
+            return WrongClient('connector-mock')
+        return ConnectorMockClient('127.0.0.1', port=port)
+
+
+class PollingConnectorAssetLaunchingTestCase(ConnectorAssetLaunchingTestCase):
+    asset = 'connectors-polling'
+
+
 class InitAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'initialization'
     service = 'chatd'
@@ -439,6 +458,29 @@ class InitIntegrationTest(_BaseIntegrationTest):
 
         requests = self.auth.list_requests()['requests']
         assert_that(requests, not_(has_items(has_entries(path='/0.1/sessions'))))
+
+
+class ConnectorIntegrationTest(_BaseIntegrationTest):
+    asset_cls = ConnectorAssetLaunchingTestCase
+    connector_mock: ConnectorMockClient
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reset_clients()
+        cls.auth.set_external_config(
+            {
+                'test': {'mock_url': 'http://connector-mock:8080'},
+            }
+        )
+
+    @classmethod
+    def reset_clients(cls):
+        super().reset_clients()
+        cls.connector_mock = cls.asset_cls.make_connector_mock()
+
+
+class PollingConnectorIntegrationTest(ConnectorIntegrationTest):
+    asset_cls = PollingConnectorAssetLaunchingTestCase
 
 
 class TeamsIntegrationTest(_BaseIntegrationTest):

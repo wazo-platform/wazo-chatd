@@ -1,7 +1,9 @@
 *.egg-info
 *.pyc
 *.swp
+.claude/
 .coverage
 .tox
+/build/
 coverage.xml
 unit-tests.xml

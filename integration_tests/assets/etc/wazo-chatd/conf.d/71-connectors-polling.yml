@@ -1,0 +1,8 @@
+connectors:
+  test:
+    enabled: true
+    mode: poll
+delivery:
+  poll_interval_min: 1
+  poll_interval_max: 4
+  poll_interval_default: 2
