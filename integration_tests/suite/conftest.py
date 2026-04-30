@@ -12,6 +12,7 @@ from .helpers import base as asset
 logger = logging.getLogger(__name__)
 
 _teardowns: dict[str, Callable[[], None]] = {}
+_teardown_failures: list[tuple[str, BaseException]] = []
 
 
 def pytest_collection_modifyitems(session, config, items):
@@ -53,8 +54,16 @@ def pytest_runtest_teardown(item, nextitem) -> None:
     if current is not None and current != upcoming:
         try:
             _teardown(current)
-        except Exception:
+        except Exception as exc:
             logger.exception('Failed to tear down asset for marker %r', current)
+            _teardown_failures.append((current, exc))
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
+    for marker, exc in _teardown_failures:
+        terminalreporter.write_sep(
+            '!', f'Asset teardown failed for marker {marker!r}: {exc}'
+        )
 
 
 @pytest.fixture(scope='session')
