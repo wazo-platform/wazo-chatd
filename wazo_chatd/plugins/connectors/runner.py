@@ -744,3 +744,31 @@ class ListenerRunner(Runner):
         exc = task.exception()
         if exc is not None:
             logger.error('Listener for %s crashed: %s', key, exc, exc_info=exc)
+
+
+class NullRunner:
+    """Null Object stand-in used when no connector backends are registered.
+
+    Implements the union of :class:`DeliveryRunner` and :class:`ListenerRunner`
+    surfaces touched by :class:`ConnectorRouter` so callers don't need to
+    branch on absence.
+    """
+
+    is_running = True
+    in_flight_count = 0
+    restart_count = 0
+
+    def start(self) -> None:
+        pass
+
+    def shutdown(self) -> None:
+        pass
+
+    def resync_pollers(self) -> None:
+        pass
+
+    def resync(self) -> None:
+        pass
+
+    def enqueue_message(self, _msg: object) -> None:
+        pass

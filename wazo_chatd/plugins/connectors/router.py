@@ -20,7 +20,11 @@ from wazo_chatd.plugins.connectors.exceptions import (
     UnknownBackendException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
-from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner
+from wazo_chatd.plugins.connectors.runner import (
+    DeliveryRunner,
+    ListenerRunner,
+    NullRunner,
+)
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
@@ -47,6 +51,9 @@ class ConnectorRouter:
     asynchronously in the delivery loop.
     """
 
+    _delivery_runner: DeliveryRunner | NullRunner
+    _listener_runner: ListenerRunner | NullRunner
+
     def __init__(
         self,
         config: ConfigDict,
@@ -66,6 +73,11 @@ class ConnectorRouter:
             cache_ttl=float(delivery_config.get('provider_cache_ttl', 300)),
             connectors_config=connectors_config,
         )
+        if not registry.available_backends():
+            logger.info('No connector backends registered; skipping runner startup')
+            self._delivery_runner = self._listener_runner = NullRunner()
+            return
+
         self._delivery_runner = DeliveryRunner(config, registry, self._store)
         self._listener_runner = ListenerRunner(
             config, self._store, self._delivery_runner.enqueue_message
@@ -146,6 +158,7 @@ class ConnectorRouter:
         both_running = delivery.is_running and listener.is_running
         status['connectors'] = {
             'status': Status.ok if both_running else Status.fail,
+            'backends_registered': len(self._registry.available_backends()),
             'in_flight': delivery.in_flight_count,
             'delivery_restart_count': delivery.restart_count,
             'listener_restart_count': listener.restart_count,
