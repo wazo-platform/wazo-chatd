@@ -104,20 +104,20 @@ def teams():
 
 @pytest.fixture(scope='session')
 def connectors():
-    asset.ConnectorAssetLaunchingTestCase.setUpClass()
+    _setup('connectors', asset.ConnectorAssetLaunchingTestCase)
     try:
         yield
     finally:
-        asset.ConnectorAssetLaunchingTestCase.tearDownClass()
+        _teardown('connectors')
 
 
 @pytest.fixture(scope='session')
 def connectors_polling():
-    asset.PollingConnectorAssetLaunchingTestCase.setUpClass()
+    _setup('connectors_polling', asset.PollingConnectorAssetLaunchingTestCase)
     try:
         yield
     finally:
-        asset.PollingConnectorAssetLaunchingTestCase.tearDownClass()
+        _teardown('connectors_polling')
 
 
 @pytest.fixture(autouse=True, scope='function')
