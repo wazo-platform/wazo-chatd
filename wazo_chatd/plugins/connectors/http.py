@@ -125,7 +125,7 @@ class UserIdentityItemResource(AuthResource):
         return UserIdentitySchema().dump(identity), 200
 
     @required_acl('chatd.users.{user_uuid}.identities.{identity_uuid}.update')
-    def put(self, user_uuid: str, identity_uuid: str) -> tuple[str, int]:
+    def put(self, user_uuid: str, identity_uuid: str) -> tuple[dict[str, Any], int]:
         tenant_uuids = get_tenant_uuids(recurse=True)
         identity = self._service.get_identity(
             tenant_uuids, identity_uuid, user_uuid=user_uuid
@@ -133,7 +133,7 @@ class UserIdentityItemResource(AuthResource):
         body = UserIdentityUpdateSchema().load(request.get_json(force=True))
         update_model_instance(identity, body)
         self._service.update_identity(identity)
-        return '', 204
+        return UserIdentitySchema().dump(identity), 200
 
     @required_acl('chatd.users.{user_uuid}.identities.{identity_uuid}.delete')
     def delete(self, user_uuid: str, identity_uuid: str) -> tuple[str, int]:

@@ -81,8 +81,10 @@ paths:
         schema:
           $ref: '#/definitions/UserIdentityUpdateRequest'
       responses:
-        '204':
-          $ref: '#/responses/ResourceUpdated'
+        '200':
+          description: Identity updated
+          schema:
+            $ref: '#/definitions/UserIdentity'
         '400':
           $ref: '#/responses/InvalidRequest'
         '404':
