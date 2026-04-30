@@ -88,7 +88,7 @@ class TestListRoomIdentities(unittest.TestCase):
         external = _make_room_user(uuid='ext-uuid', identity='+15559876')
         room = _make_room(users=[sender, external])
 
-        identity_mock = Mock()
+        identity_mock = _make_identity()
         service = _build_service(
             room=room,
             identity_bound={'+15559876': False},
@@ -104,7 +104,7 @@ class TestListRoomIdentities(unittest.TestCase):
         recipient = _make_room_user(uuid='recipient-uuid')
         room = _make_room(users=[sender, recipient])
 
-        identity_mock = Mock()
+        identity_mock = _make_identity()
         service = _build_service(
             room=room,
             types_by_user={'recipient-uuid': ['sms']},
@@ -120,7 +120,7 @@ class TestListRoomIdentities(unittest.TestCase):
         recipient = _make_room_user(uuid='recipient-uuid', identity='+15559876')
         room = _make_room(users=[sender, recipient])
 
-        identity_mock = Mock()
+        identity_mock = _make_identity()
         service = _build_service(
             room=room,
             identity_bound={'+15559876': True},
@@ -188,6 +188,25 @@ class TestListRoomIdentities(unittest.TestCase):
 
         with self.assertRaises(UnknownRoomException):
             service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+
+    def test_filters_out_identities_for_unregistered_backends(self) -> None:
+        sender = _make_room_user(uuid=SENDER_UUID)
+        recipient = _make_room_user(uuid='recipient-uuid')
+        room = _make_room(users=[sender, recipient])
+
+        unregistered_identity = Mock()
+        unregistered_identity.backend = 'unregistered_backend'
+        registered_identity = Mock()
+        registered_identity.backend = 'sms_backend'
+        service = _build_service(
+            room=room,
+            types_by_user={'recipient-uuid': ['sms']},
+            sender_identities=[unregistered_identity, registered_identity],
+        )
+
+        result = service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
+
+        assert result == [registered_identity]
 
 
 def _make_identity(backend: str = 'sms_backend', type_: str = 'sms') -> Mock:

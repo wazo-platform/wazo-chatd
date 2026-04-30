@@ -95,11 +95,23 @@ class ConnectorService:
             user.pop('identity', None)
 
     def list_identities(
-        self, tenant_uuids: list[str], user_uuid: str
+        self,
+        tenant_uuids: list[str],
+        user_uuid: str,
+        only_registered: bool = False,
     ) -> list[UserIdentity]:
-        return self._dao.user_identity.list_by_user(
+        identities = self._dao.user_identity.list_by_user(
             user_uuid, tenant_uuids=tenant_uuids
         )
+        if only_registered:
+            identities = self._filter_by_registered_backends(identities)
+        return identities
+
+    def _filter_by_registered_backends(
+        self, identities: list[UserIdentity]
+    ) -> list[UserIdentity]:
+        registered = self._registry.available_backends()
+        return [i for i in identities if str(i.backend) in registered]
 
     def get_identity(
         self,
@@ -257,7 +269,10 @@ class ConnectorService:
         if not reachable_types:
             return []
 
-        return self._dao.user_identity.list_by_user(user_uuid, types=reachable_types)
+        identities = self._dao.user_identity.list_by_user(
+            user_uuid, types=reachable_types
+        )
+        return self._filter_by_registered_backends(identities)
 
     def validate_room_reachability(self, room: Room) -> None:
         participants = room.users
