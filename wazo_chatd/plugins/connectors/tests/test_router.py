@@ -112,7 +112,7 @@ def _build_router(
     with unittest.mock.patch('wazo_chatd.plugins.connectors.router.DeliveryRunner'):
         return ConnectorRouter(
             config=config or {},
-            registry=registry or ConnectorRegistry(),
+            registry=registry if registry is not None else _build_registry(),
             service=service or Mock(),
             auth_client=auth_client or Mock(),
             dao=dao or Mock(),
@@ -130,7 +130,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         instance.verify_signature.return_value = True
         self.router._store = Mock()
         self.router._store.find.return_value = instance
-        self.manager = self.router._delivery_runner
+        self.manager = self.router._delivery_runner = Mock()
 
     def test_dispatch_enqueues_inbound_message(self) -> None:
         self.registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
@@ -251,7 +251,7 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.router = _build_router(registry=self.registry, dao=self.dao)
         self.router._store = Mock()
         self.router._store.get.return_value = self.instance
-        self.manager = self.router._delivery_runner
+        self.manager = self.router._delivery_runner = Mock()
 
     def _webhook(self) -> WebhookData:
         return WebhookData(
@@ -446,3 +446,66 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
 
         self.router._delivery_runner.resync_pollers.assert_called_once()
         self.router._listener_runner.resync.assert_called_once()
+
+
+class TestConnectorRouterEmptyRegistry(unittest.TestCase):
+    def test_empty_registry_skips_runner_construction(self) -> None:
+        with (
+            unittest.mock.patch(
+                'wazo_chatd.plugins.connectors.router.DeliveryRunner'
+            ) as delivery_mock,
+            unittest.mock.patch(
+                'wazo_chatd.plugins.connectors.router.ListenerRunner'
+            ) as listener_mock,
+        ):
+            router = ConnectorRouter(
+                config={},
+                registry=ConnectorRegistry(),
+                service=Mock(),
+                auth_client=Mock(),
+                dao=Mock(),
+            )
+
+            delivery_mock.assert_not_called()
+            listener_mock.assert_not_called()
+            assert router._delivery_runner is router._listener_runner
+
+    def test_empty_registry_lifecycle_methods_do_not_raise(self) -> None:
+        router = _build_router(registry=ConnectorRegistry())
+
+        router.start()
+        router.stop()
+        router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+
+    def test_empty_registry_provide_status_reports_ok(self) -> None:
+        router = _build_router(registry=ConnectorRegistry())
+        router._store = Mock()
+        router._store.__len__ = Mock(return_value=0)
+
+        status: dict = {}
+        router.provide_status(status)
+
+        assert status['connectors']['status'] == 'ok'
+        assert status['connectors']['in_flight'] == 0
+        assert status['connectors']['backends_registered'] == 0
+
+    def test_non_empty_registry_constructs_runners(self) -> None:
+        with (
+            unittest.mock.patch(
+                'wazo_chatd.plugins.connectors.router.DeliveryRunner'
+            ) as delivery_mock,
+            unittest.mock.patch(
+                'wazo_chatd.plugins.connectors.router.ListenerRunner'
+            ) as listener_mock,
+        ):
+            router = ConnectorRouter(
+                config={},
+                registry=_build_registry(),
+                service=Mock(),
+                auth_client=Mock(),
+                dao=Mock(),
+            )
+
+            delivery_mock.assert_called_once()
+            listener_mock.assert_called_once()
+            assert router._delivery_runner is not router._listener_runner
