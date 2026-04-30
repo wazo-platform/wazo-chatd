@@ -35,25 +35,26 @@ def _setup(marker: str, asset_class: type[AssetLaunchingTestCase]) -> None:
 
 
 def _teardown(marker: str) -> None:
-    teardown = _teardowns.pop(marker, None)
-    if teardown is None:
-        return
-    try:
+    if teardown := _teardowns.pop(marker, None):
         teardown()
-    except Exception:
-        logger.exception('Failed to tear down asset for marker %r', marker)
 
 
 @pytest.hookimpl(trylast=True)
 def pytest_runtest_teardown(item, nextitem) -> None:
     # Eagerly tear down the active asset at marker-group boundaries; the
     # session-scoped fixture's finally still handles the very last asset.
+    # Swallow errors here so a teardown failure can't abort the next test's
+    # setup; the fixture-finally path lets exceptions propagate so they
+    # surface in pytest's error summary.
     if nextitem is None:
         return
     current = _marker_of(item)
     upcoming = _marker_of(nextitem)
     if current is not None and current != upcoming:
-        _teardown(current)
+        try:
+            _teardown(current)
+        except Exception:
+            logger.exception('Failed to tear down asset for marker %r', current)
 
 
 @pytest.fixture(scope='session')
