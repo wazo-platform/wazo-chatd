@@ -39,5 +39,11 @@ source = [
   "/usr/src/wazo-chatd/wazo_chatd",
 ]
 
+[tool.coverage.run]
+omit = [
+  "*/test-connector/*",
+  "*/test_connector/*",
+]
+
 [tool.pytest]
 testpaths = ["wazo_chatd"]
