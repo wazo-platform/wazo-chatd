@@ -83,7 +83,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         message.wazo_uuid = 'wazo-uuid'
         message.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
         message.room = Mock(uuid='room-uuid')
-        message.meta = Mock(type_='sms', backend='sms_backend')
+        message.meta = Mock(type_='sms', backend='sms_backend', deliveries=[])
         return message
 
     async def test_publishes_event_per_user(self) -> None:
@@ -135,8 +135,24 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
     ) -> tuple[Mock, Mock]:
         room = Mock(uuid='room-uuid', tenant_uuid='tenant-uuid')
         room.users = room_users if room_users is not None else [Mock(uuid='user-1')]
-        message = Mock(user_uuid=sender_uuid, room=room)
-        meta = Mock(message_uuid='msg-uuid', backend='sms_backend', message=message)
+        message = Mock(
+            uuid='msg-uuid',
+            content='hello',
+            alias=None,
+            user_uuid=sender_uuid,
+            tenant_uuid='tenant-uuid',
+            wazo_uuid='wazo-uuid',
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            room=room,
+        )
+        meta = Mock(
+            message_uuid='msg-uuid',
+            type_='sms',
+            backend='sms_backend',
+            message=message,
+            deliveries=[],
+        )
+        message.meta = meta
         delivery = Mock(
             id=1,
             recipient_identity='+15559876',

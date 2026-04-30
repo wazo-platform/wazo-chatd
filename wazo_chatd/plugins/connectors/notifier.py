@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from wazo_bus.resources.chatd.events import (
     MessageDeliveryStatusEvent,
@@ -27,7 +27,7 @@ from wazo_chatd.database.models import (
     UserIdentity,
 )
 from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
-from wazo_chatd.plugins.rooms.schemas import RoomSchema
+from wazo_chatd.plugins.rooms.schemas import MessageSchema, RoomSchema
 
 if TYPE_CHECKING:
     from wazo_chatd.bus import BusPublisher
@@ -109,21 +109,10 @@ class AsyncNotifier:
 
     @staticmethod
     def _build_message_payload(message: RoomMessage) -> MessageDict:
-        meta = message.meta
-        return {
-            'uuid': str(message.uuid),
-            'content': message.content,
-            'alias': message.alias,
-            'delivery': {
-                'type': meta.type_,
-                'backend': meta.backend,
-            },
-            'user_uuid': str(message.user_uuid),
-            'tenant_uuid': str(message.tenant_uuid),
-            'wazo_uuid': str(message.wazo_uuid),
-            'created_at': message.created_at.isoformat(),
-            'room': {'uuid': str(message.room.uuid)},
-        }
+        # Reuse the sync schema so both notifier paths publish the same
+        # shape: handles meta=None via the _default_delivery post_dump
+        # and includes the recipients list.
+        return cast(MessageDict, MessageSchema().dump(message))
 
     async def _notify_message_delivered(self, message: RoomMessage, room: Room) -> None:
         sender_uuid = str(message.user_uuid)

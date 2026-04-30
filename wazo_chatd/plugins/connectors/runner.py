@@ -367,40 +367,41 @@ class DeliveryRunner(Runner):
     async def _listen_for_deliveries(self) -> None:
         backoff = _backoff()
 
-        while not self.is_closing:
-            connection: asyncpg.Connection | None = None
-            try:
-                driver_uri, connect_args = build_asyncpg_connect_args(self._db_uri)
-                connection = await asyncpg.connect(driver_uri, **connect_args)
-                await connection.add_listener(
-                    'connector_delivery', self._on_delivery_notify
-                )
-                logger.info('Listening for connector_delivery notifications')
-                backoff = _backoff()
+        try:
+            while not self.is_closing:
+                connection: asyncpg.Connection | None = None
+                try:
+                    driver_uri, connect_args = build_asyncpg_connect_args(self._db_uri)
+                    connection = await asyncpg.connect(driver_uri, **connect_args)
+                    await connection.add_listener(
+                        'connector_delivery', self._on_delivery_notify
+                    )
+                    logger.info('Listening for connector_delivery notifications')
+                    backoff = _backoff()
 
-                # Run recovery after LISTEN is registered so any NOTIFY
-                # fired during the outage (or startup) is picked up
-                # either by the live listener or this catch-up scan.
-                await self._recover()
+                    # Run recovery after LISTEN is registered so any NOTIFY
+                    # fired during the outage (or startup) is picked up
+                    # either by the live listener or this catch-up scan.
+                    await self._recover()
 
-                await self._wait_closing()
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                delay = next(backoff)
-                logger.exception('Listener connection lost, reconnecting in %ds', delay)
-                await asyncio.sleep(delay)
-            finally:
-                if connection and not connection.is_closed():
-                    try:
-                        await connection.close()
-                    except Exception:
-                        logger.warning(
-                            'Failed to close asyncpg listener connection',
-                            exc_info=True,
-                        )
-
-        logger.info('Stopped listening for connector_delivery notifications')
+                    await self._wait_closing()
+                except Exception:
+                    delay = next(backoff)
+                    logger.exception(
+                        'Listener connection lost, reconnecting in %ds', delay
+                    )
+                    await asyncio.sleep(delay)
+                finally:
+                    if connection and not connection.is_closed():
+                        try:
+                            await connection.close()
+                        except Exception:
+                            logger.warning(
+                                'Failed to close asyncpg listener connection',
+                                exc_info=True,
+                            )
+        finally:
+            logger.info('Stopped listening for connector_delivery notifications')
 
     def _on_delivery_notify(
         self,
@@ -473,11 +474,8 @@ class DeliveryRunner(Runner):
                 self._schedule_outbound_delivery_later(retry_delay, delivery_id)
 
     async def _dispatch(self) -> None:
-        try:
-            async for message in self._queue:
-                self._schedule_inbound(message)
-        except asyncio.CancelledError:
-            raise
+        async for message in self._queue:
+            self._schedule_inbound(message)
 
     def _schedule_inbound(
         self,

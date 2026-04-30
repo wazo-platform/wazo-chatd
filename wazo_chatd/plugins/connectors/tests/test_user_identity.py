@@ -171,12 +171,16 @@ class _StubConnector:
         return raw_identity
 
 
+def _build_service_with_stub_backend() -> ConnectorService:
+    dao = Mock()
+    registry = ConnectorRegistry()
+    registry.register_backend(_StubConnector)  # type: ignore[arg-type]
+    return ConnectorService(dao, registry, Mock(), Mock())
+
+
 class TestConnectorServiceIdentityCRUD(unittest.TestCase):
     def _build_service(self) -> ConnectorService:
-        dao = Mock()
-        registry = ConnectorRegistry()
-        registry.register_backend(_StubConnector)  # type: ignore[arg-type]
-        return ConnectorService(dao, registry, Mock(), Mock())
+        return _build_service_with_stub_backend()
 
     def test_list_identities(self) -> None:
         service = self._build_service()
@@ -341,10 +345,7 @@ class TestConnectorServiceGetUserTenantUuid(unittest.TestCase):
 
 class TestConnectorServiceResolveRoomParticipants(unittest.TestCase):
     def _build_service(self) -> ConnectorService:
-        dao = Mock()
-        registry = ConnectorRegistry()
-        registry.register_backend(_StubConnector)  # type: ignore[arg-type]
-        return ConnectorService(dao, registry, Mock(), Mock())
+        return _build_service_with_stub_backend()
 
     def test_uuid_only_participant_unchanged(self) -> None:
         service = self._build_service()
