@@ -97,7 +97,15 @@ class UserIdentityDAO:
 
     def update(self, identity: UserIdentity) -> None:
         self.session.add(identity)
-        self.session.flush()
+        try:
+            self.session.flush()
+        except exc.IntegrityError as e:
+            self.session.rollback()
+            if e.orig.pgcode == _UNIQUE_VIOLATION:
+                raise DuplicateIdentityException(
+                    identity.backend, identity.identity, identity.type_  # type: ignore[arg-type]
+                )
+            raise
 
     def delete(self, identity: UserIdentity) -> None:
         self.session.delete(identity)

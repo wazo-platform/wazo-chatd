@@ -43,6 +43,8 @@ responses:
       $ref: '#/definitions/APIError'
   ResourceUpdated:
     description: Resource was updated successfully
+  ResourceDeleted:
+    description: Resource was deleted successfully
 
 definitions:
   APIError:

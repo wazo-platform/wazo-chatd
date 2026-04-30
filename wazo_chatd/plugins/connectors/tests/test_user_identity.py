@@ -9,10 +9,15 @@ from unittest.mock import Mock, patch
 import pytest
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import HTTPError
+from sqlalchemy import exc as sqla_exc
 
 from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.database.queries.user_identity import UserIdentityDAO
-from wazo_chatd.exceptions import UnknownUserException, UnknownUserIdentityException
+from wazo_chatd.exceptions import (
+    DuplicateIdentityException,
+    UnknownUserException,
+    UnknownUserIdentityException,
+)
 from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableException,
@@ -124,6 +129,17 @@ class TestUserIdentityDAOUpdate(unittest.TestCase):
         dao.update(identity)
 
         dao.session.flush.assert_called_once()
+
+    def test_update_raises_duplicate_on_unique_violation(self) -> None:
+        dao = _make_dao(_mock_execute())
+        identity = _make_identity()
+        orig = Mock(pgcode='23505')
+        dao.session.flush.side_effect = sqla_exc.IntegrityError('stmt', {}, orig=orig)
+
+        with pytest.raises(DuplicateIdentityException):
+            dao.update(identity)
+
+        dao.session.rollback.assert_called_once()
 
 
 class TestUserIdentityDAODelete(unittest.TestCase):

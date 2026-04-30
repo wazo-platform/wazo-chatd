@@ -103,7 +103,7 @@ paths:
       - $ref: '#/parameters/identity_uuid'
       responses:
         '204':
-          $ref: '#/responses/ResourceUpdated'
+          $ref: '#/responses/ResourceDeleted'
         '404':
           $ref: '#/responses/NotFoundError'
   /users/me/identities:
@@ -130,6 +130,8 @@ paths:
           description: Identity list
           schema:
             $ref: '#/definitions/UserIdentityList'
+        '400':
+          $ref: '#/responses/InvalidRequest'
         '404':
           $ref: '#/responses/NotFoundError'
   /connectors/incoming:
@@ -139,6 +141,7 @@ paths:
       description: Dispatches an incoming webhook to the matching connector backend.
       tags:
       - connectors
+      security: []
       consumes:
       - application/json
       - application/x-www-form-urlencoded
@@ -153,10 +156,14 @@ paths:
           description: Webhook accepted
         '400':
           description: No connector matched the webhook payload
+          schema:
+            $ref: '#/definitions/WebhookError'
         '401':
           description: Webhook signature verification failed
         '503':
           description: Webhook deferred; provider should retry
+          schema:
+            $ref: '#/definitions/WebhookError'
   /connectors/incoming/{backend}:
     post:
       operationId: connector_webhook_with_hint
@@ -164,6 +171,7 @@ paths:
       description: Dispatches an incoming webhook, trying the specified backend first.
       tags:
       - connectors
+      security: []
       consumes:
       - application/json
       - application/x-www-form-urlencoded
@@ -183,10 +191,14 @@ paths:
           description: Webhook accepted
         '400':
           description: No connector matched the webhook payload
+          schema:
+            $ref: '#/definitions/WebhookError'
         '401':
           description: Webhook signature verification failed
         '503':
           description: Webhook deferred; provider should retry
+          schema:
+            $ref: '#/definitions/WebhookError'
 
 parameters:
   identity_uuid:
@@ -198,6 +210,19 @@ parameters:
     required: true
 
 definitions:
+  WebhookError:
+    title: WebhookError
+    description: |
+      Error body returned by the connector webhook routes when no
+      backend can handle the payload (400) or when a transient backend
+      error asks the provider to retry (503). Webhook callers
+      typically only inspect the HTTP status; this body is for log
+      correlation by operators.
+    type: object
+    properties:
+      error:
+        type: string
+
   UserIdentityList:
     title: UserIdentityList
     properties:
