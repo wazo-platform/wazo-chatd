@@ -164,7 +164,9 @@ class UserMeIdentityListResource(AuthResource):
                 tenant_uuids, room_uuid, user_uuid
             )
         else:
-            identities = self._service.list_identities(tenant_uuids, user_uuid)
+            identities = self._service.list_identities(
+                tenant_uuids, user_uuid, only_registered=True
+            )
 
         return {
             'items': UserIdentitySchema(

@@ -190,6 +190,38 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
             USER_UUID, tenant_uuids=[TENANT_A]
         )
 
+    def test_list_identities_default_returns_unregistered_backends(self) -> None:
+        service = self._build_service()
+        unregistered = _make_identity(
+            identity_uuid='unreg-uuid', backend='unregistered-backend'
+        )
+        registered = _make_identity()
+        service._dao.user_identity.list_by_user.return_value = [
+            unregistered,
+            registered,
+        ]
+
+        result = service.list_identities([TENANT_A], USER_UUID)
+
+        assert result == [unregistered, registered]
+
+    def test_list_identities_only_registered_filters_unregistered_backends(
+        self,
+    ) -> None:
+        service = self._build_service()
+        unregistered = _make_identity(
+            identity_uuid='unreg-uuid', backend='unregistered-backend'
+        )
+        registered = _make_identity()
+        service._dao.user_identity.list_by_user.return_value = [
+            unregistered,
+            registered,
+        ]
+
+        result = service.list_identities([TENANT_A], USER_UUID, only_registered=True)
+
+        assert result == [registered]
+
     def test_get_identity(self) -> None:
         service = self._build_service()
         identity = _make_identity()
