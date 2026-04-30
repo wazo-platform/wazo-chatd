@@ -44,6 +44,7 @@ def _teardown(marker: str) -> None:
         logger.exception('Failed to tear down asset for marker %r', marker)
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_runtest_teardown(item, nextitem) -> None:
     # Eagerly tear down the active asset at marker-group boundaries; the
     # session-scoped fixture's finally still handles the very last asset.
