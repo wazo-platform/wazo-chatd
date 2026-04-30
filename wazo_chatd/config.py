@@ -75,7 +75,6 @@ _DEFAULT_CONFIG = {
     'delivery': {
         'max_concurrent_tasks': 100,
         'provider_cache_ttl': 300,
-        'max_listeners': 2000,
         'poll_interval_min': 5,
         'poll_interval_max': 60,
         'poll_interval_default': 30,

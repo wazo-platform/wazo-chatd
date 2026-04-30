@@ -62,7 +62,7 @@ T = TypeVar('T')
 
 
 def _compute_outbound_retry_delay(retry_count: int) -> float:
-    idx = min(retry_count - 1, len(OUTBOUND_RETRY_DELAYS) - 1)
+    idx = max(0, min(retry_count - 1, len(OUTBOUND_RETRY_DELAYS) - 1))
     return float(OUTBOUND_RETRY_DELAYS[idx])
 
 

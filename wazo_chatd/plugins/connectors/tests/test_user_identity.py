@@ -9,10 +9,15 @@ from unittest.mock import Mock, patch
 import pytest
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import HTTPError
+from sqlalchemy import exc as sqla_exc
 
 from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.database.queries.user_identity import UserIdentityDAO
-from wazo_chatd.exceptions import UnknownUserException, UnknownUserIdentityException
+from wazo_chatd.exceptions import (
+    DuplicateIdentityException,
+    UnknownUserException,
+    UnknownUserIdentityException,
+)
 from wazo_chatd.plugin_helpers.tenant import make_uuid5
 from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableException,
@@ -125,6 +130,17 @@ class TestUserIdentityDAOUpdate(unittest.TestCase):
 
         dao.session.flush.assert_called_once()
 
+    def test_update_raises_duplicate_on_unique_violation(self) -> None:
+        dao = _make_dao(_mock_execute())
+        identity = _make_identity()
+        orig = Mock(pgcode='23505')
+        dao.session.flush.side_effect = sqla_exc.IntegrityError('stmt', {}, orig=orig)
+
+        with pytest.raises(DuplicateIdentityException):
+            dao.update(identity)
+
+        dao.session.rollback.assert_called_once()
+
 
 class TestUserIdentityDAODelete(unittest.TestCase):
     def test_delete_removes_and_flushes(self) -> None:
@@ -171,12 +187,16 @@ class _StubConnector:
         return raw_identity
 
 
+def _build_service_with_stub_backend() -> ConnectorService:
+    dao = Mock()
+    registry = ConnectorRegistry()
+    registry.register_backend(_StubConnector)  # type: ignore[arg-type]
+    return ConnectorService(dao, registry, Mock(), Mock())
+
+
 class TestConnectorServiceIdentityCRUD(unittest.TestCase):
     def _build_service(self) -> ConnectorService:
-        dao = Mock()
-        registry = ConnectorRegistry()
-        registry.register_backend(_StubConnector)  # type: ignore[arg-type]
-        return ConnectorService(dao, registry, Mock(), Mock())
+        return _build_service_with_stub_backend()
 
     def test_list_identities(self) -> None:
         service = self._build_service()
@@ -341,10 +361,7 @@ class TestConnectorServiceGetUserTenantUuid(unittest.TestCase):
 
 class TestConnectorServiceResolveRoomParticipants(unittest.TestCase):
     def _build_service(self) -> ConnectorService:
-        dao = Mock()
-        registry = ConnectorRegistry()
-        registry.register_backend(_StubConnector)  # type: ignore[arg-type]
-        return ConnectorService(dao, registry, Mock(), Mock())
+        return _build_service_with_stub_backend()
 
     def test_uuid_only_participant_unchanged(self) -> None:
         service = self._build_service()
