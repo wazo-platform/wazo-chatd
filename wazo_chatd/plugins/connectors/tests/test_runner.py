@@ -131,6 +131,51 @@ class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
             await runner._entrypoint()
 
 
+class TestDeliveryRunnerResetLoopState(unittest.IsolatedAsyncioTestCase):
+    def _make_runner(self) -> DeliveryRunner:
+        with (
+            unittest.mock.patch.object(
+                runner_module,
+                'init_async_db',
+                return_value=(AsyncMock(), _mock_session_factory()),
+            ),
+            unittest.mock.patch.object(runner_module, 'BusPublisher'),
+        ):
+            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+
+    async def test_reset_clears_dead_loop_references(self) -> None:
+        runner = self._make_runner()
+
+        runner._tasks = {('inbound', 'sms_backend', 'ext-1', '0'): Mock()}
+        runner._pollers = {('tenant-x', 'sms_backend'): Mock()}
+        timer = Mock(spec=asyncio.TimerHandle)
+        runner._scheduled_timers = {timer}
+        runner._queue.append(_make_inbound())
+        original_queue = runner._queue
+
+        runner._reset_loop_state()
+
+        assert runner._tasks == {}
+        assert runner._pollers == {}
+        assert runner._scheduled_timers == set()
+        assert runner._queue is original_queue
+        assert len(runner._queue) == 1
+        assert runner._semaphore is not None
+        assert runner._outbound_notify_task is None
+        assert runner._dispatch_task is None
+
+    async def test_reset_creates_fresh_semaphore(self) -> None:
+        runner = self._make_runner()
+
+        runner._reset_loop_state()
+        first = runner._semaphore
+
+        runner._reset_loop_state()
+        second = runner._semaphore
+
+        assert first is not second
+
+
 @unittest.mock.patch.object(runner_module, 'LISTEN_PING_INTERVAL', 0.01)
 @unittest.mock.patch.object(runner_module, 'LISTEN_PING_TIMEOUT', 0.05)
 class TestMonitorListenConnection(unittest.IsolatedAsyncioTestCase):

@@ -318,8 +318,18 @@ class DeliveryRunner(Runner):
         except RuntimeError:
             pass
 
-    async def _run(self) -> None:
+    def _reset_loop_state(self) -> None:
+        """Drop state bound to the previous event loop so restarts are clean."""
+        self._tasks = {}
+        self._pollers = {}
+        self._scheduled_timers = set()
+        self._queue.reset()
         self._semaphore = asyncio.Semaphore(self._max_tasks)
+        self._outbound_notify_task = None
+        self._dispatch_task = None
+
+    async def _run(self) -> None:
+        self._reset_loop_state()
         try:
             await self._store.wait_populated()
         except Exception:
