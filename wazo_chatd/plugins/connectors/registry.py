@@ -47,12 +47,22 @@ class ConnectorRegistry:
             on_load_failure_callback=self._on_load_failure,
         )
         for extension in manager:
-            if not connectors_config.get(extension.name, {}).get('enabled', False):
+            cfg = connectors_config.get(extension.name, {}) or {}
+            if not cfg.get('enabled', False):
                 logger.debug(
                     'Connector backend %r is disabled, skipping', extension.name
                 )
                 continue
             self.register_backend(extension.plugin)
+
+            mode = cfg.get('mode', 'webhook')
+            verifies = getattr(extension.plugin, 'verifies_signatures', True)
+            if mode == 'webhook' and not verifies:
+                logger.warning(
+                    'Connector backend %r: webhook mode with signature '
+                    'verification off — reduced security posture.',
+                    extension.name,
+                )
 
     def register_backend(self, cls: type[Connector]) -> None:
         """Register a connector backend class.
