@@ -24,6 +24,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
 from wazo_chatd.plugins.connectors.executor import (
     INBOUND_RETRY_DELAYS,
     OUTBOUND_MAX_RETRIES,
+    OUTBOUND_RETRY_DELAYS,
     DeliveryExecutor,
     generate_message_signature,
 )
@@ -187,13 +188,25 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
     async def test_max_retries_sets_dead_letter(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
-        self.delivery.retry_count = OUTBOUND_MAX_RETRIES - 1
+        self.delivery.retry_count = OUTBOUND_MAX_RETRIES
 
         await self.executor.route_outbound_delivery('1')
 
         dao_mock = self.executor._room_dao.add_delivery_record
         statuses = [call.args[1].value for call in dao_mock.call_args_list]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
+
+    async def test_final_retry_uses_last_delay_slot(self) -> None:
+        self.connector.send_side_effect = ConnectorSendError('timeout')
+        self.delivery.retry_count = OUTBOUND_MAX_RETRIES - 1
+
+        result = await self.executor.route_outbound_delivery('1')
+
+        assert result == float(OUTBOUND_RETRY_DELAYS[-1])
+        dao_mock = self.executor._room_dao.add_delivery_record
+        statuses = [call.args[1].value for call in dao_mock.call_args_list]
+        assert DeliveryStatus.RETRYING.value in statuses
+        assert DeliveryStatus.DEAD_LETTER.value not in statuses
 
     async def test_publishes_status_event(self) -> None:
         await self.executor.route_outbound_delivery('1')
@@ -262,7 +275,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
     async def test_dead_letter_returns_no_retry(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
-        self.delivery.retry_count = OUTBOUND_MAX_RETRIES - 1
+        self.delivery.retry_count = OUTBOUND_MAX_RETRIES
 
         result = await self.executor.route_outbound_delivery('1')
 
@@ -390,6 +403,22 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_inbound(inbound)
 
         self.session.add.assert_not_called()
+
+    async def test_route_inbound_dedup_scoped_to_recipient_and_backend(self) -> None:
+        inbound = _make_inbound(idempotency_key='existing-key')
+
+        self.executor._room_dao.check_duplicate_idempotency_key = AsyncMock(
+            return_value=True
+        )
+
+        await self.executor.route_inbound(inbound)
+
+        self.executor._room_dao.check_duplicate_idempotency_key.assert_awaited_once()
+        call = self.executor._room_dao.check_duplicate_idempotency_key.call_args
+        assert call.args[0] == 'existing-key'
+        assert call.kwargs['recipient'] == inbound.recipient
+        assert call.kwargs['backend'] == 'sms_backend'
+        assert call.kwargs['window_seconds'] > 0
 
     async def test_route_inbound_no_dedup_key_skips_dedup_check(self) -> None:
         inbound = _make_inbound()

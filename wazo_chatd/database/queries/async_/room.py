@@ -18,6 +18,7 @@ from wazo_chatd.database.models import (
     Room,
     RoomMessage,
     RoomUser,
+    UserIdentity,
 )
 from wazo_chatd.exceptions import DuplicateExternalIdException
 
@@ -231,10 +232,30 @@ class AsyncRoomDAO:
     async def check_duplicate_idempotency_key(
         self,
         idempotency_key: str,
+        *,
+        recipient: str,
+        backend: str,
+        window_seconds: int,
     ) -> bool:
-        stmt = select(MessageMeta.message_uuid).where(
-            MessageMeta.extra.op('@>', is_comparison=True)(
-                {'inbound_idempotency_key': idempotency_key}
+        cutoff = func.now() - timedelta(seconds=window_seconds)
+        tenant_subq = (
+            select(UserIdentity.tenant_uuid)
+            .where(
+                UserIdentity.identity == recipient,
+                UserIdentity.backend == backend,
+            )
+            .scalar_subquery()
+        )
+        stmt = (
+            select(MessageMeta.message_uuid)
+            .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
+            .where(
+                RoomMessage.tenant_uuid == tenant_subq,
+                MessageMeta.backend == backend,
+                RoomMessage.created_at >= cutoff,
+                MessageMeta.extra.op('@>', is_comparison=True)(
+                    {'inbound_idempotency_key': idempotency_key}
+                ),
             )
         )
         result = await self.session.execute(stmt)

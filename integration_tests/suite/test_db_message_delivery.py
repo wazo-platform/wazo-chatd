@@ -316,6 +316,7 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
 
 @use_asset('database')
 class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @fixtures.db.room(
         messages=[
             {
@@ -332,15 +333,61 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
         ]
     )
     @run_async
-    async def test_returns_true_when_key_present(self, room):
+    async def test_returns_true_when_key_present(self, room, identity):
         dao = AsyncRoomDAO()
-        assert await dao.check_duplicate_idempotency_key('idem-123') is True
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'idem-123',
+                recipient='+15559876',
+                backend='twilio',
+                window_seconds=3600,
+            )
+            is True
+        )
 
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @fixtures.db.room(messages=[{'content': 'no key'}])
     @run_async
-    async def test_returns_false_when_key_absent(self, room):
+    async def test_returns_false_when_key_absent(self, room, identity):
         dao = AsyncRoomDAO()
-        assert await dao.check_duplicate_idempotency_key('idem-missing') is False
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'idem-missing',
+                recipient='+15559876',
+                backend='twilio',
+                window_seconds=3600,
+            )
+            is False
+        )
+
+    @fixtures.db.user_identity(backend='other', type_='sms', identity='+15559876')
+    @fixtures.db.room(
+        messages=[
+            {
+                'content': 'twilio key',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'twilio',
+                    'extra': {'inbound_idempotency_key': 'cross-backend'},
+                },
+                'deliveries': [
+                    {'recipient_identity': '+15559876', 'statuses': ['delivered']}
+                ],
+            }
+        ]
+    )
+    @run_async
+    async def test_returns_false_for_different_backend(self, room, identity):
+        dao = AsyncRoomDAO()
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'cross-backend',
+                recipient='+15559876',
+                backend='other',
+                window_seconds=3600,
+            )
+            is False
+        )
 
 
 @use_asset('database')

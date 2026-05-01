@@ -51,11 +51,12 @@ from wazo_chatd.plugins.connectors.types import (
 
 logger = logging.getLogger(__name__)
 
-OUTBOUND_MAX_RETRIES: int = 3
 OUTBOUND_RETRY_DELAYS: list[int] = [30, 120, 300]
-INBOUND_MAX_RETRIES: int = 3
 INBOUND_RETRY_DELAYS: list[int] = [2, 5, 10]
+OUTBOUND_MAX_RETRIES: int = len(OUTBOUND_RETRY_DELAYS)
+INBOUND_MAX_RETRIES: int = len(INBOUND_RETRY_DELAYS)
 ECHO_WINDOW_SECONDS: int = 60
+INBOUND_DEDUP_WINDOW_SECONDS: int = 7 * 24 * 3600
 MAX_RETRY_AFTER: float = 3600.0
 
 T = TypeVar('T')
@@ -78,7 +79,7 @@ async def _db_persist_or_delay(
     try:
         await awaitable
     except (SQLAlchemyError, OSError):
-        if attempt >= len(INBOUND_RETRY_DELAYS):
+        if attempt >= INBOUND_MAX_RETRIES:
             raise
 
         await session.rollback()
@@ -214,7 +215,9 @@ class DeliveryExecutor:
         self, inbound: InboundMessage, *, attempt: int = 0
     ) -> float | None:
         idempotency_key = inbound.metadata.get('idempotency_key')
-        if attempt == 0 and await self._is_duplicate_idempotency(idempotency_key):
+        if attempt == 0 and await self._is_duplicate_idempotency(
+            idempotency_key, inbound
+        ):
             return None
 
         sender_identity = self._normalize_sender(inbound)
@@ -369,7 +372,7 @@ class DeliveryExecutor:
     ) -> float | None:
         delivery.retry_count = int(delivery.retry_count) + 1  # type: ignore[assignment]
 
-        if int(delivery.retry_count) >= OUTBOUND_MAX_RETRIES:
+        if int(delivery.retry_count) > OUTBOUND_MAX_RETRIES:
             await self._persist_status(
                 delivery,
                 DeliveryStatus.DEAD_LETTER,
@@ -384,12 +387,19 @@ class DeliveryExecutor:
 
         return _compute_outbound_retry_delay(int(delivery.retry_count))
 
-    async def _is_duplicate_idempotency(self, idempotency_key: str | None) -> bool:
+    async def _is_duplicate_idempotency(
+        self,
+        idempotency_key: str | None,
+        inbound: InboundMessage,
+    ) -> bool:
         if not idempotency_key:
             return False
 
         if is_duplicate := await self._room_dao.check_duplicate_idempotency_key(
-            str(idempotency_key)
+            str(idempotency_key),
+            recipient=inbound.recipient,
+            backend=inbound.backend,
+            window_seconds=INBOUND_DEDUP_WINDOW_SECONDS,
         ):
             logger.info('Duplicate inbound message skipped (key=%s)', idempotency_key)
 

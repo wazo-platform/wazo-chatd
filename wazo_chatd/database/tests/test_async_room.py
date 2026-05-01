@@ -61,7 +61,12 @@ class TestAsyncCheckDuplicateIdempotencyKey(unittest.IsolatedAsyncioTestCase):
         result_mock.scalar_one_or_none.return_value = 'some-uuid'
         self.session.execute.return_value = result_mock
 
-        result = await self.dao.check_duplicate_idempotency_key('existing-key')
+        result = await self.dao.check_duplicate_idempotency_key(
+            'existing-key',
+            recipient='+15551234',
+            backend='sms_backend',
+            window_seconds=3600,
+        )
 
         assert result is True
         self.session.execute.assert_awaited_once()
@@ -71,7 +76,12 @@ class TestAsyncCheckDuplicateIdempotencyKey(unittest.IsolatedAsyncioTestCase):
         result_mock.scalar_one_or_none.return_value = None
         self.session.execute.return_value = result_mock
 
-        result = await self.dao.check_duplicate_idempotency_key('new-key')
+        result = await self.dao.check_duplicate_idempotency_key(
+            'new-key',
+            recipient='+15551234',
+            backend='sms_backend',
+            window_seconds=3600,
+        )
 
         assert result is False
 
