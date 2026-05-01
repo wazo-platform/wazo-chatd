@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, exc, func, select
@@ -209,7 +209,7 @@ class AsyncRoomDAO:
         signature: str,
         window_seconds: int = 60,
     ) -> MessageMeta | None:
-        cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        cutoff = func.now() - timedelta(seconds=window_seconds)
         stmt = (
             select(MessageMeta)
             .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
