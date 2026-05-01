@@ -138,10 +138,13 @@ class DeliveryExecutor:
         Loads the delivery per leg (1 query per leg). Future optimization:
         pass primitives from the publisher to skip the per-leg read.
         """
-        delivery = await self._room_dao.get_message_delivery(delivery_id)
+        delivery = await self._room_dao.get_message_delivery(
+            delivery_id, skip_locked=True
+        )
         if delivery is None:
-            logger.warning(
-                'No MessageDelivery for delivery_id %s, skipping', delivery_id
+            logger.debug(
+                'Delivery %s unavailable (already in flight or removed), skipping',
+                delivery_id,
             )
             return None
 

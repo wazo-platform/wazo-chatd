@@ -290,6 +290,7 @@ class DeliveryRunner(Runner):
         self._queue: AsyncQueue[InboundMessage | StatusUpdate] = AsyncQueue()
         self._dispatch_task: asyncio.Task[None] | None = None
         self._scheduled_timers: set[asyncio.TimerHandle] = set()
+        self._scheduled_outbound_timers: dict[str, asyncio.TimerHandle] = {}
 
     @property
     def semaphore(self) -> asyncio.Semaphore:
@@ -323,6 +324,7 @@ class DeliveryRunner(Runner):
         self._tasks = {}
         self._pollers = {}
         self._scheduled_timers = set()
+        self._scheduled_outbound_timers = {}
         self._queue.reset()
         self._semaphore = asyncio.Semaphore(self._max_tasks)
         self._outbound_notify_task = None
@@ -484,12 +486,18 @@ class DeliveryRunner(Runner):
         task.add_done_callback(lambda _t: self._tasks.pop(key, None))
 
     def _schedule_outbound_delivery_later(self, delay: float, delivery_id: str) -> None:
+        if (existing := self._scheduled_outbound_timers.get(delivery_id)) is not None:
+            existing.cancel()
+            self._scheduled_timers.discard(existing)
+
         def callback() -> None:
             self._scheduled_timers.discard(handle)
+            self._scheduled_outbound_timers.pop(delivery_id, None)
             self._schedule_outbound_delivery(delivery_id)
 
         handle = self.loop.call_later(delay, callback)
         self._scheduled_timers.add(handle)
+        self._scheduled_outbound_timers[delivery_id] = handle
 
     async def _process_outbound_delivery(self, delivery_id: str) -> None:
         async with self.semaphore:

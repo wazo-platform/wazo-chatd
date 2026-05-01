@@ -79,7 +79,10 @@ class AsyncRoomDAO:
         return list(result.scalars().all())
 
     async def get_message_delivery(
-        self, delivery_id: int | str
+        self,
+        delivery_id: int | str,
+        *,
+        skip_locked: bool = False,
     ) -> MessageDelivery | None:
         stmt = (
             select(MessageDelivery)
@@ -94,6 +97,8 @@ class AsyncRoomDAO:
             )
             .where(MessageDelivery.id == int(delivery_id))
         )
+        if skip_locked:
+            stmt = stmt.with_for_update(skip_locked=True, of=MessageDelivery)
         result = await self.session.execute(stmt)
         return result.unique().scalar_one_or_none()
 

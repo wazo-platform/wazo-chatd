@@ -131,6 +131,60 @@ class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
             await runner._entrypoint()
 
 
+class TestDeliveryRunnerScheduleOutboundLater(unittest.IsolatedAsyncioTestCase):
+    def _make_runner(self) -> DeliveryRunner:
+        with (
+            unittest.mock.patch.object(
+                runner_module,
+                'init_async_db',
+                return_value=(AsyncMock(), _mock_session_factory()),
+            ),
+            unittest.mock.patch.object(runner_module, 'BusPublisher'),
+        ):
+            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+
+    async def test_repeated_schedule_for_same_delivery_coalesces_timer(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+
+        runner._schedule_outbound_delivery_later(60, 'delivery-1')
+        first_handle = runner._scheduled_outbound_timers['delivery-1']
+
+        runner._schedule_outbound_delivery_later(120, 'delivery-1')
+        second_handle = runner._scheduled_outbound_timers['delivery-1']
+
+        assert first_handle is not second_handle
+        assert first_handle.cancelled()
+        assert not second_handle.cancelled()
+        assert len(runner._scheduled_outbound_timers) == 1
+
+    async def test_distinct_delivery_ids_get_distinct_timers(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+
+        runner._schedule_outbound_delivery_later(60, 'delivery-a')
+        runner._schedule_outbound_delivery_later(60, 'delivery-b')
+
+        assert len(runner._scheduled_outbound_timers) == 2
+        assert (
+            runner._scheduled_outbound_timers['delivery-a']
+            is not runner._scheduled_outbound_timers['delivery-b']
+        )
+
+    async def test_timer_handle_self_unregisters_on_fire(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+
+        runner._schedule_outbound_delivery_later(0.01, 'delivery-1')
+        await asyncio.sleep(0.05)
+
+        assert 'delivery-1' not in runner._scheduled_outbound_timers
+
+
 class TestDeliveryRunnerResetLoopState(unittest.IsolatedAsyncioTestCase):
     def _make_runner(self) -> DeliveryRunner:
         with (
