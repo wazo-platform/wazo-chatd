@@ -554,6 +554,7 @@ class DeliveryExecutor:
         record = await self._room_dao.add_delivery_record(
             delivery, status, reason=reason
         )
+        delivery.records.append(record)
         await self._notifier.delivery_status_updated(delivery, record)
         return record
 
