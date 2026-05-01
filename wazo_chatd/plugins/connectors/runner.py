@@ -438,11 +438,16 @@ class DeliveryRunner(Runner):
         finally:
             if not closing_task.done():
                 closing_task.cancel()
-                try:
-                    await closing_task
-                except asyncio.CancelledError:
-                    if (current := asyncio.current_task()) and current.cancelling():
-                        raise
+            try:
+                await closing_task
+            except asyncio.CancelledError:
+                if (current := asyncio.current_task()) and current.cancelling():
+                    raise
+            except Exception:
+                logger.warning(
+                    'Listen connection closing task failed during cleanup',
+                    exc_info=True,
+                )
 
     def _on_delivery_notify(
         self,

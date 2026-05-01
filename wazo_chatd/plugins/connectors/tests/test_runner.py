@@ -333,6 +333,26 @@ class TestMonitorListenConnection(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await monitor_task
 
+    async def test_primary_ping_error_survives_misbehaving_closing_task(
+        self,
+    ) -> None:
+        runner = self._make_runner()
+
+        async def wait_for_close() -> None:
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                raise RuntimeError('closing task cleanup blew up')
+
+        runner._wait_closing = wait_for_close  # type: ignore[method-assign]
+        connection = AsyncMock()
+        connection.execute.side_effect = OSError('primary ping error')
+
+        with self.assertRaises(OSError) as ctx:
+            await runner._monitor_listen_connection(connection)
+
+        assert 'primary ping error' in str(ctx.exception)
+
 
 @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.asyncpg')
 @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')

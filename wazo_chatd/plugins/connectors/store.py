@@ -185,7 +185,8 @@ class ConnectorStore:
         with self._fetch_lock:
             self._cache.pop(key, None)
             self._expires_at.pop(key, None)
-            self._cache_epoch[key] = self._cache_epoch.get(key, 0) + 1
+            if key in self._pending_fetches:
+                self._cache_epoch[key] = self._cache_epoch.get(key, 0) + 1
 
     def get(self, backend: str, tenant_uuid: str) -> Connector:
         """Get cached instance if fresh, else fetch from wazo-auth; raises on failure.
@@ -264,6 +265,7 @@ class ConnectorStore:
         finally:
             with self._fetch_lock:
                 self._pending_fetches.pop(key, None)
+                self._cache_epoch.pop(key, None)
 
     def _do_fetch(self, backend: str, tenant_uuid: str) -> Connector:
         key = (tenant_uuid, backend)
@@ -293,7 +295,8 @@ class ConnectorStore:
         instance = backend_cls(tenant_uuid, provider_config, connector_config)
 
         with self._fetch_lock:
-            if cached := (self._cache_epoch.get(key, 0) == epoch_before):
+            cached = self._cache_epoch.get(key, 0) == epoch_before
+            if cached:
                 jitter = random.uniform(1.0 - TTL_JITTER, 1.0 + TTL_JITTER)
                 self._cache[key] = instance
                 self._expires_at[key] = time.monotonic() + self._cache_ttl * jitter
