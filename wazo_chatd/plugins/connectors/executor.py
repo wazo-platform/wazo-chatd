@@ -403,6 +403,7 @@ class DeliveryExecutor:
             idempotency_key,
             recipient=inbound.recipient,
             backend=inbound.backend,
+            message_type=inbound.message_type,
             window_seconds=INBOUND_DEDUP_WINDOW_SECONDS,
         ):
             logger.info('Duplicate inbound message skipped (key=%s)', idempotency_key)

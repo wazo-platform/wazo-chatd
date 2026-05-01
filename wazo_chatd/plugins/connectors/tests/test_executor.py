@@ -418,6 +418,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         assert call.args[0] == 'existing-key'
         assert call.kwargs['recipient'] == inbound.recipient
         assert call.kwargs['backend'] == 'sms_backend'
+        assert call.kwargs['message_type'] == inbound.message_type
         assert call.kwargs['window_seconds'] > 0
 
     async def test_route_inbound_no_dedup_key_skips_dedup_check(self) -> None:

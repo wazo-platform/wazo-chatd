@@ -239,6 +239,7 @@ class AsyncRoomDAO:
         *,
         recipient: str,
         backend: str,
+        message_type: str,
         window_seconds: int,
     ) -> bool:
         cutoff = func.now() - timedelta(seconds=window_seconds)
@@ -247,6 +248,7 @@ class AsyncRoomDAO:
             .where(
                 UserIdentity.identity == recipient,
                 UserIdentity.backend == backend,
+                UserIdentity.type_ == message_type,
             )
             .scalar_subquery()
         )

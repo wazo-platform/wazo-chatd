@@ -321,7 +321,6 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
 
 @use_asset('database')
 class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
-    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @fixtures.db.room(
         messages=[
             {
@@ -337,6 +336,7 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
             }
         ]
     )
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @run_async
     async def test_returns_true_when_key_present(self, room, identity):
         dao = AsyncRoomDAO()
@@ -345,13 +345,14 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
                 'idem-123',
                 recipient='+15559876',
                 backend='twilio',
+                message_type='sms',
                 window_seconds=3600,
             )
             is True
         )
 
-    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @fixtures.db.room(messages=[{'content': 'no key'}])
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @run_async
     async def test_returns_false_when_key_absent(self, room, identity):
         dao = AsyncRoomDAO()
@@ -360,12 +361,12 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
                 'idem-missing',
                 recipient='+15559876',
                 backend='twilio',
+                message_type='sms',
                 window_seconds=3600,
             )
             is False
         )
 
-    @fixtures.db.user_identity(backend='other', type_='sms', identity='+15559876')
     @fixtures.db.room(
         messages=[
             {
@@ -381,6 +382,7 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
             }
         ]
     )
+    @fixtures.db.user_identity(backend='other', type_='sms', identity='+15559876')
     @run_async
     async def test_returns_false_for_different_backend(self, room, identity):
         dao = AsyncRoomDAO()
@@ -389,9 +391,43 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
                 'cross-backend',
                 recipient='+15559876',
                 backend='other',
+                message_type='sms',
                 window_seconds=3600,
             )
             is False
+        )
+
+    @fixtures.db.room(
+        messages=[
+            {
+                'content': 'sms key',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'twilio',
+                    'extra': {'inbound_idempotency_key': 'multi-type'},
+                },
+                'deliveries': [
+                    {'recipient_identity': '+15559876', 'statuses': ['delivered']}
+                ],
+            }
+        ]
+    )
+    @fixtures.db.user_identity(backend='twilio', type_='whatsapp', identity='+15559876')
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
+    @run_async
+    async def test_returns_true_with_matching_message_type(
+        self, room, sms_identity, whatsapp_identity
+    ):
+        dao = AsyncRoomDAO()
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'multi-type',
+                recipient='+15559876',
+                backend='twilio',
+                message_type='sms',
+                window_seconds=3600,
+            )
+            is True
         )
 
 

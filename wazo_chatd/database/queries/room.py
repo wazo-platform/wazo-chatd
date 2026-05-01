@@ -112,9 +112,10 @@ class RoomDAO:
         self,
         message: RoomMessage,
         recipient_identities: list[str],
+        *,
+        backend: str,
+        type_: str,
         sender_identity_uuid: UUID | None = None,
-        backend: str | None = None,
-        type_: str | None = None,
         extra: dict[str, str] | None = None,
     ) -> None:
         if not message.uuid:
