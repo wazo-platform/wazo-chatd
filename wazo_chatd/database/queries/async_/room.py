@@ -69,7 +69,7 @@ class AsyncRoomDAO:
             .join(latest_record, MessageDelivery.id == latest_record.c.delivery_id)
             .join(DeliveryRecord, DeliveryRecord.id == latest_record.c.max_id)
             .where(RoomMessage.tenant_uuid == tenant_uuid)
-            .where(MessageMeta.backend == backend)
+            .where(MessageDelivery.backend == backend)
             .where(MessageDelivery.external_id.isnot(None))
             .where(DeliveryRecord.status.notin_(terminal))
             .order_by(RoomMessage.created_at)
@@ -133,7 +133,7 @@ class AsyncRoomDAO:
             )
             .where(
                 MessageDelivery.external_id == external_id,
-                MessageMeta.backend == backend,
+                MessageDelivery.backend == backend,
             )
             .limit(1)
         )
@@ -166,7 +166,7 @@ class AsyncRoomDAO:
             if duplicate is not None:
                 raise DuplicateExternalIdException(
                     str(duplicate.external_id),
-                    str(message.meta.backend),
+                    str(duplicate.backend),
                 )
             raise
         return message
@@ -249,14 +249,19 @@ class AsyncRoomDAO:
         stmt = (
             select(MessageMeta.message_uuid)
             .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
+            .join(
+                MessageDelivery,
+                MessageDelivery.message_uuid == MessageMeta.message_uuid,
+            )
             .where(
                 RoomMessage.tenant_uuid == tenant_subq,
-                MessageMeta.backend == backend,
+                MessageDelivery.backend == backend,
                 RoomMessage.created_at >= cutoff,
                 MessageMeta.extra.op('@>', is_comparison=True)(
                     {'inbound_idempotency_key': idempotency_key}
                 ),
             )
+            .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None

@@ -492,12 +492,12 @@ class DeliveryExecutor:
 
         delivery = MessageDelivery(
             recipient_identity=inbound.recipient,
+            backend=inbound.backend,
+            type_=inbound.message_type,
             external_id=inbound.external_id,
         )
         delivery.records.append(DeliveryRecord(status=DeliveryStatus.DELIVERED.value))
         meta = MessageMeta(
-            backend=inbound.backend,
-            type_=inbound.message_type,
             extra=extra,
             deliveries=[delivery],
         )

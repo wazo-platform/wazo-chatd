@@ -78,7 +78,7 @@ def upgrade() -> None:
         ['user_uuid'],
     )
 
-    # MessageMeta: per-message metadata (channel, sender, opaque extras)
+    # MessageMeta: per-message metadata (sender, opaque extras)
     op.create_table(
         'chatd_message_meta',
         sa.Column(
@@ -87,8 +87,6 @@ def upgrade() -> None:
             sa.ForeignKey('chatd_room_message.uuid', ondelete='CASCADE'),
             primary_key=True,
         ),
-        sa.Column('type', sa.String, nullable=True),
-        sa.Column('backend', sa.String, nullable=True),
         sa.Column(
             'sender_identity_uuid',
             UUIDType(),
@@ -120,6 +118,8 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column('recipient_identity', sa.String, nullable=False),
+        sa.Column('backend', sa.String, nullable=False),
+        sa.Column('type', sa.String, nullable=False),
         sa.Column('external_id', sa.String, nullable=True),
         sa.Column('retry_count', sa.SmallInteger, nullable=False, server_default='0'),
         sa.UniqueConstraint(
@@ -131,7 +131,7 @@ def upgrade() -> None:
     op.create_index(
         'chatd_message_delivery__uq__external_id',
         'chatd_message_delivery',
-        ['external_id'],
+        ['external_id', 'backend'],
         unique=True,
         postgresql_where='external_id IS NOT NULL',
     )

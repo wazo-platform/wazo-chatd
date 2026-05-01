@@ -323,8 +323,6 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         ForeignKey('chatd_room_message.uuid', ondelete='CASCADE'),
         primary_key=True,
     )
-    type_ = Column('type', String, nullable=True)
-    backend = Column(String, nullable=True)
     sender_identity_uuid: UUIDType = Column(
         UUIDType(),
         ForeignKey('chatd_user_identity.uuid', ondelete='SET NULL'),
@@ -348,6 +346,14 @@ class MessageMeta(Base):  # type: ignore[misc, valid-type]
         order_by='MessageDelivery.id',
     )
 
+    @property
+    def backend(self) -> str | None:
+        return str(self.deliveries[0].backend) if self.deliveries else None
+
+    @property
+    def type_(self) -> str | None:
+        return str(self.deliveries[0].type_) if self.deliveries else None
+
 
 @generic_repr
 class MessageDelivery(Base):  # type: ignore[misc, valid-type]
@@ -361,6 +367,7 @@ class MessageDelivery(Base):  # type: ignore[misc, valid-type]
         Index(
             'chatd_message_delivery__uq__external_id',
             'external_id',
+            'backend',
             unique=True,
             postgresql_where=text('external_id IS NOT NULL'),
         ),
@@ -373,6 +380,8 @@ class MessageDelivery(Base):  # type: ignore[misc, valid-type]
         nullable=False,
     )
     recipient_identity = Column(String, nullable=False)
+    backend = Column(String, nullable=False)
+    type_ = Column('type', String, nullable=False)
     external_id = Column(String, nullable=True)
     retry_count = Column(SmallInteger, nullable=False, default=0, server_default='0')
 

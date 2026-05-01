@@ -23,18 +23,23 @@ def _build_message(
     backend: str,
     external_id: str | None,
     recipient_identity: str = '+15559876',
+    type_: str = 'sms',
 ) -> RoomMessage:
     sender = room.users[0]
+
     delivery = MessageDelivery(
         recipient_identity=recipient_identity,
+        backend=backend,
+        type_=type_,
         external_id=external_id,
     )
+
     return RoomMessage(
         content='hello',
         user_uuid=sender.uuid,
         tenant_uuid=room.tenant_uuid,
         wazo_uuid=sender.wazo_uuid,
-        meta=MessageMeta(backend=backend, deliveries=[delivery]),
+        meta=MessageMeta(deliveries=[delivery]),
     )
 
 
