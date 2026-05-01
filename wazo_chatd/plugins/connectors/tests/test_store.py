@@ -154,6 +154,80 @@ class TestConnectorStoreRefresh(unittest.IsolatedAsyncioTestCase):
         assert store.peek('sms_backend', TENANT_A) is None
 
 
+class TestConnectorStoreDropDuringFetch(unittest.TestCase):
+    def test_drop_during_fetch_does_not_cache_stale_instance(self) -> None:
+        auth_client = Mock()
+        fetch_can_proceed = threading.Event()
+        fetch_started = threading.Event()
+
+        def slow_get_config(backend: str, tenant_uuid: str) -> dict[str, str]:
+            fetch_started.set()
+            fetch_can_proceed.wait(timeout=2)
+            return {'token': 'old'}
+
+        auth_client.external.get_config = slow_get_config
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(store.find, 'sms_backend', TENANT_A)
+
+            assert fetch_started.wait(timeout=1)
+            store.drop('sms_backend', TENANT_A)
+
+            fetch_can_proceed.set()
+            future.result(timeout=2)
+
+        assert store.peek('sms_backend', TENANT_A) is None
+
+
+class TestConnectorStoreCacheEpochLifecycle(unittest.TestCase):
+    def test_drop_without_pending_fetch_leaves_epoch_empty(self) -> None:
+        auth_client = Mock()
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        store.drop('sms_backend', TENANT_A)
+        store.drop('sms_backend', TENANT_A)
+        store.drop('sms_backend', TENANT_B)
+
+        assert store._cache_epoch == {}
+
+    def test_repeated_drop_find_cycles_do_not_grow_epoch(self) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.return_value = {'api_key': 'secret'}
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        for _ in range(10):
+            store.find('sms_backend', TENANT_A)
+            store.drop('sms_backend', TENANT_A)
+
+        assert store._cache_epoch == {}
+
+    def test_drop_during_fetch_records_epoch_and_cleans_up(self) -> None:
+        auth_client = Mock()
+        fetch_can_proceed = threading.Event()
+        fetch_started = threading.Event()
+
+        def slow_get_config(backend: str, tenant_uuid: str) -> dict[str, str]:
+            fetch_started.set()
+            fetch_can_proceed.wait(timeout=2)
+            return {'token': 'old'}
+
+        auth_client.external.get_config = slow_get_config
+        store = ConnectorStore(auth_client, _build_registry(_SmsConnector))
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(store.find, 'sms_backend', TENANT_A)
+
+            assert fetch_started.wait(timeout=1)
+            store.drop('sms_backend', TENANT_A)
+
+            fetch_can_proceed.set()
+            future.result(timeout=2)
+
+        assert store.peek('sms_backend', TENANT_A) is None
+        assert store._cache_epoch == {}
+
+
 class TestConnectorStorePeek(unittest.TestCase):
     def test_returns_none_when_not_cached(self) -> None:
         auth_client = Mock()

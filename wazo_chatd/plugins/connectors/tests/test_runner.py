@@ -11,6 +11,7 @@ import unittest.mock
 from unittest.mock import AsyncMock, Mock
 
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
+from wazo_chatd.plugins.connectors import runner as runner_module
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner, Runner
 from wazo_chatd.plugins.connectors.types import InboundMessage, StatusUpdate
@@ -128,6 +129,229 @@ class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(RuntimeError):
             await runner._entrypoint()
+
+
+class TestDeliveryRunnerScheduleOutboundLater(unittest.IsolatedAsyncioTestCase):
+    def _make_runner(self) -> DeliveryRunner:
+        with (
+            unittest.mock.patch.object(
+                runner_module,
+                'init_async_db',
+                return_value=(AsyncMock(), _mock_session_factory()),
+            ),
+            unittest.mock.patch.object(runner_module, 'BusPublisher'),
+        ):
+            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+
+    async def test_repeated_schedule_for_same_delivery_coalesces_timer(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+
+        runner._schedule_outbound_delivery_later(60, 'delivery-1')
+        first_handle = runner._scheduled_outbound_timers['delivery-1']
+
+        runner._schedule_outbound_delivery_later(120, 'delivery-1')
+        second_handle = runner._scheduled_outbound_timers['delivery-1']
+
+        assert first_handle is not second_handle
+        assert first_handle.cancelled()
+        assert not second_handle.cancelled()
+        assert len(runner._scheduled_outbound_timers) == 1
+
+    async def test_distinct_delivery_ids_get_distinct_timers(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+
+        runner._schedule_outbound_delivery_later(60, 'delivery-a')
+        runner._schedule_outbound_delivery_later(60, 'delivery-b')
+
+        assert len(runner._scheduled_outbound_timers) == 2
+        assert (
+            runner._scheduled_outbound_timers['delivery-a']
+            is not runner._scheduled_outbound_timers['delivery-b']
+        )
+
+    async def test_timer_handle_self_unregisters_on_fire(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+
+        runner._schedule_outbound_delivery_later(0.01, 'delivery-1')
+        await asyncio.sleep(0.05)
+
+        assert 'delivery-1' not in runner._scheduled_outbound_timers
+
+
+class TestDeliveryRunnerResetLoopState(unittest.IsolatedAsyncioTestCase):
+    def _make_runner(self) -> DeliveryRunner:
+        with (
+            unittest.mock.patch.object(
+                runner_module,
+                'init_async_db',
+                return_value=(AsyncMock(), _mock_session_factory()),
+            ),
+            unittest.mock.patch.object(runner_module, 'BusPublisher'),
+        ):
+            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+
+    async def test_reset_clears_dead_loop_references(self) -> None:
+        runner = self._make_runner()
+
+        runner._tasks = {('inbound', 'sms_backend', 'ext-1', '0'): Mock()}
+        runner._pollers = {('tenant-x', 'sms_backend'): Mock()}
+        timer = Mock(spec=asyncio.TimerHandle)
+        runner._scheduled_timers = {timer}
+        runner._queue.append(_make_inbound())
+        original_queue = runner._queue
+
+        runner._reset_loop_state()
+
+        assert runner._tasks == {}
+        assert runner._pollers == {}
+        assert runner._scheduled_timers == set()
+        assert runner._queue is original_queue
+        assert len(runner._queue) == 1
+        assert runner._semaphore is not None
+        assert runner._outbound_notify_task is None
+        assert runner._dispatch_task is None
+
+    async def test_reset_creates_fresh_semaphore(self) -> None:
+        runner = self._make_runner()
+
+        runner._reset_loop_state()
+        first = runner._semaphore
+
+        runner._reset_loop_state()
+        second = runner._semaphore
+
+        assert first is not second
+
+
+@unittest.mock.patch.object(runner_module, 'LISTEN_PING_INTERVAL', 0.01)
+@unittest.mock.patch.object(runner_module, 'LISTEN_PING_TIMEOUT', 0.05)
+class TestMonitorListenConnection(unittest.IsolatedAsyncioTestCase):
+    def _make_runner(self) -> DeliveryRunner:
+        with (
+            unittest.mock.patch.object(
+                runner_module,
+                'init_async_db',
+                return_value=(AsyncMock(), _mock_session_factory()),
+            ),
+            unittest.mock.patch.object(runner_module, 'BusPublisher'),
+        ):
+            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+
+    async def test_returns_when_closing_signal_fires(self) -> None:
+        runner = self._make_runner()
+        close_event = asyncio.Event()
+
+        async def wait_for_close() -> None:
+            await close_event.wait()
+
+        runner._wait_closing = wait_for_close  # type: ignore[method-assign]
+        connection = AsyncMock()
+
+        async def trigger_close() -> None:
+            await asyncio.sleep(0.01)
+            close_event.set()
+            runner._closing.set_result(None)
+
+        asyncio.create_task(trigger_close())
+        await runner._monitor_listen_connection(connection)
+
+    async def test_pings_connection_between_intervals(self) -> None:
+        runner = self._make_runner()
+        close_event = asyncio.Event()
+
+        async def wait_for_close() -> None:
+            await close_event.wait()
+
+        runner._wait_closing = wait_for_close  # type: ignore[method-assign]
+        connection = AsyncMock()
+
+        async def trigger_close() -> None:
+            await asyncio.sleep(0.05)
+            close_event.set()
+            runner._closing.set_result(None)
+
+        asyncio.create_task(trigger_close())
+        await runner._monitor_listen_connection(connection)
+
+        connection.execute.assert_awaited_with('SELECT 1')
+        assert connection.execute.await_count >= 1
+
+    async def test_raises_when_ping_times_out(self) -> None:
+        runner = self._make_runner()
+
+        async def wait_for_close() -> None:
+            await asyncio.Future()
+
+        runner._wait_closing = wait_for_close  # type: ignore[method-assign]
+        connection = AsyncMock()
+
+        async def hang(_query: str) -> None:
+            await asyncio.sleep(10)
+
+        connection.execute = hang  # type: ignore[method-assign]
+
+        with self.assertRaises(asyncio.TimeoutError):
+            await runner._monitor_listen_connection(connection)
+
+    async def test_propagates_ping_error(self) -> None:
+        runner = self._make_runner()
+
+        async def wait_for_close() -> None:
+            await asyncio.Future()
+
+        runner._wait_closing = wait_for_close  # type: ignore[method-assign]
+        connection = AsyncMock()
+        connection.execute.side_effect = OSError('connection closed by peer')
+
+        with self.assertRaises(OSError):
+            await runner._monitor_listen_connection(connection)
+
+    async def test_cancellation_drains_closing_task(self) -> None:
+        runner = self._make_runner()
+        wait_started = asyncio.Event()
+
+        async def wait_for_close() -> None:
+            wait_started.set()
+            await asyncio.Future()
+
+        runner._wait_closing = wait_for_close  # type: ignore[method-assign]
+        connection = AsyncMock()
+
+        monitor_task = asyncio.create_task(
+            runner._monitor_listen_connection(connection)
+        )
+        await wait_started.wait()
+        monitor_task.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await monitor_task
+
+    async def test_primary_ping_error_survives_misbehaving_closing_task(
+        self,
+    ) -> None:
+        runner = self._make_runner()
+
+        async def wait_for_close() -> None:
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                raise RuntimeError('closing task cleanup blew up')
+
+        runner._wait_closing = wait_for_close  # type: ignore[method-assign]
+        connection = AsyncMock()
+        connection.execute.side_effect = OSError('primary ping error')
+
+        with self.assertRaises(OSError) as ctx:
+            await runner._monitor_listen_connection(connection)
+
+        assert 'primary ping error' in str(ctx.exception)
 
 
 @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.asyncpg')

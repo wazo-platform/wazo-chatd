@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, exc, func, select
@@ -18,6 +18,7 @@ from wazo_chatd.database.models import (
     Room,
     RoomMessage,
     RoomUser,
+    UserIdentity,
 )
 from wazo_chatd.exceptions import DuplicateExternalIdException
 
@@ -68,7 +69,7 @@ class AsyncRoomDAO:
             .join(latest_record, MessageDelivery.id == latest_record.c.delivery_id)
             .join(DeliveryRecord, DeliveryRecord.id == latest_record.c.max_id)
             .where(RoomMessage.tenant_uuid == tenant_uuid)
-            .where(MessageMeta.backend == backend)
+            .where(MessageDelivery.backend == backend)
             .where(MessageDelivery.external_id.isnot(None))
             .where(DeliveryRecord.status.notin_(terminal))
             .order_by(RoomMessage.created_at)
@@ -78,7 +79,10 @@ class AsyncRoomDAO:
         return list(result.scalars().all())
 
     async def get_message_delivery(
-        self, delivery_id: int | str
+        self,
+        delivery_id: int | str,
+        *,
+        skip_locked: bool = False,
     ) -> MessageDelivery | None:
         stmt = (
             select(MessageDelivery)
@@ -93,6 +97,8 @@ class AsyncRoomDAO:
             )
             .where(MessageDelivery.id == int(delivery_id))
         )
+        if skip_locked:
+            stmt = stmt.with_for_update(skip_locked=True, of=MessageDelivery)
         result = await self.session.execute(stmt)
         return result.unique().scalar_one_or_none()
 
@@ -132,7 +138,7 @@ class AsyncRoomDAO:
             )
             .where(
                 MessageDelivery.external_id == external_id,
-                MessageMeta.backend == backend,
+                MessageDelivery.backend == backend,
             )
             .limit(1)
         )
@@ -165,7 +171,7 @@ class AsyncRoomDAO:
             if duplicate is not None:
                 raise DuplicateExternalIdException(
                     str(duplicate.external_id),
-                    str(message.meta.backend),
+                    str(duplicate.backend),
                 )
             raise
         return message
@@ -203,7 +209,7 @@ class AsyncRoomDAO:
         signature: str,
         window_seconds: int = 60,
     ) -> MessageMeta | None:
-        cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        cutoff = func.now() - timedelta(seconds=window_seconds)
         stmt = (
             select(MessageMeta)
             .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
@@ -231,11 +237,38 @@ class AsyncRoomDAO:
     async def check_duplicate_idempotency_key(
         self,
         idempotency_key: str,
+        *,
+        recipient: str,
+        backend: str,
+        message_type: str,
+        window_seconds: int,
     ) -> bool:
-        stmt = select(MessageMeta.message_uuid).where(
-            MessageMeta.extra.op('@>', is_comparison=True)(
-                {'inbound_idempotency_key': idempotency_key}
+        cutoff = func.now() - timedelta(seconds=window_seconds)
+        tenant_subq = (
+            select(UserIdentity.tenant_uuid)
+            .where(
+                UserIdentity.identity == recipient,
+                UserIdentity.backend == backend,
+                UserIdentity.type_ == message_type,
             )
+            .scalar_subquery()
+        )
+        stmt = (
+            select(MessageMeta.message_uuid)
+            .join(RoomMessage, MessageMeta.message_uuid == RoomMessage.uuid)
+            .join(
+                MessageDelivery,
+                MessageDelivery.message_uuid == MessageMeta.message_uuid,
+            )
+            .where(
+                RoomMessage.tenant_uuid == tenant_subq,
+                MessageDelivery.backend == backend,
+                RoomMessage.created_at >= cutoff,
+                MessageMeta.extra.op('@>', is_comparison=True)(
+                    {'inbound_idempotency_key': idempotency_key}
+                ),
+            )
+            .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None

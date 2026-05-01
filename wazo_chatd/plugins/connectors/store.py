@@ -57,6 +57,7 @@ class ConnectorStore:
         self._connectors_config = connectors_config or {}
         self._cache: dict[CacheKey, Connector] = {}
         self._expires_at: dict[CacheKey, float] = {}
+        self._cache_epoch: dict[CacheKey, int] = {}
         # One-shot signal — set when priority (runner-driven) population
         # completes. Webhook-mode backends may still be populating in the
         # background when this fires.
@@ -181,8 +182,11 @@ class ConnectorStore:
 
     def drop(self, backend: str, tenant_uuid: str) -> None:
         key = (tenant_uuid, backend)
-        self._cache.pop(key, None)
-        self._expires_at.pop(key, None)
+        with self._fetch_lock:
+            self._cache.pop(key, None)
+            self._expires_at.pop(key, None)
+            if key in self._pending_fetches:
+                self._cache_epoch[key] = self._cache_epoch.get(key, 0) + 1
 
     def get(self, backend: str, tenant_uuid: str) -> Connector:
         """Get cached instance if fresh, else fetch from wazo-auth; raises on failure.
@@ -261,6 +265,7 @@ class ConnectorStore:
         finally:
             with self._fetch_lock:
                 self._pending_fetches.pop(key, None)
+                self._cache_epoch.pop(key, None)
 
     def _do_fetch(self, backend: str, tenant_uuid: str) -> Connector:
         key = (tenant_uuid, backend)
@@ -268,13 +273,17 @@ class ConnectorStore:
         if backend not in self._registry.available_backends():
             raise UnknownBackendException(backend)
 
+        with self._fetch_lock:
+            epoch_before = self._cache_epoch.get(key, 0)
+
         try:
             provider_config = dict(
                 self._auth_client.external.get_config(backend, tenant_uuid=tenant_uuid)
             )
         except HTTPError as e:
-            self._cache.pop(key, None)
-            self._expires_at.pop(key, None)
+            with self._fetch_lock:
+                self._cache.pop(key, None)
+                self._expires_at.pop(key, None)
             if getattr(e.response, 'status_code', None) == 404:
                 raise BackendNotConfiguredException(backend, tenant_uuid)
             raise AuthServiceUnavailableException()
@@ -285,9 +294,23 @@ class ConnectorStore:
         connector_config = self._connectors_config.get(backend, {})
         instance = backend_cls(tenant_uuid, provider_config, connector_config)
 
-        jitter = random.uniform(1.0 - TTL_JITTER, 1.0 + TTL_JITTER)
-        self._cache[key] = instance
-        self._expires_at[key] = time.monotonic() + self._cache_ttl * jitter
+        with self._fetch_lock:
+            cached = self._cache_epoch.get(key, 0) == epoch_before
+            if cached:
+                jitter = random.uniform(1.0 - TTL_JITTER, 1.0 + TTL_JITTER)
+                self._cache[key] = instance
+                self._expires_at[key] = time.monotonic() + self._cache_ttl * jitter
 
-        logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)
+        if cached:
+            logger.info(
+                'Loaded connector instance %r for tenant %s', backend, tenant_uuid
+            )
+        else:
+            logger.info(
+                'Drop during fetch for backend %r tenant %s; '
+                'returning instance without caching',
+                backend,
+                tenant_uuid,
+            )
+
         return instance

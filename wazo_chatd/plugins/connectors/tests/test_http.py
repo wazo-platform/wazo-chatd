@@ -9,7 +9,10 @@ from unittest.mock import Mock
 
 from flask import Flask
 
-from wazo_chatd.plugins.connectors.exceptions import ConnectorParseError
+from wazo_chatd.plugins.connectors.exceptions import (
+    ConnectorParseError,
+    WebhookParseException,
+)
 from wazo_chatd.plugins.connectors.http import ConnectorWebhookResource
 from wazo_chatd.plugins.connectors.types import WebhookData
 
@@ -73,7 +76,7 @@ class TestConnectorWebhookResource(unittest.TestCase):
         assert call_args[1]['backend'] is None
         assert status_code == 204
 
-    def test_post_unrecognized_payload_returns_400(self) -> None:
+    def test_post_unrecognized_payload_raises_webhook_parse_exception(self) -> None:
         self.router.dispatch_webhook.side_effect = ConnectorParseError('No connector')
 
         with self.app.test_request_context(
@@ -82,9 +85,10 @@ class TestConnectorWebhookResource(unittest.TestCase):
             data='{}',
             content_type='application/json',
         ):
-            response, status_code = self.resource.post(backend='nonexistent')
+            with self.assertRaises(WebhookParseException) as ctx:
+                self.resource.post(backend='nonexistent')
 
-        assert status_code == 400
+        assert ctx.exception.status_code == 400
 
     def test_headers_passed_in_webhook_data(self) -> None:
         self.router.dispatch_webhook.return_value = None

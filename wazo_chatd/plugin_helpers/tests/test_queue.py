@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import threading
 import unittest
 
@@ -126,6 +127,66 @@ class TestAsyncQueueIteration(unittest.IsolatedAsyncioTestCase):
 
         await asyncio.wait_for(task, timeout=1.0)
         assert results == [0, 1, 2]
+
+
+class TestAsyncQueueReset(unittest.IsolatedAsyncioTestCase):
+    async def test_reset_drops_stale_wake_reference(self) -> None:
+        queue: AsyncQueue[str] = AsyncQueue()
+        stale_wake: concurrent.futures.Future[None] = concurrent.futures.Future()
+        stale_wake.set_result(None)
+        queue._wake = stale_wake
+
+        queue.reset()
+
+        assert queue._wake is None
+
+    async def test_reset_preserves_pending_items(self) -> None:
+        queue: AsyncQueue[str] = AsyncQueue()
+        queue.append('a')
+        queue.append('b')
+
+        queue.reset()
+
+        assert len(queue) == 2
+
+    async def test_consumer_drains_items_after_reset(self) -> None:
+        queue: AsyncQueue[str] = AsyncQueue()
+        queue.append('a')
+        queue.append('b')
+        queue.reset()
+
+        async def consume() -> list[str]:
+            received: list[str] = []
+            async for item in queue:
+                received.append(item)
+                if len(received) == 2:
+                    return received
+            return received
+
+        result = await asyncio.wait_for(consume(), timeout=1.0)
+        assert result == ['a', 'b']
+
+    async def test_consumer_wakes_on_new_append_after_reset(self) -> None:
+        queue: AsyncQueue[str] = AsyncQueue()
+        stale_wake: concurrent.futures.Future[None] = concurrent.futures.Future()
+        stale_wake.set_result(None)
+        queue._wake = stale_wake
+
+        queue.reset()
+
+        async def consume() -> str:
+            async for item in queue:
+                return item
+            return ''
+
+        task = asyncio.create_task(consume())
+        await asyncio.sleep(0.01)
+        assert not task.done()
+
+        queue.append('hello')
+        result = await asyncio.wait_for(task, timeout=1.0)
+
+        assert result == 'hello'
 
 
 class TestAsyncQueueCrossThread(unittest.IsolatedAsyncioTestCase):

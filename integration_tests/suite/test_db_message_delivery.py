@@ -23,18 +23,23 @@ def _build_message(
     backend: str,
     external_id: str | None,
     recipient_identity: str = '+15559876',
+    type_: str = 'sms',
 ) -> RoomMessage:
     sender = room.users[0]
+
     delivery = MessageDelivery(
         recipient_identity=recipient_identity,
+        backend=backend,
+        type_=type_,
         external_id=external_id,
     )
+
     return RoomMessage(
         content='hello',
         user_uuid=sender.uuid,
         tenant_uuid=room.tenant_uuid,
         wazo_uuid=sender.wazo_uuid,
-        meta=MessageMeta(backend=backend, deliveries=[delivery]),
+        meta=MessageMeta(deliveries=[delivery]),
     )
 
 
@@ -331,16 +336,99 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
             }
         ]
     )
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @run_async
-    async def test_returns_true_when_key_present(self, room):
+    async def test_returns_true_when_key_present(self, room, identity):
         dao = AsyncRoomDAO()
-        assert await dao.check_duplicate_idempotency_key('idem-123') is True
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'idem-123',
+                recipient='+15559876',
+                backend='twilio',
+                message_type='sms',
+                window_seconds=3600,
+            )
+            is True
+        )
 
     @fixtures.db.room(messages=[{'content': 'no key'}])
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
     @run_async
-    async def test_returns_false_when_key_absent(self, room):
+    async def test_returns_false_when_key_absent(self, room, identity):
         dao = AsyncRoomDAO()
-        assert await dao.check_duplicate_idempotency_key('idem-missing') is False
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'idem-missing',
+                recipient='+15559876',
+                backend='twilio',
+                message_type='sms',
+                window_seconds=3600,
+            )
+            is False
+        )
+
+    @fixtures.db.room(
+        messages=[
+            {
+                'content': 'twilio key',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'twilio',
+                    'extra': {'inbound_idempotency_key': 'cross-backend'},
+                },
+                'deliveries': [
+                    {'recipient_identity': '+15559876', 'statuses': ['delivered']}
+                ],
+            }
+        ]
+    )
+    @fixtures.db.user_identity(backend='other', type_='sms', identity='+15559876')
+    @run_async
+    async def test_returns_false_for_different_backend(self, room, identity):
+        dao = AsyncRoomDAO()
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'cross-backend',
+                recipient='+15559876',
+                backend='other',
+                message_type='sms',
+                window_seconds=3600,
+            )
+            is False
+        )
+
+    @fixtures.db.room(
+        messages=[
+            {
+                'content': 'sms key',
+                'meta': {
+                    'type_': 'sms',
+                    'backend': 'twilio',
+                    'extra': {'inbound_idempotency_key': 'multi-type'},
+                },
+                'deliveries': [
+                    {'recipient_identity': '+15559876', 'statuses': ['delivered']}
+                ],
+            }
+        ]
+    )
+    @fixtures.db.user_identity(backend='twilio', type_='whatsapp', identity='+15559876')
+    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
+    @run_async
+    async def test_returns_true_with_matching_message_type(
+        self, room, sms_identity, whatsapp_identity
+    ):
+        dao = AsyncRoomDAO()
+        assert (
+            await dao.check_duplicate_idempotency_key(
+                'multi-type',
+                recipient='+15559876',
+                backend='twilio',
+                message_type='sms',
+                window_seconds=3600,
+            )
+            is True
+        )
 
 
 @use_asset('database')

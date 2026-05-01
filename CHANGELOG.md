@@ -3,14 +3,14 @@
 ## 26.05
 
 * New endpoints:
-  * `GET /1.0/users/{user_uuid}/identities`
-  * `POST /1.0/users/{user_uuid}/identities`
-  * `GET /1.0/users/{user_uuid}/identities/{identity_uuid}`
-  * `PUT /1.0/users/{user_uuid}/identities/{identity_uuid}`
-  * `DELETE /1.0/users/{user_uuid}/identities/{identity_uuid}`
-  * `GET /1.0/users/me/identities`
-  * `POST /1.0/connectors/incoming`
-  * `POST /1.0/connectors/incoming/{backend}`
+  * `GET /users/{user_uuid}/identities`
+  * `POST /users/{user_uuid}/identities`
+  * `GET /users/{user_uuid}/identities/{identity_uuid}`
+  * `PUT /users/{user_uuid}/identities/{identity_uuid}`
+  * `DELETE /users/{user_uuid}/identities/{identity_uuid}`
+  * `GET /users/me/identities`
+  * `POST /connectors/incoming`
+  * `POST /connectors/incoming/{backend}`
 
 * New read only parameters have been added to the room user resource:
   * `identity`
@@ -24,10 +24,10 @@
     Internal messages report `type=internal`, `backend=null`, and an empty
     `recipients` array.
 
-* `POST /1.0/users/me/rooms` may now return `409` when a participant is unreachable
+* `POST /users/me/rooms` may now return `409` when a participant is unreachable
   via any registered connector or when no connector type is shared by all participants
 
-* `POST /1.0/users/me/rooms/{room_uuid}/messages` may now return:
+* `POST /users/me/rooms/{room_uuid}/messages` may now return:
   * `202` when outbound delivery is accepted
   * `409` when `sender_identity_uuid` is required but missing, or when the resolved identity is not reachable
 

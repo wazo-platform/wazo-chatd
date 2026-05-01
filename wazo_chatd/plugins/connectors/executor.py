@@ -51,11 +51,12 @@ from wazo_chatd.plugins.connectors.types import (
 
 logger = logging.getLogger(__name__)
 
-OUTBOUND_MAX_RETRIES: int = 3
 OUTBOUND_RETRY_DELAYS: list[int] = [30, 120, 300]
-INBOUND_MAX_RETRIES: int = 3
 INBOUND_RETRY_DELAYS: list[int] = [2, 5, 10]
+OUTBOUND_MAX_RETRIES: int = len(OUTBOUND_RETRY_DELAYS)
+INBOUND_MAX_RETRIES: int = len(INBOUND_RETRY_DELAYS)
 ECHO_WINDOW_SECONDS: int = 60
+INBOUND_DEDUP_WINDOW_SECONDS: int = 7 * 24 * 3600
 MAX_RETRY_AFTER: float = 3600.0
 
 T = TypeVar('T')
@@ -78,7 +79,7 @@ async def _db_persist_or_delay(
     try:
         await awaitable
     except (SQLAlchemyError, OSError):
-        if attempt >= len(INBOUND_RETRY_DELAYS):
+        if attempt >= INBOUND_MAX_RETRIES:
             raise
 
         await session.rollback()
@@ -137,10 +138,13 @@ class DeliveryExecutor:
         Loads the delivery per leg (1 query per leg). Future optimization:
         pass primitives from the publisher to skip the per-leg read.
         """
-        delivery = await self._room_dao.get_message_delivery(delivery_id)
+        delivery = await self._room_dao.get_message_delivery(
+            delivery_id, skip_locked=True
+        )
         if delivery is None:
-            logger.warning(
-                'No MessageDelivery for delivery_id %s, skipping', delivery_id
+            logger.debug(
+                'Delivery %s unavailable (already in flight or removed), skipping',
+                delivery_id,
             )
             return None
 
@@ -213,8 +217,11 @@ class DeliveryExecutor:
     async def route_inbound(
         self, inbound: InboundMessage, *, attempt: int = 0
     ) -> float | None:
-        idempotency_key = inbound.metadata.get('idempotency_key')
-        if attempt == 0 and await self._is_duplicate_idempotency(idempotency_key):
+        raw_key = inbound.metadata.get('idempotency_key')
+        idempotency_key: str | None = str(raw_key) if raw_key else None
+        if attempt == 0 and await self._is_duplicate_idempotency(
+            idempotency_key, inbound
+        ):
             return None
 
         sender_identity = self._normalize_sender(inbound)
@@ -369,7 +376,7 @@ class DeliveryExecutor:
     ) -> float | None:
         delivery.retry_count = int(delivery.retry_count) + 1  # type: ignore[assignment]
 
-        if int(delivery.retry_count) >= OUTBOUND_MAX_RETRIES:
+        if int(delivery.retry_count) > OUTBOUND_MAX_RETRIES:
             await self._persist_status(
                 delivery,
                 DeliveryStatus.DEAD_LETTER,
@@ -384,12 +391,20 @@ class DeliveryExecutor:
 
         return _compute_outbound_retry_delay(int(delivery.retry_count))
 
-    async def _is_duplicate_idempotency(self, idempotency_key: str | None) -> bool:
-        if not idempotency_key:
+    async def _is_duplicate_idempotency(
+        self,
+        idempotency_key: str | None,
+        inbound: InboundMessage,
+    ) -> bool:
+        if idempotency_key is None:
             return False
 
         if is_duplicate := await self._room_dao.check_duplicate_idempotency_key(
-            str(idempotency_key)
+            idempotency_key,
+            recipient=inbound.recipient,
+            backend=inbound.backend,
+            message_type=inbound.message_type,
+            window_seconds=INBOUND_DEDUP_WINDOW_SECONDS,
         ):
             logger.info('Duplicate inbound message skipped (key=%s)', idempotency_key)
 
@@ -474,20 +489,20 @@ class DeliveryExecutor:
         inbound: InboundMessage,
         room: Room,
         sender_participant: RoomUser,
-        idempotency_key: object | None,
+        idempotency_key: str | None,
     ) -> RoomMessage:
         extra: dict[str, str] = {}
-        if idempotency_key:
-            extra['inbound_idempotency_key'] = str(idempotency_key)
+        if idempotency_key is not None:
+            extra['inbound_idempotency_key'] = idempotency_key
 
         delivery = MessageDelivery(
             recipient_identity=inbound.recipient,
+            backend=inbound.backend,
+            type_=inbound.message_type,
             external_id=inbound.external_id,
         )
         delivery.records.append(DeliveryRecord(status=DeliveryStatus.DELIVERED.value))
         meta = MessageMeta(
-            backend=inbound.backend,
-            type_=inbound.message_type,
             extra=extra,
             deliveries=[delivery],
         )
@@ -539,6 +554,7 @@ class DeliveryExecutor:
         record = await self._room_dao.add_delivery_record(
             delivery, status, reason=reason
         )
+        delivery.records.append(record)
         await self._notifier.delivery_status_updated(delivery, record)
         return record
 

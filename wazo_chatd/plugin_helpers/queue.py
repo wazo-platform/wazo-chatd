@@ -59,6 +59,10 @@ class AsyncQueue(Generic[T]):
             except concurrent.futures.InvalidStateError:
                 pass
 
+    def reset(self) -> None:
+        """Drop the consumer wake so a restarted consumer rebinds to its loop."""
+        self._wake = None
+
     def __aiter__(self) -> AsyncQueue[T]:
         return self
 

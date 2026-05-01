@@ -248,17 +248,29 @@ def room(**room_args):
             ):
                 if not (meta_args or deliveries_args):
                     continue
+
+                backend_default = meta_args.pop('backend', None)
+                type_default = meta_args.pop('type_', None)
+
                 meta = MessageMeta(message_uuid=message.uuid, **meta_args)
                 self._session.add(meta)
                 self._session.flush()
+
                 for delivery_args in deliveries_args:
                     statuses = delivery_args.pop('statuses', None) or []
                     delivery_args.setdefault('recipient_identity', '+15559876')
+
+                    if backend_default is not None:
+                        delivery_args.setdefault('backend', backend_default)
+                    if type_default is not None:
+                        delivery_args.setdefault('type_', type_default)
+
                     delivery = MessageDelivery(
                         message_uuid=message.uuid, **delivery_args
                     )
                     self._session.add(delivery)
                     self._session.flush()
+
                     for status in statuses:
                         self._session.add(
                             DeliveryRecord(delivery_id=delivery.id, status=status)

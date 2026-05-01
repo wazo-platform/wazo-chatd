@@ -93,7 +93,7 @@ class AsyncNotifier:
             'recipient_identity': str(delivery.recipient_identity),
             'status': str(record.status),
             'timestamp': record.timestamp.isoformat(),
-            'backend': str(meta.backend),
+            'backend': str(delivery.backend),
         }
         event = MessageDeliveryStatusEvent(
             delivery_data=delivery_data,

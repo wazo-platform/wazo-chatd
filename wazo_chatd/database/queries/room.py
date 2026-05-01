@@ -89,14 +89,13 @@ class RoomDAO:
     def find_tenant_by_external_id(self, external_id: str, backend: str) -> str | None:
         stmt = (
             select(RoomMessage.tenant_uuid)
-            .join(MessageMeta, MessageMeta.message_uuid == RoomMessage.uuid)
             .join(
                 MessageDelivery,
-                MessageDelivery.message_uuid == MessageMeta.message_uuid,
+                MessageDelivery.message_uuid == RoomMessage.uuid,
             )
             .where(
                 MessageDelivery.external_id == external_id,
-                MessageMeta.backend == backend,
+                MessageDelivery.backend == backend,
             )
             .limit(1)
         )
@@ -113,9 +112,10 @@ class RoomDAO:
         self,
         message: RoomMessage,
         recipient_identities: list[str],
+        *,
+        backend: str,
+        type_: str,
         sender_identity_uuid: UUID | None = None,
-        backend: str | None = None,
-        type_: str | None = None,
         extra: dict[str, str] | None = None,
     ) -> None:
         if not message.uuid:
@@ -123,14 +123,16 @@ class RoomDAO:
 
         deliveries = []
         for recipient_identity in recipient_identities:
-            delivery = MessageDelivery(recipient_identity=recipient_identity)
+            delivery = MessageDelivery(
+                recipient_identity=recipient_identity,
+                backend=backend,
+                type_=type_,
+            )
             delivery.records.append(DeliveryRecord(status=DeliveryStatus.PENDING.value))
             deliveries.append(delivery)
 
         meta = MessageMeta(
             sender_identity_uuid=sender_identity_uuid,
-            backend=backend,
-            type_=type_,
             deliveries=deliveries,
             extra=extra or {},
         )
