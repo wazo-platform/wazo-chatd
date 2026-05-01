@@ -293,17 +293,21 @@ class ConnectorStore:
         instance = backend_cls(tenant_uuid, provider_config, connector_config)
 
         with self._fetch_lock:
-            if self._cache_epoch.get(key, 0) != epoch_before:
-                logger.info(
-                    'Drop during fetch for backend %r tenant %s; '
-                    'returning instance without caching',
-                    backend,
-                    tenant_uuid,
-                )
-                return instance
-            jitter = random.uniform(1.0 - TTL_JITTER, 1.0 + TTL_JITTER)
-            self._cache[key] = instance
-            self._expires_at[key] = time.monotonic() + self._cache_ttl * jitter
+            if cached := (self._cache_epoch.get(key, 0) == epoch_before):
+                jitter = random.uniform(1.0 - TTL_JITTER, 1.0 + TTL_JITTER)
+                self._cache[key] = instance
+                self._expires_at[key] = time.monotonic() + self._cache_ttl * jitter
 
-        logger.info('Loaded connector instance %r for tenant %s', backend, tenant_uuid)
+        if cached:
+            logger.info(
+                'Loaded connector instance %r for tenant %s', backend, tenant_uuid
+            )
+        else:
+            logger.info(
+                'Drop during fetch for backend %r tenant %s; '
+                'returning instance without caching',
+                backend,
+                tenant_uuid,
+            )
+
         return instance

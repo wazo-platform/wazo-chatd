@@ -441,7 +441,8 @@ class DeliveryRunner(Runner):
                 try:
                     await closing_task
                 except asyncio.CancelledError:
-                    pass
+                    if (current := asyncio.current_task()) and current.cancelling():
+                        raise
 
     def _on_delivery_notify(
         self,
