@@ -36,6 +36,9 @@ from wazo_chatd.plugins.connectors.types import InboundMessage, StatusUpdate
 
 logger = logging.getLogger(__name__)
 
+LISTEN_PING_INTERVAL: float = 30.0
+LISTEN_PING_TIMEOUT: float = 10.0
+
 
 def _backoff() -> itertools.chain[int]:
     return itertools.chain([1, 2, 4, 8, 16, 32], itertools.repeat(32))
@@ -384,7 +387,7 @@ class DeliveryRunner(Runner):
                     # either by the live listener or this catch-up scan.
                     await self._recover()
 
-                    await self._wait_closing()
+                    await self._monitor_listen_connection(connection)
                 except Exception:
                     delay = next(backoff)
                     logger.exception(
@@ -402,6 +405,31 @@ class DeliveryRunner(Runner):
                             )
         finally:
             logger.info('Stopped listening for connector_delivery notifications')
+
+    async def _monitor_listen_connection(self, connection: asyncpg.Connection) -> None:
+        closing_task = asyncio.create_task(self._wait_closing())
+
+        try:
+            while not self.is_closing:
+                done, _ = await asyncio.wait(
+                    {closing_task},
+                    timeout=LISTEN_PING_INTERVAL,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if closing_task in done:
+                    return
+
+                await asyncio.wait_for(
+                    connection.execute('SELECT 1'),
+                    timeout=LISTEN_PING_TIMEOUT,
+                )
+        finally:
+            if not closing_task.done():
+                closing_task.cancel()
+                try:
+                    await closing_task
+                except asyncio.CancelledError:
+                    pass
 
     def _on_delivery_notify(
         self,
