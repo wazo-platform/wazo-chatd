@@ -33,6 +33,7 @@ _DEFAULT_CONFIG = {
         'port': 9497,
         'prefix': None,
         'https': False,
+        'timeout': 10,
         'key_file': '/var/lib/wazo-auth-keys/wazo-chatd-key.yml',
     },
     'bus': {
