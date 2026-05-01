@@ -25,9 +25,6 @@ class Connector(Protocol):
 
     Transport-agnostic: works with webhooks, polling, websockets, or any
     other inbound mechanism.
-
-    See ``wazo_chatd.plugins.connectors.backends.internal`` for a self-documenting
-    reference implementation.
     """
 
     backend: ClassVar[str]

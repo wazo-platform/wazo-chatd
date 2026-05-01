@@ -814,5 +814,5 @@ class NullRunner:
     def resync(self) -> None:
         pass
 
-    def enqueue_message(self, _msg: object) -> None:
+    def enqueue_message(self, _msg: InboundMessage | StatusUpdate) -> None:
         pass

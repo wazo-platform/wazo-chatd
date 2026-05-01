@@ -217,7 +217,8 @@ class DeliveryExecutor:
     async def route_inbound(
         self, inbound: InboundMessage, *, attempt: int = 0
     ) -> float | None:
-        idempotency_key = inbound.metadata.get('idempotency_key')
+        raw_key = inbound.metadata.get('idempotency_key')
+        idempotency_key: str | None = str(raw_key) if raw_key else None
         if attempt == 0 and await self._is_duplicate_idempotency(
             idempotency_key, inbound
         ):
@@ -395,11 +396,11 @@ class DeliveryExecutor:
         idempotency_key: str | None,
         inbound: InboundMessage,
     ) -> bool:
-        if not idempotency_key:
+        if idempotency_key is None:
             return False
 
         if is_duplicate := await self._room_dao.check_duplicate_idempotency_key(
-            str(idempotency_key),
+            idempotency_key,
             recipient=inbound.recipient,
             backend=inbound.backend,
             window_seconds=INBOUND_DEDUP_WINDOW_SECONDS,
@@ -487,11 +488,11 @@ class DeliveryExecutor:
         inbound: InboundMessage,
         room: Room,
         sender_participant: RoomUser,
-        idempotency_key: object | None,
+        idempotency_key: str | None,
     ) -> RoomMessage:
         extra: dict[str, str] = {}
-        if idempotency_key:
-            extra['inbound_idempotency_key'] = str(idempotency_key)
+        if idempotency_key is not None:
+            extra['inbound_idempotency_key'] = idempotency_key
 
         delivery = MessageDelivery(
             recipient_identity=inbound.recipient,
