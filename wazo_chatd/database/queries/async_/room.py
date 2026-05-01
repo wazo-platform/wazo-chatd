@@ -152,11 +152,10 @@ class AsyncRoomDAO:
         reason: str | None = None,
     ) -> DeliveryRecord:
         record = DeliveryRecord(
-            delivery_id=delivery.id,
             status=status.value,
             reason=reason,
         )
-        self.session.add(record)
+        delivery.records.append(record)
         await self.session.flush()
         return record
 
