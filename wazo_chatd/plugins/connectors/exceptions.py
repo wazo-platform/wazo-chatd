@@ -120,6 +120,28 @@ class ConnectorAuthException(APIException):
         )
 
 
+class WebhookParseException(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            400,
+            'Unrecognized request',
+            'webhook-parse-error',
+            {},
+            'connectors',
+        )
+
+
+class WebhookTransientException(APIException):
+    def __init__(self) -> None:
+        super().__init__(
+            503,
+            'Service temporarily unavailable',
+            'webhook-transient',
+            {},
+            'connectors',
+        )
+
+
 class UnreachableParticipantException(APIException):
     def __init__(self, participant: str, connector_type: str = '') -> None:
         detail = f'participant {participant!r}'

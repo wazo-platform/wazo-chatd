@@ -18,7 +18,7 @@ class UserIdentitySchema(Schema):
 
 class UserIdentityUpdateSchema(Schema):
     identity = fields.String(required=True, validate=validate.Length(min=1))
-    extra = fields.Dict(load_default=dict)
+    extra = fields.Dict()
 
 
 class IdentityListRequestSchema(Schema):

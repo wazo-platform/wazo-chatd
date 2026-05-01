@@ -138,7 +138,11 @@ paths:
     post:
       operationId: connector_webhook
       summary: Receive incoming webhook from connector
-      description: Dispatches an incoming webhook to the matching connector backend.
+      description: |
+        Dispatches an incoming webhook to the matching connector backend.
+
+        **Body size**: capped at 4 MB at the nginx layer. Bodies above
+        the cap are rejected with HTTP 413 before reaching chatd.
       tags:
       - connectors
       security: []
@@ -157,13 +161,15 @@ paths:
         '400':
           description: No connector matched the webhook payload
           schema:
-            $ref: '#/definitions/WebhookError'
+            $ref: '#/definitions/APIError'
         '401':
           description: Webhook signature verification failed
+          schema:
+            $ref: '#/definitions/APIError'
         '503':
           description: Webhook deferred; provider should retry
           schema:
-            $ref: '#/definitions/WebhookError'
+            $ref: '#/definitions/APIError'
   /connectors/incoming/{backend}:
     post:
       operationId: connector_webhook_with_hint
@@ -192,13 +198,15 @@ paths:
         '400':
           description: No connector matched the webhook payload
           schema:
-            $ref: '#/definitions/WebhookError'
+            $ref: '#/definitions/APIError'
         '401':
           description: Webhook signature verification failed
+          schema:
+            $ref: '#/definitions/APIError'
         '503':
           description: Webhook deferred; provider should retry
           schema:
-            $ref: '#/definitions/WebhookError'
+            $ref: '#/definitions/APIError'
 
 parameters:
   identity_uuid:
@@ -210,19 +218,6 @@ parameters:
     required: true
 
 definitions:
-  WebhookError:
-    title: WebhookError
-    description: |
-      Error body returned by the connector webhook routes when no
-      backend can handle the payload (400) or when a transient backend
-      error asks the provider to retry (503). Webhook callers
-      typically only inspect the HTTP status; this body is for log
-      correlation by operators.
-    type: object
-    properties:
-      error:
-        type: string
-
   UserIdentityList:
     title: UserIdentityList
     properties:

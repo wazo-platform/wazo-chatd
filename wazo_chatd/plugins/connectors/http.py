@@ -18,6 +18,8 @@ from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     ConnectorTransientError,
+    WebhookParseException,
+    WebhookTransientException,
 )
 from wazo_chatd.plugins.connectors.schemas import (
     IdentityListRequestSchema,
@@ -54,14 +56,14 @@ class ConnectorWebhookResource(ErrorCatchingResource):
             self._router.dispatch_webhook(data, backend=backend)
         except ConnectorParseError:
             logger.info('No connector matched webhook (backend=%s)', backend)
-            return {'error': 'Unrecognized request'}, 400
+            raise WebhookParseException() from None
         except ConnectorTransientError as exc:
             logger.warning(
                 'Webhook deferred (backend=%s): %s — provider should retry',
                 backend,
                 exc,
             )
-            return {'error': 'Service temporarily unavailable'}, 503
+            raise WebhookTransientException() from None
 
         return '', 204
 
