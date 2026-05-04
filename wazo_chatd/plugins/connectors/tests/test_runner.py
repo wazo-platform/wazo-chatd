@@ -10,6 +10,8 @@ import unittest
 import unittest.mock
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugins.connectors import runner as runner_module
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
@@ -545,10 +547,12 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             'poll_interval_min': 1,
             'poll_interval_max': 8,
             'poll_interval_default': 2,
+            'poll_tau_speedup': 1,
+            'poll_tau_slowdown': 4,
         }
         return DeliveryRunner(config, Mock(), Mock())
 
-    async def test_empty_cycles_double_up_to_max(self) -> None:
+    async def test_empty_cycles_grow_interval_toward_poll_max(self) -> None:
         loop = self._make_loop()
         intervals: list[float] = []
 
@@ -572,9 +576,12 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals == [2, 4, 8, 8, 8]
+        assert all(loop._poll_min <= i <= loop._poll_max for i in intervals)
+        assert intervals[1] > intervals[0]
+        assert intervals[2] > intervals[1]
+        assert intervals[-1] == pytest.approx(loop._poll_max, abs=0.01)
 
-    async def test_non_empty_cycle_snaps_to_min(self) -> None:
+    async def test_yield_pulls_interval_back_toward_poll_min(self) -> None:
         loop = self._make_loop()
         intervals: list[float] = []
         call_count = {'n': 0}
@@ -600,10 +607,10 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals[0] == 2
-        assert intervals[1] == 4
-        assert intervals[2] == 1
-        assert intervals[3] == 2
+        assert intervals[1] > intervals[0]
+        assert intervals[2] < intervals[1]
+        assert intervals[2] == pytest.approx(loop._poll_min, abs=0.01)
+        assert intervals[3] > intervals[2]
 
     async def test_rate_limited_uses_provider_retry_after(self) -> None:
         loop = self._make_loop()

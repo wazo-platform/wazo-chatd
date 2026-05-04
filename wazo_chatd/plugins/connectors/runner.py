@@ -26,6 +26,7 @@ from wazo_chatd.database.async_helpers import (
 )
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugin_helpers.queue import AsyncQueue, QueueFull
+from wazo_chatd.plugins.connectors.cadence import CadenceController
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.executor import MAX_RETRY_AFTER, DeliveryExecutor
@@ -266,6 +267,8 @@ class DeliveryRunner(Runner):
         self._poll_min = float(config['delivery'].get('poll_interval_min', 5))
         self._poll_max = float(config['delivery'].get('poll_interval_max', 60))
         self._poll_default = float(config['delivery'].get('poll_interval_default', 30))
+        self._tau_speedup = float(config['delivery'].get('poll_tau_speedup', 5))
+        self._tau_slowdown = float(config['delivery'].get('poll_tau_slowdown', 60))
 
         self._db_uri = str(config.get('db_uri', ''))
         engine, session_factory = init_async_db(self._db_uri)
@@ -641,24 +644,35 @@ class DeliveryRunner(Runner):
 
     async def _run_poller(self, key: CacheKey, instance: Connector) -> None:
         tenant_uuid, backend = key
-        interval = self._poll_min
+        controller = CadenceController(
+            poll_min=self._poll_min,
+            poll_max=self._poll_max,
+            tau_speedup=self._tau_speedup,
+            tau_slowdown=self._tau_slowdown,
+        )
+        prev_dt = self._poll_min
         while True:
             try:
                 yielded = await self._scan_inbound(instance, key)
                 yielded |= await self._track_outbound(instance, tenant_uuid, backend)
-                interval = (
-                    self._poll_min if yielded else min(interval * 2, self._poll_max)
-                )
+                controller.step(yielded=yielded, dt=prev_dt)
             except asyncio.CancelledError:
                 logger.info('Poller for %s cancelled', key)
                 raise
             except ConnectorRateLimited as exc:
-                interval = min(exc.retry_after, MAX_RETRY_AFTER)
-                logger.info('Poller for %s rate-limited, sleeping %.1fs', key, interval)
+                sleep_for = min(exc.retry_after, MAX_RETRY_AFTER)
+                logger.info(
+                    'Poller for %s rate-limited, sleeping %.1fs', key, sleep_for
+                )
+                await asyncio.sleep(sleep_for)
+                prev_dt = sleep_for
+                continue
             except Exception:
                 logger.exception('Poller for %s hit unexpected error, continuing', key)
-                interval = min(interval * 2, self._poll_max)
-            await asyncio.sleep(interval)
+                controller.step(yielded=False, dt=prev_dt)
+            sleep_for = controller.next_interval()
+            await asyncio.sleep(sleep_for)
+            prev_dt = sleep_for
 
     async def _scan_inbound(self, instance: Connector, key: CacheKey) -> bool:
         try:
