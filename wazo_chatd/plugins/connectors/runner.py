@@ -9,6 +9,7 @@ import concurrent.futures
 import functools
 import itertools
 import logging
+import random
 import threading
 from collections.abc import Callable, Coroutine, Iterable
 from types import TracebackType
@@ -645,6 +646,8 @@ class DeliveryRunner(Runner):
 
     async def _run_poller(self, key: CacheKey, instance: Connector) -> None:
         tenant_uuid, backend = key
+        if self._jitter_ratio > 0:
+            await asyncio.sleep(random.uniform(0, self._poll_min))
         controller = CadenceController(
             poll_min=self._poll_min,
             poll_max=self._poll_max,
