@@ -108,7 +108,9 @@ class TestCadenceControllerStability:
 class TestCadenceControllerRateLimitFloor:
     def test_no_penalty_returns_poll_min_floor(self) -> None:
         controller = CadenceController(
-            poll_min=5.0, poll_max=60.0, rate_limit_floor=30.0,
+            poll_min=5.0,
+            poll_max=60.0,
+            rate_limit_floor=30.0,
         )
 
         assert controller.effective_min() == 5.0
