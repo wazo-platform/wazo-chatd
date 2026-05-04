@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
 
@@ -28,3 +29,15 @@ class CadenceController:
 
     def next_interval(self) -> float:
         return self.interval
+
+
+def apply_jitter(
+    value: float,
+    *,
+    ratio: float = 0.1,
+    rng: random.Random | None = None,
+) -> float:
+    if ratio <= 0:
+        return value
+    sample = rng.uniform(-ratio, ratio) if rng else random.uniform(-ratio, ratio)
+    return value * (1.0 + sample)

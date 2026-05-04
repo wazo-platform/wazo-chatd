@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import random
+
 import pytest
 
-from wazo_chatd.plugins.connectors.cadence import CadenceController
+from wazo_chatd.plugins.connectors.cadence import CadenceController, apply_jitter
 
 
 class TestCadenceControllerColdStart:
@@ -101,3 +103,24 @@ class TestCadenceControllerStability:
         controller.step(yielded=False, dt=0.0)
 
         assert controller.next_interval() == 60.0
+
+
+class TestApplyJitter:
+    def test_zero_ratio_returns_base_value(self) -> None:
+        assert apply_jitter(10.0, ratio=0.0) == 10.0
+
+    def test_jittered_value_stays_within_ratio(self) -> None:
+        rng = random.Random(42)
+
+        for _ in range(100):
+            result = apply_jitter(10.0, ratio=0.1, rng=rng)
+            assert 9.0 <= result <= 11.0
+
+    def test_seeded_rng_is_deterministic(self) -> None:
+        rng_a = random.Random(42)
+        rng_b = random.Random(42)
+
+        result_a = apply_jitter(10.0, ratio=0.1, rng=rng_a)
+        result_b = apply_jitter(10.0, ratio=0.1, rng=rng_b)
+
+        assert result_a == result_b

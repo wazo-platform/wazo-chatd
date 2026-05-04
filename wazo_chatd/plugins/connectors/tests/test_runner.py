@@ -549,6 +549,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             'poll_interval_default': 2,
             'poll_tau_speedup': 1,
             'poll_tau_slowdown': 4,
+            'poll_jitter_ratio': 0,
         }
         return DeliveryRunner(config, Mock(), Mock())
 
@@ -661,6 +662,51 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
         assert intervals == [3600.0]
+
+
+class TestDeliveryRunnerPollerJitter(unittest.IsolatedAsyncioTestCase):
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
+    def _make_loop(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryRunner:
+        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_bus.from_config.return_value = Mock()
+        config = _make_config()
+        config['delivery'] = {
+            **config['delivery'],
+            'poll_interval_min': 5,
+            'poll_interval_max': 5,
+            'poll_tau_speedup': 1,
+            'poll_tau_slowdown': 1,
+            'poll_jitter_ratio': 0.1,
+        }
+        return DeliveryRunner(config, Mock(), Mock())
+
+    async def test_jitter_introduces_variance_at_fixed_interval(self) -> None:
+        loop = self._make_loop()
+        intervals: list[float] = []
+
+        async def fake_scan(*_args: object) -> bool:
+            return False
+
+        async def fake_track(*_args: object) -> bool:
+            return False
+
+        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
+        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
+
+        async def capture_sleep(d: float) -> None:
+            intervals.append(d)
+            if len(intervals) >= 20:
+                raise asyncio.CancelledError()
+
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await loop._run_poller(('tenant', 'backend'), Mock())
+
+        assert all(4.5 <= i <= 5.5 for i in intervals)
+        assert len(set(intervals)) > 1
 
 
 def _build_loop_for_modes(connectors_config: dict) -> DeliveryRunner:

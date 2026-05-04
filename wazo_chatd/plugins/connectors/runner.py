@@ -26,7 +26,7 @@ from wazo_chatd.database.async_helpers import (
 )
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugin_helpers.queue import AsyncQueue, QueueFull
-from wazo_chatd.plugins.connectors.cadence import CadenceController
+from wazo_chatd.plugins.connectors.cadence import CadenceController, apply_jitter
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.executor import MAX_RETRY_AFTER, DeliveryExecutor
@@ -269,6 +269,7 @@ class DeliveryRunner(Runner):
         self._poll_default = float(config['delivery'].get('poll_interval_default', 30))
         self._tau_speedup = float(config['delivery'].get('poll_tau_speedup', 5))
         self._tau_slowdown = float(config['delivery'].get('poll_tau_slowdown', 60))
+        self._jitter_ratio = float(config['delivery'].get('poll_jitter_ratio', 0.1))
 
         self._db_uri = str(config.get('db_uri', ''))
         engine, session_factory = init_async_db(self._db_uri)
@@ -670,7 +671,9 @@ class DeliveryRunner(Runner):
             except Exception:
                 logger.exception('Poller for %s hit unexpected error, continuing', key)
                 controller.step(yielded=False, dt=prev_dt)
-            sleep_for = controller.next_interval()
+            sleep_for = apply_jitter(
+                controller.next_interval(), ratio=self._jitter_ratio
+            )
             await asyncio.sleep(sleep_for)
             prev_dt = sleep_for
 
