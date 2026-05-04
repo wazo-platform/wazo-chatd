@@ -641,7 +641,7 @@ class DeliveryRunner(Runner):
 
     async def _run_poller(self, key: CacheKey, instance: Connector) -> None:
         tenant_uuid, backend = key
-        interval = self._poll_default
+        interval = self._poll_min
         while True:
             try:
                 yielded = await self._scan_inbound(instance, key)

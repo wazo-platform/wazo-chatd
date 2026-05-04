@@ -572,7 +572,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals == [4, 8, 8, 8, 8]
+        assert intervals == [2, 4, 8, 8, 8]
 
     async def test_non_empty_cycle_snaps_to_min(self) -> None:
         loop = self._make_loop()
@@ -600,8 +600,8 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals[0] == 4
-        assert intervals[1] == 8
+        assert intervals[0] == 2
+        assert intervals[1] == 4
         assert intervals[2] == 1
         assert intervals[3] == 2
 
