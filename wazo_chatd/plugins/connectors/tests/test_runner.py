@@ -550,6 +550,8 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             'poll_tau_speedup': 1,
             'poll_tau_slowdown': 4,
             'poll_jitter_ratio': 0,
+            'poll_rate_limit_floor': 4,
+            'poll_rate_limit_window': 100,
         }
         return DeliveryRunner(config, Mock(), Mock())
 
@@ -637,6 +639,40 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
         assert intervals == [42.0]
+
+    async def test_rate_limit_event_raises_floor_for_subsequent_polls(
+        self,
+    ) -> None:
+        loop = self._make_loop()
+        intervals: list[float] = []
+        call_count = {'n': 0}
+
+        async def fake_scan(*_args: object) -> bool:
+            call_count['n'] += 1
+            if call_count['n'] == 1:
+                raise ConnectorRateLimited('throttle', retry_after=10.0)
+            return True
+
+        async def fake_track(*_args: object) -> bool:
+            return False
+
+        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
+        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
+
+        async def capture_sleep(d: float) -> None:
+            intervals.append(d)
+            if len(intervals) >= 3:
+                raise asyncio.CancelledError()
+
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await loop._run_poller(('tenant', 'backend'), Mock())
+
+        assert intervals[0] == 10.0
+        assert intervals[1] == pytest.approx(loop._rate_limit_floor, abs=0.01)
+        assert intervals[2] == pytest.approx(loop._rate_limit_floor, abs=0.01)
 
     async def test_rate_limited_caps_retry_after_at_max(self) -> None:
         loop = self._make_loop()

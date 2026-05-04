@@ -105,6 +105,72 @@ class TestCadenceControllerStability:
         assert controller.next_interval() == 60.0
 
 
+class TestCadenceControllerRateLimitFloor:
+    def test_no_penalty_returns_poll_min_floor(self) -> None:
+        controller = CadenceController(
+            poll_min=5.0, poll_max=60.0, rate_limit_floor=30.0,
+        )
+
+        assert controller.effective_min() == 5.0
+
+    def test_active_penalty_raises_floor(self) -> None:
+        now = [100.0]
+        controller = CadenceController(
+            poll_min=5.0,
+            poll_max=60.0,
+            rate_limit_floor=30.0,
+            clock=lambda: now[0],
+        )
+
+        controller.penalize(duration=300.0)
+
+        assert controller.effective_min() == 30.0
+
+    def test_expired_penalty_drops_back_to_poll_min(self) -> None:
+        now = [100.0]
+        controller = CadenceController(
+            poll_min=5.0,
+            poll_max=60.0,
+            rate_limit_floor=30.0,
+            clock=lambda: now[0],
+        )
+
+        controller.penalize(duration=100.0)
+        now[0] = 250.0
+
+        assert controller.effective_min() == 5.0
+
+    def test_yield_under_penalty_pulls_to_floor_not_poll_min(self) -> None:
+        now = [100.0]
+        controller = CadenceController(
+            poll_min=5.0,
+            poll_max=60.0,
+            tau_speedup=1.0,
+            rate_limit_floor=30.0,
+            clock=lambda: now[0],
+        )
+        controller.interval = 60.0
+        controller.penalize(duration=300.0)
+
+        controller.step(yielded=True, dt=10.0)
+
+        assert controller.next_interval() == pytest.approx(30.0)
+
+    def test_next_interval_clamps_to_floor_while_penalized(self) -> None:
+        now = [100.0]
+        controller = CadenceController(
+            poll_min=5.0,
+            poll_max=60.0,
+            rate_limit_floor=30.0,
+            clock=lambda: now[0],
+        )
+        controller.interval = 5.0
+
+        controller.penalize(duration=300.0)
+
+        assert controller.next_interval() == 30.0
+
+
 class TestApplyJitter:
     def test_zero_ratio_returns_base_value(self) -> None:
         assert apply_jitter(10.0, ratio=0.0) == 10.0

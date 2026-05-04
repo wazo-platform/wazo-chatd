@@ -271,6 +271,12 @@ class DeliveryRunner(Runner):
         self._tau_speedup = float(config['delivery'].get('poll_tau_speedup', 5))
         self._tau_slowdown = float(config['delivery'].get('poll_tau_slowdown', 60))
         self._jitter_ratio = float(config['delivery'].get('poll_jitter_ratio', 0.1))
+        self._rate_limit_floor = float(
+            config['delivery'].get('poll_rate_limit_floor', 30)
+        )
+        self._rate_limit_window = float(
+            config['delivery'].get('poll_rate_limit_window', 300)
+        )
 
         self._db_uri = str(config.get('db_uri', ''))
         engine, session_factory = init_async_db(self._db_uri)
@@ -653,6 +659,7 @@ class DeliveryRunner(Runner):
             poll_max=self._poll_max,
             tau_speedup=self._tau_speedup,
             tau_slowdown=self._tau_slowdown,
+            rate_limit_floor=self._rate_limit_floor,
         )
         prev_dt = self._poll_min
         while True:
@@ -668,6 +675,7 @@ class DeliveryRunner(Runner):
                 logger.info(
                     'Poller for %s rate-limited, sleeping %.1fs', key, sleep_for
                 )
+                controller.penalize(duration=self._rate_limit_window)
                 await asyncio.sleep(sleep_for)
                 prev_dt = sleep_for
                 continue
