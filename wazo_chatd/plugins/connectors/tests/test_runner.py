@@ -592,6 +592,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
     async def test_yield_pulls_interval_back_toward_poll_min(self) -> None:
         loop = self._make_loop()
         intervals: list[float] = []
+        fake_now = [0.0]
         call_count = {'n': 0}
 
         async def fake_scan(*_args: object) -> bool:
@@ -606,10 +607,14 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
 
         async def capture_sleep(d: float) -> None:
             intervals.append(d)
+            fake_now[0] += d
             if len(intervals) >= 4:
                 raise asyncio.CancelledError()
 
         with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.runner.monotonic',
+            lambda: fake_now[0],
+        ), unittest.mock.patch(
             'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
         ):
             with self.assertRaises(asyncio.CancelledError):
