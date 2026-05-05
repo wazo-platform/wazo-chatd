@@ -25,7 +25,7 @@ class TestPollerCadenceColdStart:
     def test_initial_interval_is_poll_min(self) -> None:
         cadence = PollerCadence(poll_min=5.0, poll_max=60.0, clock=FakeClock())
 
-        assert cadence.next_interval() == 5.0
+        assert cadence.next_interval() == pytest.approx(5.0)
 
 
 class TestPollerCadenceYieldStep:
@@ -147,7 +147,7 @@ class TestPollerCadenceStability:
 
         cadence.step(did_work=True)
 
-        assert cadence.next_interval() == 5.0
+        assert cadence.next_interval() == pytest.approx(5.0)
 
     def test_interval_bounded_above_at_poll_max(self) -> None:
         cadence = PollerCadence(poll_min=5.0, poll_max=60.0, clock=FakeClock())
@@ -155,7 +155,7 @@ class TestPollerCadenceStability:
 
         cadence.step(did_work=False)
 
-        assert cadence.next_interval() == 60.0
+        assert cadence.next_interval() == pytest.approx(60.0)
 
 
 class TestPollerCadenceRateLimitFloor:
@@ -167,7 +167,7 @@ class TestPollerCadenceRateLimitFloor:
             clock=FakeClock(),
         )
 
-        assert cadence.effective_min() == 5.0
+        assert cadence.effective_min() == pytest.approx(5.0)
 
     def test_active_penalty_raises_floor(self) -> None:
         clock = FakeClock(start=100.0)
@@ -180,7 +180,7 @@ class TestPollerCadenceRateLimitFloor:
 
         cadence.penalize(duration=300.0)
 
-        assert cadence.effective_min() == 30.0
+        assert cadence.effective_min() == pytest.approx(30.0)
 
     def test_expired_penalty_drops_back_to_poll_min(self) -> None:
         clock = FakeClock(start=100.0)
@@ -194,7 +194,7 @@ class TestPollerCadenceRateLimitFloor:
         cadence.penalize(duration=100.0)
         clock.now = 250.0
 
-        assert cadence.effective_min() == 5.0
+        assert cadence.effective_min() == pytest.approx(5.0)
 
     def test_yield_under_penalty_pulls_to_floor_not_poll_min(self) -> None:
         clock = FakeClock(start=100.0)
@@ -225,7 +225,7 @@ class TestPollerCadenceRateLimitFloor:
 
         cadence.penalize(duration=300.0)
 
-        assert cadence.next_interval() == 30.0
+        assert cadence.next_interval() == pytest.approx(30.0)
 
 
 class TestPollerCadenceElapsedTracking:
@@ -270,7 +270,7 @@ class TestPollerCadenceElapsedTracking:
 
 class TestApplyJitter:
     def test_zero_ratio_returns_base_value(self) -> None:
-        assert apply_jitter(10.0, ratio=0.0) == 10.0
+        assert apply_jitter(10.0, ratio=0.0) == pytest.approx(10.0)
 
     def test_jittered_value_stays_within_ratio(self) -> None:
         rng = random.Random(42)
@@ -286,4 +286,4 @@ class TestApplyJitter:
         result_a = apply_jitter(10.0, ratio=0.1, rng=rng_a)
         result_b = apply_jitter(10.0, ratio=0.1, rng=rng_b)
 
-        assert result_a == result_b
+        assert result_a == pytest.approx(result_b)

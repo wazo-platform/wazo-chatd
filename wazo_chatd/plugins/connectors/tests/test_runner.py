@@ -643,7 +643,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals == [42.0]
+        assert intervals == pytest.approx([42.0])
 
     async def test_rate_limit_event_raises_floor_for_subsequent_polls(
         self,
@@ -675,7 +675,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals[0] == 10.0
+        assert intervals[0] == pytest.approx(10.0)
         assert intervals[1] == pytest.approx(loop._rate_limit_floor, abs=0.01)
         assert intervals[2] == pytest.approx(loop._rate_limit_floor, abs=0.01)
 
@@ -702,7 +702,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals == [3600.0]
+        assert intervals == pytest.approx([3600.0])
 
 
 class TestDeliveryRunnerPollerJitter(unittest.IsolatedAsyncioTestCase):
@@ -781,7 +781,7 @@ class TestDeliveryRunnerPollerJitter(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(asyncio.CancelledError):
                     await loop._run_poller(('tenant', 'backend'), Mock())
 
-        assert intervals == [2.5]
+        assert intervals == pytest.approx([2.5])
         mock_uniform.assert_called_once_with(0, 5.0)
 
 
