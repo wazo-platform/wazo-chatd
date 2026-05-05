@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class CadenceController:
-    """Forward-Euler cadence controller for connector pollers."""
+class PollerCadence:
+    """Forward-Euler cadence for connector pollers."""
 
     poll_min: float
     poll_max: float
@@ -21,9 +21,11 @@ class CadenceController:
     interval: float = 0.0
     rate_limit_until: float = 0.0
     clock: Callable[[], float] = field(default=time.monotonic)
+    _last_step_time: float = field(init=False, default=0.0)
 
     def __post_init__(self) -> None:
         self.interval = self.poll_min
+        self._last_step_time = self.clock()
 
     def effective_min(self) -> float:
         if self.clock() < self.rate_limit_until:
@@ -33,10 +35,13 @@ class CadenceController:
     def penalize(self, *, duration: float) -> None:
         self.rate_limit_until = self.clock() + duration
 
-    def step(self, *, yielded: bool, dt: float) -> None:
+    def step(self, *, did_work: bool) -> None:
+        now = self.clock()
+        dt = now - self._last_step_time
+        self._last_step_time = now
         eff_min = self.effective_min()
-        target = eff_min if yielded else self.poll_max
-        tau = self.tau_speedup if yielded else self.tau_slowdown
+        target = eff_min if did_work else self.poll_max
+        tau = self.tau_speedup if did_work else self.tau_slowdown
         rate = min(dt / tau, 1.0) if tau > 0 else 1.0
         self.interval += rate * (target - self.interval)
         self.interval = max(eff_min, min(self.poll_max, self.interval))
@@ -53,5 +58,6 @@ def apply_jitter(
 ) -> float:
     if ratio <= 0:
         return value
+
     sample = rng.uniform(-ratio, ratio) if rng else random.uniform(-ratio, ratio)
     return value * (1.0 + sample)
