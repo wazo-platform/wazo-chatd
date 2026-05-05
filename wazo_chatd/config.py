@@ -78,7 +78,6 @@ _DEFAULT_CONFIG = {
         'provider_cache_ttl': 300,
         'poll_interval_min': 5,
         'poll_interval_max': 60,
-        'poll_interval_default': 30,
     },
     'initialization': {
         'enabled': True,

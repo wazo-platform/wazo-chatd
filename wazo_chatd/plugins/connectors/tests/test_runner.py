@@ -468,7 +468,6 @@ class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
             **config['delivery'],
             'poll_interval_min': 1,
             'poll_interval_max': 8,
-            'poll_interval_default': 2,
         }
         loop = DeliveryRunner(config, Mock(), Mock())
         loop._executor._room_dao = Mock(
@@ -546,7 +545,6 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
             **config['delivery'],
             'poll_interval_min': 1,
             'poll_interval_max': 8,
-            'poll_interval_default': 2,
             'poll_tau_speedup': 1,
             'poll_tau_slowdown': 4,
             'poll_jitter_ratio': 0,

@@ -268,7 +268,6 @@ class DeliveryRunner(Runner):
         self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
         self._poll_min = float(config['delivery'].get('poll_interval_min', 5))
         self._poll_max = float(config['delivery'].get('poll_interval_max', 60))
-        self._poll_default = float(config['delivery'].get('poll_interval_default', 30))
         self._tau_speedup = float(config['delivery'].get('poll_tau_speedup', 5))
         self._tau_slowdown = float(config['delivery'].get('poll_tau_slowdown', 60))
         self._jitter_ratio = float(config['delivery'].get('poll_jitter_ratio', 0.1))
