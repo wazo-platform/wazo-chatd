@@ -652,8 +652,7 @@ class DeliveryRunner(Runner):
 
     async def _run_poller(self, key: CacheKey, instance: Connector) -> None:
         tenant_uuid, backend = key
-        if self._jitter_ratio > 0:
-            await asyncio.sleep(random.uniform(0, self._poll_min))
+        await asyncio.sleep(random.uniform(0, self._poll_min))
 
         cadence = PollerCadence(
             poll_min=self._poll_min,
@@ -679,9 +678,15 @@ class DeliveryRunner(Runner):
                 )
                 cadence.penalize(duration=self._rate_limit_window)
                 await asyncio.sleep(sleep_for)
+                cadence.reset_step_clock()
                 continue
             except Exception:
-                logger.exception('Poller for %s hit unexpected error, continuing', key)
+                logger.exception(
+                    'Poller for %s hit unexpected error, throttling for %ds',
+                    key,
+                    self._rate_limit_window,
+                )
+                cadence.penalize(duration=self._rate_limit_window)
                 cadence.step(did_work=False)
 
             sleep_for = apply_jitter(cadence.next_interval(), ratio=self._jitter_ratio)
