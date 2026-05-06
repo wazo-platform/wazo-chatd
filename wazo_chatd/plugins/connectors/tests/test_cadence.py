@@ -267,10 +267,36 @@ class TestPollerCadenceElapsedTracking:
 
         assert cadence.next_interval() == pytest.approx(60.0)
 
+    def test_reset_step_clock_discards_elapsed_time(self) -> None:
+        clock = FakeClock()
+        cadence = PollerCadence(
+            poll_min=5.0,
+            poll_max=60.0,
+            tau_speedup=5.0,
+            tau_slowdown=60.0,
+            clock=clock,
+        )
+        cadence.interval = 60.0
+
+        clock.advance(60.0)
+        cadence.reset_step_clock()
+
+        clock.advance(2.5)
+        cadence.step(did_work=True)
+
+        assert cadence.next_interval() == pytest.approx(32.5)
+
 
 class TestApplyJitter:
     def test_zero_ratio_returns_base_value(self) -> None:
         assert apply_jitter(10.0, ratio=0.0) == pytest.approx(10.0)
+
+    def test_ratio_at_or_above_one_returns_base_value(self) -> None:
+        assert apply_jitter(10.0, ratio=1.0) == pytest.approx(10.0)
+        assert apply_jitter(10.0, ratio=1.5) == pytest.approx(10.0)
+
+    def test_negative_ratio_returns_base_value(self) -> None:
+        assert apply_jitter(10.0, ratio=-0.1) == pytest.approx(10.0)
 
     def test_jittered_value_stays_within_ratio(self) -> None:
         rng = random.Random(42)

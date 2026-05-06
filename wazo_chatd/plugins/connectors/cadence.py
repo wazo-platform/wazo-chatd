@@ -18,9 +18,9 @@ class PollerCadence:
     tau_speedup: float = 5.0
     tau_slowdown: float = 60.0
     rate_limit_floor: float = 30.0
-    interval: float = 0.0
-    rate_limit_until: float = 0.0
     clock: Callable[[], float] = field(default=time.monotonic)
+    interval: float = field(init=False, default=0.0)
+    rate_limit_until: float = field(init=False, default=0.0)
     _last_step_time: float = field(init=False, default=0.0)
 
     def __post_init__(self) -> None:
@@ -34,6 +34,9 @@ class PollerCadence:
 
     def penalize(self, *, duration: float) -> None:
         self.rate_limit_until = self.clock() + duration
+
+    def reset_step_clock(self) -> None:
+        self._last_step_time = self.clock()
 
     def step(self, *, did_work: bool) -> None:
         now = self.clock()
@@ -56,7 +59,7 @@ def apply_jitter(
     ratio: float = 0.1,
     rng: random.Random | None = None,
 ) -> float:
-    if ratio <= 0:
+    if not 0 < ratio < 1:
         return value
 
     sample = rng.uniform(-ratio, ratio) if rng else random.uniform(-ratio, ratio)
