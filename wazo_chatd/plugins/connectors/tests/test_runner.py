@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextlib
 import time
 import unittest
 import unittest.mock
+from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -61,6 +63,90 @@ def _mock_store() -> Mock:
     store.items.return_value = []
     store.wait_populated = AsyncMock()
     return store
+
+
+async def _no_work(*_args: object) -> bool:
+    return False
+
+
+def _yields_on_call(target: int) -> Callable[..., Awaitable[bool]]:
+    state = {'n': 0}
+
+    async def scan(*_args: object) -> bool:
+        state['n'] += 1
+        return state['n'] == target
+
+    return scan
+
+
+def _raises_then_yields(
+    exc: BaseException,
+) -> Callable[..., Awaitable[bool]]:
+    state = {'n': 0}
+
+    async def scan(*_args: object) -> bool:
+        state['n'] += 1
+        if state['n'] == 1:
+            raise exc
+        return True
+
+    return scan
+
+
+def _always_raises(
+    exc_factory: Callable[[], BaseException],
+) -> Callable[..., Awaitable[bool]]:
+    async def scan(*_args: object) -> bool:
+        raise exc_factory()
+
+    return scan
+
+
+async def _run_poller_capturing_sleeps(
+    loop: DeliveryRunner,
+    *,
+    scan: Callable[..., Awaitable[bool]],
+    track: Callable[..., Awaitable[bool]] = _no_work,
+    max_intervals: int,
+    fake_clock: bool = False,
+) -> list[float]:
+    intervals: list[float] = []
+    fake_now = [0.0]
+
+    loop._scan_inbound = scan  # type: ignore[method-assign,assignment]
+    loop._track_outbound = track  # type: ignore[method-assign,assignment]
+
+    async def capture_sleep(d: float) -> None:
+        intervals.append(d)
+        if fake_clock:
+            fake_now[0] += d
+        if len(intervals) >= max_intervals:
+            raise asyncio.CancelledError()
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(
+            unittest.mock.patch(
+                'wazo_chatd.plugins.connectors.runner.random.uniform',
+                return_value=0,
+            )
+        )
+        stack.enter_context(
+            unittest.mock.patch(
+                'wazo_chatd.plugins.connectors.runner.asyncio.sleep',
+                capture_sleep,
+            )
+        )
+        if fake_clock:
+            stack.enter_context(
+                unittest.mock.patch(
+                    'wazo_chatd.plugins.connectors.runner.monotonic',
+                    lambda: fake_now[0],
+                )
+            )
+        with contextlib.suppress(asyncio.CancelledError):
+            await loop._run_poller(('tenant', 'backend'), Mock())
+
+    return intervals
 
 
 class TestRunnerEntrypoint(unittest.IsolatedAsyncioTestCase):
@@ -555,34 +641,10 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
 
     async def test_empty_cycles_grow_interval_toward_poll_max(self) -> None:
         loop = self._make_loop()
-        intervals: list[float] = []
-        fake_now = [0.0]
 
-        async def fake_scan(*_args: object) -> bool:
-            return False
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            fake_now[0] += d
-            if len(intervals) >= 6:
-                raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.monotonic',
-            lambda: fake_now[0],
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform', return_value=0
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
-        ):
-            with self.assertRaises(asyncio.CancelledError):
-                await loop._run_poller(('tenant', 'backend'), Mock())
+        intervals = await _run_poller_capturing_sleeps(
+            loop, scan=_no_work, max_intervals=6, fake_clock=True
+        )
 
         _, *step_sleeps = intervals
         assert all(loop._poll_min <= i <= loop._poll_max for i in step_sleeps)
@@ -592,36 +654,13 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
 
     async def test_yield_pulls_interval_back_toward_poll_min(self) -> None:
         loop = self._make_loop()
-        intervals: list[float] = []
-        fake_now = [0.0]
-        call_count = {'n': 0}
 
-        async def fake_scan(*_args: object) -> bool:
-            call_count['n'] += 1
-            return call_count['n'] == 3
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            fake_now[0] += d
-            if len(intervals) >= 5:
-                raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.monotonic',
-            lambda: fake_now[0],
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform', return_value=0
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
-        ):
-            with self.assertRaises(asyncio.CancelledError):
-                await loop._run_poller(('tenant', 'backend'), Mock())
+        intervals = await _run_poller_capturing_sleeps(
+            loop,
+            scan=_yields_on_call(3),
+            max_intervals=5,
+            fake_clock=True,
+        )
 
         _, *step_sleeps = intervals
         assert step_sleeps[1] > step_sleeps[0]
@@ -631,29 +670,14 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
 
     async def test_rate_limited_uses_provider_retry_after(self) -> None:
         loop = self._make_loop()
-        intervals: list[float] = []
 
-        async def fake_scan(*_args: object) -> bool:
-            raise ConnectorRateLimited('rate limited', retry_after=42.0)
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            if len(intervals) >= 2:
-                raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform', return_value=0
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
-        ):
-            with self.assertRaises(asyncio.CancelledError):
-                await loop._run_poller(('tenant', 'backend'), Mock())
+        intervals = await _run_poller_capturing_sleeps(
+            loop,
+            scan=_always_raises(
+                lambda: ConnectorRateLimited('rate limited', retry_after=42.0)
+            ),
+            max_intervals=2,
+        )
 
         assert intervals[1] == pytest.approx(42.0)
 
@@ -661,33 +685,14 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
         self,
     ) -> None:
         loop = self._make_loop()
-        intervals: list[float] = []
-        call_count = {'n': 0}
 
-        async def fake_scan(*_args: object) -> bool:
-            call_count['n'] += 1
-            if call_count['n'] == 1:
-                raise ConnectorRateLimited('throttle', retry_after=10.0)
-            return True
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            if len(intervals) >= 4:
-                raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform', return_value=0
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
-        ):
-            with self.assertRaises(asyncio.CancelledError):
-                await loop._run_poller(('tenant', 'backend'), Mock())
+        intervals = await _run_poller_capturing_sleeps(
+            loop,
+            scan=_raises_then_yields(
+                ConnectorRateLimited('throttle', retry_after=10.0)
+            ),
+            max_intervals=4,
+        )
 
         assert intervals[1] == pytest.approx(10.0)
         assert intervals[2] == pytest.approx(loop._rate_limit_floor, abs=0.01)
@@ -695,61 +700,25 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
 
     async def test_rate_limited_caps_retry_after_at_max(self) -> None:
         loop = self._make_loop()
-        intervals: list[float] = []
 
-        async def fake_scan(*_args: object) -> bool:
-            raise ConnectorRateLimited('rate limited', retry_after=999_999.0)
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            if len(intervals) >= 2:
-                raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform', return_value=0
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
-        ):
-            with self.assertRaises(asyncio.CancelledError):
-                await loop._run_poller(('tenant', 'backend'), Mock())
+        intervals = await _run_poller_capturing_sleeps(
+            loop,
+            scan=_always_raises(
+                lambda: ConnectorRateLimited('rate limited', retry_after=999_999.0)
+            ),
+            max_intervals=2,
+        )
 
         assert intervals[1] == pytest.approx(3600.0)
 
     async def test_unexpected_error_raises_floor_for_subsequent_polls(self) -> None:
         loop = self._make_loop()
-        intervals: list[float] = []
-        call_count = {'n': 0}
 
-        async def fake_scan(*_args: object) -> bool:
-            call_count['n'] += 1
-            if call_count['n'] == 1:
-                raise RuntimeError('boom')
-            return True
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            if len(intervals) >= 3:
-                raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform', return_value=0
-        ), unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.asyncio.sleep', capture_sleep
-        ):
-            with self.assertRaises(asyncio.CancelledError):
-                await loop._run_poller(('tenant', 'backend'), Mock())
+        intervals = await _run_poller_capturing_sleeps(
+            loop,
+            scan=_raises_then_yields(RuntimeError('boom')),
+            max_intervals=3,
+        )
 
         assert intervals[1] == pytest.approx(loop._rate_limit_floor, abs=0.01)
         assert intervals[2] == pytest.approx(loop._rate_limit_floor, abs=0.01)
