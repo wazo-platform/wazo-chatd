@@ -155,6 +155,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         )
         assert response.status_code == 400
         assert response.json().get('error_id') == 'webhook-parse-error'
+        self._assert_no_message_with_body('after delete')
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
@@ -541,7 +542,7 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
 
         room_uuid = room['uuid']
 
-        self.chatd.rooms.create_message_from_user(
+        outbound = self.chatd.rooms.create_message_from_user(
             room_uuid,
             {
                 'content': 'Echo test message',
@@ -549,11 +550,7 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
             },
         )
 
-        def outbound_sent():
-            sent = self.connector_mock.get_sent_messages()
-            assert any(m['body'] == 'Echo test message' for m in sent)
-
-        until.assert_(outbound_sent, timeout=5, interval=0.1)
+        self.assert_delivery_status(outbound['uuid'], 'accepted')
 
         response = self.post_webhook(
             json={
@@ -565,20 +562,7 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         )
         assert response.status_code == 204
 
-        def echo_acknowledged_on_outbound():
-            stmt = (
-                select(DeliveryRecord)
-                .join(
-                    MessageDelivery,
-                    MessageDelivery.id == DeliveryRecord.delivery_id,
-                )
-                .where(MessageDelivery.external_id == 'ext-echo-001')
-                .where(DeliveryRecord.status == 'delivered')
-            )
-            records = list(self._session.execute(stmt).scalars())
-            assert records, 'echo not acknowledged on outbound delivery yet'
-
-        until.assert_(echo_acknowledged_on_outbound, timeout=5, interval=0.1)
+        self.assert_delivery_status(outbound['uuid'], 'delivered')
 
         def still_one_message():
             messages = list(
@@ -743,7 +727,7 @@ class TestMessageVisibility(ConnectorIntegrationTest):
             send_behavior='succeed', external_id='ext-vis-003'
         )
 
-        self.chatd.rooms.create_message_from_user(
+        message = self.chatd.rooms.create_message_from_user(
             room['uuid'],
             {
                 'content': 'Will be delivered',
@@ -751,22 +735,7 @@ class TestMessageVisibility(ConnectorIntegrationTest):
             },
         )
 
-        def accepted():
-            stmt = (
-                select(DeliveryRecord)
-                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
-                .join(
-                    MessageMeta,
-                    MessageMeta.message_uuid == MessageDelivery.message_uuid,
-                )
-                .join(RoomMessage, RoomMessage.uuid == MessageMeta.message_uuid)
-                .where(RoomMessage.content == 'Will be delivered')
-            )
-            records = list(self._session.execute(stmt).scalars())
-            statuses = [r.status for r in records]
-            assert 'accepted' in statuses
-
-        until.assert_(accepted, timeout=5, interval=0.1)
+        self.assert_delivery_status(message['uuid'], 'accepted')
 
         self.post_webhook(
             json={'external_id': 'ext-vis-003', 'status': 'delivered'},

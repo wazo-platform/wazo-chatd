@@ -20,6 +20,7 @@ from wazo_chatd.exceptions import DuplicateExternalIdException
 
 from .helpers import fixtures
 from .helpers.async_ import run_async
+from .helpers.base import TOKEN_SUBTENANT_UUID as TENANT_2
 from .helpers.base import TOKEN_TENANT_UUID as TENANT_1
 from .helpers.base import DBIntegrationTest, use_asset
 
@@ -650,6 +651,45 @@ class TestAsyncFindRoom(DBIntegrationTest):
         result = await self._async_dao.room.find_room(
             str(room.tenant_uuid), participants
         )
+
+        assert result is None
+
+    @fixtures.db.room(users=[{'uuid': '00000000-0000-0000-0000-000000000aaa'}])
+    @run_async
+    async def test_returns_none_when_searching_with_superset(self, room):
+        participants = [
+            RoomUser(uuid='00000000-0000-0000-0000-000000000aaa'),
+            RoomUser(uuid='00000000-0000-0000-0000-000000000bbb'),
+        ]
+
+        result = await self._async_dao.room.find_room(
+            str(room.tenant_uuid), participants
+        )
+
+        assert result is None
+
+    @fixtures.db.room(
+        users=[
+            {'uuid': '00000000-0000-0000-0000-000000000aaa'},
+            {'uuid': '00000000-0000-0000-0000-000000000bbb'},
+        ]
+    )
+    @run_async
+    async def test_returns_none_when_searching_with_subset(self, room):
+        participants = [RoomUser(uuid='00000000-0000-0000-0000-000000000aaa')]
+
+        result = await self._async_dao.room.find_room(
+            str(room.tenant_uuid), participants
+        )
+
+        assert result is None
+
+    @fixtures.db.room(users=[{'uuid': '00000000-0000-0000-0000-000000000aaa'}])
+    @run_async
+    async def test_returns_none_for_different_tenant(self, room):
+        participants = [RoomUser(uuid='00000000-0000-0000-0000-000000000aaa')]
+
+        result = await self._async_dao.room.find_room(str(TENANT_2), participants)
 
         assert result is None
 

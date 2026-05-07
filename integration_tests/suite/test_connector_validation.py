@@ -92,6 +92,7 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
             )
 
         assert exc_info.value.status_code == 409
+        assert exc_info.value.error_id == 'unreachable-participant'
 
     def test_internal_only_room_succeeds(self):
         room = self.chatd.rooms.create_from_user(
@@ -207,6 +208,7 @@ class TestMessageValidation(ConnectorIntegrationTest):
         assert message['content'] == 'Internal with alias'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=INTERNAL_USER_UUID)
     @fixtures.db.user_identity(
         user_uuid=TOKEN_USER_UUID,
         backend='test',
@@ -220,7 +222,7 @@ class TestMessageValidation(ConnectorIntegrationTest):
         ],
     )
     def test_mixed_room_without_sender_identity_uuid_returns_409(
-        self, user, identity, room
+        self, user, internal_user, identity, room
     ):
 
         with pytest.raises(ChatdError) as exc_info:
@@ -229,6 +231,7 @@ class TestMessageValidation(ConnectorIntegrationTest):
             )
 
         assert exc_info.value.status_code == 409
+        assert exc_info.value.error_id == 'message-identity-required'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user(uuid=INTERNAL_USER_UUID)
