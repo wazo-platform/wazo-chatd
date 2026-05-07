@@ -3,36 +3,7 @@
 
 from __future__ import annotations
 
-import uuid
-from typing import Any
-
 import requests
-
-
-def inbound_message_payload(
-    *,
-    from_: str,
-    to: str,
-    body: str,
-    message_id: str | None = None,
-    **extra: Any,
-) -> dict[str, Any]:
-    return {
-        'from': from_,
-        'to': to,
-        'body': body,
-        'message_id': message_id or f'ext-{uuid.uuid4()}',
-        **extra,
-    }
-
-
-def status_update_payload(
-    *,
-    external_id: str,
-    status: str,
-    **extra: Any,
-) -> dict[str, Any]:
-    return {'external_id': external_id, 'status': status, **extra}
 
 
 class ConnectorMockClient:
@@ -66,10 +37,3 @@ class ConnectorMockClient:
 
     def reset(self) -> None:
         requests.post(f'{self._base_url}/reset')
-
-    def is_up(self) -> bool:
-        try:
-            response = requests.get(f'{self._base_url}/config', timeout=2)
-            return response.status_code == 200
-        except requests.RequestException:
-            return False

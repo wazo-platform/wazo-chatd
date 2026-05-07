@@ -30,11 +30,6 @@ class _SmsConnector(FakeConnector):
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
 
-class _EmailConnector(FakeConnector):
-    backend: ClassVar[str] = 'email_backend'
-    supported_types: ClassVar[tuple[str, ...]] = ('email',)
-
-
 def _not_found() -> HTTPError:
     response = Mock(status_code=404)
     return HTTPError(response=response)

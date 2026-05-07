@@ -14,7 +14,6 @@ from .helpers.base import (
     ConnectorIntegrationTest,
     use_asset,
 )
-from .helpers.connector import status_update_payload
 
 EXTERNAL_IDENTITY = 'test:+15559876'
 SENDER_IDENTITY = 'test:+15551234'
@@ -143,9 +142,7 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
         until.assert_(accepted_event_received, timeout=5, interval=0.1)
 
         self.post_webhook(
-            json=status_update_payload(
-                external_id='ext-bus-status-001', status='delivered'
-            ),
+            json={'external_id': 'ext-bus-status-001', 'status': 'delivered'},
         )
 
         def delivered_event_received():

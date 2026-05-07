@@ -99,6 +99,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
             )
 
         assert exc_info.value.status_code == 400
+        assert exc_info.value.error_id == 'invalid-data'
 
     @fixtures.db.user(uuid=USER_UUID)
     def test_create_missing_identity_returns_400(self, user):
@@ -109,6 +110,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
             )
 
         assert exc_info.value.status_code == 400
+        assert exc_info.value.error_id == 'invalid-data'
 
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.user_identity(
@@ -267,7 +269,9 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
         type_='sms',
         identity='+15551112222',
     )
-    def test_subtenant_token_cannot_read_parent_tenant_identities(self, user, identity):
+    def test_subtenant_token_cannot_read_parent_tenant_identities_returns_401(
+        self, user, identity
+    ):
         chatd = self.make_user_chatd(SUBTENANT_USER_UUID, TOKEN_SUBTENANT_UUID)
 
         with pytest.raises(ChatdError) as exc_info:
@@ -275,7 +279,7 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
                 str(USER_UUID), tenant_uuid=str(TOKEN_TENANT_UUID)
             )
 
-        assert exc_info.value.status_code in (401, 403, 404)
+        assert exc_info.value.status_code == 401
 
 
 @use_asset('connectors')
@@ -362,6 +366,7 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
             self.chatd.user_identities.list_from_user(room_uuid='not-a-uuid')
 
         assert exc_info.value.status_code == 400
+        assert exc_info.value.error_id == 'invalid-data'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user(uuid=USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)

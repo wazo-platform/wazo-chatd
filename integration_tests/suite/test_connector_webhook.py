@@ -22,10 +22,8 @@ from .helpers.base import (
     ConnectorIntegrationTest,
     use_asset,
 )
-from .helpers.connector import inbound_message_payload
 
 USER_UUID_1 = uuid.uuid4()
-USER_UUID_2 = uuid.uuid4()
 EXTERNAL_IDENTITY = 'test:+15559876'
 
 
@@ -39,14 +37,14 @@ class TestInboundWebhook(ConnectorIntegrationTest):
     )
     def test_webhook_creates_message_with_meta(self, user, identity):
 
-        webhook_data = {
-            'from': EXTERNAL_IDENTITY,
-            'to': 'test:+15551234',
-            'body': 'Hello from outside',
-            'message_id': 'ext-msg-001',
-        }
-
-        response = self.post_webhook(json=webhook_data)
+        response = self.post_webhook(
+            json={
+                'from': EXTERNAL_IDENTITY,
+                'to': 'test:+15551234',
+                'body': 'Hello from outside',
+                'message_id': 'ext-msg-001',
+            },
+        )
 
         assert response.status_code == 204
 
@@ -73,14 +71,15 @@ class TestInboundWebhook(ConnectorIntegrationTest):
     )
     def test_webhook_with_backend_hint(self, user, identity):
 
-        webhook_data = {
-            'from': EXTERNAL_IDENTITY,
-            'to': 'test:+15551234',
-            'body': 'Hello with hint',
-            'message_id': 'ext-msg-002',
-        }
-
-        response = self.post_webhook(backend='test', json=webhook_data)
+        response = self.post_webhook(
+            backend='test',
+            json={
+                'from': EXTERNAL_IDENTITY,
+                'to': 'test:+15551234',
+                'body': 'Hello with hint',
+                'message_id': 'ext-msg-002',
+            },
+        )
 
         assert response.status_code == 204
 
@@ -95,23 +94,28 @@ class TestInboundWebhook(ConnectorIntegrationTest):
     def test_webhook_unrecognized_payload_returns_400(self):
         response = self.post_webhook(
             json={'body': 'hello'},
-            headers={'Content-Type': 'application/json'},
+            headers={
+                'X-Test-Connector': 'true',
+                'Content-Type': 'application/json',
+            },
         )
 
         assert response.status_code == 400
+        assert response.json().get('error_id') == 'webhook-parse-error'
         self._assert_no_message_with_body('hello')
 
     def test_webhook_unknown_recipient_returns_400(self):
         response = self.post_webhook(
-            json=inbound_message_payload(
-                from_=EXTERNAL_IDENTITY,
-                to='test:+15559999',
-                body='unrouted',
-                message_id='ext-no-tenant',
-            ),
+            json={
+                'from': EXTERNAL_IDENTITY,
+                'to': 'test:+15559999',
+                'body': 'unrouted',
+                'message_id': 'ext-no-tenant',
+            },
         )
 
         assert response.status_code == 400
+        assert response.json().get('error_id') == 'webhook-parse-error'
         self._assert_no_message_with_body('unrouted')
 
     def _assert_no_message_with_body(self, body: str) -> None:
@@ -150,6 +154,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             },
         )
         assert response.status_code == 400
+        assert response.json().get('error_id') == 'webhook-parse-error'
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
@@ -188,20 +193,20 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         identity='test:+15551234',
     )
     def test_webhook_duplicate_idempotency_skipped(self, user, identity):
-        first = inbound_message_payload(
-            from_=EXTERNAL_IDENTITY,
-            to='test:+15551234',
-            body='Dedup test',
-            message_id='ext-msg-dedup-1',
-            idempotency_key='unique-key-001',
-        )
-        second = inbound_message_payload(
-            from_=EXTERNAL_IDENTITY,
-            to='test:+15551234',
-            body='Dedup test',
-            message_id='ext-msg-dedup-2',
-            idempotency_key='unique-key-001',
-        )
+        first = {
+            'from': EXTERNAL_IDENTITY,
+            'to': 'test:+15551234',
+            'body': 'Dedup test',
+            'message_id': 'ext-msg-dedup-1',
+            'idempotency_key': 'unique-key-001',
+        }
+        second = {
+            'from': EXTERNAL_IDENTITY,
+            'to': 'test:+15551234',
+            'body': 'Dedup test',
+            'message_id': 'ext-msg-dedup-2',
+            'idempotency_key': 'unique-key-001',
+        }
 
         assert self.post_webhook(json=first).status_code == 204
 
@@ -286,7 +291,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
 
         def mock_received():
             sent = self.connector_mock.get_sent_messages()
-            assert len(sent) >= 1
+            assert len(sent) == 1
             assert sent[0]['body'] == 'Check the mock'
 
         until.assert_(mock_received, timeout=5, interval=0.1)
@@ -351,10 +356,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         self.assert_delivery_status(message['uuid'], 'accepted')
 
         response = self.post_webhook(
-            json={
-                'external_id': 'ext-status-001',
-                'status': 'delivered',
-            },
+            json={'external_id': 'ext-status-001', 'status': 'delivered'},
         )
         assert response.status_code == 204
 
@@ -434,10 +436,7 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         self.assert_delivery_status(message['uuid'], 'accepted')
 
         response = self.post_webhook(
-            json={
-                'external_id': 'ext-status-003',
-                'status': 'queued',
-            },
+            json={'external_id': 'ext-status-003', 'status': 'queued'},
         )
         assert response.status_code == 204
 
@@ -581,13 +580,16 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
 
         until.assert_(echo_acknowledged_on_outbound, timeout=5, interval=0.1)
 
-        messages = list(
-            self._session.execute(
-                select(RoomMessage).where(RoomMessage.room_uuid == room_uuid)
-            ).scalars()
-        )
-        echo_messages = [m for m in messages if m.content == 'Echo test message']
-        assert len(echo_messages) == 1
+        def still_one_message():
+            messages = list(
+                self._session.execute(
+                    select(RoomMessage).where(RoomMessage.room_uuid == room_uuid)
+                ).scalars()
+            )
+            echo_messages = [m for m in messages if m.content == 'Echo test message']
+            assert len(echo_messages) == 1
+
+        until.assert_(still_one_message, timeout=3, interval=0.1)
 
 
 @use_asset('connectors')
@@ -701,13 +703,15 @@ class TestMessageVisibility(ConnectorIntegrationTest):
             send_behavior='succeed', external_id='ext-vis-002'
         )
 
-        self.chatd.rooms.create_message_from_user(
+        message = self.chatd.rooms.create_message_from_user(
             room['uuid'],
             {
                 'content': 'Not yet visible',
                 'sender_identity_uuid': str(identity_a.uuid),
             },
         )
+
+        self.assert_delivery_status(message['uuid'], 'accepted')
 
         chatd_b = self.make_user_chatd(USER_UUID_1, TOKEN_TENANT_UUID)
         messages = chatd_b.rooms.list_messages_from_user(room['uuid'])
@@ -764,7 +768,9 @@ class TestMessageVisibility(ConnectorIntegrationTest):
 
         until.assert_(accepted, timeout=5, interval=0.1)
 
-        self.post_webhook(json={'external_id': 'ext-vis-003', 'status': 'delivered'})
+        self.post_webhook(
+            json={'external_id': 'ext-vis-003', 'status': 'delivered'},
+        )
 
         chatd_b = self.make_user_chatd(USER_UUID_1, TOKEN_TENANT_UUID)
 

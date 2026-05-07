@@ -9,6 +9,7 @@ import pytest
 
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
+    DeliveryRecord,
     MessageDelivery,
     MessageMeta,
     Room,
@@ -19,6 +20,7 @@ from wazo_chatd.exceptions import DuplicateExternalIdException
 
 from .helpers import fixtures
 from .helpers.async_ import run_async
+from .helpers.base import TOKEN_TENANT_UUID as TENANT_1
 from .helpers.base import DBIntegrationTest, use_asset
 
 
@@ -49,7 +51,7 @@ def _build_message(
 
 
 @use_asset('database')
-class TestAddMessage(DBIntegrationTest):
+class TestAsyncAddMessage(DBIntegrationTest):
     @fixtures.db.room(users=[{}])
     @run_async
     async def test_duplicate_external_id_raises(self, room):
@@ -62,6 +64,9 @@ class TestAddMessage(DBIntegrationTest):
                 _build_message(room, backend='sms_backend', external_id='SM_DUP_1'),
             )
 
+
+@use_asset('database')
+class TestAddMessage(DBIntegrationTest):
     @fixtures.db.room(users=[{}])
     def test_null_external_id_repeats_allowed(self, room):
         message_1 = _build_message(
@@ -497,6 +502,133 @@ class TestAsyncGetRecoverableDeliveries(DBIntegrationTest):
 
 
 @use_asset('database')
+class TestAsyncGetMessageDelivery(DBIntegrationTest):
+    @fixtures.db.room(
+        messages=[
+            {
+                'content': 'has delivery',
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
+                'deliveries': [
+                    {
+                        'recipient_identity': '+15559876',
+                        'external_id': 'SM_GET',
+                        'statuses': ['pending'],
+                    }
+                ],
+            }
+        ],
+    )
+    @run_async
+    async def test_returns_delivery_with_records_eagerly_loaded(self, room):
+        meta = await self._async_dao.room.get_message_meta_by_external_id(
+            'SM_GET', 'sms_backend'
+        )
+        assert meta is not None
+        delivery_id = meta.deliveries[0].id
+
+        delivery = await self._async_dao.room.get_message_delivery(delivery_id)
+
+        assert delivery is not None
+        assert delivery.external_id == 'SM_GET'
+        assert len(delivery.records) == 1
+        assert delivery.records[0].status == 'pending'
+
+    @run_async
+    async def test_returns_none_when_unknown_id(self):
+        delivery = await self._async_dao.room.get_message_delivery(999_999)
+
+        assert delivery is None
+
+
+@use_asset('database')
+class TestAsyncGetMessageMeta(DBIntegrationTest):
+    @fixtures.db.room(
+        messages=[
+            {
+                'content': 'meta target',
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
+                'deliveries': [
+                    {
+                        'recipient_identity': '+15559876',
+                        'external_id': 'SM_META_GET',
+                        'statuses': ['pending'],
+                    }
+                ],
+            }
+        ],
+    )
+    @run_async
+    async def test_returns_meta_with_eagerly_loaded_relations(self, room):
+        message_uuid = room.messages[0].uuid
+
+        meta = await self._async_dao.room.get_message_meta(str(message_uuid))
+
+        assert meta is not None
+        assert meta.backend == 'sms_backend'
+        assert meta.message.content == 'meta target'
+        assert len(meta.deliveries) == 1
+        assert meta.deliveries[0].records[0].status == 'pending'
+
+    @run_async
+    async def test_returns_none_when_unknown_message(self):
+        unknown = '00000000-0000-0000-0000-000000000999'
+
+        assert await self._async_dao.room.get_message_meta(unknown) is None
+
+
+@use_asset('database')
+class TestAsyncCreateRoom(DBIntegrationTest):
+    @run_async
+    async def test_creates_room_with_participants(self):
+        participants = [
+            RoomUser(uuid='00000000-0000-0000-0000-000000000001'),
+            RoomUser(uuid='00000000-0000-0000-0000-000000000002'),
+        ]
+
+        room = await self._async_dao.room.create_room(str(TENANT_1), participants)
+
+        assert room.uuid is not None
+        assert str(room.tenant_uuid) == str(TENANT_1)
+        assert {str(u.uuid) for u in room.users} == {
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+        }
+
+
+@use_asset('database')
+class TestAsyncAddMessageMeta(DBIntegrationTest):
+    @fixtures.db.room(
+        users=[{}],
+        messages=[{'content': 'no meta yet'}],
+    )
+    @run_async
+    async def test_adds_meta_and_initial_record(self, room):
+        message = room.messages[0]
+
+        delivery = MessageDelivery(
+            recipient_identity='+15559876',
+            backend='sms_backend',
+            type_='sms',
+        )
+        meta = MessageMeta(
+            message_uuid=message.uuid,
+            type_='sms',
+            backend='sms_backend',
+            deliveries=[delivery],
+        )
+        initial_record = DeliveryRecord(delivery=delivery, status='pending')
+
+        result = await self._async_dao.room.add_message_meta(meta, initial_record)
+
+        assert result.message_uuid == message.uuid
+        refreshed = await self._async_dao.room.get_message_meta(str(message.uuid))
+        assert refreshed is not None
+        assert refreshed.backend == 'sms_backend'
+        assert len(refreshed.deliveries) == 1
+        assert refreshed.deliveries[0].records[0].status == 'pending'
+
+
+@use_asset('database')
 class TestAsyncFindRoom(DBIntegrationTest):
     @fixtures.db.room(users=[{'uuid': '00000000-0000-0000-0000-000000000aaa'}])
     @run_async
@@ -558,7 +690,7 @@ class TestAsyncUpdateMessageMeta(DBIntegrationTest):
 
 
 @use_asset('database')
-class TestVisibilityFilter(DBIntegrationTest):
+class TestListMessagesVisibility(DBIntegrationTest):
     @fixtures.db.room(
         users=[{'uuid': '00000000-0000-0000-0000-000000000001'}],
         messages=[

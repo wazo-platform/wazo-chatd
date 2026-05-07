@@ -158,6 +158,8 @@ class TestMessageValidation(ConnectorIntegrationTest):
         )
 
         assert message['content'] == 'With alias'
+        assert message['delivery']['type'] == 'test'
+        assert message['delivery']['backend'] == 'test'
 
     @fixtures.db.room(
         users=[
