@@ -90,17 +90,35 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         room = Mock()
         room.uuid = 'room-uuid'
         room.tenant_uuid = 'tenant-uuid'
-        room.users = [Mock(uuid='user-1'), Mock(uuid='user-2')]
+        room.users = [
+            Mock(uuid='user-1', identity=None),
+            Mock(uuid='user-2', identity=None),
+        ]
 
         await self.notifier.message_created(room, self._make_message())
 
         assert self.bus.publish.call_count == 2
 
+    async def test_skips_external_participant(self) -> None:
+        room = Mock()
+        room.uuid = 'room-uuid'
+        room.tenant_uuid = 'tenant-uuid'
+        room.users = [
+            Mock(uuid='wazo-user', identity=None),
+            Mock(uuid='external-uuid5', identity='+15551234'),
+        ]
+
+        await self.notifier.message_created(room, self._make_message())
+
+        assert self.bus.publish.call_count == 1
+        event = self.bus.publish.call_args[0][0]
+        assert event.user_uuid == 'wazo-user'
+
     async def test_publishes_correct_event_type(self) -> None:
         room = Mock()
         room.uuid = 'room-uuid'
         room.tenant_uuid = 'tenant-uuid'
-        room.users = [Mock(uuid='user-1')]
+        room.users = [Mock(uuid='user-1', identity=None)]
 
         await self.notifier.message_created(room, self._make_message())
 
@@ -111,7 +129,7 @@ class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
         room = Mock()
         room.uuid = 'room-uuid'
         room.tenant_uuid = 'tenant-uuid'
-        room.users = [Mock(uuid='user-1')]
+        room.users = [Mock(uuid='user-1', identity=None)]
 
         await self.notifier.message_created(room, self._make_message())
 
