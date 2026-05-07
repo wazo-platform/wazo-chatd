@@ -14,10 +14,10 @@ from .helpers.base import (
     ConnectorIntegrationTest,
     use_asset,
 )
+from .helpers.connector import status_update_payload
 
 EXTERNAL_IDENTITY = 'test:+15559876'
 SENDER_IDENTITY = 'test:+15551234'
-RECIPIENT_UUID = uuid.uuid4()
 
 
 @use_asset('connectors')
@@ -41,7 +41,6 @@ class TestOutboundMessageEvent(ConnectorIntegrationTest):
             headers={'name': 'chatd_user_room_message_created'}
         )
 
-        self.connector_mock.reset()
         self.chatd.rooms.create_message_from_user(
             str(room.uuid),
             {'content': 'Outbound event', 'sender_identity_uuid': str(identity.uuid)},
@@ -54,7 +53,7 @@ class TestOutboundMessageEvent(ConnectorIntegrationTest):
                 for e in events
                 if e['message']['data'].get('content') == 'Outbound event'
             ]
-            assert len(matching) >= 1
+            assert len(matching) == 1
             data = matching[0]['message']['data']
             delivery = data['delivery']
             assert delivery['type'] == 'test'
@@ -89,10 +88,13 @@ class TestInboundMessageEvent(ConnectorIntegrationTest):
 
         def event_received():
             events = accumulator.accumulate(with_headers=True)
-            assert len(events) >= 1
-            data = events[0]['message']['data']
-            assert data['content'] == 'Inbound event test'
-            delivery = data['delivery']
+            matching = [
+                e
+                for e in events
+                if e['message']['data'].get('content') == 'Inbound event test'
+            ]
+            assert len(matching) == 1
+            delivery = matching[0]['message']['data']['delivery']
             assert delivery['type'] == 'test'
             assert delivery['backend'] == 'test'
 
@@ -118,7 +120,6 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
             headers={'name': 'chatd_message_delivery_status'}
         )
 
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-bus-status-001'
         )
@@ -133,7 +134,7 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
             accepted = [
                 e for e in events if e['message']['data'].get('status') == 'accepted'
             ]
-            assert len(accepted) >= 1
+            assert len(accepted) == 1
             data = accepted[0]['message']['data']
             assert data['message_uuid'] == message['uuid']
             assert data['backend'] == 'test'
@@ -142,10 +143,9 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
         until.assert_(accepted_event_received, timeout=5, interval=0.1)
 
         self.post_webhook(
-            json={
-                'external_id': 'ext-bus-status-001',
-                'status': 'delivered',
-            },
+            json=status_update_payload(
+                external_id='ext-bus-status-001', status='delivered'
+            ),
         )
 
         def delivered_event_received():
@@ -153,9 +153,11 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
             delivered = [
                 e for e in events if e['message']['data'].get('status') == 'delivered'
             ]
-            assert len(delivered) >= 1
+            assert len(delivered) == 1
             data = delivered[0]['message']['data']
             assert data['message_uuid'] == message['uuid']
+            assert data['backend'] == 'test'
+            assert data['recipient_identity']
 
         until.assert_(delivered_event_received, timeout=5, interval=0.1)
 
@@ -178,10 +180,13 @@ class TestUserIdentityEvents(ConnectorIntegrationTest):
             matching = [
                 e for e in events if e['message']['data'].get('uuid') == result['uuid']
             ]
-            assert len(matching) >= 1
+            assert len(matching) == 1
             data = matching[0]['message']['data']
             assert data['identity'] == 'test:bus-create'
             assert data['backend'] == 'test'
+            assert data['type'] == 'test'
+            assert data['user_uuid'] == str(TOKEN_USER_UUID)
+            assert data['tenant_uuid'] == str(TOKEN_TENANT_UUID)
 
         until.assert_(event_received, timeout=5, interval=0.1)
 
@@ -211,7 +216,7 @@ class TestUserIdentityEvents(ConnectorIntegrationTest):
                 for e in events
                 if e['message']['data'].get('uuid') == str(identity.uuid)
             ]
-            assert len(matching) >= 1
+            assert len(matching) == 1
             data = matching[0]['message']['data']
             assert data['identity'] == 'test:bus-updated'
 
@@ -239,6 +244,6 @@ class TestUserIdentityEvents(ConnectorIntegrationTest):
                 for e in events
                 if e['message']['data'].get('uuid') == str(identity.uuid)
             ]
-            assert len(matching) >= 1
+            assert len(matching) == 1
 
         until.assert_(event_received, timeout=5, interval=0.1)

@@ -304,6 +304,12 @@ class _BaseIntegrationTest(unittest.TestCase):
         self.__dict__.pop('chatd', None)
         assert self.chatd is chatd
 
+    def make_user_chatd(self, user_uuid, tenant_uuid=None):
+        token = self.asset_cls.create_user_token(
+            str(user_uuid), str(tenant_uuid) if tenant_uuid else None
+        )
+        return self.asset_cls.make_chatd(token=token)
+
     @classmethod
     def reset_clients(cls):
         cls._Session = cls.asset_cls.make_db_session()
@@ -481,6 +487,10 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
         super().reset_clients()
         cls.connector_mock = cls.asset_cls.make_connector_mock()
 
+    def setUp(self):
+        super().setUp()
+        self.connector_mock.reset()
+
     def post_webhook(
         self,
         *,
@@ -497,21 +507,23 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
             url, json=json, data=data, headers=headers or {'X-Test-Connector': 'true'}
         )
 
+    def get_delivery_records(self, message_uuid: str) -> list[DeliveryRecord]:
+        stmt = (
+            select(DeliveryRecord)
+            .join(
+                MessageDelivery,
+                MessageDelivery.id == DeliveryRecord.delivery_id,
+            )
+            .where(MessageDelivery.message_uuid == message_uuid)
+            .order_by(DeliveryRecord.timestamp)
+        )
+        return list(self._session.execute(stmt).scalars())
+
     def assert_delivery_status(
         self, message_uuid: str, expected_status: str, *, timeout: float = 5
     ) -> None:
         def check():
-            stmt = (
-                select(DeliveryRecord)
-                .join(
-                    MessageDelivery,
-                    MessageDelivery.id == DeliveryRecord.delivery_id,
-                )
-                .where(MessageDelivery.message_uuid == message_uuid)
-                .order_by(DeliveryRecord.timestamp)
-            )
-            records = list(self._session.execute(stmt).scalars())
-            statuses = [r.status for r in records]
+            statuses = [r.status for r in self.get_delivery_records(message_uuid)]
             assert expected_status in statuses
 
         until.assert_(check, timeout=timeout, interval=0.1)

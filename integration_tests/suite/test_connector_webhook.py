@@ -8,7 +8,6 @@ import uuid
 from sqlalchemy import select
 from wazo_test_helpers import until
 
-from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageDelivery,
@@ -23,6 +22,7 @@ from .helpers.base import (
     ConnectorIntegrationTest,
     use_asset,
 )
+from .helpers.connector import inbound_message_payload
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
@@ -99,18 +99,28 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         )
 
         assert response.status_code == 400
+        self._assert_no_message_with_body('hello')
 
     def test_webhook_unknown_recipient_returns_400(self):
         response = self.post_webhook(
-            json={
-                'from': EXTERNAL_IDENTITY,
-                'to': 'test:+15559999',
-                'body': 'unrouted',
-                'message_id': 'ext-no-tenant',
-            },
+            json=inbound_message_payload(
+                from_=EXTERNAL_IDENTITY,
+                to='test:+15559999',
+                body='unrouted',
+                message_id='ext-no-tenant',
+            ),
         )
 
         assert response.status_code == 400
+        self._assert_no_message_with_body('unrouted')
+
+    def _assert_no_message_with_body(self, body: str) -> None:
+        messages = list(
+            self._session.execute(
+                select(RoomMessage).where(RoomMessage.content == body)
+            ).scalars()
+        )
+        assert messages == []
 
     @fixtures.db.user(uuid=USER_UUID_1)
     def test_webhook_drops_after_last_identity_deleted(self, user):
@@ -178,17 +188,22 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         identity='test:+15551234',
     )
     def test_webhook_duplicate_idempotency_skipped(self, user, identity):
+        first = inbound_message_payload(
+            from_=EXTERNAL_IDENTITY,
+            to='test:+15551234',
+            body='Dedup test',
+            message_id='ext-msg-dedup-1',
+            idempotency_key='unique-key-001',
+        )
+        second = inbound_message_payload(
+            from_=EXTERNAL_IDENTITY,
+            to='test:+15551234',
+            body='Dedup test',
+            message_id='ext-msg-dedup-2',
+            idempotency_key='unique-key-001',
+        )
 
-        webhook_data = {
-            'from': EXTERNAL_IDENTITY,
-            'to': 'test:+15551234',
-            'body': 'Dedup test',
-            'message_id': 'ext-msg-dedup',
-            'idempotency_key': 'unique-key-001',
-        }
-
-        response = self.post_webhook(json=webhook_data)
-        assert response.status_code == 204
+        assert self.post_webhook(json=first).status_code == 204
 
         def first_message_persisted():
             messages = list(
@@ -200,8 +215,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         until.assert_(first_message_persisted, timeout=5, interval=0.1)
 
-        response = self.post_webhook(json=webhook_data)
-        assert response.status_code == 204
+        assert self.post_webhook(json=second).status_code == 204
 
         def still_one_message():
             messages = list(
@@ -232,8 +246,6 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
         self, user, identity, room
     ):
 
-        self.connector_mock.reset()
-
         message = self.chatd.rooms.create_message_from_user(
             str(room.uuid),
             {'content': 'Hello external', 'sender_identity_uuid': str(identity.uuid)},
@@ -262,7 +274,6 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
     )
     def test_connector_mock_receives_sent_message(self, user, identity, room):
 
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed',
             external_id='mock-ext-123',
@@ -294,7 +305,6 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
     )
     def test_failed_delivery_creates_retrying_record(self, user, identity, room):
 
-        self.connector_mock.reset()
         self.connector_mock.set_config(send_behavior='fail', error_message='API down')
 
         message = self.chatd.rooms.create_message_from_user(
@@ -309,26 +319,12 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
                 MessageDelivery.message_uuid == message['uuid']
             )
         ).scalar_one()
-        self._session.refresh(delivery)
         assert delivery.retry_count == 1
         assert delivery.external_id is None
 
 
 @use_asset('connectors')
 class TestStatusUpdate(ConnectorIntegrationTest):
-    def _get_external_id(self, message_uuid: str) -> str:
-        def check():
-            meta = self._session.execute(
-                select(MessageMeta).where(MessageMeta.message_uuid == message_uuid)
-            ).scalar_one_or_none()
-            assert meta is not None
-            assert len(meta.deliveries) == 1
-            external_id = meta.deliveries[0].external_id
-            assert external_id is not None
-            return external_id
-
-        return until.return_(check, timeout=5, interval=0.1)
-
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(
         user_uuid=TOKEN_USER_UUID,
@@ -343,7 +339,6 @@ class TestStatusUpdate(ConnectorIntegrationTest):
     )
     def test_delivered_status_creates_record(self, user, identity, room):
 
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-status-001'
         )
@@ -379,7 +374,6 @@ class TestStatusUpdate(ConnectorIntegrationTest):
     )
     def test_failed_status_creates_record_with_reason(self, user, identity, room):
 
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-status-002'
         )
@@ -404,15 +398,12 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         assert response.status_code == 204
 
         def has_failed_with_reason():
-            stmt = (
-                select(DeliveryRecord)
-                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
-                .where(MessageDelivery.message_uuid == message['uuid'])
-                .order_by(DeliveryRecord.timestamp)
-            )
-            records = list(self._session.execute(stmt).scalars())
-            failed = [r for r in records if r.status == 'failed']
-            assert len(failed) >= 1
+            failed = [
+                r
+                for r in self.get_delivery_records(message['uuid'])
+                if r.status == 'failed'
+            ]
+            assert len(failed) == 1
             assert failed[0].reason == '30003'
 
         until.assert_(has_failed_with_reason, timeout=5, interval=0.1)
@@ -431,7 +422,6 @@ class TestStatusUpdate(ConnectorIntegrationTest):
     )
     def test_transient_status_is_ignored(self, user, identity, room):
 
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-status-003'
         )
@@ -451,18 +441,12 @@ class TestStatusUpdate(ConnectorIntegrationTest):
         )
         assert response.status_code == 204
 
-        def no_queued_record():
-            stmt = (
-                select(DeliveryRecord)
-                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
-                .where(MessageDelivery.message_uuid == message['uuid'])
-                .order_by(DeliveryRecord.timestamp)
-            )
-            records = list(self._session.execute(stmt).scalars())
-            statuses = [r.status for r in records]
+        def transient_ignored_but_pipeline_ran():
+            statuses = [r.status for r in self.get_delivery_records(message['uuid'])]
+            assert 'accepted' in statuses
             assert 'queued' not in statuses
 
-        until.assert_(no_queued_record, timeout=3, interval=0.1)
+        until.assert_(transient_ignored_but_pipeline_ran, timeout=3, interval=0.1)
 
 
 @use_asset('connectors')
@@ -487,7 +471,6 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
     )
     def test_full_multichannel_flow(self, user_a, user_b, identity_a, identity_b, room):
 
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-outbound-001'
         )
@@ -553,7 +536,6 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
     def test_inbound_echo_of_outbound_is_dropped(
         self, user_a, user_b, identity_a, identity_b, room
     ):
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-echo-001'
         )
@@ -592,7 +574,7 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
                     MessageDelivery.id == DeliveryRecord.delivery_id,
                 )
                 .where(MessageDelivery.external_id == 'ext-echo-001')
-                .where(DeliveryRecord.status == DeliveryStatus.DELIVERED.value)
+                .where(DeliveryRecord.status == 'delivered')
             )
             records = list(self._session.execute(stmt).scalars())
             assert records, 'echo not acknowledged on outbound delivery yet'
@@ -638,8 +620,6 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
         ],
     )
     def test_connector_message_has_type_from_identity(self, user, identity, room):
-        self.connector_mock.reset()
-
         self.chatd.rooms.create_message_from_user(
             str(room.uuid),
             {'content': 'Typed message', 'sender_identity_uuid': str(identity.uuid)},
@@ -659,12 +639,6 @@ class TestMessageSchemaFields(ConnectorIntegrationTest):
 
 @use_asset('connectors')
 class TestMessageVisibility(ConnectorIntegrationTest):
-    def _make_user_b_client(self):
-        token_b = self.asset_cls.create_user_token(
-            str(USER_UUID_1), str(TOKEN_TENANT_UUID)
-        )
-        return self.asset_cls.make_chatd(token=token_b)
-
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
@@ -686,7 +660,6 @@ class TestMessageVisibility(ConnectorIntegrationTest):
     def test_sender_sees_own_pending_message(
         self, user_a, user_b, identity_a, identity_b, room
     ):
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-vis-001'
         )
@@ -724,7 +697,6 @@ class TestMessageVisibility(ConnectorIntegrationTest):
     def test_other_user_does_not_see_pending_message(
         self, user_a, user_b, identity_a, identity_b, room
     ):
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-vis-002'
         )
@@ -737,10 +709,10 @@ class TestMessageVisibility(ConnectorIntegrationTest):
             },
         )
 
-        chatd_b = self._make_user_b_client()
+        chatd_b = self.make_user_chatd(USER_UUID_1, TOKEN_TENANT_UUID)
         messages = chatd_b.rooms.list_messages_from_user(room['uuid'])
-        contents = [m['content'] for m in messages['items']]
-        assert 'Not yet visible' not in contents
+        assert messages['total'] == 0
+        assert messages['items'] == []
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user(uuid=USER_UUID_1)
@@ -763,7 +735,6 @@ class TestMessageVisibility(ConnectorIntegrationTest):
     def test_other_user_sees_message_after_delivery(
         self, user_a, user_b, identity_a, identity_b, room
     ):
-        self.connector_mock.reset()
         self.connector_mock.set_config(
             send_behavior='succeed', external_id='ext-vis-003'
         )
@@ -795,7 +766,7 @@ class TestMessageVisibility(ConnectorIntegrationTest):
 
         self.post_webhook(json={'external_id': 'ext-vis-003', 'status': 'delivered'})
 
-        chatd_b = self._make_user_b_client()
+        chatd_b = self.make_user_chatd(USER_UUID_1, TOKEN_TENANT_UUID)
 
         def visible_to_b():
             messages = chatd_b.rooms.list_messages_from_user(room['uuid'])
@@ -817,7 +788,7 @@ class TestMessageVisibility(ConnectorIntegrationTest):
             room['uuid'], {'content': 'Internal hello'}
         )
 
-        chatd_b = self._make_user_b_client()
+        chatd_b = self.make_user_chatd(USER_UUID_1, TOKEN_TENANT_UUID)
         messages = chatd_b.rooms.list_messages_from_user(room['uuid'])
         contents = [m['content'] for m in messages['items']]
         assert 'Internal hello' in contents

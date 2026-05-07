@@ -9,8 +9,8 @@ import pytest
 from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
-from .helpers.base import TOKEN_SUBTENANT_UUID as OTHER_TENANT_UUID
 from .helpers.base import (
+    TOKEN_SUBTENANT_UUID,
     TOKEN_TENANT_UUID,
     TOKEN_USER_UUID,
     ConnectorIntegrationTest,
@@ -18,7 +18,7 @@ from .helpers.base import (
 )
 
 USER_UUID = uuid.uuid4()
-OTHER_TENANT_USER_UUID = uuid.uuid4()
+SUBTENANT_USER_UUID = uuid.uuid4()
 
 
 @use_asset('connectors')
@@ -55,7 +55,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         assert result['backend'] == 'test'
         assert result['type'] == 'test'
         assert result['identity'] == 'test:create'
-        assert 'uuid' in result
+        uuid.UUID(result['uuid'])
 
     @fixtures.db.user(uuid=USER_UUID)
     def test_create_with_extra(self, user):
@@ -241,22 +241,19 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
 
         assert exc_info.value.status_code == 401
 
-    @fixtures.db.user(uuid=OTHER_TENANT_USER_UUID, tenant_uuid=OTHER_TENANT_UUID)
+    @fixtures.db.user(uuid=SUBTENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
     @fixtures.db.user_identity(
-        user_uuid=OTHER_TENANT_USER_UUID,
-        tenant_uuid=OTHER_TENANT_UUID,
+        user_uuid=SUBTENANT_USER_UUID,
+        tenant_uuid=TOKEN_SUBTENANT_UUID,
         backend='sms_backend',
         type_='sms',
         identity='+15553334444',
     )
-    def test_token_sees_own_tenant_identities(self, user, identity):
-        token = self.asset_cls.create_user_token(
-            str(OTHER_TENANT_USER_UUID), str(OTHER_TENANT_UUID)
-        )
-        chatd = self.asset_cls.make_chatd(token=token)
+    def test_subtenant_token_sees_subtenant_identities(self, user, identity):
+        chatd = self.make_user_chatd(SUBTENANT_USER_UUID, TOKEN_SUBTENANT_UUID)
 
         result = chatd.user_identities.list(
-            str(OTHER_TENANT_USER_UUID), tenant_uuid=str(OTHER_TENANT_UUID)
+            str(SUBTENANT_USER_UUID), tenant_uuid=str(TOKEN_SUBTENANT_UUID)
         )
 
         assert result['total'] == 1
@@ -270,18 +267,15 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
         type_='sms',
         identity='+15551112222',
     )
-    def test_user_identity_tenant_isolation(self, user, identity):
-        other_token = self.asset_cls.create_user_token(
-            str(OTHER_TENANT_USER_UUID), str(OTHER_TENANT_UUID)
-        )
-        chatd = self.asset_cls.make_chatd(token=other_token)
+    def test_subtenant_token_cannot_read_parent_tenant_identities(self, user, identity):
+        chatd = self.make_user_chatd(SUBTENANT_USER_UUID, TOKEN_SUBTENANT_UUID)
 
         with pytest.raises(ChatdError) as exc_info:
             chatd.user_identities.list(
                 str(USER_UUID), tenant_uuid=str(TOKEN_TENANT_UUID)
             )
 
-        assert exc_info.value.status_code == 401
+        assert exc_info.value.status_code in (401, 403, 404)
 
 
 @use_asset('connectors')

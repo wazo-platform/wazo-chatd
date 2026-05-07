@@ -42,8 +42,6 @@ class TestUserIdentity(DBIntegrationTest):
         assert result.backend == 'sms_backend'
         assert result.identity == '+15551234567'
 
-        self._session.expunge_all()
-
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
@@ -118,7 +116,10 @@ class TestUserIdentity(DBIntegrationTest):
     def test_list_by_user(self, user, identity_1, identity_2):
         results = self._dao.user_identity.list_by_user(str(USER_UUID_1))
 
-        assert len(results) == 2
+        assert {(r.backend, r.identity) for r in results} == {
+            ('sms_backend', '+15551111111'),
+            ('sms_alt_backend', '+15552222222'),
+        }
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user(uuid=USER_UUID_2)
@@ -336,10 +337,13 @@ class TestUserIdentity(DBIntegrationTest):
         user_uuid = str(uuid.uuid4())
 
         self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
-        self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
+        first_user = self._dao.user.get([tenant_uuid], user_uuid)
 
+        self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
+        second_user = self._dao.user.get([tenant_uuid], user_uuid)
+
+        assert first_user.uuid == second_user.uuid
         assert self._dao.tenant.get(tenant_uuid) is not None
-        assert self._dao.user.get([tenant_uuid], user_uuid) is not None
 
     @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
     @fixtures.db.user_identity(
@@ -369,10 +373,11 @@ class TestUserIdentity(DBIntegrationTest):
     ):
         result = self._dao.user_identity.list_tenant_backends()
 
-        pairs = {(str(t), b) for t, b in result}
-        assert (str(TENANT_1), 'sms_backend') in pairs
-        assert (str(TENANT_1), 'email_backend') in pairs
-        assert (str(TENANT_2), 'sms_backend') in pairs
+        assert {(str(t), b) for t, b in result} == {
+            (str(TENANT_1), 'sms_backend'),
+            (str(TENANT_1), 'email_backend'),
+            (str(TENANT_2), 'sms_backend'),
+        }
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(

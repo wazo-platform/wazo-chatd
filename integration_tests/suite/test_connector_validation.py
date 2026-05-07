@@ -53,7 +53,8 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
             }
         )
 
-        assert room['uuid'] is not None
+        uuid.UUID(room['uuid'])
+        assert len(room['users']) == 2
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(
@@ -102,7 +103,8 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
             }
         )
 
-        assert room['uuid'] is not None
+        uuid.UUID(room['uuid'])
+        assert all(u.get('identity') is None for u in room['users'])
 
 
 @use_asset('connectors')
@@ -130,6 +132,9 @@ class TestMessageValidation(ConnectorIntegrationTest):
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.error_id == 'message-identity-required'
+
+        messages = self.chatd.rooms.list_messages_from_user(str(room.uuid))
+        assert messages['total'] == 0
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(

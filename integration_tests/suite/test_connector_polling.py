@@ -5,15 +5,9 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
 from wazo_test_helpers import until
 
-from wazo_chatd.database.models import (
-    DeliveryRecord,
-    MessageDelivery,
-    MessageMeta,
-    RoomMessage,
-)
+from wazo_chatd.database.models import MessageMeta, RoomMessage
 
 from .helpers import fixtures
 from .helpers.base import PollingConnectorIntegrationTest, use_asset
@@ -23,10 +17,6 @@ USER_UUID_1 = uuid.uuid4()
 
 @use_asset('connectors_polling')
 class TestPollingInbound(PollingConnectorIntegrationTest):
-    def setUp(self):
-        super().setUp()
-        self.connector_mock.reset()
-
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.http.user_identity(
         user_uuid=USER_UUID_1,
@@ -65,10 +55,6 @@ class TestPollingInbound(PollingConnectorIntegrationTest):
 
 @use_asset('connectors_polling')
 class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
-    def setUp(self):
-        super().setUp()
-        self.connector_mock.reset()
-
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.http.user_identity(
         user_uuid=USER_UUID_1,
@@ -91,13 +77,4 @@ class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
 
         self.connector_mock.set_track('ext-out-001', {'status': 'delivered'})
 
-        def delivered_record_exists():
-            stmt = (
-                select(DeliveryRecord)
-                .join(MessageDelivery, MessageDelivery.id == DeliveryRecord.delivery_id)
-                .where(MessageDelivery.message_uuid == message.uuid)
-            )
-            statuses = {r.status for r in self._session.execute(stmt).scalars()}
-            assert 'delivered' in statuses
-
-        until.assert_(delivered_record_exists, timeout=10, interval=0.2)
+        self.assert_delivery_status(message.uuid, 'delivered', timeout=10)
