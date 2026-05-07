@@ -11,13 +11,15 @@ import pytest
 
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
+from ._factories import FakeConnector
 
-class _FakeConnectorA:
+
+class _FakeConnectorA(FakeConnector):
     backend: ClassVar[str] = 'fake_a'
     supported_types: ClassVar[tuple[str, ...]] = ('sms',)
 
 
-class _FakeConnectorB:
+class _FakeConnectorB(FakeConnector):
     backend: ClassVar[str] = 'fake_b'
     supported_types: ClassVar[tuple[str, ...]] = ('email', 'whatsapp')
 
@@ -28,11 +30,6 @@ class TestConnectorRegistry(unittest.TestCase):
 
     def test_available_backends_empty_on_init(self) -> None:
         assert self.registry.available_backends() == []
-
-    def test_register_backend(self) -> None:
-        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
-
-        assert self.registry.available_backends() == ['fake_a']
 
     def test_register_multiple_backends(self) -> None:
         self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]

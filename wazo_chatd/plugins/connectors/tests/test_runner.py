@@ -14,55 +14,19 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugins.connectors import runner as runner_module
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner, Runner
-from wazo_chatd.plugins.connectors.types import InboundMessage, StatusUpdate
+from wazo_chatd.plugins.connectors.types import StatusUpdate
 
-
-def _make_config() -> ConfigDict:
-    return {
-        'db_uri': 'postgresql://localhost/test',
-        'uuid': 'svc-uuid',
-        'bus': {},
-        'delivery': {'max_concurrent_tasks': 100},
-    }
-
-
-def _make_inbound() -> InboundMessage:
-    return InboundMessage(
-        sender='+15559876',
-        recipient='+15551234',
-        body='hello',
-        backend='sms_backend',
-        message_type='sms',
-        external_id='ext-123',
-    )
-
-
-def _mock_asyncpg_conn() -> AsyncMock:
-    conn = AsyncMock()
-    conn.is_closed = Mock(return_value=True)
-    return conn
-
-
-def _mock_session_factory() -> Mock:
-    result_mock = Mock()
-    result_mock.all.return_value = []
-    result_mock.scalars.return_value.all.return_value = []
-
-    session = AsyncMock()
-    session.execute.return_value = result_mock
-    return Mock(return_value=session)
-
-
-def _mock_store() -> Mock:
-    """Store mock whose iteration helpers behave like an empty real store."""
-    store = Mock()
-    store.items.return_value = []
-    store.wait_populated = AsyncMock()
-    return store
+from ._factories import (
+    make_config,
+    make_inbound,
+    mock_asyncpg_conn,
+    mock_instance,
+    mock_session_factory,
+    mock_store,
+)
 
 
 async def _no_work(*_args: object) -> bool:
@@ -100,6 +64,48 @@ def _always_raises(
         raise exc_factory()
 
     return scan
+
+
+async def _capture_first_poller_sleep(
+    loop: DeliveryRunner, *, uniform_return: float
+) -> tuple[list[float], Mock]:
+    intervals: list[float] = []
+
+    async def capture_sleep(d: float) -> None:
+        intervals.append(d)
+        raise asyncio.CancelledError()
+
+    loop._scan_inbound = _no_work  # type: ignore[method-assign,assignment]
+    loop._track_outbound = _no_work  # type: ignore[method-assign,assignment]
+
+    with unittest.mock.patch(
+        'wazo_chatd.plugins.connectors.runner.random.uniform',
+        return_value=uniform_return,
+    ) as mock_uniform, unittest.mock.patch(
+        'wazo_chatd.plugins.connectors.runner.asyncio.sleep',
+        capture_sleep,
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await loop._run_poller(('tenant', 'backend'), Mock())
+
+    return intervals, mock_uniform
+
+
+def _build_loop_for_modes(connectors_config: dict) -> DeliveryRunner:
+    with unittest.mock.patch(
+        'wazo_chatd.plugins.connectors.runner.init_async_db',
+        return_value=(AsyncMock(), mock_session_factory()),
+    ), unittest.mock.patch(
+        'wazo_chatd.plugins.connectors.runner.BusPublisher'
+    ) as mock_bus:
+        mock_bus.from_config.return_value = Mock()
+        config = make_config()
+        config['connectors'] = connectors_config
+        store = Mock()
+        store.items.return_value = []
+        loop = DeliveryRunner(config, Mock(), store)
+        loop._loop = asyncio.get_event_loop()
+        return loop
 
 
 async def _run_poller_capturing_sleeps(
@@ -225,11 +231,11 @@ class TestDeliveryRunnerScheduleOutboundLater(unittest.IsolatedAsyncioTestCase):
             unittest.mock.patch.object(
                 runner_module,
                 'init_async_db',
-                return_value=(AsyncMock(), _mock_session_factory()),
+                return_value=(AsyncMock(), mock_session_factory()),
             ),
             unittest.mock.patch.object(runner_module, 'BusPublisher'),
         ):
-            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+            return DeliveryRunner(make_config(), Mock(), mock_store())
 
     async def test_repeated_schedule_for_same_delivery_coalesces_timer(self) -> None:
         runner = self._make_runner()
@@ -279,11 +285,11 @@ class TestDeliveryRunnerResetLoopState(unittest.IsolatedAsyncioTestCase):
             unittest.mock.patch.object(
                 runner_module,
                 'init_async_db',
-                return_value=(AsyncMock(), _mock_session_factory()),
+                return_value=(AsyncMock(), mock_session_factory()),
             ),
             unittest.mock.patch.object(runner_module, 'BusPublisher'),
         ):
-            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+            return DeliveryRunner(make_config(), Mock(), mock_store())
 
     async def test_reset_clears_dead_loop_references(self) -> None:
         runner = self._make_runner()
@@ -292,7 +298,7 @@ class TestDeliveryRunnerResetLoopState(unittest.IsolatedAsyncioTestCase):
         runner._pollers = {('tenant-x', 'sms_backend'): Mock()}
         timer = Mock(spec=asyncio.TimerHandle)
         runner._scheduled_timers = {timer}
-        runner._queue.append(_make_inbound())
+        runner._queue.append(make_inbound())
         original_queue = runner._queue
 
         runner._reset_loop_state()
@@ -326,11 +332,11 @@ class TestMonitorListenConnection(unittest.IsolatedAsyncioTestCase):
             unittest.mock.patch.object(
                 runner_module,
                 'init_async_db',
-                return_value=(AsyncMock(), _mock_session_factory()),
+                return_value=(AsyncMock(), mock_session_factory()),
             ),
             unittest.mock.patch.object(runner_module, 'BusPublisher'),
         ):
-            return DeliveryRunner(_make_config(), Mock(), _mock_store())
+            return DeliveryRunner(make_config(), Mock(), mock_store())
 
     async def test_returns_when_closing_signal_fires(self) -> None:
         runner = self._make_runner()
@@ -449,11 +455,11 @@ class TestDeliveryRunnerLifecycle(unittest.TestCase):
     def test_start_creates_loop_thread(
         self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
     ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
+        mock_asyncpg.connect = AsyncMock(return_value=mock_asyncpg_conn())
 
-        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
+        loop = DeliveryRunner(make_config(), Mock(), mock_store())
         loop.start()
 
         try:
@@ -467,11 +473,11 @@ class TestDeliveryRunnerLifecycle(unittest.TestCase):
     def test_shutdown_stops_loop(
         self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
     ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
+        mock_asyncpg.connect = AsyncMock(return_value=mock_asyncpg_conn())
 
-        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
+        loop = DeliveryRunner(make_config(), Mock(), mock_store())
         loop.start()
         loop.shutdown()
 
@@ -481,11 +487,11 @@ class TestDeliveryRunnerLifecycle(unittest.TestCase):
     def test_context_manager(
         self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
     ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
+        mock_asyncpg.connect = AsyncMock(return_value=mock_asyncpg_conn())
 
-        with DeliveryRunner(_make_config(), Mock(), _mock_store()) as loop:
+        with DeliveryRunner(make_config(), Mock(), mock_store()) as loop:
             assert loop._loop is not None
             assert loop._loop.is_running()
 
@@ -500,11 +506,11 @@ class TestDeliveryRunnerStatus(unittest.TestCase):
     def test_is_running_when_started(
         self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
     ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
+        mock_asyncpg.connect = AsyncMock(return_value=mock_asyncpg_conn())
 
-        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
+        loop = DeliveryRunner(make_config(), Mock(), mock_store())
         loop.start()
 
         try:
@@ -515,10 +521,10 @@ class TestDeliveryRunnerStatus(unittest.TestCase):
     def test_is_not_running_when_not_started(
         self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
     ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
 
-        loop = DeliveryRunner(_make_config(), Mock(), _mock_store())
+        loop = DeliveryRunner(make_config(), Mock(), mock_store())
 
         assert loop.is_running is False
 
@@ -530,15 +536,18 @@ class TestDeliveryRunnerEnqueue(unittest.TestCase):
     def test_enqueue_inbound_creates_task(
         self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
     ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        mock_asyncpg.connect = AsyncMock(return_value=_mock_asyncpg_conn())
+        mock_asyncpg.connect = AsyncMock(return_value=mock_asyncpg_conn())
+        inbound = make_inbound()
 
-        with DeliveryRunner(_make_config(), Mock(), _mock_store()) as loop:
-            loop.enqueue_message(_make_inbound())
+        with DeliveryRunner(make_config(), Mock(), mock_store()) as loop:
+            loop._executor.route_inbound = AsyncMock(return_value=None)
+            loop.enqueue_message(inbound)
             time.sleep(0.1)
 
-            assert loop._executor is not None
+            loop._executor.route_inbound.assert_awaited_once()
+            assert loop._executor.route_inbound.call_args.args[0] is inbound
 
 
 class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
@@ -547,9 +556,9 @@ class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
     def _make_loop(
         self, mock_bus: Mock, mock_init_db: Mock, pending: list[str] | None = None
     ) -> DeliveryRunner:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        config = _make_config()
+        config = make_config()
         config['delivery'] = {
             **config['delivery'],
             'poll_interval_min': 1,
@@ -564,7 +573,7 @@ class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
 
     async def test_scan_inbound_results_forwarded(self) -> None:
         loop = self._make_loop()
-        message = _make_inbound()
+        message = make_inbound()
         instance = Mock(scan_inbound=Mock(return_value=[message]))
 
         did_work = await loop._scan_inbound(instance, ('tenant', 'backend'))
@@ -598,7 +607,7 @@ class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
 
     async def test_async_scan_inbound_awaited_inline(self) -> None:
         loop = self._make_loop()
-        message = _make_inbound()
+        message = make_inbound()
 
         async def async_scan() -> list:
             return [message]
@@ -624,9 +633,9 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
     def _make_loop(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryRunner:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        config = _make_config()
+        config = make_config()
         config['delivery'] = {
             **config['delivery'],
             'poll_interval_min': 1,
@@ -728,9 +737,9 @@ class TestDeliveryRunnerPollerJitter(unittest.IsolatedAsyncioTestCase):
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
     def _make_loop(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryRunner:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        config = _make_config()
+        config = make_config()
         config['delivery'] = {
             **config['delivery'],
             'poll_interval_min': 5,
@@ -770,116 +779,43 @@ class TestDeliveryRunnerPollerJitter(unittest.IsolatedAsyncioTestCase):
         assert all(4.5 <= i <= 5.5 for i in step_sleeps)
         assert len(set(step_sleeps)) > 1
 
-    async def test_first_sleep_is_spawn_jitter_in_zero_poll_min_range(
+    async def test_first_sleep_is_spawn_jitter_regardless_of_step_jitter(
         self,
     ) -> None:
-        loop = self._make_loop()
-        intervals: list[float] = []
-
-        async def fake_scan(*_args: object) -> bool:
-            return False
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform',
-            return_value=2.5,
-        ) as mock_uniform:
+        for jitter_ratio in (0.1, 0):
             with unittest.mock.patch(
-                'wazo_chatd.plugins.connectors.runner.asyncio.sleep',
-                capture_sleep,
-            ):
-                with self.assertRaises(asyncio.CancelledError):
-                    await loop._run_poller(('tenant', 'backend'), Mock())
+                'wazo_chatd.plugins.connectors.runner.init_async_db',
+                return_value=(AsyncMock(), mock_session_factory()),
+            ), unittest.mock.patch(
+                'wazo_chatd.plugins.connectors.runner.BusPublisher'
+            ) as mock_bus:
+                mock_bus.from_config.return_value = Mock()
+                config = make_config()
+                config['delivery'] = {
+                    **config['delivery'],
+                    'poll_interval_min': 5,
+                    'poll_interval_max': 5,
+                    'poll_jitter_ratio': jitter_ratio,
+                }
+                loop = DeliveryRunner(config, Mock(), Mock())
 
-        assert intervals == pytest.approx([2.5])
-        mock_uniform.assert_called_once_with(0, 5.0)
+            intervals, mock_uniform = await _capture_first_poller_sleep(
+                loop, uniform_return=2.5
+            )
 
-    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
-    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
-    async def test_spawn_jitter_happens_even_when_step_jitter_disabled(
-        self, mock_bus: Mock, mock_init_db: Mock
-    ) -> None:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
-        mock_bus.from_config.return_value = Mock()
-        config = _make_config()
-        config['delivery'] = {
-            **config['delivery'],
-            'poll_interval_min': 5,
-            'poll_interval_max': 5,
-            'poll_jitter_ratio': 0,
-        }
-        loop = DeliveryRunner(config, Mock(), Mock())
-        intervals: list[float] = []
-
-        async def fake_scan(*_args: object) -> bool:
-            return False
-
-        async def fake_track(*_args: object) -> bool:
-            return False
-
-        loop._scan_inbound = fake_scan  # type: ignore[method-assign,assignment]
-        loop._track_outbound = fake_track  # type: ignore[method-assign,assignment]
-
-        async def capture_sleep(d: float) -> None:
-            intervals.append(d)
-            raise asyncio.CancelledError()
-
-        with unittest.mock.patch(
-            'wazo_chatd.plugins.connectors.runner.random.uniform',
-            return_value=2.5,
-        ) as mock_uniform:
-            with unittest.mock.patch(
-                'wazo_chatd.plugins.connectors.runner.asyncio.sleep',
-                capture_sleep,
-            ):
-                with self.assertRaises(asyncio.CancelledError):
-                    await loop._run_poller(('tenant', 'backend'), Mock())
-
-        assert intervals == pytest.approx([2.5])
-        mock_uniform.assert_called_once_with(0, 5.0)
-
-
-def _build_loop_for_modes(connectors_config: dict) -> DeliveryRunner:
-    with unittest.mock.patch(
-        'wazo_chatd.plugins.connectors.runner.init_async_db',
-        return_value=(AsyncMock(), _mock_session_factory()),
-    ), unittest.mock.patch(
-        'wazo_chatd.plugins.connectors.runner.BusPublisher'
-    ) as mock_bus:
-        mock_bus.from_config.return_value = Mock()
-        config = _make_config()
-        config['connectors'] = connectors_config
-        store = Mock()
-        store.items.return_value = []
-        loop = DeliveryRunner(config, Mock(), store)
-        loop._loop = asyncio.get_event_loop()
-        return loop
-
-
-def _mock_instance(backend: str) -> Mock:
-    instance = Mock()
-    instance.backend = backend
-    return instance
+            assert intervals == pytest.approx([2.5]), f'jitter_ratio={jitter_ratio}'
+            mock_uniform.assert_called_once_with(0, 5.0)
 
 
 class TestListenerRunnerReconcile(unittest.IsolatedAsyncioTestCase):
     def _make_runner(self) -> ListenerRunner:
-        runner = ListenerRunner(_make_config(), Mock(), Mock())
+        runner = ListenerRunner(make_config(), Mock(), Mock())
         runner._loop = asyncio.get_event_loop()
         return runner
 
     async def test_spawns_listener_for_new_instance(self) -> None:
         runner = self._make_runner()
-        instance = _mock_instance('push')
+        instance = mock_instance('push')
 
         async def fake_listen(on_message: object) -> None:
             await asyncio.sleep(3600)
@@ -893,16 +829,9 @@ class TestListenerRunnerReconcile(unittest.IsolatedAsyncioTestCase):
         assert not runner._listeners[key].done()
         runner._listeners[key].cancel()
 
-    async def test_empty_desired_does_nothing(self) -> None:
-        runner = self._make_runner()
-
-        runner._reconcile({})
-
-        assert runner._listeners == {}
-
     async def test_cancels_listener_for_removed_instance(self) -> None:
         runner = self._make_runner()
-        instance = _mock_instance('push')
+        instance = mock_instance('push')
 
         async def fake_listen(on_message: object) -> None:
             await asyncio.sleep(3600)
@@ -924,7 +853,7 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
     async def test_spawns_poller_for_poll_mode_instance(self) -> None:
         loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
         key = ('tenant-a', 'sms_backend')
-        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
+        loop._store.items.return_value = [(key, mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
 
@@ -935,7 +864,7 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
     async def test_does_not_spawn_poller_for_webhook_mode(self) -> None:
         loop = _build_loop_for_modes({'sms_backend': {'mode': 'webhook'}})
         key = ('tenant-a', 'sms_backend')
-        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
+        loop._store.items.return_value = [(key, mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
 
@@ -944,7 +873,7 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
     async def test_idempotent_does_not_spawn_duplicate(self) -> None:
         loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
         key = ('tenant-a', 'sms_backend')
-        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
+        loop._store.items.return_value = [(key, mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
         first_task = loop._pollers[key]
@@ -957,7 +886,7 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
     async def test_cancels_poller_for_evicted_instance(self) -> None:
         loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
         key = ('tenant-a', 'sms_backend')
-        loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
+        loop._store.items.return_value = [(key, mock_instance('sms_backend'))]
 
         loop._synchronize_pollers()
         task = loop._pollers[key]
@@ -973,9 +902,9 @@ class TestDeliveryRunnerWaitBackoff(unittest.TestCase):
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
     def _make_runner(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryRunner:
-        mock_init_db.return_value = (AsyncMock(), _mock_session_factory())
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
         mock_bus.from_config.return_value = Mock()
-        runner = DeliveryRunner(_make_config(), Mock(), Mock())
+        runner = DeliveryRunner(make_config(), Mock(), Mock())
         runner._closing = Mock()
         runner._closing.done.return_value = False
         return runner

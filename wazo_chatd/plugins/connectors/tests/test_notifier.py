@@ -234,4 +234,9 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         self.bus.publish.side_effect = RuntimeError('connection lost')
         delivery, record = self._make_delivery_and_record()
 
-        await self.notifier.delivery_status_updated(delivery, record)
+        with self.assertLogs(
+            'wazo_chatd.plugins.connectors.notifier', level='ERROR'
+        ) as captured:
+            await self.notifier.delivery_status_updated(delivery, record)
+
+        assert any('Failed to publish' in line for line in captured.output)

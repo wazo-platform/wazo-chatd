@@ -16,8 +16,10 @@ from wazo_chatd.plugins.connectors.exceptions import (
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService
 
+from ._factories import FakeConnector, build_registry, make_room, make_room_user
 
-class _SmsConnector:
+
+class _SmsConnector(FakeConnector):
     backend: ClassVar[str] = 'sms_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
@@ -28,32 +30,12 @@ class _SmsConnector:
         raise ValueError(f'Not a phone number: {raw_identity}')
 
 
-def _make_room_user(
-    uuid: str = 'user-uuid',
-    identity: str | None = None,
-) -> Mock:
-    user = Mock()
-    user.uuid = uuid
-    user.identity = identity
-    return user
-
-
-def _make_room(users: list[Mock] | None = None) -> Mock:
-    room = Mock()
-    room.uuid = 'room-uuid'
-    room.tenant_uuid = 'tenant-uuid'
-    room.users = users or []
-    return room
-
-
 def _build_service(
     room: Mock | None = None,
     types_by_user: dict[str, list[str]] | None = None,
     identity_bound: dict[str, bool] | None = None,
     sender_identities: list[Mock] | None = None,
 ) -> ConnectorService:
-    from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
-
     dao = Mock()
     if room is not None:
         dao.room.get.return_value = room
@@ -73,10 +55,14 @@ def _build_service(
 
     dao.user_identity.list_by_user.return_value = sender_identities or []
 
-    registry = ConnectorRegistry()
-    registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
+    return ConnectorService(dao, build_registry(_SmsConnector), Mock(), Mock())
 
-    return ConnectorService(dao, registry, Mock(), Mock())
+
+def _make_identity(backend: str = 'sms_backend', type_: str = 'sms') -> Mock:
+    identity_mock = Mock()
+    identity_mock.backend = backend
+    identity_mock.type_ = type_
+    return identity_mock
 
 
 SENDER_UUID = 'sender-uuid'
@@ -84,9 +70,9 @@ SENDER_UUID = 'sender-uuid'
 
 class TestListRoomIdentities(unittest.TestCase):
     def test_truly_external_participant_returns_sender_identities(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
-        room = _make_room(users=[sender, external])
+        sender = make_room_user(uuid=SENDER_UUID)
+        external = make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = make_room(users=[sender, external])
 
         identity_mock = _make_identity()
         service = _build_service(
@@ -100,9 +86,9 @@ class TestListRoomIdentities(unittest.TestCase):
         assert result == [identity_mock]
 
     def test_wazo_user_with_sms_identity_returns_sender_identities(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid')
-        room = _make_room(users=[sender, recipient])
+        sender = make_room_user(uuid=SENDER_UUID)
+        recipient = make_room_user(uuid='recipient-uuid')
+        room = make_room(users=[sender, recipient])
 
         identity_mock = _make_identity()
         service = _build_service(
@@ -116,9 +102,9 @@ class TestListRoomIdentities(unittest.TestCase):
         assert result == [identity_mock]
 
     def test_wazo_user_with_identity_bound(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid', identity='+15559876')
-        room = _make_room(users=[sender, recipient])
+        sender = make_room_user(uuid=SENDER_UUID)
+        recipient = make_room_user(uuid='recipient-uuid', identity='+15559876')
+        room = make_room(users=[sender, recipient])
 
         identity_mock = _make_identity()
         service = _build_service(
@@ -133,9 +119,9 @@ class TestListRoomIdentities(unittest.TestCase):
         assert result == [identity_mock]
 
     def test_internal_only_room_returns_empty(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        other = _make_room_user(uuid='other-uuid')
-        room = _make_room(users=[sender, other])
+        sender = make_room_user(uuid=SENDER_UUID)
+        other = make_room_user(uuid='other-uuid')
+        room = make_room(users=[sender, other])
 
         service = _build_service(
             room=room,
@@ -147,10 +133,10 @@ class TestListRoomIdentities(unittest.TestCase):
         assert result == []
 
     def test_multiple_participants_returns_empty(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        user_a = _make_room_user(uuid='user-a')
-        user_b = _make_room_user(uuid='user-b')
-        room = _make_room(users=[sender, user_a, user_b])
+        sender = make_room_user(uuid=SENDER_UUID)
+        user_a = make_room_user(uuid='user-a')
+        user_b = make_room_user(uuid='user-b')
+        room = make_room(users=[sender, user_a, user_b])
 
         service = _build_service(
             room=room,
@@ -163,9 +149,9 @@ class TestListRoomIdentities(unittest.TestCase):
         assert result == []
 
     def test_sender_has_no_matching_identities_returns_empty(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
-        room = _make_room(users=[sender, external])
+        sender = make_room_user(uuid=SENDER_UUID)
+        external = make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = make_room(users=[sender, external])
 
         service = _build_service(
             room=room,
@@ -178,9 +164,9 @@ class TestListRoomIdentities(unittest.TestCase):
         assert result == []
 
     def test_user_not_in_room_raises(self) -> None:
-        other_a = _make_room_user(uuid='other-a')
-        other_b = _make_room_user(uuid='other-b')
-        room = _make_room(users=[other_a, other_b])
+        other_a = make_room_user(uuid='other-a')
+        other_b = make_room_user(uuid='other-b')
+        room = make_room(users=[other_a, other_b])
 
         service = _build_service(room=room)
 
@@ -190,9 +176,9 @@ class TestListRoomIdentities(unittest.TestCase):
             service.list_room_identities(['tenant-uuid'], 'room-uuid', SENDER_UUID)
 
     def test_filters_out_identities_for_unregistered_backends(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid')
-        room = _make_room(users=[sender, recipient])
+        sender = make_room_user(uuid=SENDER_UUID)
+        recipient = make_room_user(uuid='recipient-uuid')
+        room = make_room(users=[sender, recipient])
 
         unregistered_identity = Mock()
         unregistered_identity.backend = 'unregistered_backend'
@@ -209,18 +195,11 @@ class TestListRoomIdentities(unittest.TestCase):
         assert result == [registered_identity]
 
 
-def _make_identity(backend: str = 'sms_backend', type_: str = 'sms') -> Mock:
-    identity_mock = Mock()
-    identity_mock.backend = backend
-    identity_mock.type_ = type_
-    return identity_mock
-
-
 class TestValidateIdentityReachability(unittest.TestCase):
     def test_both_internal_users_share_type_passes(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid')
-        room = _make_room(users=[sender, recipient])
+        sender = make_room_user(uuid=SENDER_UUID)
+        recipient = make_room_user(uuid='recipient-uuid')
+        room = make_room(users=[sender, recipient])
 
         identity = _make_identity('sms_backend')
         service = _build_service(
@@ -231,10 +210,12 @@ class TestValidateIdentityReachability(unittest.TestCase):
 
         service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
+        service._dao.user_identity.find.assert_called_once()
+
     def test_recipient_missing_type_raises(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid')
-        room = _make_room(users=[sender, recipient])
+        sender = make_room_user(uuid=SENDER_UUID)
+        recipient = make_room_user(uuid='recipient-uuid')
+        room = make_room(users=[sender, recipient])
 
         identity = _make_identity('sms_backend')
         service = _build_service(
@@ -247,9 +228,9 @@ class TestValidateIdentityReachability(unittest.TestCase):
             service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
     def test_external_participant_reachable_passes(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
-        room = _make_room(users=[sender, external])
+        sender = make_room_user(uuid=SENDER_UUID)
+        external = make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = make_room(users=[sender, external])
 
         identity = _make_identity('sms_backend')
         service = _build_service(
@@ -260,10 +241,12 @@ class TestValidateIdentityReachability(unittest.TestCase):
 
         service.validate_identity_reachability(room, SENDER_UUID, uuid.uuid4())
 
+        service._dao.user_identity.find.assert_called_once()
+
     def test_find_filters_by_user_uuid(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid')
-        room = _make_room(users=[sender, recipient])
+        sender = make_room_user(uuid=SENDER_UUID)
+        recipient = make_room_user(uuid='recipient-uuid')
+        room = make_room(users=[sender, recipient])
 
         identity = _make_identity()
         service = _build_service(
@@ -280,9 +263,9 @@ class TestValidateIdentityReachability(unittest.TestCase):
         )
 
     def test_invalid_identity_uuid_raises(self) -> None:
-        sender = _make_room_user(uuid=SENDER_UUID)
-        recipient = _make_room_user(uuid='recipient-uuid')
-        room = _make_room(users=[sender, recipient])
+        sender = make_room_user(uuid=SENDER_UUID)
+        recipient = make_room_user(uuid='recipient-uuid')
+        room = make_room(users=[sender, recipient])
 
         service = _build_service(room=room)
         service._dao.user_identity.find.return_value = None
@@ -293,18 +276,20 @@ class TestValidateIdentityReachability(unittest.TestCase):
 
 class TestValidateRoomReachability(unittest.TestCase):
     def test_internal_only_room_skips_validation(self) -> None:
-        user_a = _make_room_user(uuid='user-a')
-        user_b = _make_room_user(uuid='user-b')
-        room = _make_room(users=[user_a, user_b])
+        user_a = make_room_user(uuid='user-a')
+        user_b = make_room_user(uuid='user-b')
+        room = make_room(users=[user_a, user_b])
 
         service = _build_service(room=room)
 
         service.validate_room_reachability(room)
 
+        service._dao.user_identity.list_bound_identities.assert_not_called()
+
     def test_external_participant_reachable_passes(self) -> None:
-        user_a = _make_room_user(uuid='user-a')
-        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
-        room = _make_room(users=[user_a, external])
+        user_a = make_room_user(uuid='user-a')
+        external = make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = make_room(users=[user_a, external])
 
         service = _build_service(
             room=room,
@@ -315,10 +300,12 @@ class TestValidateRoomReachability(unittest.TestCase):
 
         service.validate_room_reachability(room)
 
+        service._dao.user_identity.list_bound_identities.assert_called_once()
+
     def test_external_participant_unreachable_raises(self) -> None:
-        user_a = _make_room_user(uuid='user-a')
-        external = _make_room_user(uuid='ext-uuid', identity='not-reachable')
-        room = _make_room(users=[user_a, external])
+        user_a = make_room_user(uuid='user-a')
+        external = make_room_user(uuid='ext-uuid', identity='not-reachable')
+        room = make_room(users=[user_a, external])
 
         service = _build_service(room=room)
         service._dao.user_identity.list_bound_identities.return_value = set()
@@ -327,10 +314,10 @@ class TestValidateRoomReachability(unittest.TestCase):
             service.validate_room_reachability(room)
 
     def test_group_room_with_external_is_rejected(self) -> None:
-        user_a = _make_room_user(uuid='user-a')
-        user_b = _make_room_user(uuid='user-b')
-        external = _make_room_user(uuid='ext-uuid', identity='+15559876')
-        room = _make_room(users=[user_a, user_b, external])
+        user_a = make_room_user(uuid='user-a')
+        user_b = make_room_user(uuid='user-b')
+        external = make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = make_room(users=[user_a, user_b, external])
 
         service = _build_service(
             room=room,

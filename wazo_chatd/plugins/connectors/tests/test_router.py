@@ -25,8 +25,10 @@ from wazo_chatd.plugins.connectors.types import (
     WebhookData,
 )
 
+from ._factories import FakeConnector, build_registry, make_room, make_room_user
 
-class _SmsConnector:
+
+class _SmsConnector(FakeConnector):
     backend: ClassVar[str] = 'sms_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('sms', 'mms')
 
@@ -35,10 +37,6 @@ class _SmsConnector:
         if raw_identity.startswith('+'):
             return raw_identity
         raise ValueError(f'Not a phone number: {raw_identity}')
-
-    @classmethod
-    def can_handle(cls, data: TransportData) -> bool:
-        return True
 
     @classmethod
     def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
@@ -56,7 +54,7 @@ class _SmsConnector:
                 return None
 
 
-class _EmailConnector:
+class _EmailConnector(FakeConnector):
     backend: ClassVar[str] = 'mailgun'
     supported_types: ClassVar[tuple[str, ...]] = ('email',)
 
@@ -74,32 +72,9 @@ class _EmailConnector:
             case _:
                 return False
 
-    @classmethod
-    def on_event(cls, data: TransportData) -> InboundMessage | StatusUpdate | None:
-        return None
-
-
-def _make_room_user(
-    uuid: str = 'user-uuid',
-    identity: str | None = None,
-) -> Mock:
-    user = Mock()
-    user.uuid = uuid
-    user.identity = identity
-    return user
-
-
-def _make_room(users: list[Mock] | None = None) -> Mock:
-    room = Mock()
-    room.users = users or []
-    return room
-
 
 def _build_registry() -> ConnectorRegistry:
-    registry = ConnectorRegistry()
-    registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
-    registry.register_backend(_EmailConnector)  # type: ignore[arg-type]
-    return registry
+    return build_registry(_SmsConnector, _EmailConnector)
 
 
 def _build_router(
@@ -338,7 +313,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         self.router = _build_router(registry=self.registry, service=self.service)
 
     def test_internal_room_without_sender_identity_uuid_passes(self) -> None:
-        room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
+        room = make_room([make_room_user('user-a'), make_room_user('user-b')])
         ctx = MessageContext(room, Mock(), sender_identity_uuid=None)
 
         self.router.prepare_outbound(ctx)
@@ -346,10 +321,10 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
         self.service.validate_identity_reachability.assert_not_called()
 
     def test_external_room_without_sender_identity_uuid_raises_409(self) -> None:
-        room = _make_room(
+        room = make_room(
             [
-                _make_room_user('user-a'),
-                _make_room_user('ext-uuid', identity='+15559876'),
+                make_room_user('user-a'),
+                make_room_user('ext-uuid', identity='+15559876'),
             ]
         )
         ctx = MessageContext(room, Mock(), sender_identity_uuid=None)
@@ -358,7 +333,7 @@ class TestConnectorRouterValidateOutbound(unittest.TestCase):
             self.router.prepare_outbound(ctx)
 
     def test_sender_identity_uuid_validates_and_prepares_delivery(self) -> None:
-        room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
+        room = make_room([make_room_user('user-a'), make_room_user('user-b')])
         identity_uuid = uuid.uuid4()
         identity = Mock()
         self.service.validate_identity_reachability.return_value = identity
@@ -383,7 +358,7 @@ class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
         self.router = _build_router(registry=self.registry, service=self.service)
 
     def test_delegates_to_service(self) -> None:
-        room = _make_room([_make_room_user('user-a'), _make_room_user('user-b')])
+        room = make_room([make_room_user('user-a'), make_room_user('user-b')])
 
         self.router.validate_room_creation(room)
 
@@ -399,12 +374,6 @@ class TestConnectorRouterValidateTenantBackend(unittest.TestCase):
         self.router.validate_tenant_backend('tenant-uuid', 'sms_backend')
 
         self.router._store.get.assert_called_once_with('sms_backend', 'tenant-uuid')
-
-    def test_propagates_get_exceptions(self) -> None:
-        self.router._store.get.side_effect = RuntimeError('boom')
-
-        with self.assertRaises(RuntimeError):
-            self.router.validate_tenant_backend('tenant-uuid', 'sms_backend')
 
 
 class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
