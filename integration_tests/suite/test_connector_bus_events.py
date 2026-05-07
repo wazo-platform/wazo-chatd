@@ -5,11 +5,15 @@ from __future__ import annotations
 
 import uuid
 
-import requests
 from wazo_test_helpers import until
 
 from .helpers import fixtures
-from .helpers.base import TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
+from .helpers.base import (
+    TOKEN_TENANT_UUID,
+    TOKEN_USER_UUID,
+    ConnectorIntegrationTest,
+    use_asset,
+)
 
 EXTERNAL_IDENTITY = 'test:+15559876'
 SENDER_IDENTITY = 'test:+15551234'
@@ -55,6 +59,7 @@ class TestOutboundMessageEvent(ConnectorIntegrationTest):
             delivery = data['delivery']
             assert delivery['type'] == 'test'
             assert delivery['backend'] == 'test'
+            assert delivery['recipients'] == [EXTERNAL_IDENTITY]
 
         until.assert_(event_received, timeout=5, interval=0.1)
 
@@ -72,16 +77,13 @@ class TestInboundMessageEvent(ConnectorIntegrationTest):
             headers={'name': 'chatd_user_room_message_created'}
         )
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        response = self.post_webhook(
             json={
                 'from': EXTERNAL_IDENTITY,
                 'to': SENDER_IDENTITY,
                 'body': 'Inbound event test',
                 'message_id': f'ext-bus-{uuid.uuid4()}',
             },
-            headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
 
@@ -139,14 +141,11 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
 
         until.assert_(accepted_event_received, timeout=5, interval=0.1)
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        self.post_webhook(
             json={
                 'external_id': 'ext-bus-status-001',
                 'status': 'delivered',
             },
-            headers={'X-Test-Connector': 'true'},
         )
 
         def delivered_event_received():
@@ -159,3 +158,87 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
             assert data['message_uuid'] == message['uuid']
 
         until.assert_(delivered_event_received, timeout=5, interval=0.1)
+
+
+@use_asset('connectors')
+class TestUserIdentityEvents(ConnectorIntegrationTest):
+    @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
+    def test_create_emits_event(self, user):
+        accumulator = self.bus.accumulator(
+            headers={'name': 'chatd_user_identity_created'}
+        )
+
+        result = self.chatd.user_identities.create(
+            str(TOKEN_USER_UUID),
+            {'backend': 'test', 'type': 'test', 'identity': 'test:bus-create'},
+        )
+
+        def event_received():
+            events = accumulator.accumulate(with_headers=True)
+            matching = [
+                e for e in events if e['message']['data'].get('uuid') == result['uuid']
+            ]
+            assert len(matching) >= 1
+            data = matching[0]['message']['data']
+            assert data['identity'] == 'test:bus-create'
+            assert data['backend'] == 'test'
+
+        until.assert_(event_received, timeout=5, interval=0.1)
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        tenant_uuid=TOKEN_TENANT_UUID,
+        backend='test',
+        type_='test',
+        identity='test:bus-original',
+    )
+    def test_update_emits_event(self, user, identity):
+        accumulator = self.bus.accumulator(
+            headers={'name': 'chatd_user_identity_updated'}
+        )
+
+        self.chatd.user_identities.update(
+            str(TOKEN_USER_UUID),
+            str(identity.uuid),
+            {'backend': 'test', 'type': 'test', 'identity': 'test:bus-updated'},
+        )
+
+        def event_received():
+            events = accumulator.accumulate(with_headers=True)
+            matching = [
+                e
+                for e in events
+                if e['message']['data'].get('uuid') == str(identity.uuid)
+            ]
+            assert len(matching) >= 1
+            data = matching[0]['message']['data']
+            assert data['identity'] == 'test:bus-updated'
+
+        until.assert_(event_received, timeout=5, interval=0.1)
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        tenant_uuid=TOKEN_TENANT_UUID,
+        backend='test',
+        type_='test',
+        identity='test:bus-deleted',
+    )
+    def test_delete_emits_event(self, user, identity):
+        accumulator = self.bus.accumulator(
+            headers={'name': 'chatd_user_identity_deleted'}
+        )
+
+        self.chatd.user_identities.delete(str(TOKEN_USER_UUID), str(identity.uuid))
+
+        def event_received():
+            events = accumulator.accumulate(with_headers=True)
+            matching = [
+                e
+                for e in events
+                if e['message']['data'].get('uuid') == str(identity.uuid)
+            ]
+            assert len(matching) >= 1
+
+        until.assert_(event_received, timeout=5, interval=0.1)

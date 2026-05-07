@@ -15,7 +15,7 @@ import pytest
 import requests
 import yaml
 from hamcrest import assert_that, has_entries, has_items, not_
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import scoped_session
 from wazo_chatd_client import Client as ChatdClient
 from wazo_test_helpers import until
@@ -28,7 +28,9 @@ from wazo_test_helpers.auth import AuthClient, MockCredentials, MockUserToken
 from wazo_test_helpers.filesystem import FileSystemClient
 
 from wazo_chatd.database.helpers import Session, init_db
+from wazo_chatd.database.models import DeliveryRecord, MessageDelivery
 from wazo_chatd.database.queries import DAO
+from wazo_chatd.database.queries.async_ import AsyncDAO
 
 from .amid import AmidClient
 from .bus import BusClient
@@ -384,6 +386,7 @@ class _BaseIntegrationTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._dao = DAO()
+        self._async_dao = AsyncDAO()
         self._dao.tenant.find_or_create(TOKEN_TENANT_UUID)
         self._dao.tenant.find_or_create(TOKEN_SUBTENANT_UUID)
         self._session.commit()
@@ -477,6 +480,41 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
     def reset_clients(cls):
         super().reset_clients()
         cls.connector_mock = cls.asset_cls.make_connector_mock()
+
+    def post_webhook(
+        self,
+        *,
+        backend: str | None = None,
+        json=None,
+        data=None,
+        headers=None,
+    ):
+        port = self.asset_cls.service_port(9304, 'chatd')
+        url = f'http://127.0.0.1:{port}/1.0/connectors/incoming'
+        if backend:
+            url = f'{url}/{backend}'
+        return requests.post(
+            url, json=json, data=data, headers=headers or {'X-Test-Connector': 'true'}
+        )
+
+    def assert_delivery_status(
+        self, message_uuid: str, expected_status: str, *, timeout: float = 5
+    ) -> None:
+        def check():
+            stmt = (
+                select(DeliveryRecord)
+                .join(
+                    MessageDelivery,
+                    MessageDelivery.id == DeliveryRecord.delivery_id,
+                )
+                .where(MessageDelivery.message_uuid == message_uuid)
+                .order_by(DeliveryRecord.timestamp)
+            )
+            records = list(self._session.execute(stmt).scalars())
+            statuses = [r.status for r in records]
+            assert expected_status in statuses
+
+        until.assert_(check, timeout=timeout, interval=0.1)
 
 
 class PollingConnectorIntegrationTest(ConnectorIntegrationTest):

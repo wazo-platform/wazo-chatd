@@ -33,7 +33,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
@@ -41,7 +41,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         result = self.chatd.user_identities.list(str(USER_UUID))
 
         assert result['total'] == 1
-        assert result['items'][0]['backend'] == 'twilio'
+        assert result['items'][0]['backend'] == 'sms_backend'
         assert result['items'][0]['type'] == 'sms'
         assert result['items'][0]['identity'] == '+15551234567'
 
@@ -71,6 +71,9 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
 
         assert result['type'] == 'test'
         assert result['extra'] == {'account_sid': 'AC123'}
+
+        persisted = self.chatd.user_identities.get(str(USER_UUID), result['uuid'])
+        assert persisted['extra'] == {'account_sid': 'AC123'}
 
     @fixtures.db.user(uuid=USER_UUID)
     def test_create_unknown_backend_returns_400(self, user):
@@ -102,7 +105,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.user_identities.create(
                 str(USER_UUID),
-                {'backend': 'twilio', 'type': 'sms'},
+                {'backend': 'sms_backend', 'type': 'sms'},
             )
 
         assert exc_info.value.status_code == 400
@@ -110,7 +113,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
@@ -118,7 +121,7 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         result = self.chatd.user_identities.get(str(USER_UUID), str(identity.uuid))
 
         assert result['uuid'] == str(identity.uuid)
-        assert result['backend'] == 'twilio'
+        assert result['backend'] == 'sms_backend'
         assert result['type'] == 'sms'
         assert result['identity'] == '+15551234567'
 
@@ -143,10 +146,13 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
             {'backend': 'test', 'type': 'test', 'identity': 'test:updated'},
         )
 
+        persisted = self.chatd.user_identities.get(str(USER_UUID), str(identity.uuid))
+        assert persisted['identity'] == 'test:updated'
+
     @fixtures.db.user(uuid=USER_UUID)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
@@ -167,19 +173,68 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
 
         assert exc_info.value.status_code == 404
 
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID,
+        backend='test',
+        type_='test',
+        identity='test:dup',
+    )
+    def test_create_duplicate_identity_returns_409(self, user, identity):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.user_identities.create(
+                str(USER_UUID),
+                {'backend': 'test', 'type': 'test', 'identity': 'test:dup'},
+            )
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.error_id == 'duplicate-identity'
+
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID,
+        backend='test',
+        type_='test',
+        identity='test:original',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID,
+        backend='test',
+        type_='test',
+        identity='test:other',
+    )
+    def test_update_to_duplicate_identity_returns_409(self, user, original, other):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.user_identities.update(
+                str(USER_UUID),
+                str(other.uuid),
+                {'backend': 'test', 'type': 'test', 'identity': 'test:original'},
+            )
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.error_id == 'duplicate-identity'
+
+    @fixtures.db.user(uuid=USER_UUID)
+    def test_create_invalid_identity_format_returns_400(self, user):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.user_identities.create(
+                str(USER_UUID),
+                {
+                    'backend': 'test',
+                    'type': 'test',
+                    'identity': 'invalid format with spaces',
+                },
+            )
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.error_id == 'invalid-identity-format'
+
 
 @use_asset('connectors')
 class TestUserIdentityAuth(ConnectorIntegrationTest):
-    def test_no_token_returns_401(self):
-        chatd = self.asset_cls.make_chatd(token='')
-
-        with pytest.raises(ChatdError) as exc_info:
-            chatd.user_identities.list(str(USER_UUID))
-
-        assert exc_info.value.status_code == 401
-
-    def test_invalid_token_returns_401(self):
-        chatd = self.asset_cls.make_chatd(token=str(uuid.uuid4()))
+    @pytest.mark.parametrize('bad_token', ['', str(uuid.uuid4())])
+    def test_missing_or_invalid_token_returns_401(self, bad_token):
+        chatd = self.asset_cls.make_chatd(token=bad_token)
 
         with pytest.raises(ChatdError) as exc_info:
             chatd.user_identities.list(str(USER_UUID))
@@ -190,7 +245,7 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=OTHER_TENANT_USER_UUID,
         tenant_uuid=OTHER_TENANT_UUID,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15553334444',
     )
@@ -211,7 +266,7 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID,
         tenant_uuid=TOKEN_TENANT_UUID,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551112222',
     )
@@ -231,12 +286,6 @@ class TestUserIdentityAuth(ConnectorIntegrationTest):
 
 @use_asset('connectors')
 class TestUserMeIdentities(ConnectorIntegrationTest):
-    def test_list_empty(self):
-        result = self.chatd.user_identities.list_from_user()
-
-        assert result['items'] == []
-        assert result['total'] == 0
-
     @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user_identity(
         user_uuid=TOKEN_USER_UUID,
@@ -359,6 +408,36 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
         ],
     )
     def test_list_with_room_uuid_internal_only_returns_empty(self, me, recipient, room):
+        result = self.chatd.user_identities.list_from_user(room_uuid=str(room.uuid))
+
+        assert result['total'] == 0
+        assert result['items'] == []
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        tenant_uuid=TOKEN_TENANT_UUID,
+        backend='test',
+        type_='test',
+        identity='test:sender',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID,
+        tenant_uuid=TOKEN_TENANT_UUID,
+        backend='test',
+        type_='test_alt',
+        identity='test:recipient_alt',
+    )
+    @fixtures.db.room(
+        users=[
+            {'uuid': TOKEN_USER_UUID},
+            {'uuid': USER_UUID},
+        ],
+    )
+    def test_list_with_room_uuid_no_common_reachable_type_returns_empty(
+        self, me, recipient, my_identity, recipient_identity, room
+    ):
         result = self.chatd.user_identities.list_from_user(room_uuid=str(room.uuid))
 
         assert result['total'] == 0

@@ -55,7 +55,7 @@ class _SmsConnector(FakeConnector):
 
 
 class _EmailConnector(FakeConnector):
-    backend: ClassVar[str] = 'mailgun'
+    backend: ClassVar[str] = 'email_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('email',)
 
     @classmethod
@@ -68,7 +68,7 @@ class _EmailConnector(FakeConnector):
     def can_handle(cls, data: TransportData) -> bool:
         match data:
             case WebhookData(body=body):
-                return 'X-Mailgun-Signature' in body
+                return 'X-Email-Signature' in body
             case _:
                 return False
 
@@ -194,7 +194,7 @@ class TestConnectorRouterDispatchWebhook(unittest.TestCase):
         )
 
         with pytest.raises(ConnectorParseError):
-            self.router.dispatch_webhook(data, backend='vonage')
+            self.router.dispatch_webhook(data, backend='unknown_backend')
 
         self.manager.enqueue_message.assert_not_called()
 

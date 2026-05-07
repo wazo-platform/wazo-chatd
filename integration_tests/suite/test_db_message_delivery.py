@@ -8,8 +8,13 @@ from __future__ import annotations
 import pytest
 
 from wazo_chatd.database.delivery import DeliveryStatus
-from wazo_chatd.database.models import MessageDelivery, MessageMeta, Room, RoomMessage
-from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
+from wazo_chatd.database.models import (
+    MessageDelivery,
+    MessageMeta,
+    Room,
+    RoomMessage,
+    RoomUser,
+)
 from wazo_chatd.exceptions import DuplicateExternalIdException
 
 from .helpers import fixtures
@@ -48,38 +53,39 @@ class TestAddMessage(DBIntegrationTest):
     @fixtures.db.room(users=[{}])
     @run_async
     async def test_duplicate_external_id_raises(self, room):
-        dao = AsyncRoomDAO()
-        await dao.add_message(
-            room, _build_message(room, backend='twilio', external_id='SM_DUP_1')
+        await self._async_dao.room.add_message(
+            room, _build_message(room, backend='sms_backend', external_id='SM_DUP_1')
         )
         with pytest.raises(DuplicateExternalIdException):
-            await dao.add_message(
+            await self._async_dao.room.add_message(
                 room,
-                _build_message(room, backend='twilio', external_id='SM_DUP_1'),
+                _build_message(room, backend='sms_backend', external_id='SM_DUP_1'),
             )
 
     @fixtures.db.room(users=[{}])
-    @run_async
-    async def test_null_external_id_repeats_allowed(self, room):
-        dao = AsyncRoomDAO()
-        await dao.add_message(
+    def test_null_external_id_repeats_allowed(self, room):
+        message_1 = _build_message(
             room,
-            _build_message(
-                room,
-                backend='twilio',
-                external_id=None,
-                recipient_identity='+15559876',
-            ),
+            backend='sms_backend',
+            external_id=None,
+            recipient_identity='+15559876',
         )
-        await dao.add_message(
+        message_2 = _build_message(
             room,
-            _build_message(
-                room,
-                backend='twilio',
-                external_id=None,
-                recipient_identity='+15558888',
-            ),
+            backend='sms_backend',
+            external_id=None,
+            recipient_identity='+15558888',
         )
+
+        self._dao.room.add_message(room, message_1)
+        self._dao.room.add_message(room, message_2)
+
+        self._session.refresh(message_1)
+        self._session.refresh(message_2)
+
+        deliveries = [*message_1.meta.deliveries, *message_2.meta.deliveries]
+        assert len(deliveries) == 2
+        assert all(d.external_id is None for d in deliveries)
 
 
 @use_asset('database')
@@ -98,14 +104,14 @@ class TestPreparePendingDelivery(DBIntegrationTest):
         self._dao.room.prepare_pending_delivery(
             message,
             recipient_identities=['+15559876'],
-            backend='twilio',
+            backend='sms_backend',
             type_='sms',
         )
         self._dao.room.add_message(room, message)
 
         self._session.refresh(message)
         assert message.meta is not None
-        assert message.meta.backend == 'twilio'
+        assert message.meta.backend == 'sms_backend'
         assert len(message.meta.deliveries) == 1
         delivery = message.meta.deliveries[0]
         assert delivery.recipient_identity == '+15559876'
@@ -118,7 +124,7 @@ class TestFindTenantByExternalId(DBIntegrationTest):
         messages=[
             {
                 'content': 'tracked',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -130,12 +136,15 @@ class TestFindTenantByExternalId(DBIntegrationTest):
         ]
     )
     def test_join_through_message_delivery(self, room):
-        result = self._dao.room.find_tenant_by_external_id('SM_LOOKUP', 'twilio')
+        result = self._dao.room.find_tenant_by_external_id('SM_LOOKUP', 'sms_backend')
         assert result == str(room.tenant_uuid)
 
     @fixtures.db.room(messages=[{'content': 'no external'}])
     def test_returns_none_when_not_found(self, room):
-        assert self._dao.room.find_tenant_by_external_id('SM_MISSING', 'twilio') is None
+        assert (
+            self._dao.room.find_tenant_by_external_id('SM_MISSING', 'sms_backend')
+            is None
+        )
 
 
 @use_asset('database')
@@ -144,7 +153,7 @@ class TestAsyncGetMessageMetaByExternalId(DBIntegrationTest):
         messages=[
             {
                 'content': 'looked up',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -157,19 +166,24 @@ class TestAsyncGetMessageMetaByExternalId(DBIntegrationTest):
     )
     @run_async
     async def test_returns_meta_and_eager_loads_deliveries(self, room):
-        dao = AsyncRoomDAO()
-        meta = await dao.get_message_meta_by_external_id('SM_FETCH', 'twilio')
+        meta = await self._async_dao.room.get_message_meta_by_external_id(
+            'SM_FETCH', 'sms_backend'
+        )
 
         assert meta is not None
-        assert meta.backend == 'twilio'
+        assert meta.backend == 'sms_backend'
         assert len(meta.deliveries) == 1
         assert meta.deliveries[0].external_id == 'SM_FETCH'
 
     @fixtures.db.room(messages=[{'content': 'no meta'}])
     @run_async
     async def test_returns_none_when_external_id_not_found(self, room):
-        dao = AsyncRoomDAO()
-        assert await dao.get_message_meta_by_external_id('SM_MISSING', 'twilio') is None
+        assert (
+            await self._async_dao.room.get_message_meta_by_external_id(
+                'SM_MISSING', 'sms_backend'
+            )
+            is None
+        )
 
 
 @use_asset('database')
@@ -178,7 +192,7 @@ class TestAsyncListPendingExternalIds(DBIntegrationTest):
         messages=[
             {
                 'content': 'pending msg',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -189,7 +203,7 @@ class TestAsyncListPendingExternalIds(DBIntegrationTest):
             },
             {
                 'content': 'delivered msg',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -200,7 +214,7 @@ class TestAsyncListPendingExternalIds(DBIntegrationTest):
             },
             {
                 'content': 'other backend',
-                'meta': {'type_': 'sms', 'backend': 'vonage'},
+                'meta': {'type_': 'sms', 'backend': 'sms_alt_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -213,9 +227,8 @@ class TestAsyncListPendingExternalIds(DBIntegrationTest):
     )
     @run_async
     async def test_returns_only_non_terminal_for_backend(self, room):
-        dao = AsyncRoomDAO()
-        result = await dao.list_pending_external_ids(
-            tenant_uuid=str(room.tenant_uuid), backend='twilio'
+        result = await self._async_dao.room.list_pending_external_ids(
+            tenant_uuid=str(room.tenant_uuid), backend='sms_backend'
         )
 
         assert result == ['SM_PENDING']
@@ -227,7 +240,7 @@ class TestAsyncAddDeliveryRecord(DBIntegrationTest):
         messages=[
             {
                 'content': 'tracked',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {'recipient_identity': '+15559876', 'statuses': ['pending']}
                 ],
@@ -237,9 +250,8 @@ class TestAsyncAddDeliveryRecord(DBIntegrationTest):
     @run_async
     async def test_record_anchored_to_delivery(self, room):
         delivery = room.messages[0].meta.deliveries[0]
-        dao = AsyncRoomDAO()
 
-        record = await dao.add_delivery_record(
+        record = await self._async_dao.room.add_delivery_record(
             delivery, DeliveryStatus.ACCEPTED, reason='ok'
         )
 
@@ -256,7 +268,7 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
                 'content': 'echo me',
                 'meta': {
                     'type_': 'sms',
-                    'backend': 'twilio',
+                    'backend': 'sms_backend',
                     'extra': {'message_signature': 'sig-abc'},
                 },
                 'deliveries': [
@@ -267,8 +279,9 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
     )
     @run_async
     async def test_returns_meta_when_signature_matches_within_window(self, room):
-        dao = AsyncRoomDAO()
-        meta = await dao.find_matching_signature(str(room.uuid), 'sig-abc')
+        meta = await self._async_dao.room.find_matching_signature(
+            str(room.uuid), 'sig-abc'
+        )
         assert meta is not None
         assert meta.message_uuid == room.messages[0].uuid
 
@@ -278,7 +291,7 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
                 'content': 'no match',
                 'meta': {
                     'type_': 'sms',
-                    'backend': 'twilio',
+                    'backend': 'sms_backend',
                     'extra': {'message_signature': 'sig-abc'},
                 },
                 'deliveries': [
@@ -289,9 +302,8 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
     )
     @run_async
     async def test_returns_none_when_signature_outside_window(self, room):
-        dao = AsyncRoomDAO()
         assert (
-            await dao.find_matching_signature(
+            await self._async_dao.room.find_matching_signature(
                 str(room.uuid), 'sig-abc', window_seconds=0
             )
             is None
@@ -303,7 +315,7 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
                 'content': 'in room A',
                 'meta': {
                     'type_': 'sms',
-                    'backend': 'twilio',
+                    'backend': 'sms_backend',
                     'extra': {'message_signature': 'sig-abc'},
                 },
                 'deliveries': [
@@ -315,8 +327,12 @@ class TestAsyncFindMatchingSignature(DBIntegrationTest):
     @fixtures.db.room()
     @run_async
     async def test_returns_none_for_different_room(self, room_a, room_b):
-        dao = AsyncRoomDAO()
-        assert await dao.find_matching_signature(str(room_b.uuid), 'sig-abc') is None
+        assert (
+            await self._async_dao.room.find_matching_signature(
+                str(room_b.uuid), 'sig-abc'
+            )
+            is None
+        )
 
 
 @use_asset('database')
@@ -327,7 +343,7 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
                 'content': 'with key',
                 'meta': {
                     'type_': 'sms',
-                    'backend': 'twilio',
+                    'backend': 'sms_backend',
                     'extra': {'inbound_idempotency_key': 'idem-123'},
                 },
                 'deliveries': [
@@ -336,15 +352,14 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
             }
         ]
     )
-    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
+    @fixtures.db.user_identity(backend='sms_backend', type_='sms', identity='+15559876')
     @run_async
     async def test_returns_true_when_key_present(self, room, identity):
-        dao = AsyncRoomDAO()
         assert (
-            await dao.check_duplicate_idempotency_key(
+            await self._async_dao.room.check_duplicate_idempotency_key(
                 'idem-123',
                 recipient='+15559876',
-                backend='twilio',
+                backend='sms_backend',
                 message_type='sms',
                 window_seconds=3600,
             )
@@ -352,15 +367,14 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
         )
 
     @fixtures.db.room(messages=[{'content': 'no key'}])
-    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
+    @fixtures.db.user_identity(backend='sms_backend', type_='sms', identity='+15559876')
     @run_async
     async def test_returns_false_when_key_absent(self, room, identity):
-        dao = AsyncRoomDAO()
         assert (
-            await dao.check_duplicate_idempotency_key(
+            await self._async_dao.room.check_duplicate_idempotency_key(
                 'idem-missing',
                 recipient='+15559876',
-                backend='twilio',
+                backend='sms_backend',
                 message_type='sms',
                 window_seconds=3600,
             )
@@ -370,10 +384,10 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
     @fixtures.db.room(
         messages=[
             {
-                'content': 'twilio key',
+                'content': 'sms key',
                 'meta': {
                     'type_': 'sms',
-                    'backend': 'twilio',
+                    'backend': 'sms_backend',
                     'extra': {'inbound_idempotency_key': 'cross-backend'},
                 },
                 'deliveries': [
@@ -385,9 +399,8 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
     @fixtures.db.user_identity(backend='other', type_='sms', identity='+15559876')
     @run_async
     async def test_returns_false_for_different_backend(self, room, identity):
-        dao = AsyncRoomDAO()
         assert (
-            await dao.check_duplicate_idempotency_key(
+            await self._async_dao.room.check_duplicate_idempotency_key(
                 'cross-backend',
                 recipient='+15559876',
                 backend='other',
@@ -403,7 +416,7 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
                 'content': 'sms key',
                 'meta': {
                     'type_': 'sms',
-                    'backend': 'twilio',
+                    'backend': 'sms_backend',
                     'extra': {'inbound_idempotency_key': 'multi-type'},
                 },
                 'deliveries': [
@@ -412,18 +425,19 @@ class TestAsyncCheckDuplicateIdempotencyKey(DBIntegrationTest):
             }
         ]
     )
-    @fixtures.db.user_identity(backend='twilio', type_='whatsapp', identity='+15559876')
-    @fixtures.db.user_identity(backend='twilio', type_='sms', identity='+15559876')
+    @fixtures.db.user_identity(
+        backend='sms_backend', type_='whatsapp', identity='+15559876'
+    )
+    @fixtures.db.user_identity(backend='sms_backend', type_='sms', identity='+15559876')
     @run_async
     async def test_returns_true_with_matching_message_type(
         self, room, sms_identity, whatsapp_identity
     ):
-        dao = AsyncRoomDAO()
         assert (
-            await dao.check_duplicate_idempotency_key(
+            await self._async_dao.room.check_duplicate_idempotency_key(
                 'multi-type',
                 recipient='+15559876',
-                backend='twilio',
+                backend='sms_backend',
                 message_type='sms',
                 window_seconds=3600,
             )
@@ -437,14 +451,14 @@ class TestAsyncGetRecoverableDeliveries(DBIntegrationTest):
         messages=[
             {
                 'content': 'pending',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {'recipient_identity': '+15559876', 'statuses': ['pending']}
                 ],
             },
             {
                 'content': 'retrying',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -454,7 +468,7 @@ class TestAsyncGetRecoverableDeliveries(DBIntegrationTest):
             },
             {
                 'content': 'delivered',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -464,7 +478,7 @@ class TestAsyncGetRecoverableDeliveries(DBIntegrationTest):
             },
             {
                 'content': 'dead',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -476,11 +490,71 @@ class TestAsyncGetRecoverableDeliveries(DBIntegrationTest):
     )
     @run_async
     async def test_returns_only_pending_and_retrying(self, room):
-        dao = AsyncRoomDAO()
-        recoverable = await dao.get_recoverable_deliveries()
+        recoverable = await self._async_dao.room.get_recoverable_deliveries()
 
         statuses = sorted(status for _, status in recoverable)
         assert statuses == ['pending', 'retrying']
+
+
+@use_asset('database')
+class TestAsyncFindRoom(DBIntegrationTest):
+    @fixtures.db.room(users=[{'uuid': '00000000-0000-0000-0000-000000000aaa'}])
+    @run_async
+    async def test_returns_room_with_exact_participants(self, room):
+        participants = [RoomUser(uuid='00000000-0000-0000-0000-000000000aaa')]
+
+        result = await self._async_dao.room.find_room(
+            str(room.tenant_uuid), participants
+        )
+
+        assert result is not None
+        assert result.uuid == room.uuid
+
+    @fixtures.db.room(users=[{'uuid': '00000000-0000-0000-0000-000000000aaa'}])
+    @run_async
+    async def test_returns_none_when_participants_differ(self, room):
+        participants = [RoomUser(uuid='00000000-0000-0000-0000-000000000bbb')]
+
+        result = await self._async_dao.room.find_room(
+            str(room.tenant_uuid), participants
+        )
+
+        assert result is None
+
+
+@use_asset('database')
+class TestAsyncUpdateMessageMeta(DBIntegrationTest):
+    @fixtures.db.room(
+        users=[{}],
+        messages=[
+            {
+                'content': 'updatable',
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
+                'deliveries': [
+                    {
+                        'recipient_identity': '+15559876',
+                        'external_id': 'SM_UPDATABLE',
+                        'statuses': ['accepted'],
+                    }
+                ],
+            }
+        ],
+    )
+    @run_async
+    async def test_persists_modified_extra(self, room):
+        meta = await self._async_dao.room.get_message_meta_by_external_id(
+            'SM_UPDATABLE', 'sms_backend'
+        )
+        assert meta is not None
+
+        meta.extra = {'reviewed': True}  # type: ignore[assignment]
+        await self._async_dao.room.update_message_meta(meta)
+
+        refreshed = await self._async_dao.room.get_message_meta_by_external_id(
+            'SM_UPDATABLE', 'sms_backend'
+        )
+        assert refreshed is not None
+        assert refreshed.extra == {'reviewed': True}
 
 
 @use_asset('database')
@@ -491,7 +565,7 @@ class TestVisibilityFilter(DBIntegrationTest):
             {
                 'content': 'sender pending',
                 'user_uuid': '00000000-0000-0000-0000-000000000001',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {'recipient_identity': '+15559876', 'statuses': ['pending']}
                 ],
@@ -499,7 +573,7 @@ class TestVisibilityFilter(DBIntegrationTest):
             {
                 'content': 'other user delivered',
                 'user_uuid': '00000000-0000-0000-0000-000000000002',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',
@@ -510,7 +584,7 @@ class TestVisibilityFilter(DBIntegrationTest):
             {
                 'content': 'other user pending',
                 'user_uuid': '00000000-0000-0000-0000-000000000002',
-                'meta': {'type_': 'sms', 'backend': 'twilio'},
+                'meta': {'type_': 'sms', 'backend': 'sms_backend'},
                 'deliveries': [
                     {
                         'recipient_identity': '+15559876',

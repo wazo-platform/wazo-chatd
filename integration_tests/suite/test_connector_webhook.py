@@ -3,13 +3,12 @@
 
 from __future__ import annotations
 
-import time
 import uuid
 
-import requests
 from sqlalchemy import select
 from wazo_test_helpers import until
 
+from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.database.models import (
     DeliveryRecord,
     MessageDelivery,
@@ -47,12 +46,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             'message_id': 'ext-msg-001',
         }
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_webhook(json=webhook_data)
 
         assert response.status_code == 204
 
@@ -86,12 +80,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             'message_id': 'ext-msg-002',
         }
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming/test',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_webhook(backend='test', json=webhook_data)
 
         assert response.status_code == 204
 
@@ -104,14 +93,83 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         until.assert_(message_persisted, timeout=5, interval=0.1)
 
     def test_webhook_unrecognized_payload_returns_400(self):
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        response = self.post_webhook(
             json={'body': 'hello'},
             headers={'Content-Type': 'application/json'},
         )
 
         assert response.status_code == 400
+
+    def test_webhook_unknown_recipient_returns_400(self):
+        response = self.post_webhook(
+            json={
+                'from': EXTERNAL_IDENTITY,
+                'to': 'test:+15559999',
+                'body': 'unrouted',
+                'message_id': 'ext-no-tenant',
+            },
+        )
+
+        assert response.status_code == 400
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    def test_webhook_drops_after_last_identity_deleted(self, user):
+        identity = self.chatd.user_identities.create(
+            str(USER_UUID_1),
+            {'backend': 'test', 'type': 'test', 'identity': 'test:+15559950'},
+        )
+
+        response = self.post_webhook(
+            json={
+                'from': EXTERNAL_IDENTITY,
+                'to': 'test:+15559950',
+                'body': 'before delete',
+                'message_id': 'ext-drop-1',
+            },
+        )
+        assert response.status_code == 204
+
+        self.chatd.user_identities.delete(str(USER_UUID_1), identity['uuid'])
+
+        response = self.post_webhook(
+            json={
+                'from': EXTERNAL_IDENTITY,
+                'to': 'test:+15559950',
+                'body': 'after delete',
+                'message_id': 'ext-drop-2',
+            },
+        )
+        assert response.status_code == 400
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        backend='test',
+        identity='test:+15551234',
+    )
+    def test_webhook_accepts_form_encoded_body(self, user, identity):
+        response = self.post_webhook(
+            data={
+                'from': EXTERNAL_IDENTITY,
+                'to': 'test:+15551234',
+                'body': 'form-encoded inbound',
+                'message_id': 'ext-form-1',
+            },
+        )
+
+        assert response.status_code == 204
+
+        def message_persisted():
+            messages = list(
+                self._session.execute(
+                    select(RoomMessage).where(
+                        RoomMessage.content == 'form-encoded inbound'
+                    )
+                ).scalars()
+            )
+            assert len(messages) == 1
+
+        until.assert_(message_persisted, timeout=5, interval=0.1)
 
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
@@ -129,13 +187,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             'idempotency_key': 'unique-key-001',
         }
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_webhook(json=webhook_data)
         assert response.status_code == 204
 
         def first_message_persisted():
@@ -148,11 +200,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         until.assert_(first_message_persisted, timeout=5, interval=0.1)
 
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_webhook(json=webhook_data)
         assert response.status_code == 204
 
         def still_one_message():
@@ -168,23 +216,6 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
 @use_asset('connectors')
 class TestOutboundDelivery(ConnectorIntegrationTest):
-    def _assert_delivery_status(self, message_uuid: str, expected_status: str) -> None:
-        def check():
-            stmt = (
-                select(DeliveryRecord)
-                .join(
-                    MessageDelivery,
-                    MessageDelivery.id == DeliveryRecord.delivery_id,
-                )
-                .where(MessageDelivery.message_uuid == message_uuid)
-                .order_by(DeliveryRecord.timestamp)
-            )
-            records = list(self._session.execute(stmt).scalars())
-            statuses = [r.status for r in records]
-            assert expected_status in statuses
-
-        until.assert_(check, timeout=5, interval=0.1)
-
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(
         user_uuid=TOKEN_USER_UUID,
@@ -208,7 +239,7 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             {'content': 'Hello external', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'accepted')
+        self.assert_delivery_status(message['uuid'], 'accepted')
 
         meta = self._session.execute(
             select(MessageMeta).where(MessageMeta.message_uuid == message['uuid'])
@@ -271,28 +302,20 @@ class TestOutboundDelivery(ConnectorIntegrationTest):
             {'content': 'Will fail', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'retrying')
+        self.assert_delivery_status(message['uuid'], 'retrying')
+
+        delivery = self._session.execute(
+            select(MessageDelivery).where(
+                MessageDelivery.message_uuid == message['uuid']
+            )
+        ).scalar_one()
+        self._session.refresh(delivery)
+        assert delivery.retry_count == 1
+        assert delivery.external_id is None
 
 
 @use_asset('connectors')
 class TestStatusUpdate(ConnectorIntegrationTest):
-    def _assert_delivery_status(self, message_uuid: str, expected_status: str) -> None:
-        def check():
-            stmt = (
-                select(DeliveryRecord)
-                .join(
-                    MessageDelivery,
-                    MessageDelivery.id == DeliveryRecord.delivery_id,
-                )
-                .where(MessageDelivery.message_uuid == message_uuid)
-                .order_by(DeliveryRecord.timestamp)
-            )
-            records = list(self._session.execute(stmt).scalars())
-            statuses = [r.status for r in records]
-            assert expected_status in statuses
-
-        until.assert_(check, timeout=5, interval=0.1)
-
     def _get_external_id(self, message_uuid: str) -> str:
         def check():
             meta = self._session.execute(
@@ -330,20 +353,17 @@ class TestStatusUpdate(ConnectorIntegrationTest):
             {'content': 'Track this', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'accepted')
+        self.assert_delivery_status(message['uuid'], 'accepted')
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        response = self.post_webhook(
             json={
                 'external_id': 'ext-status-001',
                 'status': 'delivered',
             },
-            headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
 
-        self._assert_delivery_status(message['uuid'], 'delivered')
+        self.assert_delivery_status(message['uuid'], 'delivered')
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID)
     @fixtures.db.user_identity(
@@ -372,17 +392,14 @@ class TestStatusUpdate(ConnectorIntegrationTest):
             },
         )
 
-        self._assert_delivery_status(message['uuid'], 'accepted')
+        self.assert_delivery_status(message['uuid'], 'accepted')
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        response = self.post_webhook(
             json={
                 'external_id': 'ext-status-002',
                 'status': 'failed',
                 'error_code': '30003',
             },
-            headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
 
@@ -424,16 +441,13 @@ class TestStatusUpdate(ConnectorIntegrationTest):
             {'content': 'Transient status', 'sender_identity_uuid': str(identity.uuid)},
         )
 
-        self._assert_delivery_status(message['uuid'], 'accepted')
+        self.assert_delivery_status(message['uuid'], 'accepted')
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        response = self.post_webhook(
             json={
                 'external_id': 'ext-status-003',
                 'status': 'queued',
             },
-            headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
 
@@ -479,7 +493,6 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         )
 
         room_uuid = room['uuid']
-        port = self.asset_cls.service_port(9304, 'chatd')
 
         self.chatd.rooms.create_message_from_user(
             room_uuid, {'content': 'Internal hello'}
@@ -496,15 +509,13 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
 
         until.assert_(mock_received_outbound, timeout=5, interval=0.1)
 
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        response = self.post_webhook(
             json={
                 'from': 'test:+15559876',
                 'to': 'test:+15551234',
                 'body': 'SMS reply from user B',
                 'message_id': 'ext-msg-multichannel',
             },
-            headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
 
@@ -548,7 +559,6 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         )
 
         room_uuid = room['uuid']
-        port = self.asset_cls.service_port(9304, 'chatd')
 
         self.chatd.rooms.create_message_from_user(
             room_uuid,
@@ -564,19 +574,30 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
 
         until.assert_(outbound_sent, timeout=5, interval=0.1)
 
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
+        response = self.post_webhook(
             json={
                 'from': 'test:+15551234',
                 'to': 'test:+15559876',
                 'body': 'Echo test message',
                 'message_id': 'ext-echo-inbound',
             },
-            headers={'X-Test-Connector': 'true'},
         )
         assert response.status_code == 204
 
-        time.sleep(1)
+        def echo_acknowledged_on_outbound():
+            stmt = (
+                select(DeliveryRecord)
+                .join(
+                    MessageDelivery,
+                    MessageDelivery.id == DeliveryRecord.delivery_id,
+                )
+                .where(MessageDelivery.external_id == 'ext-echo-001')
+                .where(DeliveryRecord.status == DeliveryStatus.DELIVERED.value)
+            )
+            records = list(self._session.execute(stmt).scalars())
+            assert records, 'echo not acknowledged on outbound delivery yet'
+
+        until.assert_(echo_acknowledged_on_outbound, timeout=5, interval=0.1)
 
         messages = list(
             self._session.execute(
@@ -772,12 +793,7 @@ class TestMessageVisibility(ConnectorIntegrationTest):
 
         until.assert_(accepted, timeout=5, interval=0.1)
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={'external_id': 'ext-vis-003', 'status': 'delivered'},
-            headers={'X-Test-Connector': 'true'},
-        )
+        self.post_webhook(json={'external_id': 'ext-vis-003', 'status': 'delivered'})
 
         chatd_b = self._make_user_b_client()
 
