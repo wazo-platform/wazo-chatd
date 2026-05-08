@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from wazo_chatd.plugin_helpers.queue import QueueFull
 from wazo_chatd.plugins.connectors import runner as runner_module
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner, Runner
@@ -550,6 +551,57 @@ class TestDeliveryRunnerEnqueue(unittest.TestCase):
 
             loop._executor.route_inbound.assert_awaited_once()
             assert loop._executor.route_inbound.call_args.args[0] is inbound
+
+    def test_enqueue_drops_message_when_queue_full(
+        self, mock_bus: Mock, mock_init_db: Mock, mock_asyncpg: Mock
+    ) -> None:
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
+        mock_bus.from_config.return_value = Mock()
+        mock_asyncpg.connect = AsyncMock(return_value=mock_asyncpg_conn())
+
+        runner = DeliveryRunner(make_config(), Mock(), mock_store())
+        runner._queue = Mock()
+        runner._queue.append.side_effect = QueueFull(maxsize=100)
+        runner._queue.__len__ = Mock(return_value=100)
+
+        with self.assertLogs(
+            'wazo_chatd.plugins.connectors.runner', level='WARNING'
+        ) as captured:
+            runner.enqueue_message(make_inbound())
+
+        assert any('queue full' in line.lower() for line in captured.output)
+
+
+class TestDeliveryRunnerOnDeliveryNotify(unittest.TestCase):
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
+    def _make_runner(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryRunner:
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
+        mock_bus.from_config.return_value = Mock()
+        return DeliveryRunner(make_config(), Mock(), mock_store())
+
+    def test_dispatches_each_delivery_id(self) -> None:
+        runner = self._make_runner()
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+
+        runner._on_delivery_notify(Mock(), 0, 'channel', '101,202,303')
+
+        assert runner._schedule_outbound_delivery.call_count == 3
+        called_with = [
+            c.args[0] for c in runner._schedule_outbound_delivery.call_args_list
+        ]
+        assert called_with == ['101', '202', '303']
+
+    def test_skips_empty_ids_in_payload(self) -> None:
+        runner = self._make_runner()
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+
+        runner._on_delivery_notify(Mock(), 0, 'channel', '101,,202,')
+
+        called_with = [
+            c.args[0] for c in runner._schedule_outbound_delivery.call_args_list
+        ]
+        assert called_with == ['101', '202']
 
 
 class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):

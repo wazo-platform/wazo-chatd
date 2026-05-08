@@ -15,6 +15,7 @@ from wazo_chatd.database.async_helpers import _current_session
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.exceptions import DuplicateExternalIdException
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
     ConnectorRateLimited,
     ConnectorSendError,
 )
@@ -175,6 +176,29 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
         dao_mock = self.executor._room_dao.add_delivery_record
         statuses = [call.args[1].value for call in dao_mock.call_args_list]
         assert DeliveryStatus.RETRYING.value in statuses
+
+    async def test_auth_service_unavailable_records_retry(self) -> None:
+        self.executor._find_connector = AsyncMock(  # type: ignore[method-assign]
+            side_effect=AuthServiceUnavailableException()
+        )
+
+        result = await self.executor.route_outbound_delivery('1')
+
+        assert result == pytest.approx(30.0)
+        assert self.delivery.retry_count == 1
+        dao_mock = self.executor._room_dao.add_delivery_record
+        statuses = [call.args[1].value for call in dao_mock.call_args_list]
+        assert DeliveryStatus.RETRYING.value in statuses
+        assert DeliveryStatus.DEAD_LETTER.value not in statuses
+
+    async def test_async_send_path_is_awaited(self) -> None:
+        async_send = AsyncMock(return_value='async-ext-id-99')
+        self.connector.send = async_send  # type: ignore[method-assign]
+
+        await self.executor.route_outbound_delivery('1')
+
+        async_send.assert_awaited_once()
+        assert self.delivery.external_id == 'async-ext-id-99'
 
     async def test_success_returns_no_retry(self) -> None:
         result = await self.executor.route_outbound_delivery('1')

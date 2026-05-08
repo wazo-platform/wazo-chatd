@@ -50,6 +50,12 @@ class _SmsConnector(FakeConnector):
                     message_type='sms',
                     external_id=body.get('MessageSid', ''),
                 )
+            case WebhookData(body=body) if body.get('MessageStatus'):
+                return StatusUpdate(
+                    external_id=body.get('MessageSid', ''),
+                    status=body['MessageStatus'],
+                    backend=cls.backend,
+                )
             case _:
                 return None
 
@@ -250,6 +256,19 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         )
         self.router._store.get.assert_called_once_with('sms_backend', 'tenant-uuid')
         self.instance.verify_signature.assert_called_once_with(data)
+        self.manager.enqueue_message.assert_called_once()
+
+    def test_status_update_resolves_tenant_by_external_id_and_enqueues(self) -> None:
+        data = WebhookData(
+            body={'MessageSid': 'msg-status', 'MessageStatus': 'delivered'}
+        )
+
+        self.router.dispatch_webhook(data, backend='sms_backend')
+
+        self.dao.room.find_tenant_by_external_id.assert_called_once_with(
+            'msg-status', 'sms_backend'
+        )
+        self.dao.user_identity.find_tenant_by_identity.assert_not_called()
         self.manager.enqueue_message.assert_called_once()
 
     def test_invalid_signature_raises_401_and_skips_enqueue(self) -> None:

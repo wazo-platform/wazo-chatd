@@ -12,6 +12,7 @@ import pytest
 
 from wazo_chatd.plugins.connectors.exceptions import (
     InvalidIdentityException,
+    NoCommonConnectorException,
     UnreachableParticipantException,
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService
@@ -275,6 +276,17 @@ class TestValidateIdentityReachability(unittest.TestCase):
 
 
 class TestValidateRoomReachability(unittest.TestCase):
+    def test_solo_room_skips_validation(self) -> None:
+        sender = make_room_user(uuid='user-a')
+        room = make_room(users=[sender])
+
+        service = _build_service(room=room)
+
+        service.validate_room_reachability(room)
+
+        service._dao.user_identity.list_bound_identities.assert_not_called()
+        service._dao.user_identity.list_types_by_users.assert_not_called()
+
     def test_internal_only_room_skips_validation(self) -> None:
         user_a = make_room_user(uuid='user-a')
         user_b = make_room_user(uuid='user-b')
@@ -313,6 +325,19 @@ class TestValidateRoomReachability(unittest.TestCase):
         with pytest.raises(UnreachableParticipantException):
             service.validate_room_reachability(room)
 
+    def test_no_common_type_between_participants_raises(self) -> None:
+        user_a = make_room_user(uuid='user-a')
+        external = make_room_user(uuid='ext-uuid', identity='+15559876')
+        room = make_room(users=[user_a, external])
+
+        service = _build_service(
+            room=room,
+            types_by_user={'user-a': ['email']},
+        )
+
+        with pytest.raises(NoCommonConnectorException):
+            service.validate_room_reachability(room)
+
     def test_group_room_with_external_is_rejected(self) -> None:
         user_a = make_room_user(uuid='user-a')
         user_b = make_room_user(uuid='user-b')
@@ -327,3 +352,40 @@ class TestValidateRoomReachability(unittest.TestCase):
 
         with pytest.raises(UnreachableParticipantException):
             service.validate_room_reachability(room)
+
+
+class TestPrepareOutboundDelivery(unittest.TestCase):
+    def _make_message(self) -> Mock:
+        message = Mock()
+        message.user_uuid = SENDER_UUID
+        message.uuid = None
+        return message
+
+    def _make_sender_identity(self) -> Mock:
+        sender = Mock()
+        sender.uuid = uuid.uuid4()
+        sender.backend = 'sms_backend'
+        sender.type_ = 'sms'
+        return sender
+
+    def test_zero_recipients_raises(self) -> None:
+        sender_user = make_room_user(uuid=SENDER_UUID)
+        room = make_room(users=[sender_user])
+        service = _build_service(room=room)
+
+        with pytest.raises(UnreachableParticipantException):
+            service.prepare_outbound_delivery(
+                room, self._make_message(), self._make_sender_identity()
+            )
+
+    def test_multiple_recipients_raises(self) -> None:
+        sender_user = make_room_user(uuid=SENDER_UUID)
+        ext_a = make_room_user(uuid='ext-a', identity='+15551111')
+        ext_b = make_room_user(uuid='ext-b', identity='+15552222')
+        room = make_room(users=[sender_user, ext_a, ext_b])
+        service = _build_service(room=room)
+
+        with pytest.raises(UnreachableParticipantException):
+            service.prepare_outbound_delivery(
+                room, self._make_message(), self._make_sender_identity()
+            )
