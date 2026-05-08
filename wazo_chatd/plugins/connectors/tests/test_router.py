@@ -497,3 +497,56 @@ class TestConnectorRouterEmptyRegistry(unittest.TestCase):
             delivery_mock.assert_called_once()
             listener_mock.assert_called_once()
             assert router._delivery_runner is not router._listener_runner
+
+
+class TestConnectorRouterOnAuthAvailable(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dao = Mock()
+        self.dao.user_identity.list_tenant_backends.return_value = [
+            ('tenant-uuid', 'sms_backend')
+        ]
+        self.router = _build_router(dao=self.dao)
+        self.router._store = Mock()
+        self.router._store.is_populated = False  # type: ignore[misc]
+
+    def test_skips_when_already_populated(self) -> None:
+        self.router._store.is_populated = True  # type: ignore[misc]
+
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.router.threading.Thread'
+        ) as thread_cls:
+            self.router.on_auth_available('tok')
+
+        thread_cls.assert_not_called()
+
+    def test_spawns_daemon_thread_when_not_populated(self) -> None:
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.router.threading.Thread'
+        ) as thread_cls:
+            self.router.on_auth_available('tok')
+
+        thread_cls.assert_called_once()
+        kwargs = thread_cls.call_args.kwargs
+        assert kwargs['daemon'] is True
+        assert kwargs['target'] == self.router._populate_store
+        thread_cls.return_value.start.assert_called_once()
+
+    def test_populate_store_passes_tenant_backends_to_store(self) -> None:
+        self.router._populate_store()
+
+        self.dao.user_identity.list_tenant_backends.assert_called_once_with()
+        self.router._store.populate.assert_called_once_with(
+            [('tenant-uuid', 'sms_backend')]
+        )
+
+    def test_populate_store_swallows_exceptions(self) -> None:
+        self.dao.user_identity.list_tenant_backends.side_effect = RuntimeError('boom')
+
+        with self.assertLogs(
+            'wazo_chatd.plugins.connectors.router', level='ERROR'
+        ) as captured:
+            self.router._populate_store()
+
+        assert any(
+            'Failed to populate connector store' in line for line in captured.output
+        )

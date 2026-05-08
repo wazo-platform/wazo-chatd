@@ -572,6 +572,147 @@ class TestDeliveryRunnerEnqueue(unittest.TestCase):
         assert any('queue full' in line.lower() for line in captured.output)
 
 
+class TestDeliveryRunnerRecover(unittest.IsolatedAsyncioTestCase):
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
+    def _make_runner(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryRunner:
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
+        mock_bus.from_config.return_value = Mock()
+        return DeliveryRunner(make_config(), Mock(), mock_store())
+
+    async def test_recover_schedules_immediate_for_zero_delay(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._executor.recover_pending_deliveries = AsyncMock(
+            return_value=[('delivery-1', 0.0)]
+        )
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+        runner._schedule_outbound_delivery_later = Mock()  # type: ignore[method-assign]
+
+        await runner._recover()
+
+        runner._schedule_outbound_delivery.assert_called_once_with('delivery-1')
+        runner._schedule_outbound_delivery_later.assert_not_called()
+
+    async def test_recover_schedules_with_delay_for_positive_delay(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._executor.recover_pending_deliveries = AsyncMock(
+            return_value=[('delivery-2', 30.0)]
+        )
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+        runner._schedule_outbound_delivery_later = Mock()  # type: ignore[method-assign]
+
+        await runner._recover()
+
+        runner._schedule_outbound_delivery_later.assert_called_once_with(
+            30.0, 'delivery-2'
+        )
+        runner._schedule_outbound_delivery.assert_not_called()
+
+    async def test_recover_handles_mixed_immediate_and_delayed(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._executor.recover_pending_deliveries = AsyncMock(
+            return_value=[('delivery-a', 0.0), ('delivery-b', 60.0)]
+        )
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+        runner._schedule_outbound_delivery_later = Mock()  # type: ignore[method-assign]
+
+        await runner._recover()
+
+        runner._schedule_outbound_delivery.assert_called_once_with('delivery-a')
+        runner._schedule_outbound_delivery_later.assert_called_once_with(
+            60.0, 'delivery-b'
+        )
+
+    async def test_recover_swallows_scan_exception(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._executor.recover_pending_deliveries = AsyncMock(
+            side_effect=RuntimeError('db down')
+        )
+        runner._schedule_outbound_delivery = Mock()  # type: ignore[method-assign]
+        runner._schedule_outbound_delivery_later = Mock()  # type: ignore[method-assign]
+
+        with self.assertLogs(
+            'wazo_chatd.plugins.connectors.runner', level='ERROR'
+        ) as captured:
+            await runner._recover()
+
+        assert any('Recovery scan failed' in line for line in captured.output)
+        runner._schedule_outbound_delivery.assert_not_called()
+        runner._schedule_outbound_delivery_later.assert_not_called()
+
+
+class TestDeliveryRunnerProcessRetryReschedule(unittest.IsolatedAsyncioTestCase):
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
+    @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')
+    def _make_runner(self, mock_bus: Mock, mock_init_db: Mock) -> DeliveryRunner:
+        mock_init_db.return_value = (AsyncMock(), mock_session_factory())
+        mock_bus.from_config.return_value = Mock()
+        return DeliveryRunner(make_config(), Mock(), mock_store())
+
+    async def test_process_inbound_reschedules_when_route_returns_delay(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._schedule_inbound_later = Mock()  # type: ignore[method-assign]
+
+        async def route_with_delay() -> float:
+            return 30.0
+
+        message = make_inbound()
+        await runner._process(route_with_delay(), message, attempt=0)
+
+        runner._schedule_inbound_later.assert_called_once_with(30.0, message, 1)
+
+    async def test_process_inbound_does_not_reschedule_when_route_returns_none(
+        self,
+    ) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._schedule_inbound_later = Mock()  # type: ignore[method-assign]
+
+        async def route_no_delay() -> None:
+            return None
+
+        await runner._process(route_no_delay(), make_inbound(), attempt=0)
+
+        runner._schedule_inbound_later.assert_not_called()
+
+    async def test_process_outbound_reschedules_when_route_returns_delay(self) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._executor.route_outbound_delivery = AsyncMock(return_value=42.0)
+        runner._schedule_outbound_delivery_later = Mock()  # type: ignore[method-assign]
+
+        await runner._process_outbound_delivery('delivery-7')
+
+        runner._schedule_outbound_delivery_later.assert_called_once_with(
+            42.0, 'delivery-7'
+        )
+
+    async def test_process_outbound_does_not_reschedule_when_route_returns_none(
+        self,
+    ) -> None:
+        runner = self._make_runner()
+        runner._loop = asyncio.get_running_loop()
+        runner._reset_loop_state()
+        runner._executor.route_outbound_delivery = AsyncMock(return_value=None)
+        runner._schedule_outbound_delivery_later = Mock()  # type: ignore[method-assign]
+
+        await runner._process_outbound_delivery('delivery-7')
+
+        runner._schedule_outbound_delivery_later.assert_not_called()
+
+
 class TestDeliveryRunnerOnDeliveryNotify(unittest.TestCase):
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.init_async_db')
     @unittest.mock.patch('wazo_chatd.plugins.connectors.runner.BusPublisher')

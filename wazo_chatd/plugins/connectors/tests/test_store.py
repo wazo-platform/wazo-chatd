@@ -404,3 +404,87 @@ class TestConnectorStorePopulate(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(RuntimeError):
             await store.wait_populated()
+
+    async def test_populate_warns_on_unknown_configured_backend(self) -> None:
+        auth_client = Mock()
+        store = ConnectorStore(
+            auth_client,
+            build_registry(_SmsConnector),
+            connectors_config={
+                'sms_backend': {'mode': 'poll'},
+                'ghost_backend': {'mode': 'poll'},
+            },
+        )
+
+        with self.assertLogs(
+            'wazo_chatd.plugins.connectors.store', level='WARNING'
+        ) as captured:
+            store.populate([(TENANT_A, 'sms_backend')])
+
+        await store.wait_populated()
+
+        assert any('ghost_backend' in line for line in captured.output)
+
+    async def test_populate_signals_ready_after_priority_then_finishes_deferred(
+        self,
+    ) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.return_value = {'api_key': 'secret'}
+        store = ConnectorStore(
+            auth_client,
+            build_registry(_SmsConnector),
+            connectors_config={'sms_backend': {'mode': 'webhook'}},
+        )
+
+        store.populate([(TENANT_A, 'sms_backend')])
+
+        await store.wait_populated()
+        assert store.peek('sms_backend', TENANT_A) is not None
+
+    async def test_populate_swallows_deferred_fetch_failure(self) -> None:
+        auth_client = Mock()
+        store = ConnectorStore(
+            auth_client,
+            build_registry(_SmsConnector),
+            connectors_config={'sms_backend': {'mode': 'webhook'}},
+        )
+        calls: list[set] = []
+
+        def fetch(pairs: set) -> None:
+            calls.append(pairs)
+            if len(calls) == 1:
+                return
+            raise RuntimeError('deferred boom')
+
+        store._fetch_batch = fetch  # type: ignore[method-assign]
+
+        with self.assertLogs(
+            'wazo_chatd.plugins.connectors.store', level='ERROR'
+        ) as captured:
+            store.populate([(TENANT_A, 'sms_backend')])
+
+        await store.wait_populated()
+        assert any(
+            'Deferred connector fetch failed' in line for line in captured.output
+        )
+        assert len(calls) == 2
+
+    async def test_populate_concurrent_call_is_skipped(self) -> None:
+        auth_client = Mock()
+        auth_client.external.get_config.return_value = {'api_key': 'secret'}
+        store = ConnectorStore(
+            auth_client,
+            build_registry(_SmsConnector),
+            connectors_config={'sms_backend': {'mode': 'poll'}},
+        )
+
+        first_calls = Mock()
+        store._fetch_batch = first_calls  # type: ignore[method-assign]
+
+        store._populate_lock.acquire()
+        try:
+            store.populate([(TENANT_A, 'sms_backend')])
+        finally:
+            store._populate_lock.release()
+
+        first_calls.assert_not_called()
