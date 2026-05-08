@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import random
+import unittest.mock
 
 import pytest
 
@@ -305,11 +306,18 @@ class TestApplyJitter:
             result = apply_jitter(10.0, ratio=0.1, rng=rng)
             assert 9.0 <= result <= 11.0
 
-    def test_seeded_rng_is_deterministic(self) -> None:
-        rng_a = random.Random(42)
-        rng_b = random.Random(42)
+    def test_distinct_seeds_produce_distinct_values(self) -> None:
+        result_a = apply_jitter(10.0, ratio=0.1, rng=random.Random(42))
+        result_b = apply_jitter(10.0, ratio=0.1, rng=random.Random(43))
 
-        result_a = apply_jitter(10.0, ratio=0.1, rng=rng_a)
-        result_b = apply_jitter(10.0, ratio=0.1, rng=rng_b)
+        assert result_a != result_b
 
-        assert result_a == pytest.approx(result_b)
+    def test_uses_module_random_when_rng_is_none(self) -> None:
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.cadence.random.uniform',
+            return_value=0.05,
+        ) as mock_uniform:
+            result = apply_jitter(10.0, ratio=0.1)
+
+        mock_uniform.assert_called_once_with(-0.1, 0.1)
+        assert result == pytest.approx(10.5)

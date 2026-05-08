@@ -91,6 +91,54 @@ class TestConnectorRegistry(unittest.TestCase):
 
         assert result == {'sms', 'mms'}
 
+    def test_types_for_backend_returns_supported_types(self) -> None:
+        self.registry.register_backend(_FakeConnectorB)  # type: ignore[arg-type]
+
+        assert self.registry.types_for_backend('fake_b') == {'email', 'whatsapp'}
+
+    def test_types_for_backend_returns_empty_for_unknown(self) -> None:
+        assert self.registry.types_for_backend('nonexistent') == set()
+
+    def test_backends_for_types_returns_intersecting_backends(self) -> None:
+        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
+        self.registry.register_backend(_FakeConnectorB)  # type: ignore[arg-type]
+
+        assert self.registry.backends_for_types({'sms'}) == {'fake_a'}
+        assert self.registry.backends_for_types({'email'}) == {'fake_b'}
+        assert self.registry.backends_for_types({'sms', 'email'}) == {
+            'fake_a',
+            'fake_b',
+        }
+
+    def test_backends_for_types_returns_empty_when_no_intersection(self) -> None:
+        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
+
+        assert self.registry.backends_for_types({'fax'}) == set()
+
+    def test_discover_skips_disabled_entries(self) -> None:
+        mock_ext_a = Mock(spec=['name', 'plugin'])
+        mock_ext_a.name = 'fake_a'
+        mock_ext_a.plugin = _FakeConnectorA
+        mock_ext_b = Mock(spec=['name', 'plugin'])
+        mock_ext_b.name = 'fake_b'
+        mock_ext_b.plugin = _FakeConnectorB
+
+        mock_manager = MagicMock()
+        mock_manager.__iter__.return_value = iter([mock_ext_a, mock_ext_b])
+
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.registry.ExtensionManager',
+            return_value=mock_manager,
+        ):
+            self.registry.discover(
+                connectors_config={
+                    'fake_a': {'enabled': True},
+                    'fake_b': {'enabled': False},
+                }
+            )
+
+        assert self.registry.available_backends() == ['fake_a']
+
     def test_discover(self) -> None:
         mock_ext_a = Mock(spec=['name', 'plugin'])
         mock_ext_a.name = 'fake_a'

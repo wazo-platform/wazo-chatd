@@ -252,6 +252,8 @@ class TestDeliveryRunnerScheduleOutboundLater(unittest.IsolatedAsyncioTestCase):
         assert first_handle.cancelled()
         assert not second_handle.cancelled()
         assert len(runner._scheduled_outbound_timers) == 1
+        assert first_handle not in runner._scheduled_timers
+        assert second_handle in runner._scheduled_timers
 
     async def test_distinct_delivery_ids_get_distinct_timers(self) -> None:
         runner = self._make_runner()

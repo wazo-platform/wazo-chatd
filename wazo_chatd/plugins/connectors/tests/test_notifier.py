@@ -172,13 +172,6 @@ class TestAsyncNotifierDeliveryStatusUpdated(unittest.IsolatedAsyncioTestCase):
         self.bus.publish.assert_called_once()
         event = self.bus.publish.call_args[0][0]
         assert event.name == 'chatd_message_delivery_status'
-
-    async def test_event_includes_recipient_identity(self) -> None:
-        delivery, record = self._make_delivery_and_record()
-
-        await self.notifier.delivery_status_updated(delivery, record)
-
-        event = self.bus.publish.call_args[0][0]
         assert event.content['recipient_identity'] == '+15559876'
 
     async def test_delivery_status_event_targets_sender_only(self) -> None:

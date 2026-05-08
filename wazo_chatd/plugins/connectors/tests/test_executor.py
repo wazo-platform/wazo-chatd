@@ -23,6 +23,7 @@ from wazo_chatd.plugins.connectors.executor import (
     OUTBOUND_MAX_RETRIES,
     OUTBOUND_RETRY_DELAYS,
     DeliveryExecutor,
+    _compute_outbound_retry_delay,
     generate_message_signature,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -137,12 +138,13 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
         assert self.delivery.retry_count == 1
 
-    async def test_max_retries_sets_dead_letter(self) -> None:
+    async def test_max_retries_sets_dead_letter_and_returns_no_retry(self) -> None:
         self.connector.send_side_effect = ConnectorSendError('timeout')
         self.delivery.retry_count = OUTBOUND_MAX_RETRIES
 
-        await self.executor.route_outbound_delivery('1')
+        result = await self.executor.route_outbound_delivery('1')
 
+        assert result is None
         dao_mock = self.executor._room_dao.add_delivery_record
         statuses = [call.args[1].value for call in dao_mock.call_args_list]
         assert DeliveryStatus.DEAD_LETTER.value in statuses
@@ -223,14 +225,6 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
         dao_mock = self.executor._room_dao.add_delivery_record
         statuses = [call.args[1].value for call in dao_mock.call_args_list]
         assert DeliveryStatus.RETRYING.value in statuses
-
-    async def test_dead_letter_returns_no_retry(self) -> None:
-        self.connector.send_side_effect = ConnectorSendError('timeout')
-        self.delivery.retry_count = OUTBOUND_MAX_RETRIES
-
-        result = await self.executor.route_outbound_delivery('1')
-
-        assert result is None
 
     async def test_missing_sender_identity_dead_letters_delivery(self) -> None:
         self.meta.sender_identity = None
@@ -638,6 +632,22 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         self.executor._room_dao.add_message.assert_awaited_once()
 
 
+class TestComputeOutboundRetryDelay(unittest.TestCase):
+    def test_zero_retry_count_clamps_to_first_delay(self) -> None:
+        assert _compute_outbound_retry_delay(0) == float(OUTBOUND_RETRY_DELAYS[0])
+
+    def test_first_retry_uses_first_delay(self) -> None:
+        assert _compute_outbound_retry_delay(1) == float(OUTBOUND_RETRY_DELAYS[0])
+
+    def test_middle_retry_uses_corresponding_delay(self) -> None:
+        assert _compute_outbound_retry_delay(2) == float(OUTBOUND_RETRY_DELAYS[1])
+
+    def test_overflow_retry_count_clamps_to_last_delay(self) -> None:
+        assert _compute_outbound_retry_delay(len(OUTBOUND_RETRY_DELAYS) + 5) == float(
+            OUTBOUND_RETRY_DELAYS[-1]
+        )
+
+
 class TestGenerateMessageSignature(unittest.TestCase):
     def test_same_input_same_output(self) -> None:
         fp1 = generate_message_signature('+15551234', 'Hello world')
@@ -773,6 +783,26 @@ class TestDeliveryExecutorRouteStatusUpdate(unittest.IsolatedAsyncioTestCase):
         await self.executor.route_status_update(make_status_update())
 
         self.notifier.delivery_status_updated.assert_awaited_once()
+
+    async def test_drops_when_meta_has_no_matching_delivery(self) -> None:
+        self._register_connector({'delivered': DeliveryStatus.DELIVERED})
+        meta = self._mock_meta()
+        meta.deliveries[0].external_id = 'ext-other'
+
+        await self.executor.route_status_update(make_status_update())
+
+        self.executor._room_dao.add_delivery_record.assert_not_awaited()
+        self.notifier.delivery_status_updated.assert_not_awaited()
+
+    async def test_short_circuits_when_delivery_already_delivered(self) -> None:
+        self._register_connector({'delivered': DeliveryStatus.DELIVERED})
+        meta = self._mock_meta()
+        meta.deliveries[0].status = DeliveryStatus.DELIVERED.value
+
+        await self.executor.route_status_update(make_status_update())
+
+        self.executor._room_dao.add_delivery_record.assert_not_awaited()
+        self.notifier.delivery_status_updated.assert_not_awaited()
 
 
 class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):

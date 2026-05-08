@@ -105,6 +105,7 @@ class TestRoomCreationValidation(ConnectorIntegrationTest):
         )
 
         uuid.UUID(room['uuid'])
+        assert len(room['users']) == 2
         assert all(u.get('identity') is None for u in room['users'])
 
 

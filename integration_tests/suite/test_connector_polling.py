@@ -78,3 +78,27 @@ class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
         self.connector_mock.set_track('ext-out-001', {'status': 'delivered'})
 
         self.assert_delivery_status(message.uuid, 'delivered', timeout=10)
+
+    @fixtures.db.user(uuid=USER_UUID_1)
+    @fixtures.http.user_identity(
+        user_uuid=USER_UUID_1,
+        identity='test:+15551234',
+    )
+    @fixtures.db.room(
+        users=[{'uuid': USER_UUID_1}],
+        messages=[
+            {
+                'content': 'will fail',
+                'meta': {'type_': 'test', 'backend': 'test'},
+                'deliveries': [
+                    {'external_id': 'ext-out-fail', 'statuses': ['accepted']}
+                ],
+            }
+        ],
+    )
+    def test_track_outbound_records_failed_status(self, user, identity, room):
+        message = room.messages[0]
+
+        self.connector_mock.set_track('ext-out-fail', {'status': 'failed'})
+
+        self.assert_delivery_status(message.uuid, 'failed', timeout=10)

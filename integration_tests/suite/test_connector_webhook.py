@@ -436,17 +436,23 @@ class TestStatusUpdate(ConnectorIntegrationTest):
 
         self.assert_delivery_status(message['uuid'], 'accepted')
 
-        response = self.post_webhook(
-            json={'external_id': 'ext-status-003', 'status': 'queued'},
+        assert (
+            self.post_webhook(
+                json={'external_id': 'ext-status-003', 'status': 'queued'},
+            ).status_code
+            == 204
         )
-        assert response.status_code == 204
+        assert (
+            self.post_webhook(
+                json={'external_id': 'ext-status-003', 'status': 'delivered'},
+            ).status_code
+            == 204
+        )
 
-        def transient_ignored_but_pipeline_ran():
-            statuses = [r.status for r in self.get_delivery_records(message['uuid'])]
-            assert 'accepted' in statuses
-            assert 'queued' not in statuses
+        self.assert_delivery_status(message['uuid'], 'delivered')
 
-        until.assert_(transient_ignored_but_pipeline_ran, timeout=3, interval=0.1)
+        statuses = [r.status for r in self.get_delivery_records(message['uuid'])]
+        assert 'queued' not in statuses
 
 
 @use_asset('connectors')

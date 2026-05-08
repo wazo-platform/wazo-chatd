@@ -231,6 +231,78 @@ class TestUserIdentityCRUD(ConnectorIntegrationTest):
         assert exc_info.value.status_code == 400
         assert exc_info.value.error_id == 'invalid-identity-format'
 
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID,
+        backend='test',
+        type_='test',
+        identity='test:original',
+    )
+    def test_update_invalid_identity_format_returns_400(self, user, identity):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.user_identities.update(
+                str(USER_UUID),
+                str(identity.uuid),
+                {
+                    'backend': 'test',
+                    'type': 'test',
+                    'identity': 'invalid format with spaces',
+                },
+            )
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.error_id == 'invalid-identity-format'
+
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID,
+        backend='test',
+        type_='test',
+        identity='test:original',
+    )
+    def test_update_missing_identity_returns_400(self, user, identity):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.user_identities.update(
+                str(USER_UUID),
+                str(identity.uuid),
+                {'backend': 'test', 'type': 'test'},
+            )
+
+        assert exc_info.value.status_code == 400
+
+    @fixtures.db.user(uuid=USER_UUID)
+    def test_update_unknown_identity_returns_404(self, user):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.user_identities.update(
+                str(USER_UUID),
+                str(uuid.uuid4()),
+                {'backend': 'test', 'type': 'test', 'identity': 'test:foo'},
+            )
+
+        assert exc_info.value.status_code == 404
+
+    @fixtures.db.user(uuid=USER_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID,
+        backend='test',
+        type_='test',
+        identity='test:original',
+    )
+    def test_update_persists_extra(self, user, identity):
+        self.chatd.user_identities.update(
+            str(USER_UUID),
+            str(identity.uuid),
+            {
+                'backend': 'test',
+                'type': 'test',
+                'identity': 'test:updated',
+                'extra': {'note': 'rotated'},
+            },
+        )
+
+        persisted = self.chatd.user_identities.get(str(USER_UUID), str(identity.uuid))
+        assert persisted['extra'] == {'note': 'rotated'}
+
 
 @use_asset('connectors')
 class TestUserIdentityAuth(ConnectorIntegrationTest):
@@ -297,6 +369,29 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
 
         assert result['total'] == 1
         assert result['items'][0]['identity'] == 'test:me'
+        assert result['items'][0]['backend'] == 'test'
+
+    @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        tenant_uuid=TOKEN_TENANT_UUID,
+        backend='test',
+        type_='test',
+        identity='test:registered',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        tenant_uuid=TOKEN_TENANT_UUID,
+        backend='unregistered_backend',
+        type_='sms',
+        identity='+15551112222',
+    )
+    def test_list_filters_out_unregistered_backends(
+        self, user, registered, unregistered
+    ):
+        result = self.chatd.user_identities.list_from_user()
+
+        assert result['total'] == 1
         assert result['items'][0]['backend'] == 'test'
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
