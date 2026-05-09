@@ -28,8 +28,7 @@ from wazo_chatd.database.models import (
     RoomUser,
     User,
 )
-from wazo_chatd.database.queries.async_.room import AsyncRoomDAO
-from wazo_chatd.database.queries.async_.user_identity import AsyncUserIdentityDAO
+from wazo_chatd.database.queries.async_ import AsyncDAO
 from wazo_chatd.exceptions import DuplicateExternalIdException
 from wazo_chatd.plugin_helpers.async_lock import KeyedLock
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
@@ -128,8 +127,7 @@ class DeliveryExecutor:
         self._registry = registry
         self._notifier = notifier
         self._store = store
-        self._room_dao = AsyncRoomDAO()
-        self._user_identity_dao = AsyncUserIdentityDAO()
+        self._dao = AsyncDAO()
         self._room_creation_lock = KeyedLock()
 
     async def route_outbound_delivery(self, delivery_id: str) -> float | None:
@@ -138,7 +136,7 @@ class DeliveryExecutor:
         Loads the delivery per leg (1 query per leg). Future optimization:
         pass primitives from the publisher to skip the per-leg read.
         """
-        delivery = await self._room_dao.get_message_delivery(
+        delivery = await self._dao.room.get_message_delivery(
             delivery_id, skip_locked=True
         )
         if delivery is None:
@@ -251,7 +249,7 @@ class DeliveryExecutor:
 
         try:
             delay = await _db_persist_or_delay(
-                self._room_dao.add_message(room, message),
+                self._dao.room.add_message(room, message),
                 attempt=attempt,
                 description=f'inbound from {inbound.sender}',
             )
@@ -295,7 +293,7 @@ class DeliveryExecutor:
             )
             return None
 
-        meta = await self._room_dao.get_message_meta_by_external_id(
+        meta = await self._dao.room.get_message_meta_by_external_id(
             update.external_id, update.backend
         )
         if not meta:
@@ -344,7 +342,7 @@ class DeliveryExecutor:
         return None
 
     async def recover_pending_deliveries(self) -> list[tuple[str, float]]:
-        deliveries = await self._room_dao.get_recoverable_deliveries()
+        deliveries = await self._dao.room.get_recoverable_deliveries()
         if not deliveries:
             return []
 
@@ -360,12 +358,12 @@ class DeliveryExecutor:
         return recoverable
 
     async def get_message_meta(self, message_uuid: str) -> MessageMeta | None:
-        return await self._room_dao.get_message_meta(message_uuid)
+        return await self._dao.room.get_message_meta(message_uuid)
 
     async def list_pending_external_ids(
         self, tenant_uuid: str, backend: str
     ) -> list[str]:
-        return await self._room_dao.list_pending_external_ids(tenant_uuid, backend)
+        return await self._dao.room.list_pending_external_ids(tenant_uuid, backend)
 
     async def _record_send_failure(
         self,
@@ -399,7 +397,7 @@ class DeliveryExecutor:
         if idempotency_key is None:
             return False
 
-        if is_duplicate := await self._room_dao.check_duplicate_idempotency_key(
+        if is_duplicate := await self._dao.room.check_duplicate_idempotency_key(
             idempotency_key,
             recipient=inbound.recipient,
             backend=inbound.backend,
@@ -420,7 +418,7 @@ class DeliveryExecutor:
     async def _resolve_inbound_room(
         self, inbound: InboundMessage, sender_identity: str
     ) -> tuple[Room, RoomUser, User | None] | None:
-        resolved = await self._user_identity_dao.resolve_users_by_identities(
+        resolved = await self._dao.user_identity.resolve_users_by_identities(
             [inbound.recipient, sender_identity]
         )
 
@@ -462,10 +460,10 @@ class DeliveryExecutor:
     ) -> Room:
         lock_key = (tenant_uuid, tuple(sorted(str(p.uuid) for p in participants)))
         async with self._room_creation_lock.acquire(lock_key):
-            existing = await self._room_dao.find_room(tenant_uuid, participants)
+            existing = await self._dao.room.find_room(tenant_uuid, participants)
             if existing is not None:
                 return existing
-            room = await self._room_dao.create_room(tenant_uuid, participants)
+            room = await self._dao.room.create_room(tenant_uuid, participants)
         await self._notifier.room_created(room)
         return room
 
@@ -480,7 +478,7 @@ class DeliveryExecutor:
             return None
 
         signature = generate_message_signature(sender_identity, body)
-        return await self._room_dao.find_matching_signature(
+        return await self._dao.room.find_matching_signature(
             str(room.uuid), signature, ECHO_WINDOW_SECONDS
         )
 
@@ -551,7 +549,7 @@ class DeliveryExecutor:
         if external_id is not None:
             delivery.external_id = external_id  # type: ignore[assignment]
 
-        record = await self._room_dao.add_delivery_record(
+        record = await self._dao.room.add_delivery_record(
             delivery, status, reason=reason
         )
         delivery.records.append(record)
