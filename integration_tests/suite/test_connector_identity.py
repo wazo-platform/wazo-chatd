@@ -416,11 +416,11 @@ class TestIdentityDelete(ConnectorIntegrationTest):
 
 @use_asset('connectors')
 class TestIdentityAuth(ConnectorIntegrationTest):
-    @pytest.mark.parametrize('bad_token', ['', str(uuid.uuid4())])
-    def test_missing_or_invalid_token_returns_401(self, bad_token):
-        chatd = self.asset_cls.make_chatd(token=bad_token)
+    def test_missing_or_invalid_token_returns_401(self):
+        for bad_token in ['', str(uuid.uuid4())]:
+            chatd = self.asset_cls.make_chatd(token=bad_token)
 
-        with pytest.raises(ChatdError) as exc_info:
-            chatd.identities.list()
+            with pytest.raises(ChatdError) as exc_info:
+                chatd.identities.list()
 
-        assert exc_info.value.status_code == 401
+            assert exc_info.value.status_code == 401

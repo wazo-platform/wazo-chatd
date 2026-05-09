@@ -10,6 +10,8 @@ from wazo_auth_client import Client as AuthClient
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
 from wazo_chatd.plugins.connectors.http import (
     ConnectorWebhookResource,
+    IdentityItemResource,
+    IdentityListResource,
     UserMeIdentityListResource,
 )
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
@@ -56,6 +58,16 @@ class Plugin:
             '/connectors/incoming',
             '/connectors/incoming/<backend>',
             resource_class_args=[router],
+        )
+        api.add_resource(
+            IdentityListResource,
+            '/identities',
+            resource_class_args=[service, router],
+        )
+        api.add_resource(
+            IdentityItemResource,
+            '/identities/<uuid:identity_uuid>',
+            resource_class_args=[service, router],
         )
         api.add_resource(
             UserMeIdentityListResource,

@@ -107,6 +107,9 @@ class ConnectorService:
             identities = self._filter_by_registered_backends(identities)
         return identities
 
+    def list_all_identities(self, tenant_uuids: list[str]) -> list[UserIdentity]:
+        return self._dao.user_identity.list_(tenant_uuids=tenant_uuids)
+
     def _filter_by_registered_backends(
         self, identities: list[UserIdentity]
     ) -> list[UserIdentity]:

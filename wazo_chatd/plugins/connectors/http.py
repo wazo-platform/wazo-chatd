@@ -11,8 +11,10 @@ from flask import request
 from xivo.auth_verifier import required_acl
 from xivo.tenant_flask_helpers import token
 
+from wazo_chatd.database.models import UserIdentity
 from wazo_chatd.http import AuthResource, ErrorCatchingResource
-from wazo_chatd.plugin_helpers.http import build_public_url
+from wazo_chatd.plugin_helpers.http import build_public_url, update_model_instance
+from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     ConnectorTransientError,
@@ -20,6 +22,9 @@ from wazo_chatd.plugins.connectors.exceptions import (
     WebhookTransientException,
 )
 from wazo_chatd.plugins.connectors.schemas import (
+    identity_create_schema,
+    identity_schema,
+    identity_update_schema,
     user_identity_list_request_schema,
     user_identity_schema,
 )
@@ -77,6 +82,84 @@ class ConnectorWebhookResource(ErrorCatchingResource):
             content_type=request.content_type or '',
             url=build_public_url(request),
         )
+
+
+class IdentityListResource(AuthResource):
+    def __init__(self, service: ConnectorService, router: ConnectorRouter) -> None:
+        self._service = service
+        self._router = router
+
+    @required_acl('chatd.identities.read')
+    def get(self) -> tuple[dict[str, Any], int]:
+        tenant_uuids = get_tenant_uuids(recurse=True)
+        identities = self._service.list_all_identities(tenant_uuids)
+
+        return {
+            'items': identity_schema.dump(identities, many=True),
+            'total': len(identities),
+        }, 200
+
+    @required_acl('chatd.identities.create')
+    def post(self) -> tuple[dict[str, Any], int]:
+        tenant_uuids = get_tenant_uuids(recurse=True)
+        body = identity_create_schema.load(request.get_json(force=True))
+
+        user_uuid = str(body.pop('user_uuid'))
+        tenant_uuid = self._service.get_user_tenant_uuid(tenant_uuids, user_uuid)
+
+        backend = body['backend']
+        self._router.validate_tenant_backend(tenant_uuid, backend)
+
+        identity = UserIdentity(
+            tenant_uuid=tenant_uuid,
+            user_uuid=user_uuid,
+            **body,
+        )
+        created = self._service.create_identity(identity)
+        self._router.reconcile_tenant_backend(tenant_uuid, backend)
+
+        return identity_schema.dump(created), 201
+
+
+class IdentityItemResource(AuthResource):
+    def __init__(self, service: ConnectorService, router: ConnectorRouter) -> None:
+        self._service = service
+        self._router = router
+
+    @required_acl('chatd.identities.{identity_uuid}.read')
+    def get(self, identity_uuid: str) -> tuple[dict[str, Any], int]:
+        tenant_uuids = get_tenant_uuids(recurse=True)
+        identity = self._service.get_identity(tenant_uuids, identity_uuid)
+
+        return identity_schema.dump(identity), 200
+
+    @required_acl('chatd.identities.{identity_uuid}.update')
+    def put(self, identity_uuid: str) -> tuple[dict[str, Any], int]:
+        tenant_uuids = get_tenant_uuids(recurse=True)
+        identity = self._service.get_identity(tenant_uuids, identity_uuid)
+        body = identity_update_schema.load(request.get_json(force=True))
+
+        if 'user_uuid' in body:
+            new_user_uuid = str(body.pop('user_uuid'))
+            self._service.get_user_tenant_uuid(tenant_uuids, new_user_uuid)
+            identity.user_uuid = new_user_uuid  # type: ignore[assignment]
+
+        update_model_instance(identity, body)
+        self._service.update_identity(identity)
+
+        return identity_schema.dump(identity), 200
+
+    @required_acl('chatd.identities.{identity_uuid}.delete')
+    def delete(self, identity_uuid: str) -> tuple[str, int]:
+        tenant_uuids = get_tenant_uuids(recurse=True)
+        identity = self._service.get_identity(tenant_uuids, identity_uuid)
+
+        tenant_uuid = str(identity.tenant_uuid)
+        backend = str(identity.backend)
+        self._service.delete_identity(identity)
+        self._router.reconcile_tenant_backend(tenant_uuid, backend)
+
+        return '', 204
 
 
 class UserMeIdentityListResource(AuthResource):
