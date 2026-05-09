@@ -80,19 +80,19 @@ class TestUserIdentityDAOCreate(unittest.TestCase):
         dao.session.flush.assert_called_once()
 
 
-class TestUserIdentityDAOListByUser(unittest.TestCase):
+class TestUserIdentityDAOList(unittest.TestCase):
     def test_returns_identities(self) -> None:
         identity = _make_identity()
         dao = _make_dao(_mock_execute(identity))
 
-        result = dao.list_by_user(USER_UUID, tenant_uuids=[TENANT_A])
+        result = dao.list_(tenant_uuids=[TENANT_A], user_uuid=USER_UUID)
 
         assert result == [identity]
 
     def test_returns_empty_when_no_match(self) -> None:
         dao = _make_dao(_mock_execute())
 
-        result = dao.list_by_user(USER_UUID, tenant_uuids=[TENANT_A])
+        result = dao.list_(tenant_uuids=[TENANT_A], user_uuid=USER_UUID)
 
         assert result == []
 
@@ -201,13 +201,13 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
     def test_list_identities(self) -> None:
         service = self._build_service()
         identity = _make_identity()
-        service._dao.user_identity.list_by_user.return_value = [identity]
+        service._dao.user_identity.list_.return_value = [identity]
 
         result = service.list_identities([TENANT_A], USER_UUID)
 
         assert result == [identity]
-        service._dao.user_identity.list_by_user.assert_called_once_with(
-            USER_UUID, tenant_uuids=[TENANT_A]
+        service._dao.user_identity.list_.assert_called_once_with(
+            tenant_uuids=[TENANT_A], user_uuid=USER_UUID
         )
 
     def test_list_identities_default_returns_unregistered_backends(self) -> None:
@@ -216,7 +216,7 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
             identity_uuid='unreg-uuid', backend='unregistered-backend'
         )
         registered = _make_identity()
-        service._dao.user_identity.list_by_user.return_value = [
+        service._dao.user_identity.list_.return_value = [
             unregistered,
             registered,
         ]
@@ -233,7 +233,7 @@ class TestConnectorServiceIdentityCRUD(unittest.TestCase):
             identity_uuid='unreg-uuid', backend='unregistered-backend'
         )
         registered = _make_identity()
-        service._dao.user_identity.list_by_user.return_value = [
+        service._dao.user_identity.list_.return_value = [
             unregistered,
             registered,
         ]

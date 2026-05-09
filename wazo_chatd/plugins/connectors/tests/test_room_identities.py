@@ -71,7 +71,7 @@ def _build_service(
         ident for ident in idents if bound_map.get(ident, False)
     }
 
-    dao.user_identity.list_by_user.return_value = sender_identities or []
+    dao.user_identity.list_.return_value = sender_identities or []
 
     registry = ConnectorRegistry()
     registry.register_backend(_SmsConnector)  # type: ignore[arg-type]
