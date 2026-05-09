@@ -91,6 +91,13 @@ class IdentityListRequestSchema(_ListSchema):
         return result
 
 
+class ConnectorSchema(Schema):
+    name = fields.String(dump_only=True)
+    supported_types = fields.List(fields.String(), dump_only=True)
+    configured = fields.Boolean(dump_only=True)
+
+
+connector_schema = ConnectorSchema()
 identity_create_schema = IdentityCreateSchema()
 identity_list_request_schema = IdentityListRequestSchema()
 identity_schema = IdentitySchema()

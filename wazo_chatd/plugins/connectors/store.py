@@ -151,6 +151,17 @@ class ConnectorStore:
         """Resolve when runner-driven populate has completed."""
         await asyncio.wrap_future(self._populated)
 
+    def batch_find(self, pairs: Iterable[tuple[str, str]]) -> None:
+        """Warm the cache for many ``(tenant_uuid, backend)`` pairs in parallel.
+
+        Each pair goes through :meth:`find` (silent on missing config or
+        transient auth errors). Callers then read via :meth:`peek` to
+        consume results. Used by request-time paths (e.g. ``GET
+        /connectors``) to avoid a serial fan-out to wazo-auth on cold
+        cache.
+        """
+        self._fetch_batch(set(pairs))
+
     def _fetch_batch(self, pairs: set[tuple[str, str]]) -> None:
         # At scale, consider direct async httpx (bypasses the
         # wazo_auth_client sync pool) — trades off wire-format coupling.
