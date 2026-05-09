@@ -23,10 +23,28 @@ class UserIdentitySchema(IdentitySchema):
         fields = ('uuid', 'backend', 'type_', 'identity')
 
 
+class IdentityCreateSchema(Schema):
+    user_uuid = fields.UUID(required=True)
+    backend = fields.String(required=True, validate=validate.Length(min=1))
+    type_ = fields.String(
+        required=True, data_key='type', validate=validate.Length(min=1)
+    )
+    identity = fields.String(required=True, validate=validate.Length(min=1))
+    extra = fields.Dict(load_default=dict)
+
+
+class IdentityUpdateSchema(Schema):
+    user_uuid = fields.UUID()
+    identity = fields.String(validate=validate.Length(min=1))
+    extra = fields.Dict()
+
+
 class UserIdentityListRequestSchema(Schema):
     room_uuid = fields.UUID(load_default=None)
 
 
+identity_create_schema = IdentityCreateSchema()
 identity_schema = IdentitySchema()
-user_identity_schema = UserIdentitySchema()
+identity_update_schema = IdentityUpdateSchema()
 user_identity_list_request_schema = UserIdentityListRequestSchema()
+user_identity_schema = UserIdentitySchema()

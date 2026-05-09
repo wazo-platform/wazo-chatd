@@ -1,4 +1,114 @@
 paths:
+  /identities:
+    get:
+      operationId: list_identities
+      summary: List all identities visible to the tenant
+      description: |
+        **Required ACL:** `chatd.identities.read`
+
+        Returns every identity bound to a user in the calling
+        tenant. The `Wazo-Tenant` header scopes the result; each
+        item includes its owner (`user_uuid`) and `tenant_uuid`.
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      responses:
+        '200':
+          description: Identity list
+          schema:
+            $ref: '#/definitions/IdentityList'
+    post:
+      operationId: create_identity
+      summary: Create an identity
+      description: |
+        **Required ACL:** `chatd.identities.create`
+
+        Creates an external identity for the user named in the body
+        on a configured backend.
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/IdentityCreateRequest'
+      responses:
+        '201':
+          description: Identity created
+          schema:
+            $ref: '#/definitions/Identity'
+        '400':
+          $ref: '#/responses/InvalidRequest'
+        '404':
+          $ref: '#/responses/NotFoundError'
+        '409':
+          description: An identity with the same backend/type/identity already exists
+        '503':
+          $ref: '#/responses/AnotherServiceUnavailable'
+  /identities/{identity_uuid}:
+    get:
+      operationId: get_identity
+      summary: Get an identity by UUID
+      description: '**Required ACL:** `chatd.identities.{identity_uuid}.read`'
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/identity_uuid'
+      responses:
+        '200':
+          description: Identity
+          schema:
+            $ref: '#/definitions/Identity'
+        '404':
+          $ref: '#/responses/NotFoundError'
+    put:
+      operationId: update_identity
+      summary: Update an identity (partial)
+      description: |
+        **Required ACL:** `chatd.identities.{identity_uuid}.update`
+
+        Updates one or more mutable fields. Pass `user_uuid` to
+        reassign the identity to a different user in the same
+        tenant.
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/identity_uuid'
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/IdentityUpdateRequest'
+      responses:
+        '200':
+          description: Identity updated
+          schema:
+            $ref: '#/definitions/Identity'
+        '400':
+          $ref: '#/responses/InvalidRequest'
+        '404':
+          $ref: '#/responses/NotFoundError'
+        '409':
+          description: Another identity with the same value already exists
+    delete:
+      operationId: delete_identity
+      summary: Delete an identity
+      description: '**Required ACL:** `chatd.identities.{identity_uuid}.delete`'
+      tags:
+      - identities
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/identity_uuid'
+      responses:
+        '204':
+          $ref: '#/responses/ResourceDeleted'
+        '404':
+          $ref: '#/responses/NotFoundError'
   /users/me/identities:
     get:
       operationId: list_user_me_identities
@@ -101,6 +211,15 @@ paths:
           schema:
             $ref: '#/definitions/APIError'
 
+parameters:
+  identity_uuid:
+    name: identity_uuid
+    in: path
+    type: string
+    format: uuid
+    description: The UUID of the identity
+    required: true
+
 definitions:
   UserIdentityList:
     title: UserIdentityList
@@ -126,6 +245,71 @@ definitions:
       type:
         type: string
         description: The messaging type
+      identity:
+        type: string
+        description: The external identity value
+      extra:
+        type: object
+        description: Additional metadata
+
+  Identity:
+    title: Identity
+    allOf:
+      - $ref: '#/definitions/UserIdentity'
+      - type: object
+        properties:
+          tenant_uuid:
+            type: string
+            description: The UUID of the tenant owning the identity
+            readOnly: true
+          user_uuid:
+            type: string
+            description: The UUID of the user owning the identity
+
+  IdentityList:
+    title: IdentityList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Identity'
+      total:
+        type: integer
+        description: The number of results
+
+  IdentityCreateRequest:
+    title: IdentityCreateRequest
+    properties:
+      user_uuid:
+        type: string
+        description: The UUID of the user the identity is bound to
+      backend:
+        type: string
+        description: The connector backend name
+      type:
+        type: string
+        description: The messaging type
+      identity:
+        type: string
+        description: The external identity value
+      extra:
+        type: object
+        description: Additional metadata
+    required:
+      - user_uuid
+      - backend
+      - type
+      - identity
+
+  IdentityUpdateRequest:
+    title: IdentityUpdateRequest
+    description: |
+      Partial update — every field is optional. Pass `user_uuid` to
+      reassign the identity to a different user in the same tenant.
+    properties:
+      user_uuid:
+        type: string
+        description: Reassign the identity to this user
       identity:
         type: string
         description: The external identity value
