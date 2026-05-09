@@ -20,8 +20,8 @@ from wazo_chatd.plugins.connectors.exceptions import (
     WebhookTransientException,
 )
 from wazo_chatd.plugins.connectors.schemas import (
-    IdentityListRequestSchema,
-    UserIdentitySchema,
+    user_identity_list_request_schema,
+    user_identity_schema,
 )
 from wazo_chatd.plugins.connectors.services import ConnectorService
 from wazo_chatd.plugins.connectors.types import WebhookData
@@ -85,7 +85,7 @@ class UserMeIdentityListResource(AuthResource):
 
     @required_acl('chatd.users.me.identities.read')
     def get(self) -> tuple[dict[str, Any], int]:
-        params = IdentityListRequestSchema().load(request.args)
+        params = user_identity_list_request_schema.load(request.args)
         user_uuid = str(token.user_uuid)
         tenant_uuids = [token.tenant_uuid]
 
@@ -100,8 +100,6 @@ class UserMeIdentityListResource(AuthResource):
             )
 
         return {
-            'items': UserIdentitySchema(
-                only=('uuid', 'backend', 'type_', 'identity')
-            ).dump(identities, many=True),
+            'items': user_identity_schema.dump(identities, many=True),
             'total': len(identities),
         }, 200
