@@ -16,10 +16,5 @@ class UserIdentitySchema(Schema):
     extra = fields.Dict(load_default=dict)
 
 
-class UserIdentityUpdateSchema(Schema):
-    identity = fields.String(required=True, validate=validate.Length(min=1))
-    extra = fields.Dict()
-
-
 class IdentityListRequestSchema(Schema):
     room_uuid = fields.UUID(load_default=None)
