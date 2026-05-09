@@ -76,20 +76,24 @@ class UserIdentityDAO:
             stmt = stmt.where(UserIdentity.user_uuid == user_uuid)
         return self.session.execute(stmt).scalars().first()
 
-    def list_by_user(
+    def list_(
         self,
-        user_uuid: str,
         tenant_uuids: Iterable[str] | None = None,
+        user_uuid: str | None = None,
         backends: Iterable[str] | None = None,
         types: Iterable[str] | None = None,
     ) -> list[UserIdentity]:
-        stmt = select(UserIdentity).where(
-            UserIdentity.user_uuid == user_uuid,
-        )
+        stmt = select(UserIdentity)
+
         if tenant_uuids is not None:
             stmt = stmt.where(UserIdentity.tenant_uuid.in_(tenant_uuids))
+
+        if user_uuid is not None:
+            stmt = stmt.where(UserIdentity.user_uuid == user_uuid)
+
         if backends:
             stmt = stmt.where(UserIdentity.backend.in_(backends))
+
         if types:
             stmt = stmt.where(UserIdentity.type_.in_(types))
 

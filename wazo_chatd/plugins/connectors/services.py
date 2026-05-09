@@ -100,8 +100,8 @@ class ConnectorService:
         user_uuid: str,
         only_registered: bool = False,
     ) -> list[UserIdentity]:
-        identities = self._dao.user_identity.list_by_user(
-            user_uuid, tenant_uuids=tenant_uuids
+        identities = self._dao.user_identity.list_(
+            tenant_uuids=tenant_uuids, user_uuid=user_uuid
         )
         if only_registered:
             identities = self._filter_by_registered_backends(identities)
@@ -269,8 +269,8 @@ class ConnectorService:
         if not reachable_types:
             return []
 
-        identities = self._dao.user_identity.list_by_user(
-            user_uuid, types=reachable_types
+        identities = self._dao.user_identity.list_(
+            user_uuid=user_uuid, types=reachable_types
         )
         return self._filter_by_registered_backends(identities)
 

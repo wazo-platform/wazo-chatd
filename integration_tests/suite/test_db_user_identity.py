@@ -113,7 +113,7 @@ class TestUserIdentity(DBIntegrationTest):
         identity='+15552222222',
     )
     def test_list_by_user(self, user, identity_1, identity_2):
-        results = self._dao.user_identity.list_by_user(str(USER_UUID_1))
+        results = self._dao.user_identity.list_(user_uuid=str(USER_UUID_1))
 
         assert len(results) == 2
 
@@ -176,14 +176,14 @@ class TestUserIdentity(DBIntegrationTest):
     def test_list_by_user_filters_by_tenant(
         self, user_1, identity_1, user_2, identity_2
     ):
-        tenant_1_results = self._dao.user_identity.list_by_user(
-            str(USER_UUID_1), tenant_uuids=[str(TENANT_1)]
+        tenant_1_results = self._dao.user_identity.list_(
+            tenant_uuids=[str(TENANT_1)], user_uuid=str(USER_UUID_1)
         )
         assert len(tenant_1_results) == 1
         assert tenant_1_results[0].identity == '+15551111111'
 
-        cross_tenant_results = self._dao.user_identity.list_by_user(
-            str(USER_UUID_1), tenant_uuids=[str(TENANT_2)]
+        cross_tenant_results = self._dao.user_identity.list_(
+            tenant_uuids=[str(TENANT_2)], user_uuid=str(USER_UUID_1)
         )
         assert cross_tenant_results == []
 
