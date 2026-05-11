@@ -681,22 +681,30 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
 
         assert intervals[1] == pytest.approx(42.0)
 
-    async def test_rate_limit_event_raises_floor_for_subsequent_polls(
+    async def _assert_subsequent_polls_use_floor(
         self,
+        exc: BaseException,
+        *,
+        max_intervals: int,
     ) -> None:
         loop = self._make_loop()
 
         intervals = await _run_poller_capturing_sleeps(
             loop,
-            scan=_raises_then_yields(
-                ConnectorRateLimited('throttle', retry_after=10.0)
-            ),
-            max_intervals=4,
+            scan=_raises_then_yields(exc),
+            max_intervals=max_intervals,
         )
 
-        assert intervals[1] == pytest.approx(10.0)
-        assert intervals[2] == pytest.approx(loop._rate_limit_floor, abs=0.01)
-        assert intervals[3] == pytest.approx(loop._rate_limit_floor, abs=0.01)
+        assert intervals[-2] == pytest.approx(loop._rate_limit_floor, abs=0.01)
+        assert intervals[-1] == pytest.approx(loop._rate_limit_floor, abs=0.01)
+
+    async def test_rate_limit_event_raises_floor_for_subsequent_polls(
+        self,
+    ) -> None:
+        await self._assert_subsequent_polls_use_floor(
+            ConnectorRateLimited('throttle', retry_after=10.0),
+            max_intervals=4,
+        )
 
     async def test_rate_limited_caps_retry_after_at_max(self) -> None:
         loop = self._make_loop()
@@ -712,16 +720,10 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
         assert intervals[1] == pytest.approx(3600.0)
 
     async def test_unexpected_error_raises_floor_for_subsequent_polls(self) -> None:
-        loop = self._make_loop()
-
-        intervals = await _run_poller_capturing_sleeps(
-            loop,
-            scan=_raises_then_yields(RuntimeError('boom')),
+        await self._assert_subsequent_polls_use_floor(
+            RuntimeError('boom'),
             max_intervals=3,
         )
-
-        assert intervals[1] == pytest.approx(loop._rate_limit_floor, abs=0.01)
-        assert intervals[2] == pytest.approx(loop._rate_limit_floor, abs=0.01)
 
 
 class TestDeliveryRunnerPollerJitter(unittest.IsolatedAsyncioTestCase):

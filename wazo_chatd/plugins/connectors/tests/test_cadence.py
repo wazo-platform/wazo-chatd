@@ -28,8 +28,25 @@ class TestPollerCadenceColdStart:
         assert cadence.next_interval() == pytest.approx(5.0)
 
 
-class TestPollerCadenceYieldStep:
-    def test_yield_at_poll_min_keeps_interval_at_poll_min(self) -> None:
+class TestPollerCadenceStep:
+    @pytest.mark.parametrize(
+        ('initial', 'did_work', 'dt', 'expected'),
+        [
+            pytest.param(5.0, True, 5.0, 5.0, id='yield_at_poll_min_stays'),
+            pytest.param(60.0, True, 5.0, 5.0, id='yield_full_dt_pulls_to_poll_min'),
+            pytest.param(60.0, True, 2.5, 32.5, id='yield_partial_dt_partial_movement'),
+            pytest.param(5.0, False, 60.0, 60.0, id='empty_full_dt_pushes_to_poll_max'),
+            pytest.param(5.0, False, 30.0, 32.5, id='empty_partial_dt_partial_decay'),
+            pytest.param(5.0, False, 600.0, 60.0, id='empty_dt_above_tau_clamps'),
+        ],
+    )
+    def test_step_moves_interval(
+        self,
+        initial: float,
+        did_work: bool,
+        dt: float,
+        expected: float,
+    ) -> None:
         clock = FakeClock()
         cadence = PollerCadence(
             poll_min=5.0,
@@ -38,75 +55,12 @@ class TestPollerCadenceYieldStep:
             tau_slowdown=60.0,
             clock=clock,
         )
+        cadence.interval = initial
 
-        clock.advance(5.0)
-        cadence.step(did_work=True)
+        clock.advance(dt)
+        cadence.step(did_work=did_work)
 
-        assert cadence.next_interval() == pytest.approx(5.0)
-
-    def test_yield_from_poll_max_full_dt_pulls_to_poll_min(self) -> None:
-        clock = FakeClock()
-        cadence = PollerCadence(
-            poll_min=5.0,
-            poll_max=60.0,
-            tau_speedup=5.0,
-            tau_slowdown=60.0,
-            clock=clock,
-        )
-        cadence.interval = 60.0
-
-        clock.advance(5.0)
-        cadence.step(did_work=True)
-
-        assert cadence.next_interval() == pytest.approx(5.0)
-
-    def test_yield_partial_dt_partial_movement(self) -> None:
-        clock = FakeClock()
-        cadence = PollerCadence(
-            poll_min=5.0,
-            poll_max=60.0,
-            tau_speedup=5.0,
-            tau_slowdown=60.0,
-            clock=clock,
-        )
-        cadence.interval = 60.0
-
-        clock.advance(2.5)
-        cadence.step(did_work=True)
-
-        assert cadence.next_interval() == pytest.approx(32.5)
-
-
-class TestPollerCadenceEmptyStep:
-    def test_empty_full_dt_pushes_to_poll_max(self) -> None:
-        clock = FakeClock()
-        cadence = PollerCadence(
-            poll_min=5.0,
-            poll_max=60.0,
-            tau_speedup=5.0,
-            tau_slowdown=60.0,
-            clock=clock,
-        )
-
-        clock.advance(60.0)
-        cadence.step(did_work=False)
-
-        assert cadence.next_interval() == pytest.approx(60.0)
-
-    def test_empty_partial_dt_partial_decay(self) -> None:
-        clock = FakeClock()
-        cadence = PollerCadence(
-            poll_min=5.0,
-            poll_max=60.0,
-            tau_speedup=5.0,
-            tau_slowdown=60.0,
-            clock=clock,
-        )
-
-        clock.advance(30.0)
-        cadence.step(did_work=False)
-
-        assert cadence.next_interval() == pytest.approx(32.5)
+        assert cadence.next_interval() == pytest.approx(expected)
 
     def test_repeated_empty_cycles_converge_to_poll_max(self) -> None:
         clock = FakeClock()
@@ -125,22 +79,7 @@ class TestPollerCadenceEmptyStep:
         assert cadence.next_interval() == pytest.approx(60.0, abs=0.01)
 
 
-class TestPollerCadenceStability:
-    def test_dt_above_tau_clamps_to_one_step(self) -> None:
-        clock = FakeClock()
-        cadence = PollerCadence(
-            poll_min=5.0,
-            poll_max=60.0,
-            tau_speedup=5.0,
-            tau_slowdown=60.0,
-            clock=clock,
-        )
-
-        clock.advance(600.0)
-        cadence.step(did_work=False)
-
-        assert cadence.next_interval() == pytest.approx(60.0)
-
+class TestPollerCadenceBounds:
     def test_interval_bounded_below_at_poll_min(self) -> None:
         cadence = PollerCadence(poll_min=5.0, poll_max=60.0, clock=FakeClock())
         cadence.interval = 3.0
@@ -159,17 +98,20 @@ class TestPollerCadenceStability:
 
 
 class TestPollerCadenceRateLimitFloor:
-    def test_no_penalty_returns_poll_min_floor(self) -> None:
-        cadence = PollerCadence(
-            poll_min=5.0,
-            poll_max=60.0,
-            rate_limit_floor=30.0,
-            clock=FakeClock(),
-        )
-
-        assert cadence.effective_min() == pytest.approx(5.0)
-
-    def test_active_penalty_raises_floor(self) -> None:
+    @pytest.mark.parametrize(
+        ('penalty_duration', 'time_after_penalty', 'expected'),
+        [
+            pytest.param(None, 0.0, 5.0, id='no_penalty'),
+            pytest.param(300.0, 0.0, 30.0, id='active_penalty'),
+            pytest.param(100.0, 150.0, 5.0, id='expired_penalty'),
+        ],
+    )
+    def test_effective_min(
+        self,
+        penalty_duration: float | None,
+        time_after_penalty: float,
+        expected: float,
+    ) -> None:
         clock = FakeClock(start=100.0)
         cadence = PollerCadence(
             poll_min=5.0,
@@ -177,24 +119,11 @@ class TestPollerCadenceRateLimitFloor:
             rate_limit_floor=30.0,
             clock=clock,
         )
+        if penalty_duration is not None:
+            cadence.penalize(duration=penalty_duration)
+        clock.advance(time_after_penalty)
 
-        cadence.penalize(duration=300.0)
-
-        assert cadence.effective_min() == pytest.approx(30.0)
-
-    def test_expired_penalty_drops_back_to_poll_min(self) -> None:
-        clock = FakeClock(start=100.0)
-        cadence = PollerCadence(
-            poll_min=5.0,
-            poll_max=60.0,
-            rate_limit_floor=30.0,
-            clock=clock,
-        )
-
-        cadence.penalize(duration=100.0)
-        clock.now = 250.0
-
-        assert cadence.effective_min() == pytest.approx(5.0)
+        assert cadence.effective_min() == pytest.approx(expected)
 
     def test_yield_under_penalty_pulls_to_floor_not_poll_min(self) -> None:
         clock = FakeClock(start=100.0)
@@ -288,15 +217,9 @@ class TestPollerCadenceElapsedTracking:
 
 
 class TestApplyJitter:
-    def test_zero_ratio_returns_base_value(self) -> None:
-        assert apply_jitter(10.0, ratio=0.0) == pytest.approx(10.0)
-
-    def test_ratio_at_or_above_one_returns_base_value(self) -> None:
-        assert apply_jitter(10.0, ratio=1.0) == pytest.approx(10.0)
-        assert apply_jitter(10.0, ratio=1.5) == pytest.approx(10.0)
-
-    def test_negative_ratio_returns_base_value(self) -> None:
-        assert apply_jitter(10.0, ratio=-0.1) == pytest.approx(10.0)
+    @pytest.mark.parametrize('ratio', [-0.1, 0.0, 1.0, 1.5])
+    def test_out_of_range_ratio_returns_base_value(self, ratio: float) -> None:
+        assert apply_jitter(10.0, ratio=ratio) == pytest.approx(10.0)
 
     def test_jittered_value_stays_within_ratio(self) -> None:
         rng = random.Random(42)
