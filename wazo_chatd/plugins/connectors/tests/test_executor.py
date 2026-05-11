@@ -233,7 +233,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
         result = await self.executor.route_outbound_delivery('1')
 
-        assert result == 30.0
+        assert result == pytest.approx(30.0)
 
     async def test_rate_limited_returns_provider_retry_after(self) -> None:
         self.connector.send_side_effect = ConnectorRateLimited(
@@ -242,7 +242,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
         result = await self.executor.route_outbound_delivery('1')
 
-        assert result == 42.0
+        assert result == pytest.approx(42.0)
 
     async def test_rate_limited_caps_retry_after_at_max(self) -> None:
         self.connector.send_side_effect = ConnectorRateLimited(
@@ -251,7 +251,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
         result = await self.executor.route_outbound_delivery('1')
 
-        assert result == 3600.0
+        assert result == pytest.approx(3600.0)
 
     async def test_rate_limited_still_increments_retry_count(self) -> None:
         self.connector.send_side_effect = ConnectorRateLimited(
@@ -939,7 +939,10 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
 
         result = await self.executor.recover_pending_deliveries()
 
-        assert result == [('42', 0.0)]
+        assert len(result) == 1
+        delivery_id, delay = result[0]
+        assert delivery_id == '42'
+        assert delay == pytest.approx(0.0)
 
     async def test_retrying_delivery_recovered_with_delay(self) -> None:
         self.executor._room_dao.get_recoverable_deliveries = AsyncMock(
@@ -950,14 +953,14 @@ class TestDeliveryExecutorRecovery(unittest.IsolatedAsyncioTestCase):
 
         assert len(result) == 1
         _, delay = result[0]
-        assert delay == 30.0
+        assert delay == pytest.approx(30.0)
 
 
 class TestConnectorRateLimitedException(unittest.TestCase):
     def test_carries_retry_after(self) -> None:
         exc = ConnectorRateLimited('rate limited', retry_after=120.0)
 
-        assert exc.retry_after == 120.0
+        assert exc.retry_after == pytest.approx(120.0)
         assert str(exc) == 'rate limited'
 
     def test_is_subclass_of_connector_send_error(self) -> None:

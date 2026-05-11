@@ -78,7 +78,11 @@ _DEFAULT_CONFIG = {
         'provider_cache_ttl': 300,
         'poll_interval_min': 5,
         'poll_interval_max': 60,
-        'poll_interval_default': 30,
+        'poll_tau_speedup': 5,
+        'poll_tau_slowdown': 60,
+        'poll_jitter_ratio': 0.1,
+        'poll_rate_limit_floor': 30,
+        'poll_rate_limit_window': 300,
     },
     'initialization': {
         'enabled': True,

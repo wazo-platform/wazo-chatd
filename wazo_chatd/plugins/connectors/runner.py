@@ -9,8 +9,10 @@ import concurrent.futures
 import functools
 import itertools
 import logging
+import random
 import threading
 from collections.abc import Callable, Coroutine, Iterable
+from time import monotonic
 from types import TracebackType
 from typing import Any, ClassVar
 
@@ -26,6 +28,7 @@ from wazo_chatd.database.async_helpers import (
 )
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugin_helpers.queue import AsyncQueue, QueueFull
+from wazo_chatd.plugins.connectors.cadence import PollerCadence, apply_jitter
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.executor import MAX_RETRY_AFTER, DeliveryExecutor
@@ -265,7 +268,15 @@ class DeliveryRunner(Runner):
         self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
         self._poll_min = float(config['delivery'].get('poll_interval_min', 5))
         self._poll_max = float(config['delivery'].get('poll_interval_max', 60))
-        self._poll_default = float(config['delivery'].get('poll_interval_default', 30))
+        self._tau_speedup = float(config['delivery'].get('poll_tau_speedup', 5))
+        self._tau_slowdown = float(config['delivery'].get('poll_tau_slowdown', 60))
+        self._jitter_ratio = float(config['delivery'].get('poll_jitter_ratio', 0.1))
+        self._rate_limit_floor = float(
+            config['delivery'].get('poll_rate_limit_floor', 30)
+        )
+        self._rate_limit_window = float(
+            config['delivery'].get('poll_rate_limit_window', 300)
+        )
 
         self._db_uri = str(config.get('db_uri', ''))
         engine, session_factory = init_async_db(self._db_uri)
@@ -641,24 +652,45 @@ class DeliveryRunner(Runner):
 
     async def _run_poller(self, key: CacheKey, instance: Connector) -> None:
         tenant_uuid, backend = key
-        interval = self._poll_default
+        await asyncio.sleep(random.uniform(0, self._poll_min))
+
+        cadence = PollerCadence(
+            poll_min=self._poll_min,
+            poll_max=self._poll_max,
+            tau_speedup=self._tau_speedup,
+            tau_slowdown=self._tau_slowdown,
+            rate_limit_floor=self._rate_limit_floor,
+            clock=monotonic,
+        )
+
         while True:
             try:
-                yielded = await self._scan_inbound(instance, key)
-                yielded |= await self._track_outbound(instance, tenant_uuid, backend)
-                interval = (
-                    self._poll_min if yielded else min(interval * 2, self._poll_max)
-                )
+                did_work = await self._scan_inbound(instance, key)
+                did_work |= await self._track_outbound(instance, tenant_uuid, backend)
+                cadence.step(did_work=did_work)
             except asyncio.CancelledError:
                 logger.info('Poller for %s cancelled', key)
                 raise
             except ConnectorRateLimited as exc:
-                interval = min(exc.retry_after, MAX_RETRY_AFTER)
-                logger.info('Poller for %s rate-limited, sleeping %.1fs', key, interval)
+                sleep_for = min(exc.retry_after, MAX_RETRY_AFTER)
+                logger.info(
+                    'Poller for %s rate-limited, sleeping %.1fs', key, sleep_for
+                )
+                cadence.penalize(duration=self._rate_limit_window)
+                await asyncio.sleep(sleep_for)
+                cadence.reset_step_clock()
+                continue
             except Exception:
-                logger.exception('Poller for %s hit unexpected error, continuing', key)
-                interval = min(interval * 2, self._poll_max)
-            await asyncio.sleep(interval)
+                logger.exception(
+                    'Poller for %s hit unexpected error, throttling for %ds',
+                    key,
+                    self._rate_limit_window,
+                )
+                cadence.penalize(duration=self._rate_limit_window)
+                cadence.step(did_work=False)
+
+            sleep_for = apply_jitter(cadence.next_interval(), ratio=self._jitter_ratio)
+            await asyncio.sleep(sleep_for)
 
     async def _scan_inbound(self, instance: Connector, key: CacheKey) -> bool:
         try:
