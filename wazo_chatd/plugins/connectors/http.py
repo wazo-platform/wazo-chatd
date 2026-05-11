@@ -22,6 +22,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     WebhookTransientException,
 )
 from wazo_chatd.plugins.connectors.schemas import (
+    connector_inventory_item_schema,
     connector_schema,
     identity_create_schema,
     identity_schema,
@@ -108,6 +109,21 @@ class ConnectorListResource(AuthResource):
         scheme = request.headers.get('X-Forwarded-Proto', request.scheme)
         prefix = request.headers.get('X-Script-Name', '')
         return f'{scheme}://{request.host}{prefix}'
+
+
+class ConnectorInventoryResource(AuthResource):
+    def __init__(self, router: ConnectorRouter) -> None:
+        self._router = router
+
+    @required_acl('chatd.connectors.{backend}.inventory.read')
+    def get(self, backend: str) -> tuple[dict[str, Any], int]:
+        tenant_uuid = get_tenant_uuids(recurse=False)[0]
+        items = self._router.list_connector_inventory(tenant_uuid, backend)
+
+        return {
+            'items': connector_inventory_item_schema.dump(items, many=True),
+            'total': len(items),
+        }, 200
 
 
 class IdentityListResource(AuthResource):

@@ -87,6 +87,28 @@ class UnknownBackendException(APIException):
         )
 
 
+class NoSuchConnectorException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            404,
+            f'No such connector {backend!r}',
+            'no-such-connector',
+            {'backend': backend},
+            'connectors',
+        )
+
+
+class InventoryNotSupportedException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            501,
+            f'Connector {backend!r} does not support inventory listing',
+            'inventory-not-supported',
+            {'backend': backend},
+            'connectors',
+        )
+
+
 class BackendNotConfiguredException(APIException):
     def __init__(self, backend: str, tenant_uuid: str) -> None:
         super().__init__(

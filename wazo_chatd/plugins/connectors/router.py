@@ -16,7 +16,9 @@ from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorAuthException,
     ConnectorParseError,
     ConnectorTransientError,
+    InventoryNotSupportedException,
     MessageIdentityRequiredException,
+    NoSuchConnectorException,
     UnknownBackendException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -111,6 +113,41 @@ class ConnectorRouter:
                     'name': name,
                     'supported_types': list(cls.supported_types),
                     'configured': configured,
+                }
+            )
+
+        return result
+
+    def list_connector_inventory(
+        self, tenant_uuid: str, backend: str
+    ) -> list[dict[str, object]]:
+        if backend not in self._registry.available_backends():
+            raise NoSuchConnectorException(backend)
+
+        connector = self._store.get(backend, tenant_uuid)
+
+        try:
+            provider_identities = connector.list_provider_identities()
+        except NotImplementedError:
+            raise InventoryNotSupportedException(backend)
+
+        existing = self._dao.user_identity.list_(
+            tenant_uuids=[tenant_uuid], backends=[backend]
+        )
+        bindings = {str(u.identity): u for u in existing}
+
+        result: list[dict[str, object]] = []
+        for pi in provider_identities:
+            bound = bindings.get(pi.identity)
+            result.append(
+                {
+                    'identity': pi.identity,
+                    'type_': pi.type,
+                    'binding': (
+                        {'uuid': str(bound.uuid), 'user_uuid': str(bound.user_uuid)}
+                        if bound
+                        else None
+                    ),
                 }
             )
 

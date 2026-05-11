@@ -50,6 +50,18 @@ class ConnectorSchema(Schema):
     webhook_url = fields.String(dump_only=True)
 
 
+class IdentityBindingSchema(Schema):
+    uuid = fields.UUID(dump_only=True)
+    user_uuid = fields.UUID(dump_only=True)
+
+
+class ConnectorInventoryItemSchema(Schema):
+    identity = fields.String(dump_only=True)
+    type_ = fields.String(dump_only=True, data_key='type')
+    binding = fields.Nested(IdentityBindingSchema, dump_only=True, allow_none=True)
+
+
+connector_inventory_item_schema = ConnectorInventoryItemSchema()
 connector_schema = ConnectorSchema()
 identity_create_schema = IdentityCreateSchema()
 identity_schema = IdentitySchema()

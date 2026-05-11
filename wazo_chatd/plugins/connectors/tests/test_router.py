@@ -11,10 +11,13 @@ from unittest.mock import Mock
 import pytest
 
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
+from wazo_chatd.plugins.connectors.connector import ProviderIdentity
 from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorAuthException,
     ConnectorParseError,
+    InventoryNotSupportedException,
     MessageIdentityRequiredException,
+    NoSuchConnectorException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
@@ -509,3 +512,75 @@ class TestConnectorRouterEmptyRegistry(unittest.TestCase):
             delivery_mock.assert_called_once()
             listener_mock.assert_called_once()
             assert router._delivery_runner is not router._listener_runner
+
+
+class TestConnectorRouterListConnectorInventory(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dao = Mock()
+        self.dao.user_identity.list_.return_value = []
+        self.router = _build_router(dao=self.dao)
+        self.router._store = Mock()
+
+    def test_unknown_backend_raises_no_such_connector(self) -> None:
+        with pytest.raises(NoSuchConnectorException):
+            self.router.list_connector_inventory('tenant-uuid', 'nonexistent')
+
+    def test_backend_without_capability_raises_inventory_not_supported(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.side_effect = NotImplementedError()
+        self.router._store.get.return_value = connector
+
+        with pytest.raises(InventoryNotSupportedException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_returns_provider_identities_with_null_binding_when_unbound(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.return_value = [
+            ProviderIdentity(identity='+15551234', type='sms'),
+        ]
+        self.router._store.get.return_value = connector
+
+        result = self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+        assert result == [
+            {'identity': '+15551234', 'type_': 'sms', 'binding': None},
+        ]
+
+    def test_returns_provider_identities_with_binding_when_bound(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.return_value = [
+            ProviderIdentity(identity='+15551234', type='sms'),
+            ProviderIdentity(identity='+15555678', type='sms'),
+        ]
+        self.router._store.get.return_value = connector
+
+        bound = Mock()
+        bound.identity = '+15551234'
+        bound.uuid = uuid.UUID('00000000-0000-0000-0000-000000000001')
+        bound.user_uuid = uuid.UUID('00000000-0000-0000-0000-000000000002')
+        self.dao.user_identity.list_.return_value = [bound]
+
+        result = self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+        assert result == [
+            {
+                'identity': '+15551234',
+                'type_': 'sms',
+                'binding': {
+                    'uuid': str(bound.uuid),
+                    'user_uuid': str(bound.user_uuid),
+                },
+            },
+            {'identity': '+15555678', 'type_': 'sms', 'binding': None},
+        ]
+
+    def test_binding_query_scoped_to_tenant_and_backend(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.return_value = []
+        self.router._store.get.return_value = connector
+
+        self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+        self.dao.user_identity.list_.assert_called_once_with(
+            tenant_uuids=['tenant-uuid'], backends=['sms_backend']
+        )

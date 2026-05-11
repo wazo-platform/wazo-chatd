@@ -17,6 +17,41 @@ paths:
           description: Connector list
           schema:
             $ref: '#/definitions/ConnectorList'
+  /connectors/{backend}/inventory:
+    get:
+      operationId: list_connector_inventory
+      summary: List identities the provider reports this tenant owns
+      description: |
+        **Required ACL:** `chatd.connectors.{backend}.inventory.read`
+
+        Each item carries the provider-reported identity and its
+        binding to a Wazo user (``null`` when unbound).
+      tags:
+      - connectors
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - name: backend
+        in: path
+        type: string
+        description: The backend name
+        required: true
+      responses:
+        '200':
+          description: Inventory list
+          schema:
+            $ref: '#/definitions/ConnectorInventoryList'
+        '400':
+          description: Backend not configured for this tenant
+          schema:
+            $ref: '#/definitions/APIError'
+        '404':
+          description: No such connector
+          schema:
+            $ref: '#/definitions/APIError'
+        '501':
+          description: Connector does not support inventory listing
+          schema:
+            $ref: '#/definitions/APIError'
   /identities:
     get:
       operationId: list_identities
@@ -267,6 +302,40 @@ definitions:
       webhook_url:
         type: string
         description: URL to point this provider's webhook at
+
+  ConnectorInventoryList:
+    title: ConnectorInventoryList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/ConnectorInventoryItem'
+      total:
+        type: integer
+        description: The number of results
+
+  ConnectorInventoryItem:
+    title: ConnectorInventoryItem
+    properties:
+      identity:
+        type: string
+        description: The external identity value
+      type:
+        type: string
+        description: The messaging type
+      binding:
+        $ref: '#/definitions/ConnectorInventoryBinding'
+        description: Wazo binding for this identity, or null when unbound
+
+  ConnectorInventoryBinding:
+    title: ConnectorInventoryBinding
+    properties:
+      uuid:
+        type: string
+        description: The UUID of the bound UserIdentity row
+      user_uuid:
+        type: string
+        description: The UUID of the user the identity is bound to
 
   UserIdentityList:
     title: UserIdentityList
