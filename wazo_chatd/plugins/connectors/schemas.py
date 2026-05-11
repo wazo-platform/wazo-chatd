@@ -53,14 +53,8 @@ class UserIdentitySchema(IdentitySchema):
         fields = ('uuid', 'backend', 'type_', 'identity')
 
 
-class IdentityCreateSchema(Schema):
-    user_uuid = fields.UUID(required=True)
-    backend = fields.String(required=True, validate=validate.Length(min=1))
-    type_ = fields.String(
-        required=True, data_key='type', validate=validate.Length(min=1)
-    )
-    identity = fields.String(required=True, validate=validate.Length(min=1))
-    extra = fields.Dict(load_default=dict)
+class IdentityCreateSchema(IdentitySchema):
+    user_uuid = fields.UUID(required=True, load_only=True)
 
 
 class IdentityUpdateSchema(Schema):
@@ -97,6 +91,18 @@ class ConnectorSchema(Schema):
     configured = fields.Boolean(dump_only=True)
 
 
+class IdentityBindingSchema(Schema):
+    identity_uuid = fields.UUID(dump_only=True)
+    user_uuid = fields.UUID(dump_only=True)
+
+
+class ConnectorIdentityItemSchema(Schema):
+    identity = fields.String(dump_only=True)
+    capabilities = fields.List(fields.String(), dump_only=True)
+    binding = fields.Nested(IdentityBindingSchema, dump_only=True, allow_none=True)
+
+
+connector_identity_item_schema = ConnectorIdentityItemSchema()
 connector_schema = ConnectorSchema()
 identity_create_schema = IdentityCreateSchema()
 identity_list_request_schema = IdentityListRequestSchema()

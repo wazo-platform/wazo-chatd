@@ -670,7 +670,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
         assert step_sleeps[2] == pytest.approx(loop._poll_min, abs=0.01)
         assert step_sleeps[3] > step_sleeps[2]
 
-    async def test_rate_limited_uses_provider_retry_after(self) -> None:
+    async def test_rate_limited_uses_backend_retry_after(self) -> None:
         loop = self._make_loop()
 
         intervals = await _run_poller_capturing_sleeps(

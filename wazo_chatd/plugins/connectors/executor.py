@@ -287,7 +287,7 @@ class DeliveryExecutor:
         status_map = getattr(backend_cls, 'status_map', {})
         if (mapped_status := status_map.get(update.status)) is None:
             logger.debug(
-                'Ignoring unmapped provider status %r for %s',
+                'Ignoring unmapped backend status %r for %s',
                 update.status,
                 update.external_id,
             )

@@ -23,6 +23,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     WebhookTransientException,
 )
 from wazo_chatd.plugins.connectors.schemas import (
+    connector_identity_item_schema,
     connector_schema,
     identity_create_schema,
     identity_list_request_schema,
@@ -64,7 +65,7 @@ class ConnectorWebhookResource(ErrorCatchingResource):
             raise WebhookParseException() from None
         except ConnectorTransientError as exc:
             logger.warning(
-                'Webhook deferred (backend=%s): %s — provider should retry',
+                'Webhook deferred (backend=%s): %s — backend should retry',
                 backend,
                 exc,
             )
@@ -98,6 +99,21 @@ class ConnectorListResource(AuthResource):
 
         return {
             'items': connector_schema.dump(items, many=True),
+            'total': len(items),
+        }, 200
+
+
+class ConnectorIdentitiesResource(AuthResource):
+    def __init__(self, router: ConnectorRouter) -> None:
+        self._router = router
+
+    @required_acl('chatd.connectors.{backend}.identities.read')
+    def get(self, backend: str) -> tuple[dict[str, Any], int]:
+        tenant_uuid = get_tenant_uuids(recurse=False)[0]
+        items = self._router.list_connector_identities(tenant_uuid, backend)
+
+        return {
+            'items': connector_identity_item_schema.dump(items, many=True),
             'total': len(items),
         }, 200
 
@@ -139,7 +155,7 @@ class IdentityListResource(AuthResource):
             **body,
         )
         created = self._service.create_identity(identity)
-        self._router.reconcile_tenant_backend(tenant_uuid, backend)
+        self._router.reconcile_after_create()
 
         return identity_schema.dump(created), 201
 
@@ -184,7 +200,7 @@ class IdentityItemResource(AuthResource):
         tenant_uuid = str(identity.tenant_uuid)
         backend = str(identity.backend)
         self._service.delete_identity(identity)
-        self._router.reconcile_tenant_backend(tenant_uuid, backend)
+        self._router.reconcile_after_delete(tenant_uuid, backend)
 
         return '', 204
 

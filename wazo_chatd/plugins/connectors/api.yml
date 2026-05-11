@@ -17,6 +17,45 @@ paths:
           description: Connector list
           schema:
             $ref: '#/definitions/ConnectorList'
+  /connectors/{backend}/identities:
+    get:
+      operationId: list_connector_identities
+      summary: List identities the backend reports this tenant owns
+      description: |
+        **Required ACL:** `chatd.connectors.{backend}.identities.read`
+
+        Each item carries the backend-reported identity and its
+        binding to a Wazo user (``null`` when unbound).
+      tags:
+      - connectors
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - name: backend
+        in: path
+        type: string
+        description: The backend name
+        required: true
+      responses:
+        '200':
+          description: Identity list
+          schema:
+            $ref: '#/definitions/ConnectorIdentityList'
+        '400':
+          description: Backend not configured for this tenant
+          schema:
+            $ref: '#/definitions/APIError'
+        '404':
+          description: No such connector
+          schema:
+            $ref: '#/definitions/APIError'
+        '501':
+          description: Connector does not support listing identities
+          schema:
+            $ref: '#/definitions/APIError'
+        '502':
+          description: Connector failed to list identities
+          schema:
+            $ref: '#/definitions/APIError'
   /identities:
     get:
       operationId: list_identities
@@ -208,7 +247,7 @@ paths:
           schema:
             $ref: '#/definitions/APIError'
         '503':
-          description: Webhook deferred; provider should retry
+          description: Webhook deferred; backend should retry
           schema:
             $ref: '#/definitions/APIError'
   /connectors/incoming/{backend}:
@@ -245,7 +284,7 @@ paths:
           schema:
             $ref: '#/definitions/APIError'
         '503':
-          description: Webhook deferred; provider should retry
+          description: Webhook deferred; backend should retry
           schema:
             $ref: '#/definitions/APIError'
 
@@ -302,6 +341,42 @@ definitions:
       configured:
         type: boolean
         description: Whether wazo-auth has external credentials for this tenant
+
+  ConnectorIdentityList:
+    title: ConnectorIdentityList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/ConnectorIdentityItem'
+      total:
+        type: integer
+        description: The number of results
+
+  ConnectorIdentityItem:
+    title: ConnectorIdentityItem
+    properties:
+      identity:
+        type: string
+        description: The external identity value
+      capabilities:
+        type: array
+        items:
+          type: string
+        description: Messaging capabilities of this identity (e.g. ["sms"], ["sms", "mms"])
+      binding:
+        $ref: '#/definitions/ConnectorIdentityBinding'
+        description: Wazo binding for this identity, or null when unbound
+
+  ConnectorIdentityBinding:
+    title: ConnectorIdentityBinding
+    properties:
+      identity_uuid:
+        type: string
+        description: The UUID of the bound UserIdentity row
+      user_uuid:
+        type: string
+        description: The UUID of the user the identity is bound to
 
   UserIdentityList:
     title: UserIdentityList

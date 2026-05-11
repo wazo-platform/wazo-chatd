@@ -81,7 +81,7 @@ class InboundMessage:
     metadata: Mapping[str, Any] = field(default_factory=dict)
     """Backend-specific extra data.
 
-    If the provider supplies an idempotency key, include it as
+    If the backend supplies an idempotency key, include it as
     ``idempotency_key``.  The router uses this to deduplicate inbound
     messages via a GIN-indexed JSONB lookup on MessageMeta.extra.
     """

@@ -14,9 +14,12 @@ from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableException,
     BackendNotConfiguredException,
     ConnectorAuthException,
+    ConnectorIdentitiesNotSupportedException,
+    ConnectorIdentitiesUnavailableException,
     ConnectorParseError,
     ConnectorTransientError,
     MessageIdentityRequiredException,
+    NoSuchConnectorException,
     UnknownBackendException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
@@ -40,6 +43,10 @@ if TYPE_CHECKING:
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
+
+
+def _not_implemented() -> list:
+    raise NotImplementedError
 
 
 class ConnectorRouter:
@@ -70,7 +77,7 @@ class ConnectorRouter:
         self._store = ConnectorStore(
             auth_client,
             registry,
-            cache_ttl=float(delivery_config.get('provider_cache_ttl', 300)),
+            cache_ttl=float(delivery_config.get('backend_cache_ttl', 300)),
             connectors_config=connectors_config,
         )
         if not registry.available_backends():
@@ -132,6 +139,52 @@ class ConnectorRouter:
         self._delivery_runner.resync_pollers()
         self._listener_runner.resync()
 
+    def list_connector_identities(
+        self, tenant_uuid: str, backend: str
+    ) -> list[dict[str, object]]:
+        if backend not in self._registry.available_backends():
+            raise NoSuchConnectorException(backend)
+
+        connector = self._store.get(backend, tenant_uuid)
+
+        try:
+            backend_identities = connector.list_backend_identities()
+        except (AttributeError, NotImplementedError):
+            raise ConnectorIdentitiesNotSupportedException(backend) from None
+        except Exception:
+            logger.exception('Backend %r raised while listing identities', backend)
+            raise ConnectorIdentitiesUnavailableException(backend) from None
+
+        existing = self._dao.user_identity.list_(
+            tenant_uuids=[tenant_uuid], backends=[backend]
+        )
+        bindings = {str(u.identity): u for u in existing}
+
+        result: list[dict[str, object]] = []
+        for bi in backend_identities:
+            if not (
+                capabilities := [
+                    c for c in bi.capabilities if c in connector.supported_types
+                ]
+            ):
+                continue
+            bound = bindings.get(bi.identity)
+            result.append(
+                {
+                    'identity': bi.identity,
+                    'capabilities': capabilities,
+                    'binding': (
+                        {
+                            'identity_uuid': str(bound.uuid),
+                            'user_uuid': str(bound.user_uuid),
+                        }
+                        if bound
+                        else None
+                    ),
+                }
+            )
+
+        return result
 
     def validate_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
         """Validate a backend is usable for a tenant; caches on success.
@@ -143,12 +196,17 @@ class ConnectorRouter:
         """
         self._store.get(backend, tenant_uuid)
 
-    def reconcile_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
-        """Drop cached instance when no identity remains; always resync runners.
+    def reconcile_after_create(self) -> None:
+        """Resync runners after a UserIdentity create.
 
-        Called after a UserIdentity create or delete. The create path
-        relies on :meth:`validate_tenant_backend` to have warmed the cache.
+        Cache warming is handled by :meth:`validate_tenant_backend`
+        before insertion, so no store lookup is needed here.
         """
+        self._delivery_runner.resync_pollers()
+        self._listener_runner.resync()
+
+    def reconcile_after_delete(self, tenant_uuid: str, backend: str) -> None:
+        """Drop cached instance if last identity removed, then resync runners."""
         has_any = self._dao.user_identity.has_identities_for_backend(
             tenant_uuid, backend
         )

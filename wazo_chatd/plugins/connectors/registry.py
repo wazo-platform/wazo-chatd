@@ -147,4 +147,5 @@ class ConnectorRegistry:
             'Failed to load connector backend %s: %s',
             entry_point,
             exception,
+            exc_info=exception,
         )

@@ -4,7 +4,7 @@
 
 * New endpoints:
   * `GET /connectors` — list registered connector backends and their tenant-configured state
-  * `GET /connectors/{backend}/inventory` — list identities the provider reports this tenant owns
+  * `GET /connectors/{backend}/identities` — list identities the provider reports this tenant owns
   * `GET /identities` — list all identities visible to the tenant, with pagination, search, sort, and filters
   * `POST /identities` — create an identity for a user
   * `GET /identities/{identity_uuid}` — get an identity by UUID

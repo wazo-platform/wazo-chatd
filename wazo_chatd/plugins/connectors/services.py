@@ -102,7 +102,7 @@ class ConnectorService:
     def list_identities(
         self,
         tenant_uuids: list[str],
-        user_uuid: str,
+        user_uuid: str | None = None,
         only_registered: bool = False,
         **filter_parameters: Any,
     ) -> list[UserIdentity]:
@@ -113,9 +113,6 @@ class ConnectorService:
             identities = self._filter_by_registered_backends(identities)
         return identities
 
-    def list_all_identities(self, tenant_uuids: list[str]) -> list[UserIdentity]:
-        return self._dao.user_identity.list_(tenant_uuids=tenant_uuids)
-
     def count_identities(
         self,
         tenant_uuids: list[str],
@@ -124,6 +121,7 @@ class ConnectorService:
         return self._dao.user_identity.count(
             tenant_uuids=tenant_uuids, **filter_parameters
         )
+
 
     def _filter_by_registered_backends(
         self, identities: list[UserIdentity]

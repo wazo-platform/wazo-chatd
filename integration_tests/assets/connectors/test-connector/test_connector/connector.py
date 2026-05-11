@@ -11,6 +11,7 @@ from typing import Any, ClassVar
 import requests
 
 from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.connector import BackendIdentity
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
@@ -160,6 +161,12 @@ class TestConnector:
         if raw_identity.startswith('test:'):
             return raw_identity
         raise ValueError(f'Test connector expects "test:" prefix: {raw_identity}')
+
+    def list_backend_identities(self) -> list[BackendIdentity]:
+        return [
+            BackendIdentity(identity='test:backend-1', capabilities=('test',)),
+            BackendIdentity(identity='test:backend-2', capabilities=('test',)),
+        ]
 
     def _get_config(self) -> dict[str, str]:
         try:

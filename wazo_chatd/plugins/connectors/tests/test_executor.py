@@ -235,7 +235,7 @@ class TestDeliveryExecutorOutboundSend(unittest.IsolatedAsyncioTestCase):
 
         assert result == pytest.approx(30.0)
 
-    async def test_rate_limited_returns_provider_retry_after(self) -> None:
+    async def test_rate_limited_returns_backend_retry_after(self) -> None:
         self.connector.send_side_effect = ConnectorRateLimited(
             'rate limited', retry_after=42.0
         )
