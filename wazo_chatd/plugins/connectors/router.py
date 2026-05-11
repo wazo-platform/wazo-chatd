@@ -100,6 +100,22 @@ class ConnectorRouter:
         except Exception:
             logger.exception('Failed to populate connector store')
 
+    def list_connectors(self, tenant_uuid: str) -> list[dict[str, object]]:
+        result: list[dict[str, object]] = []
+
+        for name in self._registry.available_backends():
+            cls = self._registry.get_backend(name)
+            configured = self._store.find(name, tenant_uuid) is not None
+            result.append(
+                {
+                    'name': name,
+                    'supported_types': list(cls.supported_types),
+                    'configured': configured,
+                }
+            )
+
+        return result
+
     def validate_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
         """Validate a backend is usable for a tenant; caches on success.
 

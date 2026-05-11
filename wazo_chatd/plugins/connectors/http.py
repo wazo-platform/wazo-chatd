@@ -22,6 +22,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     WebhookTransientException,
 )
 from wazo_chatd.plugins.connectors.schemas import (
+    connector_schema,
     identity_create_schema,
     identity_schema,
     identity_update_schema,
@@ -82,6 +83,31 @@ class ConnectorWebhookResource(ErrorCatchingResource):
             content_type=request.content_type or '',
             url=build_public_url(request),
         )
+
+
+class ConnectorListResource(AuthResource):
+    def __init__(self, router: ConnectorRouter) -> None:
+        self._router = router
+
+    @required_acl('chatd.connectors.read')
+    def get(self) -> tuple[dict[str, Any], int]:
+        tenant_uuid = get_tenant_uuids(recurse=False)[0]
+        items = self._router.list_connectors(tenant_uuid)
+
+        webhook_root = self._webhook_root()
+        for item in items:
+            item['webhook_url'] = f'{webhook_root}/connectors/incoming/{item["name"]}'
+
+        return {
+            'items': connector_schema.dump(items, many=True),
+            'total': len(items),
+        }, 200
+
+    @staticmethod
+    def _webhook_root() -> str:
+        scheme = request.headers.get('X-Forwarded-Proto', request.scheme)
+        prefix = request.headers.get('X-Script-Name', '')
+        return f'{scheme}://{request.host}{prefix}'
 
 
 class IdentityListResource(AuthResource):

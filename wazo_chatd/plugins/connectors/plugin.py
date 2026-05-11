@@ -9,6 +9,7 @@ from wazo_auth_client import Client as AuthClient
 
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
 from wazo_chatd.plugins.connectors.http import (
+    ConnectorListResource,
     ConnectorWebhookResource,
     IdentityItemResource,
     IdentityListResource,
@@ -57,6 +58,11 @@ class Plugin:
             ConnectorWebhookResource,
             '/connectors/incoming',
             '/connectors/incoming/<backend>',
+            resource_class_args=[router],
+        )
+        api.add_resource(
+            ConnectorListResource,
+            '/connectors',
             resource_class_args=[router],
         )
         api.add_resource(

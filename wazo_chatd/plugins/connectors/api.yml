@@ -1,4 +1,22 @@
 paths:
+  /connectors:
+    get:
+      operationId: list_connectors
+      summary: List capability metadata for every registered backend
+      description: |
+        **Required ACL:** `chatd.connectors.read`
+
+        Returns supported types, webhook URL, and tenant-configured
+        state for each registered backend.
+      tags:
+      - connectors
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      responses:
+        '200':
+          description: Connector list
+          schema:
+            $ref: '#/definitions/ConnectorList'
   /identities:
     get:
       operationId: list_identities
@@ -221,6 +239,35 @@ parameters:
     required: true
 
 definitions:
+  ConnectorList:
+    title: ConnectorList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Connector'
+      total:
+        type: integer
+        description: The number of results
+
+  Connector:
+    title: Connector
+    properties:
+      name:
+        type: string
+        description: The backend identifier
+      supported_types:
+        type: array
+        items:
+          type: string
+        description: Messaging types this backend can handle
+      configured:
+        type: boolean
+        description: Whether wazo-auth has external credentials for this tenant
+      webhook_url:
+        type: string
+        description: URL to point this provider's webhook at
+
   UserIdentityList:
     title: UserIdentityList
     properties:

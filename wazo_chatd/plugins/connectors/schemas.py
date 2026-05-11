@@ -43,6 +43,14 @@ class UserIdentityListRequestSchema(Schema):
     room_uuid = fields.UUID(load_default=None)
 
 
+class ConnectorSchema(Schema):
+    name = fields.String(dump_only=True)
+    supported_types = fields.List(fields.String(), dump_only=True)
+    configured = fields.Boolean(dump_only=True)
+    webhook_url = fields.String(dump_only=True)
+
+
+connector_schema = ConnectorSchema()
 identity_create_schema = IdentityCreateSchema()
 identity_schema = IdentitySchema()
 identity_update_schema = IdentityUpdateSchema()
