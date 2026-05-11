@@ -11,6 +11,7 @@ from typing import Any, ClassVar
 import requests
 
 from wazo_chatd.database.delivery import DeliveryStatus
+from wazo_chatd.plugins.connectors.connector import ProviderIdentity
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
@@ -160,6 +161,12 @@ class TestConnector:
         if raw_identity.startswith('test:'):
             return raw_identity
         raise ValueError(f'Test connector expects "test:" prefix: {raw_identity}')
+
+    def list_provider_identities(self) -> list[ProviderIdentity]:
+        return [
+            ProviderIdentity(identity='test:provider-1', type='test'),
+            ProviderIdentity(identity='test:provider-2', type='test'),
+        ]
 
     def _get_config(self) -> dict[str, str]:
         try:
