@@ -53,8 +53,9 @@ class ConnectorService:
         self._auth_client = auth_client
 
     def get_user_tenant_uuid(self, tenant_uuids: Iterable[str], user_uuid: str) -> str:
+        visible_tenants = list(tenant_uuids)
         try:
-            user = self._dao.user.get(tenant_uuids, user_uuid)
+            user = self._dao.user.get(visible_tenants, user_uuid)
             return str(user.tenant_uuid)
         except UnknownUserException:
             logger.debug(
@@ -64,8 +65,6 @@ class ConnectorService:
         try:
             user_data = self._auth_client.users.get(user_uuid)
             tenant_uuid = str(user_data['tenant_uuid'])
-            self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
-            return tenant_uuid
         except HTTPError as e:
             if (status := getattr(e.response, 'status_code', None)) == 404:
                 raise UnknownUserException(user_uuid)
@@ -73,6 +72,12 @@ class ConnectorService:
             raise AuthServiceUnavailableException()
         except RequestException:
             raise AuthServiceUnavailableException()
+
+        if tenant_uuid not in visible_tenants:
+            raise UnknownUserException(user_uuid)
+
+        self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
+        return tenant_uuid
 
     def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
         return self._dao.user_identity.resolve_users_by_identities(identities)

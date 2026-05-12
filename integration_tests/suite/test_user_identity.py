@@ -21,6 +21,7 @@ USER_UUID = uuid.uuid4()
 USER_A_UUID = uuid.uuid4()
 USER_B_UUID = uuid.uuid4()
 OTHER_TENANT_USER_UUID = uuid.uuid4()
+OTHER_TENANT_UUID = uuid.uuid4()
 
 
 @use_asset('connectors')
@@ -329,6 +330,28 @@ class TestIdentityCreate(ConnectorIntegrationTest):
             )
 
         assert exc_info.value.status_code == 404
+
+    def test_create_for_user_in_other_tenant_returns_404(self):
+        target_user_uuid = uuid.uuid4()
+        self.auth.set_users(
+            {
+                'uuid': str(target_user_uuid),
+                'tenant_uuid': str(OTHER_TENANT_UUID),
+            }
+        )
+
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.create(
+                {
+                    'user_uuid': str(target_user_uuid),
+                    'backend': 'test',
+                    'type': 'test',
+                    'identity': 'test:cross-tenant-create',
+                }
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.error_id == 'unknown-user'
 
     @fixtures.db.user(uuid=USER_A_UUID)
     def test_create_unknown_backend_returns_400(self, user):
