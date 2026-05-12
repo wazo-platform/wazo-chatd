@@ -392,6 +392,27 @@ class TestIdentityUpdate(ConnectorIntegrationTest):
 
         assert exc_info.value.status_code == 404
 
+    @fixtures.db.user(uuid=USER_A_UUID, tenant_uuid=TOKEN_TENANT_UUID)
+    @fixtures.db.user(uuid=OTHER_TENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_A_UUID,
+        tenant_uuid=TOKEN_TENANT_UUID,
+        backend='test',
+        type_='test',
+        identity='test:cross-tenant',
+    )
+    def test_update_reassign_to_other_tenant_returns_404(
+        self, user_a, other_tenant_user, identity
+    ):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.update(
+                str(identity.uuid),
+                {'user_uuid': str(OTHER_TENANT_USER_UUID)},
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.error_id == 'unknown-user'
+
 
 @use_asset('connectors')
 class TestIdentityDelete(ConnectorIntegrationTest):
