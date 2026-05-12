@@ -318,6 +318,35 @@ class TestIdentityCreate(ConnectorIntegrationTest):
         assert result['identity'] == 'test:create'
         uuid.UUID(result['uuid'])
 
+    @fixtures.db.user(uuid=USER_A_UUID)
+    def test_create_oversized_identity_returns_400(self, user):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.create(
+                {
+                    'user_uuid': str(USER_A_UUID),
+                    'backend': 'test',
+                    'type': 'test',
+                    'identity': 'x' * 257,
+                }
+            )
+
+        assert exc_info.value.status_code == 400
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    def test_create_oversized_extra_returns_400(self, user):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.create(
+                {
+                    'user_uuid': str(USER_A_UUID),
+                    'backend': 'test',
+                    'type': 'test',
+                    'identity': 'test:oversize-extra',
+                    'extra': {'blob': 'x' * 5000},
+                }
+            )
+
+        assert exc_info.value.status_code == 400
+
     def test_create_unknown_user_returns_404(self):
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.identities.create(
