@@ -238,6 +238,42 @@ class TestIdentityList(ConnectorIntegrationTest):
 
 
 @use_asset('connectors')
+class TestIdentityListPagination(ConnectorIntegrationTest):
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:a')
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:b')
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:c')
+    def test_limit_caps_items_and_separates_total_from_filtered(
+        self, user, a, b, c
+    ):
+        result = self.chatd.identities.list(limit=2)
+
+        assert [i['identity'] for i in result['items']] == ['test:a', 'test:b']
+        assert result['filtered'] == 3
+        assert result['total'] == 3
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_A_UUID, backend='test', identity='test:1'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_A_UUID, backend='other', identity='other:1'
+    )
+    def test_filter_reflects_in_filtered_but_not_total(self, user, t, o):
+        result = self.chatd.identities.list(backend='test')
+
+        assert [i['identity'] for i in result['items']] == ['test:1']
+        assert result['filtered'] == 1
+        assert result['total'] == 2
+
+    def test_invalid_order_returns_400(self):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.list(order='not_a_column')
+
+        assert exc_info.value.status_code == 400
+
+
+@use_asset('connectors')
 class TestIdentityItem(ConnectorIntegrationTest):
     @fixtures.db.user(uuid=USER_A_UUID)
     @fixtures.db.user_identity(

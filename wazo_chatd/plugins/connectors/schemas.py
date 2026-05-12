@@ -3,6 +3,7 @@
 
 from marshmallow import validate
 from xivo.mallow import fields
+from xivo.mallow_helpers import ListSchema as _ListSchema
 from xivo.mallow_helpers import Schema
 
 
@@ -37,6 +38,13 @@ class UserIdentityListRequestSchema(Schema):
     room_uuid = fields.UUID(load_default=None)
 
 
+class IdentityListRequestSchema(_ListSchema):
+    default_sort_column = 'identity'
+    sort_columns = ['uuid', 'backend', 'type_', 'identity']
+    searchable_columns = ['user_uuid', 'backend', 'type_', 'identity']
+    default_direction = 'asc'
+
+
 class ConnectorSchema(Schema):
     name = fields.String(dump_only=True)
     supported_types = fields.List(fields.String(), dump_only=True)
@@ -58,6 +66,7 @@ class ConnectorInventoryItemSchema(Schema):
 connector_inventory_item_schema = ConnectorInventoryItemSchema()
 connector_schema = ConnectorSchema()
 identity_create_schema = IdentityCreateSchema()
+identity_list_request_schema = IdentityListRequestSchema()
 identity_schema = IdentitySchema()
 identity_update_schema = IdentityUpdateSchema()
 user_identity_list_request_schema = UserIdentityListRequestSchema()

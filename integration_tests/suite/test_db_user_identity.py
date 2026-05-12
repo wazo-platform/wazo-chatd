@@ -285,3 +285,146 @@ class TestUserIdentity(DBIntegrationTest):
             )
             is False
         )
+
+
+@use_asset('database')
+class TestUserIdentityListPagination(DBIntegrationTest):
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='a'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='b'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='c'
+    )
+    def test_list_orders_by_identity_asc_by_default(self, user, i1, i2, i3):
+        results = self._dao.user_identity.list_(tenant_uuids=[str(TENANT_1)])
+
+        assert [r.identity for r in results] == ['a', 'b', 'c']
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='a'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='b'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='c'
+    )
+    def test_list_respects_limit(self, user, i1, i2, i3):
+        results = self._dao.user_identity.list_(tenant_uuids=[str(TENANT_1)], limit=2)
+
+        assert [r.identity for r in results] == ['a', 'b']
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='a'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='b'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='c'
+    )
+    def test_list_respects_offset(self, user, i1, i2, i3):
+        results = self._dao.user_identity.list_(tenant_uuids=[str(TENANT_1)], offset=1)
+
+        assert [r.identity for r in results] == ['b', 'c']
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='a'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='b'
+    )
+    def test_list_supports_direction_desc(self, user, i1, i2):
+        results = self._dao.user_identity.list_(
+            tenant_uuids=[str(TENANT_1)], order='identity', direction='desc'
+        )
+
+        assert [r.identity for r in results] == ['b', 'a']
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='alpha'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='banana'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='cherry'
+    )
+    def test_list_search_filters_by_identity_substring(self, user, i1, i2, i3):
+        results = self._dao.user_identity.list_(
+            tenant_uuids=[str(TENANT_1)], search='an'
+        )
+
+        assert [r.identity for r in results] == ['banana']
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='Banana'
+    )
+    def test_list_search_is_case_insensitive(self, user, i1):
+        results = self._dao.user_identity.list_(
+            tenant_uuids=[str(TENANT_1)], search='BAN'
+        )
+
+        assert [r.identity for r in results] == ['Banana']
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='banana'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='cherry'
+    )
+    def test_list_search_escapes_like_wildcards(self, user, i1, i2):
+        results = self._dao.user_identity.list_(
+            tenant_uuids=[str(TENANT_1)], search='%'
+        )
+
+        assert results == []
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='twilio', identity='t1'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='vonage', identity='v1'
+    )
+    def test_list_filters_by_backend_exact(self, user, i1, i2):
+        results = self._dao.user_identity.list_(
+            tenant_uuids=[str(TENANT_1)], backend='twilio'
+        )
+
+        assert [r.identity for r in results] == ['t1']
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='a'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, identity='b'
+    )
+    def test_count_returns_total(self, user, i1, i2):
+        assert self._dao.user_identity.count(tenant_uuids=[str(TENANT_1)]) == 2
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='twilio', identity='t1'
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='vonage', identity='v1'
+    )
+    def test_count_ignores_pagination_respects_filter(self, user, i1, i2):
+        assert (
+            self._dao.user_identity.count(
+                tenant_uuids=[str(TENANT_1)], backend='twilio', limit=1
+            )
+            == 1
+        )

@@ -62,10 +62,24 @@ paths:
         Returns every identity bound to a user in the calling
         tenant. The `Wazo-Tenant` header scopes the result; each
         item includes its owner (`user_uuid`) and `tenant_uuid`.
+
+        Supports pagination, sorting, and filtering via query
+        parameters. `total` reflects the unfiltered count in the
+        tenant scope; `filtered` reflects the count after applying
+        filter parameters.
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/limit'
+      - $ref: '#/parameters/offset'
+      - $ref: '#/parameters/order'
+      - $ref: '#/parameters/direction'
+      - $ref: '#/parameters/search'
+      - $ref: '#/parameters/user_uuid_query'
+      - $ref: '#/parameters/identity_backend_filter'
+      - $ref: '#/parameters/identity_type_filter'
+      - $ref: '#/parameters/identity_value_filter'
       responses:
         '200':
           description: Identity list
@@ -272,6 +286,24 @@ parameters:
     format: uuid
     description: The UUID of the identity
     required: true
+  identity_backend_filter:
+    name: backend
+    in: query
+    type: string
+    required: false
+    description: Filter by exact backend name
+  identity_type_filter:
+    name: type
+    in: query
+    type: string
+    required: false
+    description: Filter by exact messaging type
+  identity_value_filter:
+    name: identity
+    in: query
+    type: string
+    required: false
+    description: Filter by exact identity value
 
 definitions:
   ConnectorList:
@@ -389,9 +421,12 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Identity'
+      filtered:
+        type: integer
+        description: Count after applying filter parameters
       total:
         type: integer
-        description: The number of results
+        description: Unfiltered count in the tenant scope
 
   IdentityCreateRequest:
     title: IdentityCreateRequest
