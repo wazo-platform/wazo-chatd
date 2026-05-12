@@ -44,9 +44,7 @@ class IdentitySchema(Schema):
     type_ = fields.String(
         required=True, data_key='type', validate=validate.Length(min=1, max=32)
     )
-    identity = fields.String(
-        required=True, validate=validate.Length(min=1, max=256)
-    )
+    identity = fields.String(required=True, validate=validate.Length(min=1, max=256))
     extra = fields.Dict(load_default=dict, validate=_validate_extra)
 
 

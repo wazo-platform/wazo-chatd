@@ -26,7 +26,7 @@ class TestUserIdentity(DBIntegrationTest):
         identity = UserIdentity(
             user_uuid=USER_UUID_1,
             tenant_uuid=TENANT_1,
-            backend='twilio',
+            backend='sms_backend',
             type_='sms',
             identity='+15551234567',
         )
@@ -36,7 +36,7 @@ class TestUserIdentity(DBIntegrationTest):
         result = self._dao.user_identity.find(str(created.uuid))
         assert result is not None
         assert result.user_uuid == USER_UUID_1
-        assert result.backend == 'twilio'
+        assert result.backend == 'sms_backend'
         assert result.identity == '+15551234567'
 
         self._session.expunge_all()
@@ -44,7 +44,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
@@ -52,7 +52,7 @@ class TestUserIdentity(DBIntegrationTest):
         result = self._dao.user_identity.get([str(TENANT_1)], str(identity.uuid))
 
         assert result.uuid == identity.uuid
-        assert result.backend == 'twilio'
+        assert result.backend == 'sms_backend'
 
         with pytest.raises(UnknownUserIdentityException):
             self._dao.user_identity.get([str(TENANT_1)], str(uuid.uuid4()))
@@ -61,7 +61,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         tenant_uuid=TENANT_2,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
@@ -72,7 +72,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
@@ -89,7 +89,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
@@ -102,13 +102,13 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551111111',
     )
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
-        backend='vonage',
+        backend='other_backend',
         type_='sms',
         identity='+15552222222',
     )
@@ -121,19 +121,19 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_2)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551111111',
     )
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
-        backend='vonage',
+        backend='other_backend',
         type_='sms',
         identity='+15551111122',
     )
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_2,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15552222222',
     )
@@ -141,7 +141,7 @@ class TestUserIdentity(DBIntegrationTest):
         self, user_1, user_2, ident_1, ident_2, ident_3
     ):
         result = self._dao.user_identity.list_identities_by_users(
-            [str(USER_UUID_1), str(USER_UUID_2)], backend='twilio'
+            [str(USER_UUID_1), str(USER_UUID_2)], backend='sms_backend'
         )
 
         assert result == {
@@ -152,7 +152,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user(uuid=USER_UUID_1)
     def test_list_identities_by_users_returns_empty_when_no_match(self, user):
         result = self._dao.user_identity.list_identities_by_users(
-            [str(USER_UUID_1)], backend='twilio'
+            [str(USER_UUID_1)], backend='sms_backend'
         )
 
         assert result == {}
@@ -161,7 +161,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         tenant_uuid=TENANT_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551111111',
     )
@@ -169,7 +169,7 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_2,
         tenant_uuid=TENANT_2,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15552222222',
     )
@@ -191,13 +191,13 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         tenant_uuid=TENANT_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
     def test_find_tenant_by_identity(self, user, identity):
         result = self._dao.user_identity.find_tenant_by_identity(
-            '+15551234567', 'twilio'
+            '+15551234567', 'sms_backend'
         )
 
         assert result == str(TENANT_1)
@@ -206,13 +206,15 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         tenant_uuid=TENANT_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
     def test_find_tenant_by_identity_unknown_returns_none(self, user, identity):
         assert (
-            self._dao.user_identity.find_tenant_by_identity('+15559999999', 'twilio')
+            self._dao.user_identity.find_tenant_by_identity(
+                '+15559999999', 'sms_backend'
+            )
             is None
         )
 
@@ -220,13 +222,15 @@ class TestUserIdentity(DBIntegrationTest):
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
         tenant_uuid=TENANT_1,
-        backend='twilio',
+        backend='sms_backend',
         type_='sms',
         identity='+15551234567',
     )
     def test_find_tenant_by_identity_wrong_backend_returns_none(self, user, identity):
         assert (
-            self._dao.user_identity.find_tenant_by_identity('+15551234567', 'vonage')
+            self._dao.user_identity.find_tenant_by_identity(
+                '+15551234567', 'other_backend'
+            )
             is None
         )
 
@@ -392,14 +396,20 @@ class TestUserIdentityListPagination(DBIntegrationTest):
 
     @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
     @fixtures.db.user_identity(
-        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='twilio', identity='t1'
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        identity='t1',
     )
     @fixtures.db.user_identity(
-        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='vonage', identity='v1'
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='other_backend',
+        identity='v1',
     )
     def test_list_filters_by_backend_exact(self, user, i1, i2):
         results = self._dao.user_identity.list_(
-            tenant_uuids=[str(TENANT_1)], backend='twilio'
+            tenant_uuids=[str(TENANT_1)], backend='sms_backend'
         )
 
         assert [r.identity for r in results] == ['t1']
@@ -416,15 +426,21 @@ class TestUserIdentityListPagination(DBIntegrationTest):
 
     @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
     @fixtures.db.user_identity(
-        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='twilio', identity='t1'
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        identity='t1',
     )
     @fixtures.db.user_identity(
-        user_uuid=USER_UUID_1, tenant_uuid=TENANT_1, backend='vonage', identity='v1'
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='other_backend',
+        identity='v1',
     )
     def test_count_ignores_pagination_respects_filter(self, user, i1, i2):
         assert (
             self._dao.user_identity.count(
-                tenant_uuids=[str(TENANT_1)], backend='twilio', limit=1
+                tenant_uuids=[str(TENANT_1)], backend='sms_backend', limit=1
             )
             == 1
         )
