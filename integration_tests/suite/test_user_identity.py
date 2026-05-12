@@ -20,7 +20,7 @@ from .helpers.base import (
 USER_UUID = uuid.uuid4()
 USER_A_UUID = uuid.uuid4()
 USER_B_UUID = uuid.uuid4()
-SUBTENANT_USER_UUID = uuid.uuid4()
+OTHER_TENANT_USER_UUID = uuid.uuid4()
 
 
 @use_asset('connectors')
@@ -212,25 +212,29 @@ class TestIdentityList(ConnectorIntegrationTest):
         tenant_uuid=TOKEN_TENANT_UUID,
         backend='test',
         type_='test',
-        identity='test:parent',
+        identity='test:tenant-a',
     )
-    @fixtures.db.user(uuid=SUBTENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
+    @fixtures.db.user(uuid=OTHER_TENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
     @fixtures.db.user_identity(
-        user_uuid=SUBTENANT_USER_UUID,
+        user_uuid=OTHER_TENANT_USER_UUID,
         tenant_uuid=TOKEN_SUBTENANT_UUID,
         backend='test',
         type_='test',
-        identity='test:subtenant',
+        identity='test:tenant-b',
     )
-    def test_list_subtenant_token_sees_only_its_tenant(
-        self, parent_user, parent_identity, sub_user, sub_identity
+    def test_list_token_sees_only_its_own_tenant(
+        self,
+        tenant_a_user,
+        tenant_a_identity,
+        tenant_b_user,
+        tenant_b_identity,
     ):
-        chatd = self.make_user_chatd(SUBTENANT_USER_UUID, TOKEN_SUBTENANT_UUID)
+        chatd = self.make_user_chatd(OTHER_TENANT_USER_UUID, TOKEN_SUBTENANT_UUID)
 
         result = chatd.identities.list(tenant_uuid=str(TOKEN_SUBTENANT_UUID))
 
         assert result['total'] == 1
-        assert result['items'][0]['identity'] == 'test:subtenant'
+        assert result['items'][0]['identity'] == 'test:tenant-b'
 
 
 @use_asset('connectors')
