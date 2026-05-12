@@ -9,10 +9,24 @@ paths:
         Returns every identity bound to a user in the calling
         tenant. The `Wazo-Tenant` header scopes the result; each
         item includes its owner (`user_uuid`) and `tenant_uuid`.
+
+        Supports pagination, sorting, and filtering via query
+        parameters. `total` reflects the unfiltered count in the
+        tenant scope; `filtered` reflects the count after applying
+        filter parameters.
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
+      - $ref: '#/parameters/limit'
+      - $ref: '#/parameters/offset'
+      - $ref: '#/parameters/order'
+      - $ref: '#/parameters/direction'
+      - $ref: '#/parameters/search'
+      - $ref: '#/parameters/user_uuid_query'
+      - $ref: '#/parameters/identity_backend_filter'
+      - $ref: '#/parameters/identity_type_filter'
+      - $ref: '#/parameters/identity_value_filter'
       responses:
         '200':
           description: Identity list
@@ -219,6 +233,24 @@ parameters:
     format: uuid
     description: The UUID of the identity
     required: true
+  identity_backend_filter:
+    name: backend
+    in: query
+    type: string
+    required: false
+    description: Filter by exact backend name
+  identity_type_filter:
+    name: type
+    in: query
+    type: string
+    required: false
+    description: Filter by exact messaging type
+  identity_value_filter:
+    name: identity
+    in: query
+    type: string
+    required: false
+    description: Filter by exact identity value
 
 definitions:
   UserIdentityList:
@@ -248,9 +280,7 @@ definitions:
       identity:
         type: string
         description: The external identity value
-      extra:
-        type: object
-        description: Additional metadata
+        maxLength: 256
 
   Identity:
     title: Identity
@@ -265,6 +295,13 @@ definitions:
           user_uuid:
             type: string
             description: The UUID of the user owning the identity
+          extra:
+            type: object
+            description: |
+              Additional admin-managed metadata. Values must be
+              scalars (string, integer, float, boolean, null) or
+              lists of scalars. Keys ≤64 chars, individual values
+              ≤1024 chars, total serialized size ≤4096 chars.
 
   IdentityList:
     title: IdentityList
@@ -273,9 +310,12 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Identity'
+      filtered:
+        type: integer
+        description: Count after applying filter parameters
       total:
         type: integer
-        description: The number of results
+        description: Unfiltered count in the tenant scope
 
   IdentityCreateRequest:
     title: IdentityCreateRequest

@@ -24,6 +24,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
 )
 from wazo_chatd.plugins.connectors.schemas import (
     identity_create_schema,
+    identity_list_request_schema,
     identity_schema,
     identity_update_schema,
     user_identity_list_request_schema,
@@ -93,11 +94,16 @@ class IdentityListResource(AuthResource):
     @required_acl('chatd.identities.read')
     def get(self) -> tuple[dict[str, Any], int]:
         tenant_uuids = get_tenant_uuids(recurse=True)
-        identities = self._service.list_all_identities(tenant_uuids)
+        filter_parameters = identity_list_request_schema.load(request.args)
+
+        identities = self._service.list_identities(tenant_uuids, **filter_parameters)
+        filtered = self._service.count_identities(tenant_uuids, **filter_parameters)
+        total = self._service.count_identities(tenant_uuids)
 
         return {
             'items': identity_schema.dump(identities, many=True),
-            'total': len(identities),
+            'filtered': filtered,
+            'total': total,
         }, 200
 
     @required_acl('chatd.identities.create')

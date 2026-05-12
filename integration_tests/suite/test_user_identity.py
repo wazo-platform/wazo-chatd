@@ -20,7 +20,6 @@ from .helpers.base import (
 USER_UUID = uuid.uuid4()
 USER_A_UUID = uuid.uuid4()
 USER_B_UUID = uuid.uuid4()
-SUBTENANT_USER_UUID = uuid.uuid4()
 OTHER_TENANT_USER_UUID = uuid.uuid4()
 OTHER_TENANT_UUID = uuid.uuid4()
 
@@ -40,6 +39,7 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
         backend='test',
         type_='test',
         identity='test:me',
+        extra={'provider_resource_id': 'PN-abc123'},
     )
     def test_list_returns_token_user_identities(self, user, identity):
         result = self.chatd.identities.list_from_user()
@@ -47,6 +47,7 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
         assert result['total'] == 1
         assert result['items'][0]['identity'] == 'test:me'
         assert result['items'][0]['backend'] == 'test'
+        assert 'extra' not in result['items'][0]
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user_identity(
@@ -214,25 +215,81 @@ class TestIdentityList(ConnectorIntegrationTest):
         tenant_uuid=TOKEN_TENANT_UUID,
         backend='test',
         type_='test',
-        identity='test:parent',
+        identity='test:tenant-a',
     )
-    @fixtures.db.user(uuid=SUBTENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
+    @fixtures.db.user(uuid=OTHER_TENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
     @fixtures.db.user_identity(
-        user_uuid=SUBTENANT_USER_UUID,
+        user_uuid=OTHER_TENANT_USER_UUID,
         tenant_uuid=TOKEN_SUBTENANT_UUID,
         backend='test',
         type_='test',
-        identity='test:subtenant',
+        identity='test:tenant-b',
     )
-    def test_list_subtenant_token_sees_only_its_tenant(
-        self, parent_user, parent_identity, sub_user, sub_identity
+    def test_list_token_sees_only_its_own_tenant(
+        self,
+        tenant_a_user,
+        tenant_a_identity,
+        tenant_b_user,
+        tenant_b_identity,
     ):
-        chatd = self.make_user_chatd(SUBTENANT_USER_UUID, TOKEN_SUBTENANT_UUID)
+        chatd = self.make_user_chatd(OTHER_TENANT_USER_UUID, TOKEN_SUBTENANT_UUID)
 
         result = chatd.identities.list(tenant_uuid=str(TOKEN_SUBTENANT_UUID))
 
         assert result['total'] == 1
-        assert result['items'][0]['identity'] == 'test:subtenant'
+        assert result['items'][0]['identity'] == 'test:tenant-b'
+
+
+@use_asset('connectors')
+class TestIdentityListPagination(ConnectorIntegrationTest):
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:a')
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:b')
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:c')
+    def test_limit_caps_items_and_separates_total_from_filtered(self, user, a, b, c):
+        result = self.chatd.identities.list(limit=2)
+
+        assert [i['identity'] for i in result['items']] == ['test:a', 'test:b']
+        assert result['filtered'] == 3
+        assert result['total'] == 3
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, backend='test', identity='test:1')
+    @fixtures.db.user_identity(
+        user_uuid=USER_A_UUID, backend='other', identity='other:1'
+    )
+    def test_filter_reflects_in_filtered_but_not_total(self, user, t, o):
+        result = self.chatd.identities.list(backend='test')
+
+        assert [i['identity'] for i in result['items']] == ['test:1']
+        assert result['filtered'] == 1
+        assert result['total'] == 2
+
+    def test_invalid_order_returns_400(self):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.list(order='not_a_column')
+
+        assert exc_info.value.status_code == 400
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user(uuid=USER_B_UUID)
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:a')
+    @fixtures.db.user_identity(user_uuid=USER_B_UUID, identity='test:b')
+    def test_user_uuid_filter_accepts_comma_separated(self, user_a, user_b, a, b):
+        result = self.chatd.identities.list(user_uuid=f'{USER_A_UUID},{USER_B_UUID}')
+
+        identities = sorted(i['identity'] for i in result['items'])
+        assert identities == ['test:a', 'test:b']
+        assert result['filtered'] == 2
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, backend='test', identity='test:1')
+    def test_type_filter_uses_documented_query_name(self, user, identity):
+        match = self.chatd.identities.list(type='test')
+        miss = self.chatd.identities.list(type='other')
+
+        assert match['filtered'] == 1
+        assert miss['filtered'] == 0
 
 
 @use_asset('connectors')
@@ -278,6 +335,35 @@ class TestIdentityCreate(ConnectorIntegrationTest):
         assert result['type'] == 'test'
         assert result['identity'] == 'test:create'
         uuid.UUID(result['uuid'])
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    def test_create_oversized_identity_returns_400(self, user):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.create(
+                {
+                    'user_uuid': str(USER_A_UUID),
+                    'backend': 'test',
+                    'type': 'test',
+                    'identity': 'x' * 257,
+                }
+            )
+
+        assert exc_info.value.status_code == 400
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    def test_create_oversized_extra_returns_400(self, user):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.identities.create(
+                {
+                    'user_uuid': str(USER_A_UUID),
+                    'backend': 'test',
+                    'type': 'test',
+                    'identity': 'test:oversize-extra',
+                    'extra': {'blob': 'x' * 5000},
+                }
+            )
+
+        assert exc_info.value.status_code == 400
 
     def test_create_unknown_user_returns_404(self):
         with pytest.raises(ChatdError) as exc_info:

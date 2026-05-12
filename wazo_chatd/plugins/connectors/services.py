@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from requests.exceptions import HTTPError, RequestException
@@ -104,9 +104,10 @@ class ConnectorService:
         tenant_uuids: list[str],
         user_uuid: str,
         only_registered: bool = False,
+        **filter_parameters: Any,
     ) -> list[UserIdentity]:
         identities = self._dao.user_identity.list_(
-            tenant_uuids=tenant_uuids, user_uuid=user_uuid
+            tenant_uuids=tenant_uuids, user_uuid=user_uuid, **filter_parameters
         )
         if only_registered:
             identities = self._filter_by_registered_backends(identities)
@@ -114,6 +115,15 @@ class ConnectorService:
 
     def list_all_identities(self, tenant_uuids: list[str]) -> list[UserIdentity]:
         return self._dao.user_identity.list_(tenant_uuids=tenant_uuids)
+
+    def count_identities(
+        self,
+        tenant_uuids: list[str],
+        **filter_parameters: Any,
+    ) -> int:
+        return self._dao.user_identity.count(
+            tenant_uuids=tenant_uuids, **filter_parameters
+        )
 
     def _filter_by_registered_backends(
         self, identities: list[UserIdentity]
