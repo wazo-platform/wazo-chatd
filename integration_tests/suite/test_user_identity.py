@@ -244,9 +244,7 @@ class TestIdentityListPagination(ConnectorIntegrationTest):
     @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:a')
     @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:b')
     @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:c')
-    def test_limit_caps_items_and_separates_total_from_filtered(
-        self, user, a, b, c
-    ):
+    def test_limit_caps_items_and_separates_total_from_filtered(self, user, a, b, c):
         result = self.chatd.identities.list(limit=2)
 
         assert [i['identity'] for i in result['items']] == ['test:a', 'test:b']
@@ -254,9 +252,7 @@ class TestIdentityListPagination(ConnectorIntegrationTest):
         assert result['total'] == 3
 
     @fixtures.db.user(uuid=USER_A_UUID)
-    @fixtures.db.user_identity(
-        user_uuid=USER_A_UUID, backend='test', identity='test:1'
-    )
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, backend='test', identity='test:1')
     @fixtures.db.user_identity(
         user_uuid=USER_A_UUID, backend='other', identity='other:1'
     )
@@ -272,6 +268,26 @@ class TestIdentityListPagination(ConnectorIntegrationTest):
             self.chatd.identities.list(order='not_a_column')
 
         assert exc_info.value.status_code == 400
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user(uuid=USER_B_UUID)
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, identity='test:a')
+    @fixtures.db.user_identity(user_uuid=USER_B_UUID, identity='test:b')
+    def test_user_uuid_filter_accepts_comma_separated(self, user_a, user_b, a, b):
+        result = self.chatd.identities.list(user_uuid=f'{USER_A_UUID},{USER_B_UUID}')
+
+        identities = sorted(i['identity'] for i in result['items'])
+        assert identities == ['test:a', 'test:b']
+        assert result['filtered'] == 2
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(user_uuid=USER_A_UUID, backend='test', identity='test:1')
+    def test_type_filter_uses_documented_query_name(self, user, identity):
+        match = self.chatd.identities.list(type='test')
+        miss = self.chatd.identities.list(type='other')
+
+        assert match['filtered'] == 1
+        assert miss['filtered'] == 0
 
 
 @use_asset('connectors')

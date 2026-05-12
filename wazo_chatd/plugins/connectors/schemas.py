@@ -1,7 +1,7 @@
 # Copyright 2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import ValidationError, validate
+from marshmallow import ValidationError, pre_load, validate
 from xivo.mallow import fields
 from xivo.mallow_helpers import ListSchema as _ListSchema
 from xivo.mallow_helpers import Schema
@@ -71,9 +71,20 @@ class UserIdentityListRequestSchema(Schema):
 
 class IdentityListRequestSchema(_ListSchema):
     default_sort_column = 'identity'
-    sort_columns = ['uuid', 'backend', 'type_', 'identity']
-    searchable_columns = ['user_uuid', 'backend', 'type_', 'identity']
+    sort_columns = ['uuid', 'backend', 'type', 'identity']
     default_direction = 'asc'
+
+    user_uuid = fields.List(fields.UUID(), load_default=list, attribute='user_uuids')
+    backend = fields.String(load_default=None)
+    type_ = fields.String(data_key='type', load_default=None)
+    identity = fields.String(load_default=None)
+
+    @pre_load
+    def split_user_uuid(self, data, **kwargs):
+        result = data.to_dict() if hasattr(data, 'to_dict') else dict(data)
+        if data.get('user_uuid'):
+            result['user_uuid'] = [u for u in data['user_uuid'].split(',') if u]
+        return result
 
 
 class ConnectorSchema(Schema):

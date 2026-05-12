@@ -19,7 +19,6 @@ from wazo_chatd.exceptions import (
 )
 
 _UNIQUE_VIOLATION = '23505'
-_EXACT_FILTER_COLUMNS = ('user_uuid', 'backend', 'type_', 'identity')
 
 
 class UserIdentityDAO:
@@ -232,6 +231,10 @@ class UserIdentityDAO:
         self,
         statement: Select,
         search: str | None = None,
+        user_uuids: list[str] | None = None,
+        backend: str | None = None,
+        type_: str | None = None,
+        identity: str | None = None,
         **ignored: Any,
     ) -> Select:
         if search is not None:
@@ -241,9 +244,17 @@ class UserIdentityDAO:
                 )
             )
 
-        for column in _EXACT_FILTER_COLUMNS:
-            if (value := ignored.get(column)) is not None:
-                statement = statement.where(getattr(UserIdentity, column) == value)
+        if user_uuids:
+            statement = statement.where(UserIdentity.user_uuid.in_(user_uuids))
+
+        if backend is not None:
+            statement = statement.where(UserIdentity.backend == backend)
+
+        if type_ is not None:
+            statement = statement.where(UserIdentity.type_ == type_)
+
+        if identity is not None:
+            statement = statement.where(UserIdentity.identity == identity)
 
         return statement
 
@@ -256,7 +267,8 @@ class UserIdentityDAO:
         direction: str = 'asc',
         **ignored: Any,
     ) -> Select:
-        order_column = getattr(UserIdentity, order)
+        column_name = 'type_' if order == 'type' else order
+        order_column = getattr(UserIdentity, column_name)
         order_column = order_column.asc() if direction == 'asc' else order_column.desc()
         statement = statement.order_by(order_column)
 
