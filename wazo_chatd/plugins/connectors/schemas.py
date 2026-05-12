@@ -23,14 +23,8 @@ class UserIdentitySchema(IdentitySchema):
         fields = ('uuid', 'backend', 'type_', 'identity')
 
 
-class IdentityCreateSchema(Schema):
-    user_uuid = fields.UUID(required=True)
-    backend = fields.String(required=True, validate=validate.Length(min=1))
-    type_ = fields.String(
-        required=True, data_key='type', validate=validate.Length(min=1)
-    )
-    identity = fields.String(required=True, validate=validate.Length(min=1))
-    extra = fields.Dict(load_default=dict)
+class IdentityCreateSchema(IdentitySchema):
+    user_uuid = fields.UUID(required=True, load_only=True)
 
 
 class IdentityUpdateSchema(Schema):

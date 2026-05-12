@@ -129,7 +129,7 @@ class ConnectorRouter:
         try:
             provider_identities = connector.list_provider_identities()
         except NotImplementedError:
-            raise InventoryNotSupportedException(backend)
+            raise InventoryNotSupportedException(backend) from None
 
         existing = self._dao.user_identity.list_(
             tenant_uuids=[tenant_uuid], backends=[backend]
@@ -163,12 +163,17 @@ class ConnectorRouter:
         """
         self._store.get(backend, tenant_uuid)
 
-    def reconcile_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
-        """Drop cached instance when no identity remains; always resync runners.
+    def reconcile_after_create(self) -> None:
+        """Resync runners after a UserIdentity create.
 
-        Called after a UserIdentity create or delete. The create path
-        relies on :meth:`validate_tenant_backend` to have warmed the cache.
+        Cache warming is handled by :meth:`validate_tenant_backend`
+        before insertion, so no store lookup is needed here.
         """
+        self._delivery_runner.resync_pollers()
+        self._listener_runner.resync()
+
+    def reconcile_after_delete(self, tenant_uuid: str, backend: str) -> None:
+        """Drop cached instance if last identity removed, then resync runners."""
         has_any = self._dao.user_identity.has_identities_for_backend(
             tenant_uuid, backend
         )

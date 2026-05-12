@@ -9,10 +9,7 @@ import pytest
 from wazo_chatd_client.exceptions import ChatdError
 
 from .helpers import fixtures
-from .helpers.base import (
-    ConnectorIntegrationTest,
-    use_asset,
-)
+from .helpers.base import ConnectorIntegrationTest, use_asset
 
 
 @use_asset('connectors')
@@ -31,7 +28,6 @@ class TestConnectorList(ConnectorIntegrationTest):
         assert sorted(test_connector['supported_types']) == ['test', 'test_alt']
 
     def test_list_marks_configured_when_external_config_set(self):
-        # setUpClass sets external_config for 'test' backend.
         result = self.chatd.connectors.list()
 
         test_connector = next(c for c in result['items'] if c['name'] == 'test')

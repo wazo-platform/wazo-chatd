@@ -410,7 +410,28 @@ class TestConnectorRouterValidateTenantBackend(unittest.TestCase):
             self.router.validate_tenant_backend('tenant-uuid', 'sms_backend')
 
 
-class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
+class TestConnectorRouterReconcileAfterCreate(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dao = Mock()
+        self.router = _build_router(dao=self.dao)
+        self.router._store = Mock()
+        self.router._listener_runner = Mock()
+
+    def test_does_not_query_for_remaining_identities(self) -> None:
+        self.router.reconcile_after_create()
+
+        self.dao.user_identity.has_identities_for_backend.assert_not_called()
+        self.router._store.peek.assert_not_called()
+        self.router._store.drop.assert_not_called()
+
+    def test_resyncs_pollers_and_listeners(self) -> None:
+        self.router.reconcile_after_create()
+
+        self.router._delivery_runner.resync_pollers.assert_called_once()
+        self.router._listener_runner.resync.assert_called_once()
+
+
+class TestConnectorRouterReconcileAfterDelete(unittest.TestCase):
     def setUp(self) -> None:
         self.dao = Mock()
         self.router = _build_router(dao=self.dao)
@@ -421,7 +442,7 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = False
         self.router._store.peek.return_value = Mock()
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._store.drop.assert_called_once_with('sms_backend', 'tenant-uuid')
 
@@ -429,7 +450,7 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = False
         self.router._store.peek.return_value = None
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._store.drop.assert_not_called()
 
@@ -437,7 +458,7 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = True
         self.router._store.peek.return_value = Mock()
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._store.drop.assert_not_called()
 
@@ -445,7 +466,7 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = False
         self.router._store.peek.return_value = None
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._delivery_runner.resync_pollers.assert_called_once()
         self.router._listener_runner.resync.assert_called_once()
@@ -478,7 +499,8 @@ class TestConnectorRouterEmptyRegistry(unittest.TestCase):
 
         router.start()
         router.stop()
-        router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        router.reconcile_after_create()
+        router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
     def test_empty_registry_provide_status_reports_ok(self) -> None:
         router = _build_router(registry=ConnectorRegistry())

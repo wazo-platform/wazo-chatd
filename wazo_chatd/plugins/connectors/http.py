@@ -135,7 +135,7 @@ class IdentityListResource(AuthResource):
     @required_acl('chatd.identities.read')
     def get(self) -> tuple[dict[str, Any], int]:
         tenant_uuids = get_tenant_uuids(recurse=True)
-        identities = self._service.list_all_identities(tenant_uuids)
+        identities = self._service.list_identities(tenant_uuids)
 
         return {
             'items': identity_schema.dump(identities, many=True),
@@ -159,7 +159,7 @@ class IdentityListResource(AuthResource):
             **body,
         )
         created = self._service.create_identity(identity)
-        self._router.reconcile_tenant_backend(tenant_uuid, backend)
+        self._router.reconcile_after_create()
 
         return identity_schema.dump(created), 201
 
@@ -204,7 +204,7 @@ class IdentityItemResource(AuthResource):
         tenant_uuid = str(identity.tenant_uuid)
         backend = str(identity.backend)
         self._service.delete_identity(identity)
-        self._router.reconcile_tenant_backend(tenant_uuid, backend)
+        self._router.reconcile_after_delete(tenant_uuid, backend)
 
         return '', 204
 
