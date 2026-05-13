@@ -103,11 +103,19 @@ class ConnectorRouter:
             logger.exception('Failed to populate connector store')
 
     def list_connectors(self, tenant_uuid: str) -> list[dict[str, object]]:
-        result: list[dict[str, object]] = []
+        backends = self._registry.available_backends()
+        uncached = [
+            (tenant_uuid, name)
+            for name in backends
+            if self._store.peek(name, tenant_uuid) is None
+        ]
+        if uncached:
+            self._store.batch_find(uncached)
 
-        for name in self._registry.available_backends():
+        result: list[dict[str, object]] = []
+        for name in backends:
             cls = self._registry.get_backend(name)
-            configured = self._store.find(name, tenant_uuid) is not None
+            configured = self._store.peek(name, tenant_uuid) is not None
             result.append(
                 {
                     'name': name,

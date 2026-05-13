@@ -60,7 +60,7 @@ class _SmsConnector:
 
 
 class _EmailConnector:
-    backend: ClassVar[str] = 'mailgun'
+    backend: ClassVar[str] = 'email_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('email',)
 
     @classmethod
@@ -391,6 +391,39 @@ class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
         self.router.validate_room_creation(room)
 
         self.service.validate_room_reachability.assert_called_once_with(room)
+
+
+class TestConnectorRouterListConnectors(unittest.TestCase):
+    def setUp(self) -> None:
+        self.router = _build_router(registry=_build_registry())
+        self.router._store = Mock()
+
+    def test_batch_find_called_with_all_uncached_pairs(self) -> None:
+        self.router._store.peek.return_value = None
+
+        self.router.list_connectors('tenant-uuid')
+
+        self.router._store.batch_find.assert_called_once()
+        pairs = list(self.router._store.batch_find.call_args[0][0])
+        assert set(pairs) == {
+            ('tenant-uuid', 'sms_backend'),
+            ('tenant-uuid', 'email_backend'),
+        }
+
+    def test_all_cached_skips_batch_and_reports_configured(self) -> None:
+        self.router._store.peek.return_value = Mock()
+
+        result = self.router.list_connectors('tenant-uuid')
+
+        self.router._store.batch_find.assert_not_called()
+        assert all(item['configured'] for item in result)
+
+    def test_returns_configured_false_when_peek_returns_none(self) -> None:
+        self.router._store.peek.return_value = None
+
+        result = self.router.list_connectors('tenant-uuid')
+
+        assert not any(item['configured'] for item in result)
 
 
 class TestConnectorRouterValidateTenantBackend(unittest.TestCase):
