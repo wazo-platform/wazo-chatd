@@ -39,6 +39,7 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
         backend='test',
         type_='test',
         identity='test:me',
+        extra={'provider_resource_id': 'PN-abc123'},
     )
     def test_list_returns_token_user_identities(self, user, identity):
         result = self.chatd.identities.list_from_user()
@@ -46,6 +47,7 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
         assert result['total'] == 1
         assert result['items'][0]['identity'] == 'test:me'
         assert result['items'][0]['backend'] == 'test'
+        assert result['items'][0]['extra'] == {'provider_resource_id': 'PN-abc123'}
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user_identity(
