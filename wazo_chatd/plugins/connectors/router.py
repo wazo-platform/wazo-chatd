@@ -17,6 +17,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     ConnectorTransientError,
     InventoryNotSupportedException,
+    InventoryUnavailableException,
     MessageIdentityRequiredException,
     NoSuchConnectorException,
     UnknownBackendException,
@@ -42,6 +43,10 @@ if TYPE_CHECKING:
     from wazo_chatd.database.queries import DAO
 
 logger = logging.getLogger(__name__)
+
+
+def _not_implemented() -> list:
+    raise NotImplementedError
 
 
 class ConnectorRouter:
@@ -134,10 +139,18 @@ class ConnectorRouter:
 
         connector = self._store.get(backend, tenant_uuid)
 
+        list_provider_identities = getattr(
+            connector, 'list_provider_identities', _not_implemented
+        )
         try:
-            provider_identities = connector.list_provider_identities()
+            provider_identities = list_provider_identities()
         except NotImplementedError:
             raise InventoryNotSupportedException(backend) from None
+        except Exception:
+            logger.exception(
+                'Backend %r raised while listing provider inventory', backend
+            )
+            raise InventoryUnavailableException(backend) from None
 
         existing = self._dao.user_identity.list_(
             tenant_uuids=[tenant_uuid], backends=[backend]

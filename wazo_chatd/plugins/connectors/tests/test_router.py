@@ -16,6 +16,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorAuthException,
     ConnectorParseError,
     InventoryNotSupportedException,
+    InventoryUnavailableException,
     MessageIdentityRequiredException,
     NoSuchConnectorException,
 )
@@ -586,6 +587,25 @@ class TestConnectorRouterListConnectorInventory(unittest.TestCase):
         self.router._store.get.return_value = connector
 
         with pytest.raises(InventoryNotSupportedException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_backend_missing_list_method_raises_inventory_not_supported(self) -> None:
+        class _MinimalConnector:
+            backend = 'sms_backend'
+
+        self.router._store.get.return_value = _MinimalConnector()
+
+        with pytest.raises(InventoryNotSupportedException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_backend_raising_unexpected_error_raises_inventory_unavailable(
+        self,
+    ) -> None:
+        connector = Mock()
+        connector.list_provider_identities.side_effect = RuntimeError('provider down')
+        self.router._store.get.return_value = connector
+
+        with pytest.raises(InventoryUnavailableException):
             self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
 
     def test_returns_provider_identities_with_null_binding_when_unbound(self) -> None:

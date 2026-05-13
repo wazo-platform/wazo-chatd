@@ -109,6 +109,17 @@ class InventoryNotSupportedException(APIException):
         )
 
 
+class InventoryUnavailableException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            502,
+            f'Connector {backend!r} failed to list provider inventory',
+            'inventory-unavailable',
+            {'backend': backend},
+            'connectors',
+        )
+
+
 class BackendNotConfiguredException(APIException):
     def __init__(self, backend: str, tenant_uuid: str) -> None:
         super().__init__(

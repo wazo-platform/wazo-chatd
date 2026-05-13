@@ -52,6 +52,10 @@ paths:
           description: Connector does not support inventory listing
           schema:
             $ref: '#/definitions/APIError'
+        '502':
+          description: Connector failed to list provider inventory
+          schema:
+            $ref: '#/definitions/APIError'
   /identities:
     get:
       operationId: list_identities
