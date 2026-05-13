@@ -161,6 +161,14 @@ class ConnectorRouter:
 
         return result
 
+    def invalidate_backend_cache(self, tenant_uuid: str, backend: str) -> None:
+        """Drop a cached connector instance and resync runners."""
+        if self._store.peek(backend, tenant_uuid) is not None:
+            self._store.drop(backend, tenant_uuid)
+
+        self._delivery_runner.resync_pollers()
+        self._listener_runner.resync()
+
     def validate_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
         """Validate a backend is usable for a tenant; caches on success.
 
