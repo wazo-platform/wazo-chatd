@@ -260,9 +260,16 @@ class Connector(Protocol):
     def list_provider_identities(self) -> list[ProviderIdentity]:
         """Return identities the provider reports this tenant owns.
 
-        Optional capability. Backends that can't enumerate their
-        own inventory raise :class:`NotImplementedError`; the
-        ``/connectors/<backend>/inventory`` endpoint surfaces that
-        as HTTP 501 so the dashboard can fall back to manual entry.
+        Optional capability. Backends that can't enumerate their own
+        inventory may either omit this method entirely or raise
+        :class:`NotImplementedError`; both surface as HTTP 501
+        (``inventory-not-supported``) on
+        ``/connectors/<backend>/inventory`` so the dashboard can fall
+        back to manual entry.
+
+        Unexpected exceptions (provider unreachable, auth failure,
+        programming bug) surface as HTTP 502
+        (``inventory-unavailable``) with the traceback logged
+        server-side.
         """
         ...
