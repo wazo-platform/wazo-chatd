@@ -56,6 +56,8 @@ paths:
           description: Connector failed to list provider inventory
           schema:
             $ref: '#/definitions/APIError'
+        '503':
+          $ref: '#/responses/AnotherServiceUnavailable'
   /identities:
     get:
       operationId: list_identities
@@ -89,6 +91,8 @@ paths:
           description: Identity list
           schema:
             $ref: '#/definitions/IdentityList'
+        '400':
+          $ref: '#/responses/InvalidRequest'
     post:
       operationId: create_identity
       summary: Create an identity

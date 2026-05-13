@@ -496,6 +496,28 @@ class TestIdentityUpdate(ConnectorIntegrationTest):
 
         assert exc_info.value.status_code == 404
 
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_A_UUID,
+        backend='test',
+        type_='test',
+        identity='test:immutable',
+    )
+    def test_update_silently_drops_backend_and_type(self, user, identity):
+        self.chatd.identities.update(
+            str(identity.uuid),
+            {
+                'identity': 'test:still-updates',
+                'backend': 'other-backend',
+                'type': 'other-type',
+            },
+        )
+
+        persisted = self.chatd.identities.get(str(identity.uuid))
+        assert persisted['identity'] == 'test:still-updates'
+        assert persisted['backend'] == 'test'
+        assert persisted['type'] == 'test'
+
     @fixtures.db.user(uuid=USER_A_UUID, tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user(uuid=OTHER_TENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
     @fixtures.db.user_identity(
