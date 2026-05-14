@@ -119,14 +119,6 @@ class ConnectorRouter:
 
         return result
 
-    def invalidate_backend_cache(self, tenant_uuid: str, backend: str) -> None:
-        if self._store.peek(backend, tenant_uuid) is None:
-            return
-
-        self._store.drop(backend, tenant_uuid)
-        self._delivery_runner.resync_pollers()
-        self._listener_runner.resync()
-
     def list_connector_identities(
         self, tenant_uuid: str, backend: str
     ) -> list[dict[str, object]]:
@@ -135,9 +127,12 @@ class ConnectorRouter:
 
         connector = self._store.get(backend, tenant_uuid)
 
+        if not hasattr(connector, 'list_backend_identities'):
+            raise ConnectorIdentitiesNotSupportedException(backend)
+
         try:
             backend_identities = connector.list_backend_identities()
-        except (AttributeError, NotImplementedError):
+        except NotImplementedError:
             raise ConnectorIdentitiesNotSupportedException(backend) from None
         except Exception:
             logger.exception('Backend %r raised while listing identities', backend)
@@ -173,6 +168,14 @@ class ConnectorRouter:
             )
 
         return result
+
+    def invalidate_backend_cache(self, tenant_uuid: str, backend: str) -> None:
+        if self._store.peek(backend, tenant_uuid) is None:
+            return
+
+        self._store.drop(backend, tenant_uuid)
+        self._delivery_runner.resync_pollers()
+        self._listener_runner.resync()
 
     def validate_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
         self._store.get(backend, tenant_uuid)

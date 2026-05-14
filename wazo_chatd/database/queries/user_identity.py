@@ -142,14 +142,15 @@ class UserIdentityDAO:
         )
         return bool(self.session.execute(statement).scalar_one())
 
-    def is_identity_bound(self, identity: str) -> bool:
-        statement = select(UserIdentity).where(UserIdentity.identity == identity)
-        return self.session.execute(statement).scalars().first() is not None
-
-    def list_bound_identities(self, identities: Iterable[str]) -> set[str]:
+    def list_bound_identities(
+        self, identities: Iterable[str], tenant_uuids: Iterable[str]
+    ) -> set[str]:
         statement = (
             select(UserIdentity.identity)
-            .where(UserIdentity.identity.in_(identities))
+            .where(
+                UserIdentity.identity.in_(identities),
+                UserIdentity.tenant_uuid.in_(tenant_uuids),
+            )
             .distinct()
         )
         return set(self.session.execute(statement).scalars().all())
@@ -235,7 +236,7 @@ class UserIdentityDAO:
         backend: str | None = None,
         type_: str | None = None,
         identity: str | None = None,
-        **ignored: Any,
+        **_: Any,
     ) -> Select:
         if search is not None:
             statement = statement.where(
@@ -265,7 +266,7 @@ class UserIdentityDAO:
         offset: int | None = None,
         order: str = 'identity',
         direction: str = 'asc',
-        **ignored: Any,
+        **_: Any,
     ) -> Select:
         column_name = 'type_' if order == 'type' else order
         order_column = getattr(UserIdentity, column_name)

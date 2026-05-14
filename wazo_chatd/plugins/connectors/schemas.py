@@ -16,7 +16,7 @@ def _scalar_length(key: str, item: object) -> int:
     if not isinstance(item, _EXTRA_SCALAR_TYPES):
         raise ValidationError(f'extra[{key!r}] must be a scalar or list of scalars')
     length = len(item) if isinstance(item, str) else len(str(item))
-    if isinstance(item, str) and length > _MAX_EXTRA_VALUE_LENGTH:
+    if length > _MAX_EXTRA_VALUE_LENGTH:
         raise ValidationError(f'extra[{key!r}] exceeds {_MAX_EXTRA_VALUE_LENGTH} chars')
     return length
 
@@ -80,8 +80,15 @@ class IdentityListRequestSchema(_ListSchema):
     @pre_load
     def split_user_uuid(self, data, **kwargs):
         result = data.to_dict() if hasattr(data, 'to_dict') else dict(data)
-        if data.get('user_uuid'):
-            result['user_uuid'] = [u for u in data['user_uuid'].split(',') if u]
+        if 'user_uuid' not in result:
+            return result
+        values = (
+            data.getlist('user_uuid')
+            if hasattr(data, 'getlist')
+            else [result['user_uuid']]
+        )
+        pieces = (p for v in values for p in v.split(',') if p)
+        result['user_uuid'] = list(dict.fromkeys(pieces))
         return result
 
 

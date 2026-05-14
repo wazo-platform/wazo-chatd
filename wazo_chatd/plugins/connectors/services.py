@@ -74,10 +74,22 @@ class ConnectorService:
             raise AuthServiceUnavailableException()
 
         if tenant_uuid not in visible_tenants:
+            # 404, don't leak cross-tenant existence.
             raise UnknownUserException(user_uuid)
 
         self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
         return tenant_uuid
+
+    def validate_reassignment_target(
+        self,
+        tenant_uuids: Iterable[str],
+        identity: UserIdentity,
+        target_user_uuid: UUID,
+    ) -> None:
+        target_tenant = self.get_user_tenant_uuid(tenant_uuids, str(target_user_uuid))
+        if target_tenant != str(identity.tenant_uuid):
+            # 404, don't leak cross-tenant existence.
+            raise UnknownUserException(str(target_user_uuid))
 
     def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
         return self._dao.user_identity.resolve_users_by_identities(identities)
@@ -121,7 +133,6 @@ class ConnectorService:
         return self._dao.user_identity.count(
             tenant_uuids=tenant_uuids, **filter_parameters
         )
-
 
     def _filter_by_registered_backends(
         self, identities: list[UserIdentity]
@@ -256,7 +267,9 @@ class ConnectorService:
 
         external_identities = [str(u.identity) for u in others if u.identity]
         bound_identities = (
-            self._dao.user_identity.list_bound_identities(external_identities)
+            self._dao.user_identity.list_bound_identities(
+                external_identities, tenant_uuids
+            )
             if external_identities
             else set()
         )
@@ -308,7 +321,9 @@ class ConnectorService:
 
         external_identities = [str(u.identity) for u in external]
         bound_identities = (
-            self._dao.user_identity.list_bound_identities(external_identities)
+            self._dao.user_identity.list_bound_identities(
+                external_identities, [str(room.tenant_uuid)]
+            )
             if external_identities
             else set()
         )

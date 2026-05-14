@@ -261,15 +261,14 @@ class Connector(Protocol):
         """Return identities the backend reports this tenant owns.
 
         Optional capability. Backends that can't enumerate their own
-        identities may either omit this method entirely or raise
-        :class:`NotImplementedError`; both surface as HTTP 501
-        (``connector-identities-not-supported``) on
-        ``/connectors/<backend>/identities`` so the dashboard can fall
-        back to manual entry.
+        identities either omit this method (structural typing) or
+        leave the default body in place (Protocol inheritance); both
+        cases surface HTTP 501 (``connector-identities-not-supported``)
+        on ``/connectors/<backend>/identities``.
 
         Unexpected exceptions (backend unreachable, auth failure,
         programming bug) surface as HTTP 502
         (``connector-identities-unavailable``) with the traceback
         logged server-side.
         """
-        ...
+        raise NotImplementedError

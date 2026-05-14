@@ -13,6 +13,8 @@ import pytest
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.connector import BackendIdentity
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
+    BackendNotConfiguredException,
     ConnectorAuthException,
     ConnectorIdentitiesNotSupportedException,
     ConnectorIdentitiesUnavailableException,
@@ -299,10 +301,6 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     def test_unknown_backend_raises_parse_error(self) -> None:
-        from wazo_chatd.plugins.connectors.exceptions import (
-            BackendNotConfiguredException,
-        )
-
         self.router._store.get.side_effect = BackendNotConfiguredException(
             'sms_backend', 'tenant-uuid'
         )
@@ -313,11 +311,6 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     def test_auth_unavailable_raises_transient_error(self) -> None:
-        from wazo_chatd.plugins.connectors.exceptions import (
-            AuthServiceUnavailableException,
-            ConnectorTransientError,
-        )
-
         self.router._store.get.side_effect = AuthServiceUnavailableException()
 
         with pytest.raises(ConnectorTransientError):
@@ -406,7 +399,7 @@ class TestConnectorRouterListConnectors(unittest.TestCase):
         self.router.list_connectors('tenant-uuid')
 
         self.router._store.batch_find.assert_called_once()
-        pairs = list(self.router._store.batch_find.call_args[0][0])
+        pairs = self.router._store.batch_find.call_args[0][0]
         assert set(pairs) == {
             ('tenant-uuid', 'sms_backend'),
             ('tenant-uuid', 'email_backend'),
@@ -607,19 +600,21 @@ class TestConnectorRouterListConnectorIdentities(unittest.TestCase):
         with pytest.raises(NoSuchConnectorException):
             self.router.list_connector_identities('tenant-uuid', 'nonexistent')
 
-    def test_backend_without_capability_raises_identities_not_supported(self) -> None:
-        connector = Mock()
-        connector.list_backend_identities.side_effect = NotImplementedError()
-        self.router._store.get.return_value = connector
-
-        with pytest.raises(ConnectorIdentitiesNotSupportedException):
-            self.router.list_connector_identities('tenant-uuid', 'sms_backend')
-
     def test_backend_missing_list_method_raises_identities_not_supported(self) -> None:
         class _MinimalConnector:
             backend = 'sms_backend'
 
         self.router._store.get.return_value = _MinimalConnector()
+
+        with pytest.raises(ConnectorIdentitiesNotSupportedException):
+            self.router.list_connector_identities('tenant-uuid', 'sms_backend')
+
+    def test_backend_raising_not_implemented_raises_identities_not_supported(
+        self,
+    ) -> None:
+        connector = Mock()
+        connector.list_backend_identities.side_effect = NotImplementedError()
+        self.router._store.get.return_value = connector
 
         with pytest.raises(ConnectorIdentitiesNotSupportedException):
             self.router.list_connector_identities('tenant-uuid', 'sms_backend')
