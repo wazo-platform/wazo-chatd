@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from collections.abc import Awaitable
 from typing import TypeVar
@@ -33,6 +32,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorRateLimited,
     ConnectorSendError,
 )
+from wazo_chatd.plugins.connectors.helpers import generate_message_signature
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
@@ -85,20 +85,6 @@ async def _db_persist_or_delay(
         return delay
 
     return None
-
-
-def generate_message_signature(sender_identity: str, body: str) -> str:
-    """Generate a dedup signature to detect inbound echoes of outbound messages.
-
-    Combines the sender identity with a normalized body (lowercase, ASCII-only,
-    no whitespace, capped at 160 chars) and returns a truncated SHA-256 hash.
-    The 160-char cap ensures consistent signatures across providers regardless
-    of SMS segment reassembly behavior.
-    """
-    normalized = ''.join(c.lower() for c in body if c.isascii() and not c.isspace())
-    payload = sender_identity + ':' + normalized[:160]
-
-    return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
 class DeliveryExecutor:

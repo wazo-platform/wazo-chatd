@@ -7,7 +7,6 @@ import abc
 import asyncio
 import concurrent.futures
 import functools
-import itertools
 import logging
 import random
 import threading
@@ -28,10 +27,11 @@ from wazo_chatd.database.async_helpers import (
 )
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugin_helpers.queue import AsyncQueue, QueueFull
-from wazo_chatd.plugins.connectors.cadence import PollerCadence, apply_jitter
+from wazo_chatd.plugins.connectors.cadence import PollerCadence
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.executor import MAX_RETRY_AFTER, DeliveryExecutor
+from wazo_chatd.plugins.connectors.helpers import apply_jitter, exponential_backoff
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import CacheKey, ConnectorStore
@@ -41,10 +41,6 @@ logger = logging.getLogger(__name__)
 
 LISTEN_PING_INTERVAL: float = 30.0
 LISTEN_PING_TIMEOUT: float = 10.0
-
-
-def _backoff() -> itertools.chain[int]:
-    return itertools.chain([1, 2, 4, 8, 16, 32], itertools.repeat(32))
 
 
 async def _cancel_and_gather(tasks: Iterable[asyncio.Task[None]]) -> None:
@@ -87,7 +83,7 @@ class Runner(abc.ABC):
         )
         self._ready = threading.Event()
         self._closing: concurrent.futures.Future[None] = concurrent.futures.Future()
-        self._backoff = _backoff()
+        self._backoff = exponential_backoff()
         self._restart_count: int = 0
         self._healthy: threading.Event = threading.Event()
 
@@ -178,7 +174,7 @@ class Runner(abc.ABC):
 
     def _wait_backoff(self) -> bool:
         if self._healthy.is_set():
-            self._backoff = _backoff()
+            self._backoff = exponential_backoff()
             self._healthy.clear()
 
         delay = next(self._backoff)
@@ -347,7 +343,7 @@ class DeliveryRunner(Runner):
             logger.debug('Async database engine disposed')
 
     async def _listen_for_deliveries(self) -> None:
-        backoff = _backoff()
+        backoff = exponential_backoff()
 
         try:
             while not self.is_closing:
@@ -359,7 +355,7 @@ class DeliveryRunner(Runner):
                         'connector_delivery', self._on_delivery_notify
                     )
                     logger.info('Listening for connector_delivery notifications')
-                    backoff = _backoff()
+                    backoff = exponential_backoff()
 
                     # Run recovery after LISTEN is registered so any NOTIFY
                     # fired during the outage (or startup) is picked up

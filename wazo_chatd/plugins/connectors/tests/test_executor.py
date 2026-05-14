@@ -26,8 +26,8 @@ from wazo_chatd.plugins.connectors.executor import (
     OUTBOUND_MAX_RETRIES,
     OUTBOUND_RETRY_DELAYS,
     DeliveryExecutor,
-    generate_message_signature,
 )
+from wazo_chatd.plugins.connectors.helpers import generate_message_signature
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
 from wazo_chatd.plugins.connectors.types import (
