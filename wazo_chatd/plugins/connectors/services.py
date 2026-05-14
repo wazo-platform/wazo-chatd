@@ -79,6 +79,16 @@ class ConnectorService:
         self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
         return tenant_uuid
 
+    def validate_reassignment_target(
+        self,
+        tenant_uuids: Iterable[str],
+        identity: UserIdentity,
+        target_user_uuid: UUID,
+    ) -> None:
+        target_tenant = self.get_user_tenant_uuid(tenant_uuids, str(target_user_uuid))
+        if target_tenant != str(identity.tenant_uuid):
+            raise UnknownUserException(str(target_user_uuid))
+
     def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
         return self._dao.user_identity.resolve_users_by_identities(identities)
 

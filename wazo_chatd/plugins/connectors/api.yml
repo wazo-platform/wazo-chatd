@@ -6,8 +6,8 @@ paths:
       description: |
         **Required ACL:** `chatd.connectors.read`
 
-        Returns supported types, webhook URL, and tenant-configured
-        state for each registered backend.
+        Returns supported types and tenant-configured state for
+        each registered backend.
       tags:
       - connectors
       parameters:
@@ -86,7 +86,7 @@ paths:
         - identity
       - $ref: '#/parameters/direction'
       - $ref: '#/parameters/search'
-      - $ref: '#/parameters/user_uuid_query'
+      - $ref: '#/parameters/identity_user_uuid_filter'
       - $ref: '#/parameters/identity_backend_filter'
       - $ref: '#/parameters/identity_type_filter'
       - $ref: '#/parameters/identity_value_filter'
@@ -300,6 +300,14 @@ parameters:
     format: uuid
     description: The UUID of the identity
     required: true
+  identity_user_uuid_filter:
+    name: user_uuid
+    in: query
+    type: string
+    required: false
+    description: |
+      Filter by user_uuid. Comma-separated list — a row matches if its
+      user_uuid is any of the listed values (logical OR).
   identity_backend_filter:
     name: backend
     in: query

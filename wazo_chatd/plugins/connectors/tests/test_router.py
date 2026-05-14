@@ -13,8 +13,11 @@ import pytest
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
 from wazo_chatd.plugins.connectors.connector import ProviderIdentity
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
+    BackendNotConfiguredException,
     ConnectorAuthException,
     ConnectorParseError,
+    ConnectorTransientError,
     InventoryNotSupportedException,
     InventoryUnavailableException,
     MessageIdentityRequiredException,
@@ -298,10 +301,6 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     def test_unknown_backend_raises_parse_error(self) -> None:
-        from wazo_chatd.plugins.connectors.exceptions import (
-            BackendNotConfiguredException,
-        )
-
         self.router._store.get.side_effect = BackendNotConfiguredException(
             'sms_backend', 'tenant-uuid'
         )
@@ -312,11 +311,6 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     def test_auth_unavailable_raises_transient_error(self) -> None:
-        from wazo_chatd.plugins.connectors.exceptions import (
-            AuthServiceUnavailableException,
-            ConnectorTransientError,
-        )
-
         self.router._store.get.side_effect = AuthServiceUnavailableException()
 
         with pytest.raises(ConnectorTransientError):
@@ -606,6 +600,16 @@ class TestConnectorRouterListConnectorInventory(unittest.TestCase):
         self.router._store.get.return_value = connector
 
         with pytest.raises(InventoryUnavailableException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_tenant_without_external_config_propagates_backend_not_configured(
+        self,
+    ) -> None:
+        self.router._store.get.side_effect = BackendNotConfiguredException(
+            'sms_backend', 'tenant-uuid'
+        )
+
+        with pytest.raises(BackendNotConfiguredException):
             self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
 
     def test_returns_provider_identities_with_null_binding_when_unbound(self) -> None:

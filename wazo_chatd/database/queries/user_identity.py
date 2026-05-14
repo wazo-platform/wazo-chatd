@@ -142,10 +142,6 @@ class UserIdentityDAO:
         )
         return bool(self.session.execute(statement).scalar_one())
 
-    def is_identity_bound(self, identity: str) -> bool:
-        statement = select(UserIdentity).where(UserIdentity.identity == identity)
-        return self.session.execute(statement).scalars().first() is not None
-
     def list_bound_identities(self, identities: Iterable[str]) -> set[str]:
         statement = (
             select(UserIdentity.identity)

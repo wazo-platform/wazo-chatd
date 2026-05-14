@@ -12,7 +12,6 @@ from xivo.auth_verifier import required_acl
 from xivo.tenant_flask_helpers import token
 
 from wazo_chatd.database.models import UserIdentity
-from wazo_chatd.exceptions import UnknownUserException
 from wazo_chatd.http import AuthResource, ErrorCatchingResource
 from wazo_chatd.plugin_helpers.http import build_public_url, update_model_instance
 from wazo_chatd.plugin_helpers.tenant import get_tenant_uuids
@@ -179,13 +178,9 @@ class IdentityItemResource(AuthResource):
         body = identity_update_schema.load(request.get_json(force=True))
 
         if 'user_uuid' in body:
-            reassigned_user_uuid = str(body['user_uuid'])
-            target_tenant = self._service.get_user_tenant_uuid(
-                tenant_uuids, reassigned_user_uuid
+            self._service.validate_reassignment_target(
+                tenant_uuids, identity, body['user_uuid']
             )
-            if target_tenant != str(identity.tenant_uuid):
-                raise UnknownUserException(reassigned_user_uuid)
-            body['user_uuid'] = reassigned_user_uuid
 
         update_model_instance(identity, body)
         self._service.update_identity(identity)
