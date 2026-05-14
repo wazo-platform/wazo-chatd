@@ -47,7 +47,7 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
         assert result['total'] == 1
         assert result['items'][0]['identity'] == 'test:me'
         assert result['items'][0]['backend'] == 'test'
-        assert result['items'][0]['extra'] == {'provider_resource_id': 'PN-abc123'}
+        assert 'extra' not in result['items'][0]
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user_identity(

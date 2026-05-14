@@ -418,13 +418,6 @@ definitions:
         type: string
         description: The external identity value
         maxLength: 256
-      extra:
-        type: object
-        description: |
-          Additional metadata. Values must be scalars (string,
-          integer, float, boolean, null) or lists of scalars. Keys
-          ≤64 chars, individual values ≤1024 chars, total serialized
-          size ≤4096 chars.
 
   Identity:
     title: Identity
@@ -439,6 +432,13 @@ definitions:
           user_uuid:
             type: string
             description: The UUID of the user owning the identity
+          extra:
+            type: object
+            description: |
+              Additional admin-managed metadata. Values must be
+              scalars (string, integer, float, boolean, null) or
+              lists of scalars. Keys ≤64 chars, individual values
+              ≤1024 chars, total serialized size ≤4096 chars.
 
   IdentityList:
     title: IdentityList

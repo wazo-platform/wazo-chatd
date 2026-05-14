@@ -50,7 +50,7 @@ class IdentitySchema(Schema):
 
 class UserIdentitySchema(IdentitySchema):
     class Meta:
-        fields = ('uuid', 'backend', 'type_', 'identity', 'extra')
+        fields = ('uuid', 'backend', 'type_', 'identity')
 
 
 class IdentityCreateSchema(IdentitySchema):
