@@ -64,14 +64,11 @@ def _build_service(
     }
 
     bound_map = identity_bound or {}
-    dao.user_identity.is_identity_bound.side_effect = lambda ident: bound_map.get(
-        ident, False
-    )
     dao.user_identity.list_bound_identities.side_effect = lambda idents: {
         ident for ident in idents if bound_map.get(ident, False)
     }
 
-    dao.user_identity.list_by_user.return_value = sender_identities or []
+    dao.user_identity.list_.return_value = sender_identities or []
 
     registry = ConnectorRegistry()
     registry.register_backend(_SmsConnector)  # type: ignore[arg-type]

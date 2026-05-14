@@ -61,22 +61,11 @@ class InboundMessage:
     """A message received from an external system through a connector."""
 
     sender: str
-    """External identity of the sender (phone number, email, etc.)."""
-
     recipient: str
-    """External identity of the recipient."""
-
     body: str
-    """Message content."""
-
     backend: str
-    """Which backend produced this message (e.g. "twilio")."""
-
     message_type: str
-    """Communication type resolved from the payload (e.g. "sms", "whatsapp")."""
-
     external_id: str
-    """The backend's message ID, for idempotency and tracking."""
 
     metadata: Mapping[str, Any] = field(default_factory=dict)
     """Backend-specific extra data.
@@ -97,17 +86,9 @@ class StatusUpdate:
     """A delivery status update received from an external system."""
 
     external_id: str
-    """The backend's message ID that this status refers to."""
-
     status: str
-    """Provider-specific status string (e.g. 'delivered', 'failed')."""
-
     backend: str
-    """Which backend produced this update (e.g. 'twilio')."""
-
     error_code: str = ''
-    """Provider error code if the delivery failed."""
-
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:

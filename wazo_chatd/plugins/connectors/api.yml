@@ -1,41 +1,124 @@
 paths:
-  /users/{user_uuid}/identities:
+  /connectors:
     get:
-      operationId: list_user_identities
-      summary: List user identities
-      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.read`'
+      operationId: list_connectors
+      summary: List capability metadata for every registered backend
+      description: |
+        **Required ACL:** `chatd.connectors.read`
+
+        Returns supported types and tenant-configured state for
+        each registered backend.
+      tags:
+      - connectors
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      responses:
+        '200':
+          description: Connector list
+          schema:
+            $ref: '#/definitions/ConnectorList'
+  /connectors/{backend}/inventory:
+    get:
+      operationId: list_connector_inventory
+      summary: List identities the provider reports this tenant owns
+      description: |
+        **Required ACL:** `chatd.connectors.{backend}.inventory.read`
+
+        Each item carries the provider-reported identity and its
+        binding to a Wazo user (``null`` when unbound).
+      tags:
+      - connectors
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - name: backend
+        in: path
+        type: string
+        description: The backend name
+        required: true
+      responses:
+        '200':
+          description: Inventory list
+          schema:
+            $ref: '#/definitions/ConnectorInventoryList'
+        '400':
+          description: Backend not configured for this tenant
+          schema:
+            $ref: '#/definitions/APIError'
+        '404':
+          description: No such connector
+          schema:
+            $ref: '#/definitions/APIError'
+        '501':
+          description: Connector does not support inventory listing
+          schema:
+            $ref: '#/definitions/APIError'
+        '502':
+          description: Connector failed to list provider inventory
+          schema:
+            $ref: '#/definitions/APIError'
+        '503':
+          $ref: '#/responses/AnotherServiceUnavailable'
+  /identities:
+    get:
+      operationId: list_identities
+      summary: List all identities visible to the tenant
+      description: |
+        **Required ACL:** `chatd.identities.read`
+
+        Returns every identity bound to a user in the calling
+        tenant. The `Wazo-Tenant` header scopes the result; each
+        item includes its owner (`user_uuid`) and `tenant_uuid`.
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
-      - $ref: '#/parameters/user_uuid'
+      - $ref: '#/parameters/limit'
+      - $ref: '#/parameters/offset'
+      - name: order
+        in: query
+        type: string
+        required: false
+        description: Name of the field to use for sorting the list of items returned.
+        enum:
+        - uuid
+        - backend
+        - type
+        - identity
+      - $ref: '#/parameters/direction'
+      - $ref: '#/parameters/search'
+      - $ref: '#/parameters/identity_user_uuid_filter'
+      - $ref: '#/parameters/identity_backend_filter'
+      - $ref: '#/parameters/identity_type_filter'
+      - $ref: '#/parameters/identity_value_filter'
       responses:
         '200':
           description: Identity list
           schema:
-            $ref: '#/definitions/UserIdentityList'
+            $ref: '#/definitions/IdentityList'
+        '400':
+          $ref: '#/responses/InvalidRequest'
     post:
-      operationId: create_user_identity
-      summary: Create user identity
+      operationId: create_identity
+      summary: Create an identity
       description: |
-        **Required ACL:** `chatd.users.{user_uuid}.identities.create`
+        **Required ACL:** `chatd.identities.create`
 
-        Creates an external identity for the user on a configured backend.
+        Creates an external identity for the user named in the body
+        on a configured backend.
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
-      - $ref: '#/parameters/user_uuid'
       - name: body
         in: body
         required: true
         schema:
-          $ref: '#/definitions/UserIdentityRequest'
+          $ref: '#/definitions/IdentityCreateRequest'
       responses:
         '201':
           description: Identity created
           schema:
-            $ref: '#/definitions/UserIdentity'
+            $ref: '#/definitions/Identity'
         '400':
           $ref: '#/responses/InvalidRequest'
         '404':
@@ -44,62 +127,63 @@ paths:
           description: An identity with the same backend/type/identity already exists
         '503':
           $ref: '#/responses/AnotherServiceUnavailable'
-  /users/{user_uuid}/identities/{identity_uuid}:
+  /identities/{identity_uuid}:
     get:
-      operationId: get_user_identity
-      summary: Get user identity
-      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.{identity_uuid}.read`'
+      operationId: get_identity
+      summary: Get an identity by UUID
+      description: '**Required ACL:** `chatd.identities.{identity_uuid}.read`'
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
-      - $ref: '#/parameters/user_uuid'
       - $ref: '#/parameters/identity_uuid'
       responses:
         '200':
           description: Identity
           schema:
-            $ref: '#/definitions/UserIdentity'
+            $ref: '#/definitions/Identity'
         '404':
           $ref: '#/responses/NotFoundError'
     put:
-      operationId: update_user_identity
-      summary: Update user identity
+      operationId: update_identity
+      summary: Update an identity (partial)
       description: |
-        **Required ACL:** `chatd.users.{user_uuid}.identities.{identity_uuid}.update`
+        **Required ACL:** `chatd.identities.{identity_uuid}.update`
 
-        Updates the external identity value (e.g. on number reassignment).
+        Updates one or more mutable fields. Pass `user_uuid` to
+        reassign the identity to a different user in the same
+        tenant.
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
-      - $ref: '#/parameters/user_uuid'
       - $ref: '#/parameters/identity_uuid'
       - name: body
         in: body
         required: true
         schema:
-          $ref: '#/definitions/UserIdentityUpdateRequest'
+          $ref: '#/definitions/IdentityUpdateRequest'
       responses:
         '200':
           description: Identity updated
           schema:
-            $ref: '#/definitions/UserIdentity'
+            $ref: '#/definitions/Identity'
         '400':
           $ref: '#/responses/InvalidRequest'
         '404':
           $ref: '#/responses/NotFoundError'
         '409':
           description: Another identity with the same value already exists
+        '503':
+          $ref: '#/responses/AnotherServiceUnavailable'
     delete:
-      operationId: delete_user_identity
-      summary: Delete user identity
-      description: '**Required ACL:** `chatd.users.{user_uuid}.identities.{identity_uuid}.delete`'
+      operationId: delete_identity
+      summary: Delete an identity
+      description: '**Required ACL:** `chatd.identities.{identity_uuid}.delete`'
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
-      - $ref: '#/parameters/user_uuid'
       - $ref: '#/parameters/identity_uuid'
       responses:
         '204':
@@ -216,8 +300,94 @@ parameters:
     format: uuid
     description: The UUID of the identity
     required: true
+  identity_user_uuid_filter:
+    name: user_uuid
+    in: query
+    type: string
+    required: false
+    description: |
+      Filter by user_uuid. Comma-separated list — a row matches if its
+      user_uuid is any of the listed values (logical OR).
+  identity_backend_filter:
+    name: backend
+    in: query
+    type: string
+    required: false
+    description: Filter by exact backend name
+  identity_type_filter:
+    name: type
+    in: query
+    type: string
+    required: false
+    description: Filter by exact messaging type
+  identity_value_filter:
+    name: identity
+    in: query
+    type: string
+    required: false
+    description: Filter by exact identity value
 
 definitions:
+  ConnectorList:
+    title: ConnectorList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Connector'
+      total:
+        type: integer
+        description: The number of results
+
+  Connector:
+    title: Connector
+    properties:
+      name:
+        type: string
+        description: The backend identifier
+      supported_types:
+        type: array
+        items:
+          type: string
+        description: Messaging types this backend can handle
+      configured:
+        type: boolean
+        description: Whether wazo-auth has external credentials for this tenant
+
+  ConnectorInventoryList:
+    title: ConnectorInventoryList
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/ConnectorInventoryItem'
+      total:
+        type: integer
+        description: The number of results
+
+  ConnectorInventoryItem:
+    title: ConnectorInventoryItem
+    properties:
+      identity:
+        type: string
+        description: The external identity value
+      type:
+        type: string
+        description: The messaging type
+      binding:
+        $ref: '#/definitions/ConnectorInventoryBinding'
+        description: Wazo binding for this identity, or null when unbound
+
+  ConnectorInventoryBinding:
+    title: ConnectorInventoryBinding
+    properties:
+      uuid:
+        type: string
+        description: The UUID of the bound UserIdentity row
+      user_uuid:
+        type: string
+        description: The UUID of the user the identity is bound to
+
   UserIdentityList:
     title: UserIdentityList
     properties:
@@ -239,44 +409,99 @@ definitions:
       backend:
         type: string
         description: The connector backend name
+        maxLength: 64
       type:
         type: string
         description: The messaging type
+        maxLength: 32
       identity:
         type: string
         description: The external identity value
-      extra:
-        type: object
-        description: Additional metadata
+        maxLength: 256
 
-  UserIdentityRequest:
-    title: UserIdentityRequest
+  Identity:
+    title: Identity
+    allOf:
+      - $ref: '#/definitions/UserIdentity'
+      - type: object
+        properties:
+          tenant_uuid:
+            type: string
+            description: The UUID of the tenant owning the identity
+            readOnly: true
+          user_uuid:
+            type: string
+            description: The UUID of the user owning the identity
+          extra:
+            type: object
+            description: |
+              Additional admin-managed metadata. Values must be
+              scalars (string, integer, float, boolean, null) or
+              lists of scalars. Keys ≤64 chars, individual values
+              ≤1024 chars, total serialized size ≤4096 chars.
+
+  IdentityList:
+    title: IdentityList
     properties:
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Identity'
+      filtered:
+        type: integer
+        description: Count after applying filter parameters
+      total:
+        type: integer
+        description: Unfiltered count in the tenant scope
+
+  IdentityCreateRequest:
+    title: IdentityCreateRequest
+    properties:
+      user_uuid:
+        type: string
+        description: The UUID of the user the identity is bound to
       backend:
         type: string
         description: The connector backend name
+        maxLength: 64
       type:
         type: string
         description: The messaging type
+        maxLength: 32
       identity:
         type: string
         description: The external identity value
+        maxLength: 256
       extra:
         type: object
-        description: Additional metadata
+        description: |
+          Additional metadata. Values must be scalars (string,
+          integer, float, boolean, null) or lists of scalars. Keys
+          ≤64 chars, individual values ≤1024 chars, total serialized
+          size ≤4096 chars.
     required:
+      - user_uuid
       - backend
       - type
       - identity
 
-  UserIdentityUpdateRequest:
-    title: UserIdentityUpdateRequest
+  IdentityUpdateRequest:
+    title: IdentityUpdateRequest
+    description: |
+      Partial update — every field is optional. Pass `user_uuid` to
+      reassign the identity to a different user in the same tenant.
     properties:
+      user_uuid:
+        type: string
+        description: Reassign the identity to this user
       identity:
         type: string
         description: The external identity value
+        maxLength: 256
       extra:
         type: object
-        description: Additional metadata
-    required:
-      - identity
+        description: |
+          Additional metadata. Values must be scalars (string,
+          integer, float, boolean, null) or lists of scalars. Keys
+          ≤64 chars, individual values ≤1024 chars, total serialized
+          size ≤4096 chars.

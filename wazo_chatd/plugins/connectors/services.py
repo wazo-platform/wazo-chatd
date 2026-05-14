@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from requests.exceptions import HTTPError, RequestException
@@ -20,7 +20,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     UnknownBackendException,
     UnreachableParticipantException,
 )
-from wazo_chatd.plugins.connectors.executor import generate_message_signature
+from wazo_chatd.plugins.connectors.helpers import generate_message_signature
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
@@ -53,8 +53,9 @@ class ConnectorService:
         self._auth_client = auth_client
 
     def get_user_tenant_uuid(self, tenant_uuids: Iterable[str], user_uuid: str) -> str:
+        visible_tenants = list(tenant_uuids)
         try:
-            user = self._dao.user.get(tenant_uuids, user_uuid)
+            user = self._dao.user.get(visible_tenants, user_uuid)
             return str(user.tenant_uuid)
         except UnknownUserException:
             logger.debug(
@@ -64,8 +65,6 @@ class ConnectorService:
         try:
             user_data = self._auth_client.users.get(user_uuid)
             tenant_uuid = str(user_data['tenant_uuid'])
-            self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
-            return tenant_uuid
         except HTTPError as e:
             if (status := getattr(e.response, 'status_code', None)) == 404:
                 raise UnknownUserException(user_uuid)
@@ -73,6 +72,22 @@ class ConnectorService:
             raise AuthServiceUnavailableException()
         except RequestException:
             raise AuthServiceUnavailableException()
+
+        if tenant_uuid not in visible_tenants:
+            raise UnknownUserException(user_uuid)
+
+        self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
+        return tenant_uuid
+
+    def validate_reassignment_target(
+        self,
+        tenant_uuids: Iterable[str],
+        identity: UserIdentity,
+        target_user_uuid: UUID,
+    ) -> None:
+        target_tenant = self.get_user_tenant_uuid(tenant_uuids, str(target_user_uuid))
+        if target_tenant != str(identity.tenant_uuid):
+            raise UnknownUserException(str(target_user_uuid))
 
     def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
         return self._dao.user_identity.resolve_users_by_identities(identities)
@@ -97,15 +112,25 @@ class ConnectorService:
     def list_identities(
         self,
         tenant_uuids: list[str],
-        user_uuid: str,
+        user_uuid: str | None = None,
         only_registered: bool = False,
+        **filter_parameters: Any,
     ) -> list[UserIdentity]:
-        identities = self._dao.user_identity.list_by_user(
-            user_uuid, tenant_uuids=tenant_uuids
+        identities = self._dao.user_identity.list_(
+            tenant_uuids=tenant_uuids, user_uuid=user_uuid, **filter_parameters
         )
         if only_registered:
             identities = self._filter_by_registered_backends(identities)
         return identities
+
+    def count_identities(
+        self,
+        tenant_uuids: list[str],
+        **filter_parameters: Any,
+    ) -> int:
+        return self._dao.user_identity.count(
+            tenant_uuids=tenant_uuids, **filter_parameters
+        )
 
     def _filter_by_registered_backends(
         self, identities: list[UserIdentity]
@@ -269,8 +294,8 @@ class ConnectorService:
         if not reachable_types:
             return []
 
-        identities = self._dao.user_identity.list_by_user(
-            user_uuid, types=reachable_types
+        identities = self._dao.user_identity.list_(
+            user_uuid=user_uuid, types=reachable_types
         )
         return self._filter_by_registered_backends(identities)
 

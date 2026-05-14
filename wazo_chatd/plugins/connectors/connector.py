@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
 from wazo_chatd.database.delivery import DeliveryStatus
@@ -13,6 +14,12 @@ from wazo_chatd.plugins.connectors.types import (
     StatusUpdate,
     TransportData,
 )
+
+
+@dataclass(frozen=True)
+class ProviderIdentity:
+    identity: str
+    type: str
 
 
 class Connector(Protocol):
@@ -247,5 +254,22 @@ class Connector(Protocol):
 
         Also used for capability resolution: if this method succeeds for
         a given identity, this connector type can reach that participant.
+        """
+        ...
+
+    def list_provider_identities(self) -> list[ProviderIdentity]:
+        """Return identities the provider reports this tenant owns.
+
+        Optional capability. Backends that can't enumerate their own
+        inventory may either omit this method entirely or raise
+        :class:`NotImplementedError`; both surface as HTTP 501
+        (``inventory-not-supported``) on
+        ``/connectors/<backend>/inventory`` so the dashboard can fall
+        back to manual entry.
+
+        Unexpected exceptions (provider unreachable, auth failure,
+        programming bug) surface as HTTP 502
+        (``inventory-unavailable``) with the traceback logged
+        server-side.
         """
         ...

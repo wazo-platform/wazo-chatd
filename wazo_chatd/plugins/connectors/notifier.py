@@ -26,7 +26,7 @@ from wazo_chatd.database.models import (
     RoomMessage,
     UserIdentity,
 )
-from wazo_chatd.plugins.connectors.schemas import UserIdentitySchema
+from wazo_chatd.plugins.connectors.schemas import identity_schema
 from wazo_chatd.plugins.rooms.schemas import MessageSchema, RoomSchema
 
 if TYPE_CHECKING:
@@ -40,21 +40,21 @@ class UserIdentityNotifier:
         self._bus = bus_publisher
 
     def created(self, identity: UserIdentity) -> None:
-        identity_data = UserIdentitySchema().dump(identity)
+        identity_data = identity_schema.dump(identity)
         event = UserIdentityCreatedEvent(
             identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
         )
         self._bus.publish(event)
 
     def updated(self, identity: UserIdentity) -> None:
-        identity_data = UserIdentitySchema().dump(identity)
+        identity_data = identity_schema.dump(identity)
         event = UserIdentityUpdatedEvent(
             identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
         )
         self._bus.publish(event)
 
     def deleted(self, identity: UserIdentity) -> None:
-        identity_data = UserIdentitySchema().dump(identity)
+        identity_data = identity_schema.dump(identity)
         event = UserIdentityDeletedEvent(
             identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
         )
@@ -109,9 +109,6 @@ class AsyncNotifier:
 
     @staticmethod
     def _build_message_payload(message: RoomMessage) -> MessageDict:
-        # Reuse the sync schema so both notifier paths publish the same
-        # shape: handles meta=None via the _default_delivery post_dump
-        # and includes the recipients list.
         return cast(MessageDict, MessageSchema().dump(message))
 
     async def _notify_message_delivered(self, message: RoomMessage, room: Room) -> None:

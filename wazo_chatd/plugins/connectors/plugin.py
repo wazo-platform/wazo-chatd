@@ -8,10 +8,13 @@ import logging
 from wazo_auth_client import Client as AuthClient
 
 from wazo_chatd.plugin_helpers.dependencies import PluginDependencies
+from wazo_chatd.plugins.connectors.bus_consume import BusEventHandler
 from wazo_chatd.plugins.connectors.http import (
+    ConnectorInventoryResource,
+    ConnectorListResource,
     ConnectorWebhookResource,
-    UserIdentityItemResource,
-    UserIdentityListResource,
+    IdentityItemResource,
+    IdentityListResource,
     UserMeIdentityListResource,
 )
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
@@ -27,6 +30,7 @@ class Plugin:
         config = dependencies['config']
         api = dependencies['api']
         dao = dependencies['dao']
+        bus_consumer = dependencies['bus_consumer']
         bus_publisher = dependencies['bus_publisher']
         hooks = dependencies['hooks']
         status_aggregator = dependencies['status_aggregator']
@@ -53,6 +57,8 @@ class Plugin:
         hooks.register('before_room_creation', router.validate_room_creation)
         hooks.register('before_message_creation', router.prepare_outbound)
 
+        BusEventHandler(bus_consumer, router).subscribe()
+
         api.add_resource(
             ConnectorWebhookResource,
             '/connectors/incoming',
@@ -60,13 +66,23 @@ class Plugin:
             resource_class_args=[router],
         )
         api.add_resource(
-            UserIdentityListResource,
-            '/users/<uuid:user_uuid>/identities',
+            ConnectorListResource,
+            '/connectors',
+            resource_class_args=[router],
+        )
+        api.add_resource(
+            ConnectorInventoryResource,
+            '/connectors/<backend>/inventory',
+            resource_class_args=[router],
+        )
+        api.add_resource(
+            IdentityListResource,
+            '/identities',
             resource_class_args=[service, router],
         )
         api.add_resource(
-            UserIdentityItemResource,
-            '/users/<uuid:user_uuid>/identities/<uuid:identity_uuid>',
+            IdentityItemResource,
+            '/identities/<uuid:identity_uuid>',
             resource_class_args=[service, router],
         )
         api.add_resource(

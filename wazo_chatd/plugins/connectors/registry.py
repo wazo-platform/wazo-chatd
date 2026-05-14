@@ -16,13 +16,6 @@ NAMESPACE = 'wazo_chatd.connectors'
 
 
 class ConnectorRegistry:
-    """Registry of available connector backend classes.
-
-    Populated at startup via :meth:`discover` (stevedore entry_points)
-    or manually via :meth:`register_backend`.  Contains no runtime
-    state — just a mapping of backend name to class.
-    """
-
     def __init__(self) -> None:
         self._backends: dict[str, type[Connector]] = {}
         self._reachable_types_cache: dict[str, frozenset[str]] = {}
@@ -31,15 +24,6 @@ class ConnectorRegistry:
         self,
         connectors_config: dict[str, dict[str, str | bool]] | None = None,
     ) -> None:
-        """Auto-discover installed connector backends via stevedore.
-
-        Scans the ``wazo_chatd.connectors`` entry_point namespace for
-        installed packages that provide connector backends.
-
-        Args:
-            connectors_config: If provided, only register backends that
-                have ``enabled: true`` in their config entry.
-        """
         connectors_config = connectors_config or {}
         manager = ExtensionManager(
             namespace=NAMESPACE,
@@ -65,15 +49,6 @@ class ConnectorRegistry:
                 )
 
     def register_backend(self, cls: type[Connector]) -> None:
-        """Register a connector backend class.
-
-        Args:
-            cls: A class implementing the :class:`Connector` protocol.
-
-        Raises:
-            ValueError: If a backend with the same ``cls.backend`` name
-                is already registered.
-        """
         name = cls.backend
         if name in self._backends:
             raise ValueError(f'Connector backend {name!r} already registered')
@@ -86,22 +61,12 @@ class ConnectorRegistry:
         self._reachable_types_cache.clear()
 
     def get_backend(self, name: str) -> type[Connector]:
-        """Look up a backend class by name.
-
-        Args:
-            name: The backend identifier (e.g. ``"twilio"``).
-
-        Raises:
-            KeyError: If the backend is not registered.
-        """
         return self._backends[name]
 
     def available_backends(self) -> list[str]:
-        """Return names of all registered backends."""
         return list(self._backends.keys())
 
     def types_for_backend(self, backend: str) -> set[str]:
-        """Return supported types for a backend."""
         cls = self._backends.get(backend)
         if not cls:
             return set()
@@ -115,14 +80,6 @@ class ConnectorRegistry:
         }
 
     def resolve_reachable_types(self, identity: str) -> set[str]:
-        """Return connector types that can reach the given identity.
-
-        Iterates all registered backends, calling
-        ``normalize_identity()`` on each. If it succeeds, the
-        backend's supported types can reach the identity. Results are
-        memoized per-identity; the cache is cleared when a new backend
-        registers.
-        """
         if (cached := self._reachable_types_cache.get(identity)) is not None:
             return set(cached)
 

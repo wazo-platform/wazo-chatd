@@ -41,11 +41,14 @@ def user_identity(**identity_args):
     def decorator(decorated):
         @wraps(decorated)
         def wrapper(self, *args, **kwargs):
-            user_uuid = identity_args.pop('user_uuid', TOKEN_USER_UUID)
+            if 'type_' in identity_args:
+                identity_args['type'] = identity_args.pop('type_')
+            identity_args.setdefault('user_uuid', TOKEN_USER_UUID)
             identity_args.setdefault('backend', 'test')
             identity_args.setdefault('type', 'test')
+            identity_args['user_uuid'] = str(identity_args['user_uuid'])
 
-            identity = self.chatd.user_identities.create(str(user_uuid), identity_args)
+            identity = self.chatd.identities.create(identity_args)
 
             args = (*args, identity)
             try:

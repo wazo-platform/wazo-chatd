@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import uuid
@@ -311,6 +311,54 @@ class BusClient(bus_helper.BusClient):
                 'name': 'auth_user_external_auth_deleted',
                 'tenant_uuid': str(tenant_uuid),
                 f'user_uuid:{user_uuid}': True,
+            },
+        )
+
+    def send_tenant_external_auth_added_event(self, tenant_uuid, external_auth_name):
+        self.publish(
+            {
+                'data': {
+                    'uuid': str(tenant_uuid),
+                    'external_auth_name': external_auth_name,
+                },
+                'name': 'auth_external_auth_added',
+            },
+            headers={
+                'name': 'auth_external_auth_added',
+                'tenant_uuid': str(tenant_uuid),
+                'user_uuid:*': True,
+            },
+        )
+
+    def send_tenant_external_auth_updated_event(self, tenant_uuid, external_auth_name):
+        self.publish(
+            {
+                'data': {
+                    'uuid': str(tenant_uuid),
+                    'external_auth_name': external_auth_name,
+                },
+                'name': 'auth_external_auth_updated',
+            },
+            headers={
+                'name': 'auth_external_auth_updated',
+                'tenant_uuid': str(tenant_uuid),
+                'user_uuid:*': True,
+            },
+        )
+
+    def send_tenant_external_auth_deleted_event(self, tenant_uuid, external_auth_name):
+        self.publish(
+            {
+                'data': {
+                    'uuid': str(tenant_uuid),
+                    'external_auth_name': external_auth_name,
+                },
+                'name': 'auth_external_auth_deleted',
+            },
+            headers={
+                'name': 'auth_external_auth_deleted',
+                'tenant_uuid': str(tenant_uuid),
+                'user_uuid:*': True,
             },
         )
 

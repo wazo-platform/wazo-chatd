@@ -11,10 +11,17 @@ from unittest.mock import Mock
 import pytest
 
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
+from wazo_chatd.plugins.connectors.connector import ProviderIdentity
 from wazo_chatd.plugins.connectors.exceptions import (
+    AuthServiceUnavailableException,
+    BackendNotConfiguredException,
     ConnectorAuthException,
     ConnectorParseError,
+    ConnectorTransientError,
+    InventoryNotSupportedException,
+    InventoryUnavailableException,
     MessageIdentityRequiredException,
+    NoSuchConnectorException,
 )
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
@@ -57,7 +64,7 @@ class _SmsConnector:
 
 
 class _EmailConnector:
-    backend: ClassVar[str] = 'mailgun'
+    backend: ClassVar[str] = 'email_backend'
     supported_types: ClassVar[tuple[str, ...]] = ('email',)
 
     @classmethod
@@ -294,10 +301,6 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     def test_unknown_backend_raises_parse_error(self) -> None:
-        from wazo_chatd.plugins.connectors.exceptions import (
-            BackendNotConfiguredException,
-        )
-
         self.router._store.get.side_effect = BackendNotConfiguredException(
             'sms_backend', 'tenant-uuid'
         )
@@ -308,11 +311,6 @@ class TestConnectorRouterWebhookVerify(unittest.TestCase):
         self.manager.enqueue_message.assert_not_called()
 
     def test_auth_unavailable_raises_transient_error(self) -> None:
-        from wazo_chatd.plugins.connectors.exceptions import (
-            AuthServiceUnavailableException,
-            ConnectorTransientError,
-        )
-
         self.router._store.get.side_effect = AuthServiceUnavailableException()
 
         with pytest.raises(ConnectorTransientError):
@@ -390,6 +388,39 @@ class TestConnectorRouterValidateRoomCreation(unittest.TestCase):
         self.service.validate_room_reachability.assert_called_once_with(room)
 
 
+class TestConnectorRouterListConnectors(unittest.TestCase):
+    def setUp(self) -> None:
+        self.router = _build_router(registry=_build_registry())
+        self.router._store = Mock()
+
+    def test_batch_find_called_with_all_uncached_pairs(self) -> None:
+        self.router._store.peek.return_value = None
+
+        self.router.list_connectors('tenant-uuid')
+
+        self.router._store.batch_find.assert_called_once()
+        pairs = self.router._store.batch_find.call_args[0][0]
+        assert set(pairs) == {
+            ('tenant-uuid', 'sms_backend'),
+            ('tenant-uuid', 'email_backend'),
+        }
+
+    def test_all_cached_skips_batch_and_reports_configured(self) -> None:
+        self.router._store.peek.return_value = Mock()
+
+        result = self.router.list_connectors('tenant-uuid')
+
+        self.router._store.batch_find.assert_not_called()
+        assert all(item['configured'] for item in result)
+
+    def test_returns_configured_false_when_peek_returns_none(self) -> None:
+        self.router._store.peek.return_value = None
+
+        result = self.router.list_connectors('tenant-uuid')
+
+        assert not any(item['configured'] for item in result)
+
+
 class TestConnectorRouterValidateTenantBackend(unittest.TestCase):
     def setUp(self) -> None:
         self.router = _build_router()
@@ -407,7 +438,28 @@ class TestConnectorRouterValidateTenantBackend(unittest.TestCase):
             self.router.validate_tenant_backend('tenant-uuid', 'sms_backend')
 
 
-class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
+class TestConnectorRouterReconcileAfterCreate(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dao = Mock()
+        self.router = _build_router(dao=self.dao)
+        self.router._store = Mock()
+        self.router._listener_runner = Mock()
+
+    def test_does_not_query_for_remaining_identities(self) -> None:
+        self.router.reconcile_after_create()
+
+        self.dao.user_identity.has_identities_for_backend.assert_not_called()
+        self.router._store.peek.assert_not_called()
+        self.router._store.drop.assert_not_called()
+
+    def test_resyncs_pollers_and_listeners(self) -> None:
+        self.router.reconcile_after_create()
+
+        self.router._delivery_runner.resync_pollers.assert_called_once()
+        self.router._listener_runner.resync.assert_called_once()
+
+
+class TestConnectorRouterReconcileAfterDelete(unittest.TestCase):
     def setUp(self) -> None:
         self.dao = Mock()
         self.router = _build_router(dao=self.dao)
@@ -418,7 +470,7 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = False
         self.router._store.peek.return_value = Mock()
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._store.drop.assert_called_once_with('sms_backend', 'tenant-uuid')
 
@@ -426,7 +478,7 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = False
         self.router._store.peek.return_value = None
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._store.drop.assert_not_called()
 
@@ -434,7 +486,7 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = True
         self.router._store.peek.return_value = Mock()
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._store.drop.assert_not_called()
 
@@ -442,10 +494,35 @@ class TestConnectorRouterReconcileTenantBackend(unittest.TestCase):
         self.dao.user_identity.has_identities_for_backend.return_value = False
         self.router._store.peek.return_value = None
 
-        self.router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        self.router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
         self.router._delivery_runner.resync_pollers.assert_called_once()
         self.router._listener_runner.resync.assert_called_once()
+
+
+class TestConnectorRouterInvalidateBackendCache(unittest.TestCase):
+    def setUp(self) -> None:
+        self.router = _build_router()
+        self.router._store = Mock()
+        self.router._listener_runner = Mock()
+
+    def test_drops_and_resyncs_when_cached(self) -> None:
+        self.router._store.peek.return_value = Mock()
+
+        self.router.invalidate_backend_cache('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_called_once_with('sms_backend', 'tenant-uuid')
+        self.router._delivery_runner.resync_pollers.assert_called_once()
+        self.router._listener_runner.resync.assert_called_once()
+
+    def test_noop_when_not_cached(self) -> None:
+        self.router._store.peek.return_value = None
+
+        self.router.invalidate_backend_cache('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_not_called()
+        self.router._delivery_runner.resync_pollers.assert_not_called()
+        self.router._listener_runner.resync.assert_not_called()
 
 
 class TestConnectorRouterEmptyRegistry(unittest.TestCase):
@@ -475,7 +552,8 @@ class TestConnectorRouterEmptyRegistry(unittest.TestCase):
 
         router.start()
         router.stop()
-        router.reconcile_tenant_backend('tenant-uuid', 'sms_backend')
+        router.reconcile_after_create()
+        router.reconcile_after_delete('tenant-uuid', 'sms_backend')
 
     def test_empty_registry_provide_status_reports_ok(self) -> None:
         router = _build_router(registry=ConnectorRegistry())
@@ -509,3 +587,104 @@ class TestConnectorRouterEmptyRegistry(unittest.TestCase):
             delivery_mock.assert_called_once()
             listener_mock.assert_called_once()
             assert router._delivery_runner is not router._listener_runner
+
+
+class TestConnectorRouterListConnectorInventory(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dao = Mock()
+        self.dao.user_identity.list_.return_value = []
+        self.router = _build_router(dao=self.dao)
+        self.router._store = Mock()
+
+    def test_unknown_backend_raises_no_such_connector(self) -> None:
+        with pytest.raises(NoSuchConnectorException):
+            self.router.list_connector_inventory('tenant-uuid', 'nonexistent')
+
+    def test_backend_without_capability_raises_inventory_not_supported(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.side_effect = NotImplementedError()
+        self.router._store.get.return_value = connector
+
+        with pytest.raises(InventoryNotSupportedException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_backend_missing_list_method_raises_inventory_not_supported(self) -> None:
+        class _MinimalConnector:
+            backend = 'sms_backend'
+
+        self.router._store.get.return_value = _MinimalConnector()
+
+        with pytest.raises(InventoryNotSupportedException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_backend_raising_unexpected_error_raises_inventory_unavailable(
+        self,
+    ) -> None:
+        connector = Mock()
+        connector.list_provider_identities.side_effect = RuntimeError('provider down')
+        self.router._store.get.return_value = connector
+
+        with pytest.raises(InventoryUnavailableException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_tenant_without_external_config_propagates_backend_not_configured(
+        self,
+    ) -> None:
+        self.router._store.get.side_effect = BackendNotConfiguredException(
+            'sms_backend', 'tenant-uuid'
+        )
+
+        with pytest.raises(BackendNotConfiguredException):
+            self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+    def test_returns_provider_identities_with_null_binding_when_unbound(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.return_value = [
+            ProviderIdentity(identity='+15551234', type='sms'),
+        ]
+        self.router._store.get.return_value = connector
+
+        result = self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+        assert result == [
+            {'identity': '+15551234', 'type_': 'sms', 'binding': None},
+        ]
+
+    def test_returns_provider_identities_with_binding_when_bound(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.return_value = [
+            ProviderIdentity(identity='+15551234', type='sms'),
+            ProviderIdentity(identity='+15555678', type='sms'),
+        ]
+        self.router._store.get.return_value = connector
+
+        bound = Mock()
+        bound.identity = '+15551234'
+        bound.uuid = uuid.UUID('00000000-0000-0000-0000-000000000001')
+        bound.user_uuid = uuid.UUID('00000000-0000-0000-0000-000000000002')
+        self.dao.user_identity.list_.return_value = [bound]
+
+        result = self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+        assert result == [
+            {
+                'identity': '+15551234',
+                'type_': 'sms',
+                'binding': {
+                    'uuid': str(bound.uuid),
+                    'user_uuid': str(bound.user_uuid),
+                },
+            },
+            {'identity': '+15555678', 'type_': 'sms', 'binding': None},
+        ]
+
+    def test_binding_query_scoped_to_tenant_and_backend(self) -> None:
+        connector = Mock()
+        connector.list_provider_identities.return_value = []
+        self.router._store.get.return_value = connector
+
+        self.router.list_connector_inventory('tenant-uuid', 'sms_backend')
+
+        self.dao.user_identity.list_.assert_called_once_with(
+            tenant_uuids=['tenant-uuid'], backends=['sms_backend']
+        )
