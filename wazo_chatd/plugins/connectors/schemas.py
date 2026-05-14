@@ -16,7 +16,7 @@ def _scalar_length(key: str, item: object) -> int:
     if not isinstance(item, _EXTRA_SCALAR_TYPES):
         raise ValidationError(f'extra[{key!r}] must be a scalar or list of scalars')
     length = len(item) if isinstance(item, str) else len(str(item))
-    if isinstance(item, str) and length > _MAX_EXTRA_VALUE_LENGTH:
+    if length > _MAX_EXTRA_VALUE_LENGTH:
         raise ValidationError(f'extra[{key!r}] exceeds {_MAX_EXTRA_VALUE_LENGTH} chars')
     return length
 
