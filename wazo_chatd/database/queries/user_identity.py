@@ -231,7 +231,7 @@ class UserIdentityDAO:
         backend: str | None = None,
         type_: str | None = None,
         identity: str | None = None,
-        **ignored: Any,
+        **_: Any,
     ) -> Select:
         if search is not None:
             statement = statement.where(
@@ -261,7 +261,7 @@ class UserIdentityDAO:
         offset: int | None = None,
         order: str = 'identity',
         direction: str = 'asc',
-        **ignored: Any,
+        **_: Any,
     ) -> Select:
         column_name = 'type_' if order == 'type' else order
         order_column = getattr(UserIdentity, column_name)

@@ -14,7 +14,7 @@ def apply_jitter(
     ratio: float = 0.1,
     random_generator: random.Random | None = None,
 ) -> float:
-    if not 0 < ratio < 1:
+    if not (0 < ratio < 1):
         return value
 
     if random_generator is None:

@@ -146,6 +146,8 @@ class TestUserMeIdentities(ConnectorIntegrationTest):
 
         assert result['total'] == 1
         assert result['items'][0]['identity'] == 'test:me'
+        returned_identities = [item['identity'] for item in result['items']]
+        assert 'test:recipient' not in returned_identities
 
     @fixtures.db.user(uuid=TOKEN_USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)
     @fixtures.db.user(uuid=USER_UUID, tenant_uuid=TOKEN_TENANT_UUID)

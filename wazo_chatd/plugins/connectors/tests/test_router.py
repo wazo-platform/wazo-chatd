@@ -399,7 +399,7 @@ class TestConnectorRouterListConnectors(unittest.TestCase):
         self.router.list_connectors('tenant-uuid')
 
         self.router._store.batch_find.assert_called_once()
-        pairs = list(self.router._store.batch_find.call_args[0][0])
+        pairs = self.router._store.batch_find.call_args[0][0]
         assert set(pairs) == {
             ('tenant-uuid', 'sms_backend'),
             ('tenant-uuid', 'email_backend'),
