@@ -68,18 +68,22 @@ paths:
         Returns every identity bound to a user in the calling
         tenant. The `Wazo-Tenant` header scopes the result; each
         item includes its owner (`user_uuid`) and `tenant_uuid`.
-
-        Supports pagination, sorting, and filtering via query
-        parameters. `total` reflects the unfiltered count in the
-        tenant scope; `filtered` reflects the count after applying
-        filter parameters.
       tags:
       - identities
       parameters:
       - $ref: '#/parameters/tenant_uuid'
       - $ref: '#/parameters/limit'
       - $ref: '#/parameters/offset'
-      - $ref: '#/parameters/order'
+      - name: order
+        in: query
+        type: string
+        required: false
+        description: Name of the field to use for sorting the list of items returned.
+        enum:
+        - uuid
+        - backend
+        - type
+        - identity
       - $ref: '#/parameters/direction'
       - $ref: '#/parameters/search'
       - $ref: '#/parameters/user_uuid_query'
@@ -170,6 +174,8 @@ paths:
           $ref: '#/responses/NotFoundError'
         '409':
           description: Another identity with the same value already exists
+        '503':
+          $ref: '#/responses/AnotherServiceUnavailable'
     delete:
       operationId: delete_identity
       summary: Delete an identity
@@ -339,9 +345,6 @@ definitions:
       configured:
         type: boolean
         description: Whether wazo-auth has external credentials for this tenant
-      webhook_url:
-        type: string
-        description: URL to point this provider's webhook at
 
   ConnectorInventoryList:
     title: ConnectorInventoryList
@@ -398,15 +401,22 @@ definitions:
       backend:
         type: string
         description: The connector backend name
+        maxLength: 64
       type:
         type: string
         description: The messaging type
+        maxLength: 32
       identity:
         type: string
         description: The external identity value
+        maxLength: 256
       extra:
         type: object
-        description: Additional metadata
+        description: |
+          Additional metadata. Values must be scalars (string,
+          integer, float, boolean, null) or lists of scalars. Keys
+          ≤64 chars, individual values ≤1024 chars, total serialized
+          size ≤4096 chars.
 
   Identity:
     title: Identity
@@ -445,15 +455,22 @@ definitions:
       backend:
         type: string
         description: The connector backend name
+        maxLength: 64
       type:
         type: string
         description: The messaging type
+        maxLength: 32
       identity:
         type: string
         description: The external identity value
+        maxLength: 256
       extra:
         type: object
-        description: Additional metadata
+        description: |
+          Additional metadata. Values must be scalars (string,
+          integer, float, boolean, null) or lists of scalars. Keys
+          ≤64 chars, individual values ≤1024 chars, total serialized
+          size ≤4096 chars.
     required:
       - user_uuid
       - backend
@@ -472,6 +489,11 @@ definitions:
       identity:
         type: string
         description: The external identity value
+        maxLength: 256
       extra:
         type: object
-        description: Additional metadata
+        description: |
+          Additional metadata. Values must be scalars (string,
+          integer, float, boolean, null) or lists of scalars. Keys
+          ≤64 chars, individual values ≤1024 chars, total serialized
+          size ≤4096 chars.

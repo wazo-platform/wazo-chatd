@@ -33,12 +33,6 @@ class TestConnectorList(ConnectorIntegrationTest):
         test_connector = next(c for c in result['items'] if c['name'] == 'test')
         assert test_connector['configured'] is True
 
-    def test_list_response_includes_webhook_url(self):
-        result = self.chatd.connectors.list()
-
-        test_connector = next(c for c in result['items'] if c['name'] == 'test')
-        assert test_connector['webhook_url'].endswith('/connectors/incoming/test')
-
 
 @use_asset('connectors')
 class TestConnectorInventory(ConnectorIntegrationTest):
