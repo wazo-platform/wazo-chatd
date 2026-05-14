@@ -500,6 +500,31 @@ class TestConnectorRouterReconcileAfterDelete(unittest.TestCase):
         self.router._listener_runner.resync.assert_called_once()
 
 
+class TestConnectorRouterInvalidateBackendCache(unittest.TestCase):
+    def setUp(self) -> None:
+        self.router = _build_router()
+        self.router._store = Mock()
+        self.router._listener_runner = Mock()
+
+    def test_drops_and_resyncs_when_cached(self) -> None:
+        self.router._store.peek.return_value = Mock()
+
+        self.router.invalidate_backend_cache('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_called_once_with('sms_backend', 'tenant-uuid')
+        self.router._delivery_runner.resync_pollers.assert_called_once()
+        self.router._listener_runner.resync.assert_called_once()
+
+    def test_noop_when_not_cached(self) -> None:
+        self.router._store.peek.return_value = None
+
+        self.router.invalidate_backend_cache('tenant-uuid', 'sms_backend')
+
+        self.router._store.drop.assert_not_called()
+        self.router._delivery_runner.resync_pollers.assert_not_called()
+        self.router._listener_runner.resync.assert_not_called()
+
+
 class TestConnectorRouterEmptyRegistry(unittest.TestCase):
     def test_empty_registry_skips_runner_construction(self) -> None:
         with (

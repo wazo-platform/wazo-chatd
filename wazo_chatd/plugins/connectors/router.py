@@ -45,10 +45,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _not_implemented() -> list:
-    raise NotImplementedError
-
-
 class ConnectorRouter:
     """Main entry point for the connector subsystem.
 
@@ -139,12 +135,9 @@ class ConnectorRouter:
 
         connector = self._store.get(backend, tenant_uuid)
 
-        list_provider_identities = getattr(
-            connector, 'list_provider_identities', _not_implemented
-        )
         try:
-            provider_identities = list_provider_identities()
-        except NotImplementedError:
+            provider_identities = connector.list_provider_identities()
+        except (AttributeError, NotImplementedError):
             raise InventoryNotSupportedException(backend) from None
         except Exception:
             logger.exception(
@@ -175,10 +168,10 @@ class ConnectorRouter:
         return result
 
     def invalidate_backend_cache(self, tenant_uuid: str, backend: str) -> None:
-        """Drop a cached connector instance and resync runners."""
-        if self._store.peek(backend, tenant_uuid) is not None:
-            self._store.drop(backend, tenant_uuid)
+        if self._store.peek(backend, tenant_uuid) is None:
+            return
 
+        self._store.drop(backend, tenant_uuid)
         self._delivery_runner.resync_pollers()
         self._listener_runner.resync()
 
