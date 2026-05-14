@@ -37,13 +37,6 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectorStore:
-    """Lazy, TTL-based cache of configured connector instances.
-
-    Keyed by ``(tenant_uuid, backend)``.  Both sync and async sides
-    read from cache via :meth:`peek`.  The async side
-    drives fetches via :meth:`refresh`.
-    """
-
     def __init__(
         self,
         auth_client: AuthClient,
@@ -58,16 +51,8 @@ class ConnectorStore:
         self._cache: dict[CacheKey, Connector] = {}
         self._expires_at: dict[CacheKey, float] = {}
         self._cache_epoch: dict[CacheKey, int] = {}
-        # One-shot signal — set when priority (runner-driven) population
-        # completes. Webhook-mode backends may still be populating in the
-        # background when this fires.
         self._populated: concurrent.futures.Future[None] = concurrent.futures.Future()
-        # Ensures populate runs at most once concurrently. Non-blocking
-        # acquire — second caller returns immediately.
         self._populate_lock = threading.Lock()
-        # Single-flight: concurrent fetches for the same key share one
-        # wazo-auth round-trip. Lock guards membership only; waiting
-        # happens off-lock.
         self._pending_fetches: dict[CacheKey, concurrent.futures.Future[Connector]] = {}
         self._fetch_lock = threading.Lock()
 
@@ -75,8 +60,6 @@ class ConnectorStore:
         return len(self._cache)
 
     def __iter__(self) -> Iterator[Connector]:
-        # Snapshot — protects iteration against concurrent writes from
-        # populate's worker pool.
         return iter(list(self._cache.values()))
 
     def items(self) -> Iterator[tuple[CacheKey, Connector]]:
@@ -92,17 +75,6 @@ class ConnectorStore:
         return self._cache.get((tenant_uuid, backend))
 
     def populate(self, tenant_backends: Iterable[tuple[str, str]]) -> None:
-        """Pre-load the cache.
-
-        Non-webhook backends are populated first; ``_populated`` fires
-        as soon as they are ready so pollers/listeners can spawn.
-        Webhook-mode backends are populated afterwards in the same
-        thread — webhook dispatch tolerates brief startup lag (cache
-        miss → ``peek`` returns None, provider retries).
-
-        Idempotent and non-blocking — concurrent callers return
-        immediately instead of racing.
-        """
         if not self._populate_lock.acquire(blocking=False):
             return
 
@@ -148,18 +120,9 @@ class ConnectorStore:
             self._populate_lock.release()
 
     async def wait_populated(self) -> None:
-        """Resolve when runner-driven populate has completed."""
         await asyncio.wrap_future(self._populated)
 
     def batch_find(self, pairs: Iterable[tuple[str, str]]) -> None:
-        """Warm the cache for many ``(tenant_uuid, backend)`` pairs in parallel.
-
-        Each pair goes through :meth:`find` (silent on missing config or
-        transient auth errors). Callers then read via :meth:`peek` to
-        consume results. Used by request-time paths (e.g. ``GET
-        /connectors``) to avoid a serial fan-out to wazo-auth on cold
-        cache.
-        """
         self._fetch_batch(set(pairs))
 
     def _fetch_batch(self, pairs: set[tuple[str, str]]) -> None:
@@ -200,19 +163,11 @@ class ConnectorStore:
                 self._cache_epoch[key] = self._cache_epoch.get(key, 0) + 1
 
     def get(self, backend: str, tenant_uuid: str) -> Connector:
-        """Get cached instance if fresh, else fetch from wazo-auth; raises on failure.
-
-        Raises:
-          - :class:`UnknownBackendException` (400) — backend not registered.
-          - :class:`BackendNotConfiguredException` (400) — no tenant config.
-          - :class:`AuthServiceUnavailableException` (503) — transient.
-        """
         if (cached := self._get_cached(backend, tenant_uuid)) is not None:
             return cached
         return self._fetch(backend, tenant_uuid)
 
     def find(self, backend: str, tenant_uuid: str) -> Connector | None:
-        """Silent variant of :meth:`get` — logs and returns None on failure."""
         try:
             return self.get(backend, tenant_uuid)
         except UnknownBackendException:
@@ -236,7 +191,6 @@ class ConnectorStore:
         return None
 
     async def refresh(self, backend: str, tenant_uuid: str) -> Connector | None:
-        """Async variant of :meth:`find` that runs off the event loop."""
         return await asyncio.to_thread(self.find, backend, tenant_uuid)
 
     def _get_cached(self, backend: str, tenant_uuid: str) -> Connector | None:
@@ -246,11 +200,6 @@ class ConnectorStore:
         return self._cache.get(key)
 
     def _fetch(self, backend: str, tenant_uuid: str) -> Connector:
-        """Talk to wazo-auth, instantiate, cache, and return; raises on failure.
-
-        Single-flight: concurrent callers for the same key share one
-        wazo-auth round-trip via :attr:`_pending_fetches`.
-        """
         key = (tenant_uuid, backend)
         is_leader = False
 

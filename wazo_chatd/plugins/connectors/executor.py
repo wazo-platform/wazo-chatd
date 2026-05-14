@@ -1,16 +1,9 @@
 # Copyright 2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Delivery executor — runs in the server (worker) process.
-
-Uses asyncio for I/O-bound operations (DB writes, external API calls).
-Sync connector implementations are wrapped with ``asyncio.to_thread()``.
-"""
-
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from collections.abc import Awaitable
 from typing import TypeVar
@@ -39,6 +32,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorRateLimited,
     ConnectorSendError,
 )
+from wazo_chatd.plugins.connectors.helpers import generate_message_signature
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import ConnectorStore
@@ -72,7 +66,6 @@ async def _db_persist_or_delay(
     attempt: int,
     description: str,
 ) -> float | None:
-    """Await a DB-touching coroutine; return a retry delay on transient failure."""
     session = get_async_session()
 
     try:
@@ -94,28 +87,7 @@ async def _db_persist_or_delay(
     return None
 
 
-def generate_message_signature(sender_identity: str, body: str) -> str:
-    """Generate a dedup signature to detect inbound echoes of outbound messages.
-
-    Combines the sender identity with a normalized body (lowercase, ASCII-only,
-    no whitespace, capped at 160 chars) and returns a truncated SHA-256 hash.
-    The 160-char cap ensures consistent signatures across providers regardless
-    of SMS segment reassembly behavior.
-    """
-    normalized = ''.join(c.lower() for c in body if c.isascii() and not c.isspace())
-    payload = sender_identity + ':' + normalized[:160]
-
-    return hashlib.sha256(payload.encode()).hexdigest()[:16]
-
-
 class DeliveryExecutor:
-    """Executes connector send operations with delivery tracking and retries.
-
-    Connectors are initialized locally from configuration received via
-    pipe from the main process.  The executor never queries the DB for
-    provider configuration — it only writes delivery status records.
-    """
-
     def __init__(
         self,
         config: ConfigDict,
@@ -131,11 +103,6 @@ class DeliveryExecutor:
         self._room_creation_lock = KeyedLock()
 
     async def route_outbound_delivery(self, delivery_id: str) -> float | None:
-        """Send a single delivery. Returns retry delay if RETRYING.
-
-        Loads the delivery per leg (1 query per leg). Future optimization:
-        pass primitives from the publisher to skip the per-leg read.
-        """
         delivery = await self._dao.room.get_message_delivery(
             delivery_id, skip_locked=True
         )
@@ -557,13 +524,6 @@ class DeliveryExecutor:
         return record
 
     async def _find_connector(self, backend: str, tenant_uuid: str) -> Connector:
-        """Return the connector instance, lazy-loading from wazo-auth if needed.
-
-        Raises the store's domain exceptions
-        (:class:`UnknownBackendException`, :class:`BackendNotConfiguredException`,
-        :class:`AuthServiceUnavailableException`) so the caller can distinguish
-        transient failures from permanent ones.
-        """
         if connector := self._store.peek(backend, tenant_uuid):
             return connector
 
@@ -574,7 +534,6 @@ class DeliveryExecutor:
         connector: Connector,
         outbound: OutboundMessage,
     ) -> str:
-        """Call connector.send(), wrapping sync implementations."""
         if asyncio.iscoroutinefunction(connector.send):
             return await connector.send(outbound)  # type: ignore[misc]
         return await asyncio.to_thread(connector.send, outbound)

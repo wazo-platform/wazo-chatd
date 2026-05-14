@@ -20,7 +20,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     UnknownBackendException,
     UnreachableParticipantException,
 )
-from wazo_chatd.plugins.connectors.executor import generate_message_signature
+from wazo_chatd.plugins.connectors.helpers import generate_message_signature
 from wazo_chatd.plugins.connectors.notifier import UserIdentityNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
