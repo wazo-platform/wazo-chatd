@@ -109,9 +109,6 @@ class AsyncNotifier:
 
     @staticmethod
     def _build_message_payload(message: RoomMessage) -> MessageDict:
-        # Reuse the sync schema so both notifier paths publish the same
-        # shape: handles meta=None via the _default_delivery post_dump
-        # and includes the recipients list.
         return cast(MessageDict, MessageSchema().dump(message))
 
     async def _notify_message_delivered(self, message: RoomMessage, room: Room) -> None:

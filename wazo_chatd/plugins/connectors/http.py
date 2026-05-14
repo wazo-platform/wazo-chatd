@@ -46,9 +46,6 @@ class ConnectorWebhookResource(ErrorCatchingResource):
     Routes:
         ``POST /connectors/incoming`` — tries all connectors
         ``POST /connectors/incoming/<backend>`` — backend hint for fast path
-
-    Extracts the request body and HTTP metadata into a
-    :class:`WebhookData`, then dispatches to the router.
     """
 
     def __init__(self, router: ConnectorRouter) -> None:

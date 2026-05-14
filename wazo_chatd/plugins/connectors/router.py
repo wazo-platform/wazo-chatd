@@ -46,14 +46,6 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectorRouter:
-    """Main entry point for the connector subsystem.
-
-    Owns the delivery loop, manages connector instances, handles
-    capability resolution and message forwarding.  Heavy processing
-    (identity lookup, delivery tracking, persistence) happens
-    asynchronously in the delivery loop.
-    """
-
     _delivery_runner: DeliveryRunner | NullRunner
     _listener_runner: ListenerRunner | NullRunner
 
@@ -176,26 +168,13 @@ class ConnectorRouter:
         self._listener_runner.resync()
 
     def validate_tenant_backend(self, tenant_uuid: str, backend: str) -> None:
-        """Validate a backend is usable for a tenant; caches on success.
-
-        Raises:
-          - :class:`UnknownBackendException` (400) — backend not registered.
-          - :class:`BackendNotConfiguredException` (400) — no tenant config.
-          - :class:`AuthServiceUnavailableException` (503) — auth transient error.
-        """
         self._store.get(backend, tenant_uuid)
 
     def reconcile_after_create(self) -> None:
-        """Resync runners after a UserIdentity create.
-
-        Cache warming is handled by :meth:`validate_tenant_backend`
-        before insertion, so no store lookup is needed here.
-        """
         self._delivery_runner.resync_pollers()
         self._listener_runner.resync()
 
     def reconcile_after_delete(self, tenant_uuid: str, backend: str) -> None:
-        """Drop cached instance if last identity removed, then resync runners."""
         has_any = self._dao.user_identity.has_identities_for_backend(
             tenant_uuid, backend
         )
@@ -248,25 +227,7 @@ class ConnectorRouter:
     def resolve_room_participants(self, body: dict, tenant_uuid: str) -> None:
         self._service.resolve_room_participants(body, tenant_uuid)
 
-    def dispatch_webhook(
-        self,
-        data: WebhookData,
-        backend: str | None = None,
-    ) -> None:
-        """Parse, authenticate, and enqueue an incoming webhook.
-
-        Parsing (``can_handle`` / ``on_event``) is stateless (classmethods).
-        Signature verification requires the per-tenant instance held in
-        the store: the recipient identity (or external_id for status
-        updates) resolves the tenant; the store yields the instance;
-        the instance verifies.
-
-        Raises:
-            ConnectorParseError: No connector handled the payload, or
-                the tenant could not be resolved, or no instance is
-                cached for (tenant, backend).
-            ConnectorAuthException: The connector rejected the signature.
-        """
+    def dispatch_webhook(self, data: WebhookData, backend: str | None = None) -> None:
         backends = self._registry.available_backends()
         if not backends:
             raise ConnectorParseError('No connector backends registered')
@@ -297,10 +258,7 @@ class ConnectorRouter:
         raise ConnectorParseError('No connector matched the webhook payload')
 
     def _verify_and_enqueue(
-        self,
-        data: WebhookData,
-        result: InboundMessage | StatusUpdate,
-        backend: str,
+        self, data: WebhookData, result: InboundMessage | StatusUpdate, backend: str
     ) -> None:
         tenant_uuid = self._resolve_tenant(result, backend)
         if tenant_uuid is None:

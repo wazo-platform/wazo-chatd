@@ -48,7 +48,6 @@ def _backoff() -> itertools.chain[int]:
 
 
 async def _cancel_and_gather(tasks: Iterable[asyncio.Task[None]]) -> None:
-    """Cancel any unfinished task and gather their results, swallowing exceptions."""
     pending = [t for t in tasks if not t.done()]
     for task in pending:
         task.cancel()
@@ -60,10 +59,6 @@ def _observe_future(
     source: concurrent.futures.Future[None],
     loop: asyncio.AbstractEventLoop,
 ) -> asyncio.Future[None]:
-    """
-    Read-only asyncio.Future that resolves when ``source`` completes;
-    cancelling the returned future does not cancel ``source``.
-    """
     target: asyncio.Future[None] = loop.create_future()
     if source.done():
         target.set_result(None)
@@ -81,22 +76,6 @@ def _observe_future(
 
 
 class Runner(abc.ABC):
-    """Event loop running on a dedicated daemon thread.
-
-    Handles thread + loop lifecycle (via :func:`asyncio.run`), crash
-    recovery with iterative exponential backoff, and a
-    loop-independent close signal that survives restarts.
-
-    :meth:`start` spawns the thread; :meth:`shutdown` signals
-    ``_closing`` and joins.
-
-    Subclasses implement :meth:`_run` — a coroutine that owns the
-    full lifecycle (setup, steady state, cleanup via ``try/finally``).
-    The base races it against the close signal and cancels it on
-    shutdown; any exception from :meth:`_run` propagates so the
-    thread loop triggers a restart.
-    """
-
     thread_name: ClassVar[str] = 'runner'
     start_timeout: ClassVar[float] = 10.0
     shutdown_timeout: ClassVar[float] = 30.0
@@ -107,9 +86,6 @@ class Runner(abc.ABC):
             target=self._thread_target, name=self.thread_name, daemon=True
         )
         self._ready = threading.Event()
-        # Loop-independent, created once, survives restarts.
-        # Set from any thread via shutdown(); observed from async via
-        # _wait_closing() or is_closing.
         self._closing: concurrent.futures.Future[None] = concurrent.futures.Future()
         self._backoff = _backoff()
         self._restart_count: int = 0
@@ -134,7 +110,6 @@ class Runner(abc.ABC):
         return self._restart_count
 
     def _thread_target(self) -> None:
-        """Thread target: drive the async lifecycle and restart on crash."""
         while True:
             try:
                 asyncio.run(self._entrypoint())
@@ -172,6 +147,7 @@ class Runner(abc.ABC):
     def start(self) -> None:
         if self._thread.is_alive() or self._thread.ident is not None:
             raise RuntimeError(f'{type(self).__name__} already started')
+
         logger.info('Starting %s', self.thread_name)
         self._thread.start()
         if not self._ready.wait(timeout=self.start_timeout):
@@ -201,12 +177,6 @@ class Runner(abc.ABC):
         self.shutdown()
 
     def _wait_backoff(self) -> bool:
-        """Sleep with exponential backoff.
-
-        Returns ``False`` if shutdown was requested during the sleep
-        (caller should exit), ``True`` otherwise (caller should
-        restart).
-        """
         if self._healthy.is_set():
             self._backoff = _backoff()
             self._healthy.clear()
@@ -226,30 +196,18 @@ class Runner(abc.ABC):
             return True
 
     async def _wait_closing(self) -> None:
-        """Subclass helper: resolve when shutdown has been requested."""
         await _observe_future(self._closing, self.loop)
 
     @abc.abstractmethod
     async def _run(self) -> None:
-        """Implement the runner lifecycle.
+        """Implement the runner lifecycle. Example::
 
-        The base spawns this as a task and races it against the
-        ``_closing`` shutdown signal. On shutdown the base cancels
-        this coroutine, raising :class:`asyncio.CancelledError` —
-        cleanup belongs in a ``finally`` block::
-
-            async def _run(self):
-                resource = await self._setup()
-                try:
-                    # block on work until shutdown cancels us, or
-                    # until a critical task crashes
-                    await self._wait_closing()
-                finally:
-                    await resource.close()
-
-        Subclasses determine task criticality on their own: re-raise
-        a critical task's exception from inside this method to trigger
-        the runner's restart path.
+        async def _run(self):
+            resource = await self._setup()
+            try:
+                await self._wait_closing()
+            finally:
+                await resource.close()
         """
 
 
@@ -324,14 +282,12 @@ class DeliveryRunner(Runner):
             )
 
     def resync_pollers(self) -> None:
-        """Thread-safe: schedule a poller reconcile on the delivery loop."""
         try:
             self.loop.call_soon_threadsafe(self._synchronize_pollers)
         except RuntimeError:
             pass
 
     def _reset_loop_state(self) -> None:
-        """Drop state bound to the previous event loop so restarts are clean."""
         self._tasks = {}
         self._pollers = {}
         self._scheduled_timers = set()
@@ -604,15 +560,6 @@ class DeliveryRunner(Runner):
             self._schedule_inbound_later(retry_delay, message, attempt + 1)
 
     def _synchronize_pollers(self) -> None:
-        """Reconcile pollers against the store.
-
-        Idempotent. Spawns pollers for poll-mode instances that are
-        cached but unscheduled. Cancels pollers whose instance was
-        evicted from the store (e.g. credential rotation).
-
-        Mode is static config — not re-evaluated at runtime. This
-        method handles only store-side churn.
-        """
         for key in list(self._pollers):
             task = self._pollers[key]
             if not task.done():
@@ -735,18 +682,6 @@ class DeliveryRunner(Runner):
 
 
 class ListenerRunner(Runner):
-    """Dedicated runner for long-lived connector listener tasks.
-
-    Isolated from :class:`DeliveryRunner` so a misbehaving listener
-    (accidental blocking call, slow parser, deadlock) cannot stall
-    outbound sends or webhook processing.
-
-    Cross-thread message flow: listener tasks forward parsed events
-    via the ``on_message`` callback (typically the delivery runner's
-    ``enqueue_message``), which hops back via ``call_soon_threadsafe``
-    — the same mechanism Flask uses for webhook inbound.
-    """
-
     thread_name: ClassVar[str] = 'listener-runner'
 
     def __init__(
@@ -786,7 +721,6 @@ class ListenerRunner(Runner):
         }
 
     def resync(self) -> None:
-        """Thread-safe: reconcile listener tasks against current store state."""
         try:
             self.loop.call_soon_threadsafe(self._reconcile, self._build_desired())
         except RuntimeError:
@@ -829,13 +763,6 @@ class ListenerRunner(Runner):
 
 
 class NullRunner:
-    """Null Object stand-in used when no connector backends are registered.
-
-    Implements the union of :class:`DeliveryRunner` and :class:`ListenerRunner`
-    surfaces touched by :class:`ConnectorRouter` so callers don't need to
-    branch on absence.
-    """
-
     is_running = True
     in_flight_count = 0
     restart_count = 0
