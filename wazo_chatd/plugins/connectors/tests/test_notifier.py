@@ -79,6 +79,22 @@ class TestUserIdentityNotifier(unittest.TestCase):
             event = call.args[0]
             assert 'extra' not in event.content
 
+    def test_event_payload_matches_bus_contract(self) -> None:
+        identity = self._make_identity()
+
+        self.notifier.created(identity)
+        self.notifier.updated(identity)
+        self.notifier.deleted(identity)
+
+        for call in self.bus.publish.call_args_list:
+            event = call.args[0]
+            assert set(event.content.keys()) == {
+                'uuid',
+                'backend',
+                'type',
+                'identity',
+            }
+
 
 class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:

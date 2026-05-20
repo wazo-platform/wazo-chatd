@@ -174,11 +174,6 @@ class IdentityItemResource(AuthResource):
         identity = self._service.get_identity(tenant_uuids, identity_uuid)
         body = identity_update_schema.load(request.get_json(force=True))
 
-        if 'user_uuid' in body:
-            self._service.validate_reassignment_target(
-                tenant_uuids, identity, body['user_uuid']
-            )
-
         update_model_instance(identity, body)
         self._service.update_identity(identity)
 

@@ -58,9 +58,16 @@ class IdentityCreateSchema(IdentitySchema):
 
 
 class IdentityUpdateSchema(Schema):
-    user_uuid = fields.UUID()
     identity = fields.String(validate=validate.Length(min=1, max=256))
     extra = fields.Dict(validate=_validate_extra)
+
+    @pre_load
+    def reject_user_uuid(self, data, **kwargs):
+        if 'user_uuid' in data:
+            raise ValidationError(
+                {'user_uuid': ['Reassignment not supported; delete and recreate.']}
+            )
+        return data
 
 
 class UserIdentityListRequestSchema(Schema):

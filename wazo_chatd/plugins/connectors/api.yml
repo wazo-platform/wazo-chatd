@@ -150,9 +150,7 @@ paths:
       description: |
         **Required ACL:** `chatd.identities.{identity_uuid}.update`
 
-        Updates one or more mutable fields. Pass `user_uuid` to
-        reassign the identity to a different user in the same
-        tenant.
+        Updates one or more mutable fields.
       tags:
       - identities
       parameters:
@@ -490,12 +488,8 @@ definitions:
   IdentityUpdateRequest:
     title: IdentityUpdateRequest
     description: |
-      Partial update — every field is optional. Pass `user_uuid` to
-      reassign the identity to a different user in the same tenant.
+      Partial update — every field is optional.
     properties:
-      user_uuid:
-        type: string
-        description: Reassign the identity to this user
       identity:
         type: string
         description: The external identity value

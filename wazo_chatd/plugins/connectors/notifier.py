@@ -26,7 +26,7 @@ from wazo_chatd.database.models import (
     RoomMessage,
     UserIdentity,
 )
-from wazo_chatd.plugins.connectors.schemas import IdentitySchema
+from wazo_chatd.plugins.connectors.schemas import user_identity_schema
 from wazo_chatd.plugins.rooms.schemas import MessageSchema, RoomSchema
 
 if TYPE_CHECKING:
@@ -34,29 +34,27 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_bus_identity_schema = IdentitySchema(exclude=('extra',))
-
 
 class UserIdentityNotifier:
     def __init__(self, bus_publisher: BusPublisher) -> None:
         self._bus = bus_publisher
 
     def created(self, identity: UserIdentity) -> None:
-        identity_data = _bus_identity_schema.dump(identity)
+        identity_data = user_identity_schema.dump(identity)
         event = UserIdentityCreatedEvent(
             identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
         )
         self._bus.publish(event)
 
     def updated(self, identity: UserIdentity) -> None:
-        identity_data = _bus_identity_schema.dump(identity)
+        identity_data = user_identity_schema.dump(identity)
         event = UserIdentityUpdatedEvent(
             identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
         )
         self._bus.publish(event)
 
     def deleted(self, identity: UserIdentity) -> None:
-        identity_data = _bus_identity_schema.dump(identity)
+        identity_data = user_identity_schema.dump(identity)
         event = UserIdentityDeletedEvent(
             identity_data, str(identity.tenant_uuid), str(identity.user_uuid)
         )

@@ -1,6 +1,6 @@
 # Changelog
 
-## 26.06
+## 26.07
 
 * New endpoints:
   * `GET /connectors` — list registered connector backends and their tenant-configured state
@@ -8,7 +8,7 @@
   * `GET /identities` — list all identities visible to the tenant, with pagination, search, sort, and filters
   * `POST /identities` — create an identity for a user
   * `GET /identities/{identity_uuid}` — get an identity by UUID
-  * `PUT /identities/{identity_uuid}` — update an identity (partial; supports cross-user reassignment within the tenant)
+  * `PUT /identities/{identity_uuid}` — update an identity (partial)
   * `DELETE /identities/{identity_uuid}` — delete an identity
 
 * Removed endpoints (superseded by the tenant-scoped `/identities` set above):

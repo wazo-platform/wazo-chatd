@@ -465,31 +465,17 @@ class TestIdentityUpdate(ConnectorIntegrationTest):
         type_='test',
         identity='test:reassign',
     )
-    def test_update_reassigns_user(self, user_a, user_b, identity):
-        self.chatd.identities.update(
-            str(identity.uuid),
-            {'user_uuid': str(USER_B_UUID)},
-        )
-
-        persisted = self.chatd.identities.get(str(identity.uuid))
-        assert persisted['user_uuid'] == str(USER_B_UUID)
-        assert persisted['identity'] == 'test:reassign'
-
-    @fixtures.db.user(uuid=USER_A_UUID)
-    @fixtures.db.user_identity(
-        user_uuid=USER_A_UUID,
-        backend='test',
-        type_='test',
-        identity='test:reassign-unknown',
-    )
-    def test_update_reassign_to_unknown_user_returns_404(self, user, identity):
+    def test_update_rejects_user_uuid_with_400(self, user_a, user_b, identity):
         with pytest.raises(ChatdError) as exc_info:
             self.chatd.identities.update(
                 str(identity.uuid),
-                {'user_uuid': str(uuid.uuid4())},
+                {'user_uuid': str(USER_B_UUID)},
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.status_code == 400
+
+        persisted = self.chatd.identities.get(str(identity.uuid))
+        assert persisted['user_uuid'] == str(USER_A_UUID)
 
     def test_update_unknown_identity_returns_404(self):
         with pytest.raises(ChatdError) as exc_info:
@@ -521,27 +507,6 @@ class TestIdentityUpdate(ConnectorIntegrationTest):
         assert persisted['identity'] == 'test:still-updates'
         assert persisted['backend'] == 'test'
         assert persisted['type'] == 'test'
-
-    @fixtures.db.user(uuid=USER_A_UUID, tenant_uuid=TOKEN_TENANT_UUID)
-    @fixtures.db.user(uuid=OTHER_TENANT_USER_UUID, tenant_uuid=TOKEN_SUBTENANT_UUID)
-    @fixtures.db.user_identity(
-        user_uuid=USER_A_UUID,
-        tenant_uuid=TOKEN_TENANT_UUID,
-        backend='test',
-        type_='test',
-        identity='test:cross-tenant',
-    )
-    def test_update_reassign_to_other_tenant_returns_404(
-        self, user_a, other_tenant_user, identity
-    ):
-        with pytest.raises(ChatdError) as exc_info:
-            self.chatd.identities.update(
-                str(identity.uuid),
-                {'user_uuid': str(OTHER_TENANT_USER_UUID)},
-            )
-
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.error_id == 'unknown-user'
 
 
 @use_asset('connectors')

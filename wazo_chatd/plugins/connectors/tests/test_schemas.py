@@ -13,6 +13,7 @@ from werkzeug.datastructures import MultiDict
 from wazo_chatd.plugins.connectors.schemas import (
     identity_create_schema,
     identity_list_request_schema,
+    identity_update_schema,
 )
 
 
@@ -89,3 +90,24 @@ class TestExtraPerValueCap(unittest.TestCase):
         result = identity_create_schema.load({**self.base, 'extra': {'k': 'x' * 1024}})
 
         assert result['extra'] == {'k': 'x' * 1024}
+
+
+class TestIdentityUpdateSchemaRejectsReassignment(unittest.TestCase):
+    def test_user_uuid_in_body_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            identity_update_schema.load({'user_uuid': str(uuid4())})
+
+        assert 'user_uuid' in exc_info.value.messages
+
+    def test_user_uuid_with_other_fields_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            identity_update_schema.load(
+                {'user_uuid': str(uuid4()), 'identity': 'test:value'}
+            )
+
+        assert 'user_uuid' in exc_info.value.messages
+
+    def test_other_fields_alone_accepted(self) -> None:
+        result = identity_update_schema.load({'identity': 'test:value'})
+
+        assert result == {'identity': 'test:value'}
