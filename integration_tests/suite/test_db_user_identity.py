@@ -100,24 +100,6 @@ class TestUserIdentity(DBIntegrationTest):
         assert self._dao.user_identity.find(str(identity.uuid)) is None
 
     @fixtures.db.user(uuid=USER_UUID_1)
-    @fixtures.db.user_identity(
-        user_uuid=USER_UUID_1,
-        backend='sms_backend',
-        type_='sms',
-        identity='+15551111111',
-    )
-    @fixtures.db.user_identity(
-        user_uuid=USER_UUID_1,
-        backend='other_backend',
-        type_='sms',
-        identity='+15552222222',
-    )
-    def test_list_by_user(self, user, identity_1, identity_2):
-        results = self._dao.user_identity.list_(user_uuid=str(USER_UUID_1))
-
-        assert len(results) == 2
-
-    @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user(uuid=USER_UUID_2)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,

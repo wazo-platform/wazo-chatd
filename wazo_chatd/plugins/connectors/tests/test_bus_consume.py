@@ -23,3 +23,18 @@ class TestBusEventHandler(unittest.TestCase):
         router.invalidate_backend_cache.assert_called_once_with(
             'tenant-uuid', 'sms_backend'
         )
+
+    def test_subscribe_registers_added_updated_and_deleted(self) -> None:
+        bus = Mock()
+        handler = BusEventHandler(bus, Mock())
+
+        handler.subscribe()
+
+        subscribed = {
+            call.args[0]: call.args[1] for call in bus.subscribe.call_args_list
+        }
+        assert subscribed == {
+            'auth_external_auth_added': handler.on_external_auth_changed,
+            'auth_external_auth_updated': handler.on_external_auth_changed,
+            'auth_external_auth_deleted': handler.on_external_auth_changed,
+        }

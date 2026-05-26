@@ -7,9 +7,10 @@ import uuid
 
 import pytest
 from wazo_chatd_client.exceptions import ChatdError
+from wazo_test_helpers import until
 
 from .helpers import fixtures
-from .helpers.base import ConnectorIntegrationTest, use_asset
+from .helpers.base import TOKEN_TENANT_UUID, ConnectorIntegrationTest, use_asset
 
 
 @use_asset('connectors')
@@ -90,3 +91,29 @@ class TestConnectorListAuth(ConnectorIntegrationTest):
                 chatd.connectors.identities('test')
 
             assert exc_info.value.status_code == 401
+
+
+@use_asset('connectors')
+class TestConnectorIdentitiesBackendNotConfigured(ConnectorIntegrationTest):
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(
+            self.auth.set_external_config,
+            {'test': {'mock_url': 'http://connector-mock:8080'}},
+        )
+        self.auth.set_external_config({})
+        self.bus.send_tenant_external_auth_deleted_event(TOKEN_TENANT_UUID, 'test')
+
+        def cache_invalidated():
+            result = self.chatd.connectors.list()
+            test_connector = next(c for c in result['items'] if c['name'] == 'test')
+            assert test_connector['configured'] is False
+
+        until.assert_(cache_invalidated, timeout=5, interval=0.1)
+
+    def test_identities_returns_400_when_backend_not_configured(self):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.connectors.identities('test')
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.error_id == 'backend-not-configured'

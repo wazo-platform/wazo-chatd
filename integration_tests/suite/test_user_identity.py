@@ -418,6 +418,29 @@ class TestIdentityCreate(ConnectorIntegrationTest):
         assert exc_info.value.error_id == 'unknown-backend'
 
     @fixtures.db.user(uuid=USER_A_UUID)
+    def test_create_with_extra_persists_and_round_trips(self, user):
+        extra = {'provider_resource_id': 'PN-abc', 'priority': 1}
+
+        created = self.chatd.identities.create(
+            {
+                'user_uuid': str(USER_A_UUID),
+                'backend': 'test',
+                'type': 'test',
+                'identity': 'test:extra-roundtrip',
+                'extra': extra,
+            }
+        )
+
+        assert created['extra'] == extra
+
+        fetched = self.chatd.identities.get(created['uuid'])
+        assert fetched['extra'] == extra
+
+        listed = self.chatd.identities.list(user_uuid=str(USER_A_UUID))
+        match = next(i for i in listed['items'] if i['uuid'] == created['uuid'])
+        assert match['extra'] == extra
+
+    @fixtures.db.user(uuid=USER_A_UUID)
     @fixtures.db.user_identity(
         user_uuid=USER_A_UUID,
         backend='test',
@@ -456,6 +479,32 @@ class TestIdentityUpdate(ConnectorIntegrationTest):
 
         persisted = self.chatd.identities.get(str(identity.uuid))
         assert persisted['identity'] == 'test:updated'
+
+    @fixtures.db.user(uuid=USER_A_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=USER_A_UUID,
+        backend='test',
+        type_='test',
+        identity='test:put-shape',
+    )
+    def test_update_response_body_returns_full_identity(self, user, identity):
+        response = self.chatd.identities.update(
+            str(identity.uuid),
+            {'identity': 'test:put-shape-updated', 'extra': {'k': 'v'}},
+        )
+
+        assert set(response.keys()) == {
+            'uuid',
+            'tenant_uuid',
+            'user_uuid',
+            'backend',
+            'type',
+            'identity',
+            'extra',
+        }
+        assert response['uuid'] == str(identity.uuid)
+        assert response['identity'] == 'test:put-shape-updated'
+        assert response['extra'] == {'k': 'v'}
 
     @fixtures.db.user(uuid=USER_A_UUID)
     @fixtures.db.user(uuid=USER_B_UUID)

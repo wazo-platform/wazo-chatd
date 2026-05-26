@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,7 +15,20 @@ from wazo_chatd.plugins.connectors.schemas import (
     identity_create_schema,
     identity_list_request_schema,
     identity_update_schema,
+    user_identity_schema,
 )
+
+
+def _identity_stub(extra: dict[str, object] | None = None) -> SimpleNamespace:
+    return SimpleNamespace(
+        uuid=uuid4(),
+        tenant_uuid=uuid4(),
+        user_uuid=uuid4(),
+        backend='test',
+        type_='test',
+        identity='test:value',
+        extra=extra if extra is not None else {},
+    )
 
 
 class TestIdentityListRequestSchemaUserUuidFilter(unittest.TestCase):
@@ -90,6 +104,115 @@ class TestExtraPerValueCap(unittest.TestCase):
         result = identity_create_schema.load({**self.base, 'extra': {'k': 'x' * 1024}})
 
         assert result['extra'] == {'k': 'x' * 1024}
+
+
+class TestExtraNonScalarRejected(unittest.TestCase):
+    base: dict[str, object] = {
+        'user_uuid': str(uuid4()),
+        'backend': 'test',
+        'type': 'test',
+        'identity': 'test:value',
+    }
+
+    def test_dict_value_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            identity_create_schema.load(
+                {**self.base, 'extra': {'k': {'nested': 'value'}}}
+            )
+
+    def test_nested_list_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            identity_create_schema.load({**self.base, 'extra': {'k': [[1, 2]]}})
+
+
+class TestExtraKeyLengthCap(unittest.TestCase):
+    base: dict[str, object] = {
+        'user_uuid': str(uuid4()),
+        'backend': 'test',
+        'type': 'test',
+        'identity': 'test:value',
+    }
+
+    def test_oversized_key_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            identity_create_schema.load({**self.base, 'extra': {'k' * 65: 'v'}})
+
+    def test_key_at_cap_accepted(self) -> None:
+        key = 'k' * 64
+        result = identity_create_schema.load({**self.base, 'extra': {key: 'v'}})
+
+        assert result['extra'] == {key: 'v'}
+
+
+class TestExtraTotalLengthCap(unittest.TestCase):
+    base: dict[str, object] = {
+        'user_uuid': str(uuid4()),
+        'backend': 'test',
+        'type': 'test',
+        'identity': 'test:value',
+    }
+
+    def test_many_small_entries_exceeding_total_rejected(self) -> None:
+        extra = {f'k{i:02d}': 'v' * 60 for i in range(70)}
+
+        with pytest.raises(ValidationError):
+            identity_create_schema.load({**self.base, 'extra': extra})
+
+
+class TestExtraAcceptsAllScalarTypes(unittest.TestCase):
+    base: dict[str, object] = {
+        'user_uuid': str(uuid4()),
+        'backend': 'test',
+        'type': 'test',
+        'identity': 'test:value',
+    }
+
+    def test_bool_accepted(self) -> None:
+        result = identity_create_schema.load({**self.base, 'extra': {'k': True}})
+
+        assert result['extra'] == {'k': True}
+
+    def test_float_accepted(self) -> None:
+        result = identity_create_schema.load({**self.base, 'extra': {'k': 1.5}})
+
+        assert result['extra'] == {'k': 1.5}
+
+    def test_none_accepted(self) -> None:
+        result = identity_create_schema.load({**self.base, 'extra': {'k': None}})
+
+        assert result['extra'] == {'k': None}
+
+    def test_list_of_scalars_accepted(self) -> None:
+        value: list[object] = [1, 1.5, 'three', None, True]
+        result = identity_create_schema.load({**self.base, 'extra': {'k': value}})
+
+        assert result['extra'] == {'k': value}
+
+
+class TestIdentityCreateSchemaUserUuidLoadOnly(unittest.TestCase):
+    base: dict[str, object] = {
+        'backend': 'test',
+        'type': 'test',
+        'identity': 'test:value',
+    }
+
+    def test_user_uuid_required_on_load(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            identity_create_schema.load(self.base)
+
+        assert 'user_uuid' in exc_info.value.messages
+
+    def test_user_uuid_not_emitted_on_dump(self) -> None:
+        result = identity_create_schema.dump(_identity_stub())
+
+        assert 'user_uuid' not in result
+
+
+class TestUserIdentitySchemaFields(unittest.TestCase):
+    def test_dump_emits_only_public_fields(self) -> None:
+        result = user_identity_schema.dump(_identity_stub({'admin_only': 'secret'}))
+
+        assert set(result.keys()) == {'uuid', 'backend', 'type', 'identity'}
 
 
 class TestIdentityUpdateSchemaRejectsReassignment(unittest.TestCase):
