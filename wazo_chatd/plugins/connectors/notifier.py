@@ -76,6 +76,8 @@ class AsyncNotifier:
     async def message_created(self, room: Room, message: RoomMessage) -> None:
         message_data = self._build_message_payload(message)
         for user in room.users:
+            if user.identity:
+                continue
             event = UserRoomMessageCreatedEvent(
                 message_data, room.uuid, room.tenant_uuid, user.uuid
             )
