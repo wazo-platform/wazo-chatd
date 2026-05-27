@@ -7,7 +7,8 @@ import random
 
 import pytest
 
-from wazo_chatd.plugins.connectors.cadence import PollerCadence, apply_jitter
+from wazo_chatd.plugins.connectors.cadence import PollerCadence
+from wazo_chatd.plugins.connectors.helpers import apply_jitter
 
 
 class FakeClock:
@@ -222,17 +223,17 @@ class TestApplyJitter:
         assert apply_jitter(10.0, ratio=ratio) == pytest.approx(10.0)
 
     def test_jittered_value_stays_within_ratio(self) -> None:
-        rng = random.Random(42)
+        random_generator = random.Random(42)
 
         for _ in range(100):
-            result = apply_jitter(10.0, ratio=0.1, rng=rng)
+            result = apply_jitter(10.0, ratio=0.1, random_generator=random_generator)
             assert 9.0 <= result <= 11.0
 
     def test_seeded_rng_is_deterministic(self) -> None:
-        rng_a = random.Random(42)
-        rng_b = random.Random(42)
+        random_generator_a = random.Random(42)
+        random_generator_b = random.Random(42)
 
-        result_a = apply_jitter(10.0, ratio=0.1, rng=rng_a)
-        result_b = apply_jitter(10.0, ratio=0.1, rng=rng_b)
+        result_a = apply_jitter(10.0, ratio=0.1, random_generator=random_generator_a)
+        result_b = apply_jitter(10.0, ratio=0.1, random_generator=random_generator_b)
 
         assert result_a == pytest.approx(result_b)

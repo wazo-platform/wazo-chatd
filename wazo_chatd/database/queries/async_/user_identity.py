@@ -57,17 +57,20 @@ class AsyncUserIdentityDAO:
         result = await self.session.execute(stmt)
         return [(str(row[0]), row[1]) for row in result.all()]
 
-    async def list_by_user(
+    async def list_(
         self,
-        user_uuid: str,
         tenant_uuids: Iterable[str] | None = None,
+        user_uuid: str | None = None,
         backends: Iterable[str] | None = None,
     ) -> list[UserIdentity]:
-        stmt = select(UserIdentity).where(
-            UserIdentity.user_uuid == user_uuid,
-        )
+        stmt = select(UserIdentity)
+
         if tenant_uuids is not None:
             stmt = stmt.where(UserIdentity.tenant_uuid.in_(tenant_uuids))
+
+        if user_uuid is not None:
+            stmt = stmt.where(UserIdentity.user_uuid == user_uuid)
+
         if backends:
             stmt = stmt.where(UserIdentity.backend.in_(backends))
 

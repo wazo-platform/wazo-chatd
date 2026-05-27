@@ -39,15 +39,6 @@ class AsyncRoomDAO:
         backend: str,
         limit: int = 100,
     ) -> list[str]:
-        """External IDs of outbound deliveries awaiting a terminal status.
-
-        Filters to deliveries whose latest :class:`DeliveryRecord` is not
-        in ``DELIVERED``, ``FAILED``, or ``DEAD_LETTER``, and that have
-        a non-null ``external_id`` (provider has accepted the send).
-
-        Results are ordered oldest-first so a transient backlog catches
-        up on subsequent poll cycles without starving older messages.
-        """
         terminal = (
             DeliveryStatus.DELIVERED.value,
             DeliveryStatus.FAILED.value,

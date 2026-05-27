@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -51,16 +50,3 @@ class PollerCadence:
 
     def next_interval(self) -> float:
         return max(self.effective_min(), min(self.poll_max, self.interval))
-
-
-def apply_jitter(
-    value: float,
-    *,
-    ratio: float = 0.1,
-    rng: random.Random | None = None,
-) -> float:
-    if not 0 < ratio < 1:
-        return value
-
-    sample = rng.uniform(-ratio, ratio) if rng else random.uniform(-ratio, ratio)
-    return value * (1.0 + sample)

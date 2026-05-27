@@ -558,7 +558,7 @@ class TestDeliveryRunnerPollCycle(unittest.IsolatedAsyncioTestCase):
             'poll_interval_max': 8,
         }
         loop = DeliveryRunner(config, Mock(), Mock())
-        loop._executor._room_dao = Mock(
+        loop._executor._dao.room = Mock(
             list_pending_external_ids=AsyncMock(return_value=pending or [])
         )
         loop.enqueue_message = Mock()  # type: ignore[method-assign]
@@ -670,7 +670,7 @@ class TestDeliveryRunnerPollerBackoff(unittest.IsolatedAsyncioTestCase):
         assert step_sleeps[2] == pytest.approx(loop._poll_min, abs=0.01)
         assert step_sleeps[3] > step_sleeps[2]
 
-    async def test_rate_limited_uses_provider_retry_after(self) -> None:
+    async def test_rate_limited_uses_backend_retry_after(self) -> None:
         loop = self._make_loop()
 
         intervals = await _run_poller_capturing_sleeps(

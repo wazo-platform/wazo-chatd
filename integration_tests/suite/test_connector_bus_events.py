@@ -9,7 +9,12 @@ import requests
 from wazo_test_helpers import until
 
 from .helpers import fixtures
-from .helpers.base import TOKEN_USER_UUID, ConnectorIntegrationTest, use_asset
+from .helpers.base import (
+    TOKEN_TENANT_UUID,
+    TOKEN_USER_UUID,
+    ConnectorIntegrationTest,
+    use_asset,
+)
 
 EXTERNAL_IDENTITY = 'test:+15559876'
 SENDER_IDENTITY = 'test:+15551234'
@@ -159,3 +164,29 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
             assert data['message_uuid'] == message['uuid']
 
         until.assert_(delivered_event_received, timeout=5, interval=0.1)
+
+
+@use_asset('connectors')
+class TestExternalAuthCacheInvalidation(ConnectorIntegrationTest):
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(
+            self.auth.set_external_config,
+            {'test': {'mock_url': 'http://connector-mock:8080'}},
+        )
+
+    def test_deleted_event_invalidates_cache(self):
+        connectors = self.chatd.connectors.list()
+        test_connector = next(c for c in connectors['items'] if c['name'] == 'test')
+        assert test_connector['configured'] is True
+
+        self.auth.set_external_config({})
+
+        self.bus.send_tenant_external_auth_deleted_event(TOKEN_TENANT_UUID, 'test')
+
+        def cache_invalidated():
+            result = self.chatd.connectors.list()
+            test_connector = next(c for c in result['items'] if c['name'] == 'test')
+            assert test_connector['configured'] is False
+
+        until.assert_(cache_invalidated, timeout=5, interval=0.1)

@@ -302,6 +302,12 @@ class _BaseIntegrationTest(unittest.TestCase):
         self.__dict__.pop('chatd', None)
         assert self.chatd is chatd
 
+    def make_user_chatd(self, user_uuid, tenant_uuid=None):
+        token = self.asset_cls.create_user_token(
+            str(user_uuid), str(tenant_uuid) if tenant_uuid else None
+        )
+        return self.asset_cls.make_chatd(token=token)
+
     @classmethod
     def reset_clients(cls):
         cls._Session = cls.asset_cls.make_db_session()

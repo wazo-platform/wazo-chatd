@@ -28,7 +28,7 @@ class ConnectorParseError(ConnectorError):
 
 class ConnectorTransientError(ConnectorError):
     """Raised when an inbound event can't be processed right now but
-    should be retried by the provider — e.g. wazo-auth unreachable, or
+    should be retried by the backend — e.g. wazo-auth unreachable, or
     the connector instance hasn't been populated yet at startup."""
 
 
@@ -84,6 +84,39 @@ class UnknownBackendException(APIException):
             'unknown-backend',
             {'backend': backend},
             'identities',
+        )
+
+
+class NoSuchConnectorException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            404,
+            f'No such connector {backend!r}',
+            'no-such-connector',
+            {'backend': backend},
+            'connectors',
+        )
+
+
+class ConnectorIdentitiesNotSupportedException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            501,
+            f'Connector {backend!r} does not support listing identities',
+            'connector-identities-not-supported',
+            {'backend': backend},
+            'connectors',
+        )
+
+
+class ConnectorIdentitiesUnavailableException(APIException):
+    def __init__(self, backend: str) -> None:
+        super().__init__(
+            502,
+            f'Connector {backend!r} failed to list identities',
+            'connector-identities-unavailable',
+            {'backend': backend},
+            'connectors',
         )
 
 

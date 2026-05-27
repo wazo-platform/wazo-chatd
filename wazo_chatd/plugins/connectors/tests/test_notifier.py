@@ -67,6 +67,34 @@ class TestUserIdentityNotifier(unittest.TestCase):
         assert event.user_uuid == 'user-uuid'
         assert event.tenant_uuid == 'tenant-uuid'
 
+    def test_event_excludes_extra_admin_metadata(self) -> None:
+        identity = self._make_identity()
+        identity.extra = {'provider_resource_id': 'PN-secret-123'}
+
+        self.notifier.created(identity)
+        self.notifier.updated(identity)
+        self.notifier.deleted(identity)
+
+        for call in self.bus.publish.call_args_list:
+            event = call.args[0]
+            assert 'extra' not in event.content
+
+    def test_event_payload_matches_bus_contract(self) -> None:
+        identity = self._make_identity()
+
+        self.notifier.created(identity)
+        self.notifier.updated(identity)
+        self.notifier.deleted(identity)
+
+        for call in self.bus.publish.call_args_list:
+            event = call.args[0]
+            assert set(event.content.keys()) == {
+                'uuid',
+                'backend',
+                'type',
+                'identity',
+            }
+
 
 class TestAsyncNotifierMessageCreated(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:

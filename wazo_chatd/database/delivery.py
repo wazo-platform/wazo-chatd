@@ -11,12 +11,12 @@ class DeliveryStatus(str, Enum):
 
     Executor writes (after :meth:`Connector.send` returns):
         ``PENDING`` (created, not yet picked up) →
-        ``ACCEPTED`` (provider's API accepted submission) on success, or
+        ``ACCEPTED`` (backend's API accepted submission) on success, or
         ``FAILED`` → ``RETRYING`` / ``DEAD_LETTER`` on error.
 
-    Provider writes (via webhook or :meth:`Connector.track_outbound`,
+    Backend writes (via webhook or :meth:`Connector.track_outbound`,
     mapped through :attr:`Connector.status_map`):
-        ``ACCEPTED`` → ``SENT`` (provider sent to carrier) →
+        ``ACCEPTED`` → ``SENT`` (backend sent to carrier) →
         ``DELIVERED`` (recipient confirmed), or ``FAILED`` at any step.
     """
 
