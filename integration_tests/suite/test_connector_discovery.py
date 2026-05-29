@@ -73,6 +73,45 @@ class TestConnectorIdentities(ConnectorIntegrationTest):
 
 
 @use_asset('connectors')
+class TestConnectorAuthSchema(ConnectorIntegrationTest):
+    def test_returns_declared_fields(self):
+        body = self.chatd.connectors.auth_schema('test')
+
+        assert body['scope'] == 'tenant'
+        names = [f['name'] for f in body['fields']]
+        assert names == ['api_key', 'region']
+
+        api_key = body['fields'][0]
+        assert api_key['type'] == 'secret'
+        assert api_key['label'] == [
+            {'language': 'en_US', 'value': 'API Key'},
+            {'language': 'fr_FR', 'value': 'Clé API'},
+        ]
+        assert 'choices' not in api_key
+
+        region = body['fields'][1]
+        assert region['type'] == 'select'
+        assert region['choices'] == ['us', 'eu']
+        assert region['default'] == 'us'
+
+    def test_unknown_backend_returns_404(self):
+        with pytest.raises(ChatdError) as exc_info:
+            self.chatd.connectors.auth_schema('nonexistent-backend')
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.error_id == 'no-such-connector'
+
+    def test_missing_or_invalid_token_returns_401(self):
+        for bad_token in ['', str(uuid.uuid4())]:
+            chatd = self.asset_cls.make_chatd(token=bad_token)
+
+            with pytest.raises(ChatdError) as exc_info:
+                chatd.connectors.auth_schema('test')
+
+            assert exc_info.value.status_code == 401
+
+
+@use_asset('connectors')
 class TestConnectorListAuth(ConnectorIntegrationTest):
     def test_missing_or_invalid_token_returns_401(self):
         for bad_token in ['', str(uuid.uuid4())]:

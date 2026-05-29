@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 import requests
 
 from wazo_chatd.database.delivery import DeliveryStatus
-from wazo_chatd.plugins.connectors.connector import BackendIdentity
+from wazo_chatd.plugins.connectors.types import BackendIdentity, ConfigField
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.types import (
     InboundMessage,
@@ -35,6 +35,20 @@ class TestConnector:
         'failed': DeliveryStatus.FAILED,
     }
     verifies_signatures: ClassVar[bool] = False
+    auth_schema: ClassVar[tuple[ConfigField, ...]] = (
+        ConfigField(
+            name='api_key',
+            label={'en_US': 'API Key', 'fr_FR': 'Clé API'},
+            type='secret',
+        ),
+        ConfigField(
+            name='region',
+            label={'en_US': 'Region'},
+            type='select',
+            default='us',
+            choices=('us', 'eu'),
+        ),
+    )
 
     def __init__(
         self,
