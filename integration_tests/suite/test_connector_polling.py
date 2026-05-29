@@ -101,3 +101,12 @@ class TestPollingOutboundTracking(PollingConnectorIntegrationTest):
             assert 'delivered' in statuses
 
         until.assert_(delivered_record_exists, timeout=10, interval=0.2)
+
+
+@use_asset('connectors_polling')
+class TestPollingConnectorList(PollingConnectorIntegrationTest):
+    def test_list_reports_poll_mode(self):
+        result = self.chatd.connectors.list()
+
+        test_connector = next(c for c in result['items'] if c['name'] == 'test')
+        assert test_connector['mode'] == 'poll'

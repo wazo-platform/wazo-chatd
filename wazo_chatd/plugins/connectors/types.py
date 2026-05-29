@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 FieldType = Literal['string', 'secret', 'select', 'boolean', 'integer', 'url']
 AuthScope = Literal['none', 'tenant']
+TransportMode = Literal['webhook', 'poll', 'listen']
 
 
 @dataclass(frozen=True)

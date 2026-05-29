@@ -393,6 +393,13 @@ definitions:
       configured:
         type: boolean
         description: Whether wazo-auth has external credentials for this tenant
+      mode:
+        type: string
+        enum: [webhook, poll, listen]
+        description: |
+          Transport the backend uses to exchange messages with the provider.
+          ``webhook`` requires configuring a provider-side callback to wazo;
+          ``poll`` and ``listen`` need none.
 
   ConnectorAuthSchema:
     title: ConnectorAuthSchema

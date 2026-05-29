@@ -414,6 +414,13 @@ class TestConnectorRouterListConnectors(unittest.TestCase):
         self.router._store.batch_find.assert_not_called()
         assert all(item['configured'] for item in result)
 
+    def test_includes_backend_mode(self) -> None:
+        self.router._store.peek.return_value = Mock()
+
+        result = self.router.list_connectors('tenant-uuid')
+
+        assert all(item['mode'] == 'webhook' for item in result)
+
     def test_returns_configured_false_when_peek_returns_none(self) -> None:
         self.router._store.peek.return_value = None
 

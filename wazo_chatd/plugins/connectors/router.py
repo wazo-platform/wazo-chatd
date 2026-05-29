@@ -22,6 +22,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     NoSuchConnectorException,
     UnknownBackendException,
 )
+from wazo_chatd.plugins.connectors.helpers import transport_mode
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.runner import (
     DeliveryRunner,
@@ -60,13 +61,13 @@ class ConnectorRouter:
         self._registry = registry
         self._service = service
         self._dao = dao
-        connectors_config = config.get('connectors') or {}
+        self._connectors_config = config.get('connectors') or {}
         delivery_config = config.get('delivery') or {}
         self._store = ConnectorStore(
             auth_client,
             registry,
             cache_ttl=float(delivery_config.get('backend_cache_ttl', 300)),
-            connectors_config=connectors_config,
+            connectors_config=self._connectors_config,
         )
         if not registry.available_backends():
             logger.info('No connector backends registered; skipping runner startup')
@@ -113,11 +114,13 @@ class ConnectorRouter:
             configured = (
                 not needs_auth[name] or self._store.peek(name, tenant_uuid) is not None
             )
+            mode = transport_mode(self._connectors_config, name)
             result.append(
                 {
                     'name': name,
                     'supported_types': list(cls.supported_types),
                     'configured': configured,
+                    'mode': mode,
                 }
             )
 

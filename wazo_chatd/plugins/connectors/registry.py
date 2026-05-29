@@ -13,6 +13,7 @@ from typing import get_args
 from stevedore import ExtensionManager
 
 from wazo_chatd.plugins.connectors.connector import Connector
+from wazo_chatd.plugins.connectors.helpers import VALID_TRANSPORT_MODES
 from wazo_chatd.plugins.connectors.schemas import connector_auth_schema
 from wazo_chatd.plugins.connectors.types import AuthScope, ConfigField
 
@@ -45,9 +46,19 @@ class ConnectorRegistry:
                     'Connector backend %r is disabled, skipping', extension.name
                 )
                 continue
+
+            if (mode := cfg.get('mode') or 'webhook') not in VALID_TRANSPORT_MODES:
+                logger.error(
+                    'Connector backend %r: invalid mode %r (expected one of %s); '
+                    'not loading',
+                    extension.name,
+                    mode,
+                    list(VALID_TRANSPORT_MODES),
+                )
+                continue
+
             self.register_backend(extension.plugin)
 
-            mode = cfg.get('mode', 'webhook')
             verifies = getattr(extension.plugin, 'verifies_signatures', True)
             if mode == 'webhook' and not verifies:
                 logger.warning(

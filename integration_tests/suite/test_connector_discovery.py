@@ -28,6 +28,12 @@ class TestConnectorList(ConnectorIntegrationTest):
         test_connector = next(c for c in result['items'] if c['name'] == 'test')
         assert sorted(test_connector['supported_types']) == ['test', 'test_alt']
 
+    def test_list_response_includes_mode(self):
+        result = self.chatd.connectors.list()
+
+        test_connector = next(c for c in result['items'] if c['name'] == 'test')
+        assert test_connector['mode'] == 'webhook'
+
     def test_list_marks_configured_when_external_config_set(self):
         result = self.chatd.connectors.list()
 

@@ -120,6 +120,7 @@ class ConnectorSchema(Schema):
     name = fields.String(dump_only=True)
     supported_types = fields.List(fields.String(), dump_only=True)
     configured = fields.Boolean(dump_only=True)
+    mode = fields.String(dump_only=True)
 
 
 class IdentityBindingSchema(Schema):

@@ -31,7 +31,11 @@ from wazo_chatd.plugins.connectors.cadence import PollerCadence
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.executor import MAX_RETRY_AFTER, DeliveryExecutor
-from wazo_chatd.plugins.connectors.helpers import apply_jitter, exponential_backoff
+from wazo_chatd.plugins.connectors.helpers import (
+    apply_jitter,
+    exponential_backoff,
+    transport_mode,
+)
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import CacheKey, ConnectorStore
@@ -574,7 +578,7 @@ class DeliveryRunner(Runner):
         desired: dict[CacheKey, Connector] = {
             key: instance
             for key, instance in self._store.items()
-            if (connectors_config.get(instance.backend) or {}).get('mode') == 'poll'
+            if transport_mode(connectors_config, instance.backend) == 'poll'
         }
 
         running = set(self._pollers)
@@ -713,7 +717,7 @@ class ListenerRunner(Runner):
         return {
             key: instance
             for key, instance in self._store.items()
-            if (connectors_config.get(instance.backend) or {}).get('mode') == 'listen'
+            if transport_mode(connectors_config, instance.backend) == 'listen'
         }
 
     def resync(self) -> None:

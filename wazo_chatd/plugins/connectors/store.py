@@ -21,6 +21,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
     BackendNotConfiguredException,
     UnknownBackendException,
 )
+from wazo_chatd.plugins.connectors.helpers import transport_mode
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 
 if TYPE_CHECKING:
@@ -92,8 +93,8 @@ class ConnectorStore:
 
                 priority_backends = {
                     backend
-                    for backend, cfg in self._connectors_config.items()
-                    if (cfg or {}).get('mode', 'webhook') != 'webhook'
+                    for backend in self._connectors_config
+                    if transport_mode(self._connectors_config, backend) != 'webhook'
                 }
 
                 pairs = set(tenant_backends)

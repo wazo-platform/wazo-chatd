@@ -3,7 +3,7 @@
 ## 26.07
 
 * New endpoints:
-  * `GET /connectors` — list registered connector backends and their tenant-configured state
+  * `GET /connectors` — list registered connector backends with their tenant-configured state and inbound mode (webhook/poll/listen)
   * `GET /connectors/{backend}/identities` — list identities the provider reports this tenant owns
   * `GET /connectors/{backend}/auth-schema` — get the credential fields declared by the backend
   * `GET /identities` — list all identities visible to the tenant, with pagination, search, sort, and filters

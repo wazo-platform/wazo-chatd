@@ -230,3 +230,27 @@ class TestConnectorRegistry(unittest.TestCase):
             )
 
         assert sorted(self.registry.available_backends()) == ['fake_a', 'fake_b']
+
+    def test_discover_skips_backend_with_invalid_mode(self) -> None:
+        mock_ext_a = Mock(spec=['name', 'plugin'])
+        mock_ext_a.name = 'fake_a'
+        mock_ext_a.plugin = _FakeConnectorA
+        mock_ext_b = Mock(spec=['name', 'plugin'])
+        mock_ext_b.name = 'fake_b'
+        mock_ext_b.plugin = _FakeConnectorB
+
+        mock_manager = MagicMock()
+        mock_manager.__iter__.return_value = iter([mock_ext_a, mock_ext_b])
+
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.registry.ExtensionManager',
+            return_value=mock_manager,
+        ):
+            self.registry.discover(
+                connectors_config={
+                    'fake_a': {'enabled': True, 'mode': 'poll'},
+                    'fake_b': {'enabled': True, 'mode': 'bogus'},
+                }
+            )
+
+        assert self.registry.available_backends() == ['fake_a']
