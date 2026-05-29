@@ -12,11 +12,14 @@ from marshmallow import ValidationError
 from werkzeug.datastructures import MultiDict
 
 from wazo_chatd.plugins.connectors.schemas import (
+    config_field_schema,
+    connector_auth_schema,
     identity_create_schema,
     identity_list_request_schema,
     identity_update_schema,
     user_identity_schema,
 )
+from wazo_chatd.plugins.connectors.types import ConfigField
 
 
 def _identity_stub(extra: dict[str, object] | None = None) -> SimpleNamespace:
@@ -213,6 +216,91 @@ class TestUserIdentitySchemaFields(unittest.TestCase):
         result = user_identity_schema.dump(_identity_stub({'admin_only': 'secret'}))
 
         assert set(result.keys()) == {'uuid', 'backend', 'type', 'identity'}
+
+
+class TestConfigFieldSchemaDump(unittest.TestCase):
+    def test_string_field_dumps_minimal_shape(self) -> None:
+        field = ConfigField(name='api_key', label={'en_US': 'API Key'})
+
+        result = config_field_schema.dump(field)
+
+        assert result == {
+            'name': 'api_key',
+            'type': 'string',
+            'required': True,
+            'default': '',
+            'label': [{'language': 'en_US', 'value': 'API Key'}],
+        }
+
+    def test_secret_field_emits_secret_type(self) -> None:
+        field = ConfigField(
+            name='api_secret',
+            label={'en_US': 'API Secret'},
+            type='secret',
+        )
+
+        assert config_field_schema.dump(field)['type'] == 'secret'
+
+    def test_select_field_includes_choices(self) -> None:
+        field = ConfigField(
+            name='region',
+            label={'en_US': 'AWS Region'},
+            type='select',
+            default='us-east-1',
+            choices=('us-east-1', 'eu-west-1'),
+        )
+
+        result = config_field_schema.dump(field)
+
+        assert result['type'] == 'select'
+        assert result['choices'] == ['us-east-1', 'eu-west-1']
+        assert result['default'] == 'us-east-1'
+
+    def test_non_select_field_omits_choices_key(self) -> None:
+        field = ConfigField(name='api_key', label={'en_US': 'API Key'})
+
+        assert 'choices' not in config_field_schema.dump(field)
+
+    def test_label_locale_order_preserved(self) -> None:
+        field = ConfigField(
+            name='api_key',
+            label={'en_US': 'API Key', 'fr_CA': 'Clé API'},
+        )
+
+        assert config_field_schema.dump(field)['label'] == [
+            {'language': 'en_US', 'value': 'API Key'},
+            {'language': 'fr_CA', 'value': 'Clé API'},
+        ]
+
+
+class TestConnectorAuthSchemaDump(unittest.TestCase):
+    def test_dumps_scope_and_empty_fields(self) -> None:
+        result = connector_auth_schema.dump({'scope': 'tenant', 'fields': []})
+
+        assert result == {'scope': 'tenant', 'fields': []}
+
+    def test_dumps_fields_with_full_shape(self) -> None:
+        result = connector_auth_schema.dump(
+            {
+                'scope': 'tenant',
+                'fields': [
+                    ConfigField(
+                        name='api_key',
+                        label={'en_US': 'API Key'},
+                        type='secret',
+                    ),
+                ],
+            }
+        )
+
+        assert result['scope'] == 'tenant'
+        assert result['fields'][0]['name'] == 'api_key'
+        assert result['fields'][0]['type'] == 'secret'
+
+    def test_none_scope_serializes(self) -> None:
+        result = connector_auth_schema.dump({'scope': 'none', 'fields': []})
+
+        assert result['scope'] == 'none'
 
 
 class TestIdentityUpdateSchemaRejectsReassignment(unittest.TestCase):
