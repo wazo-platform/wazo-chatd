@@ -3,23 +3,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any, ClassVar, Protocol
 
 from wazo_chatd.database.delivery import DeliveryStatus
 from wazo_chatd.plugins.connectors.types import (
+    AuthScope,
+    BackendIdentity,
+    ConfigField,
     InboundMessage,
     OutboundMessage,
     StatusUpdate,
     TransportData,
 )
-
-
-@dataclass(frozen=True)
-class BackendIdentity:
-    identity: str
-    capabilities: tuple[str, ...]
 
 
 class Connector(Protocol):
@@ -39,6 +35,19 @@ class Connector(Protocol):
 
     supported_types: ClassVar[tuple[str, ...]]
     """Connector types this backend can handle, e.g. ``("sms", "mms", "whatsapp")``."""
+
+    auth_scope: ClassVar[AuthScope] = 'tenant'
+    """Where this connector's credentials are stored.
+
+    ``'none'`` — no credentials needed (hard-coded / internal proxy).
+    ``'tenant'`` — credentials live in wazo-auth tenant external config.
+    """
+
+    auth_schema: ClassVar[Sequence[ConfigField]] = ()
+    """Fields required to collect the credentials described by ``auth_scope``.
+
+    Empty for backends that need no fields. Validated at registration time.
+    """
 
     status_map: ClassVar[dict[str, DeliveryStatus]]
     """Mapping of backend-specific status strings to internal DeliveryStatus.
