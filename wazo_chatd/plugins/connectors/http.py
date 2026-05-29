@@ -7,7 +7,7 @@ import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from flask import request
+from flask import Response, request
 from xivo.auth_verifier import required_acl
 from xivo.tenant_flask_helpers import token
 
@@ -97,6 +97,27 @@ class ConnectorListResource(AuthResource):
             'items': connector_schema.dump(items, many=True),
             'total': len(items),
         }, 200
+
+
+class ConnectorAuthSchemaResource(AuthResource):
+    CACHE_CONTROL = 'private, no-cache'
+
+    def __init__(self, router: ConnectorRouter) -> None:
+        self._router = router
+
+    @required_acl('chatd.connectors.{backend}.auth-schema.read')
+    def get(self, backend: str) -> Response:
+        payload, etag = self._router.get_auth_schema(backend)
+
+        response = Response(payload, mimetype='application/json')
+        response.set_etag(etag)
+        response.headers['Cache-Control'] = self.CACHE_CONTROL
+
+        if request.if_none_match.contains_weak(etag):
+            response.status_code = 304
+            response.set_data(b'')
+
+        return response
 
 
 class ConnectorIdentitiesResource(AuthResource):
