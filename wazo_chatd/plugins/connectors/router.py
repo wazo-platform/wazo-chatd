@@ -97,18 +97,22 @@ class ConnectorRouter:
 
     def list_connectors(self, tenant_uuid: str) -> list[dict[str, object]]:
         backends = self._registry.available_backends()
+        needs_auth = {name: self._registry.requires_auth(name) for name in backends}
         uncached = [
             (tenant_uuid, name)
             for name in backends
-            if self._store.peek(name, tenant_uuid) is None
+            if needs_auth[name] and self._store.peek(name, tenant_uuid) is None
         ]
+
         if uncached:
             self._store.batch_find(uncached)
 
         result: list[dict[str, object]] = []
         for name in backends:
             cls = self._registry.get_backend(name)
-            configured = self._store.peek(name, tenant_uuid) is not None
+            configured = (
+                not needs_auth[name] or self._store.peek(name, tenant_uuid) is not None
+            )
             result.append(
                 {
                     'name': name,
@@ -118,6 +122,12 @@ class ConnectorRouter:
             )
 
         return result
+
+    def get_auth_schema(self, backend: str) -> tuple[str, str]:
+        try:
+            return self._registry.get_auth_schema(backend)
+        except KeyError:
+            raise NoSuchConnectorException(backend) from None
 
     def list_connector_identities(
         self, tenant_uuid: str, backend: str
