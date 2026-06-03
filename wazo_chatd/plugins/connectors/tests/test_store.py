@@ -52,6 +52,22 @@ class _EmailConnector:
         self.tenant_uuid = tenant_uuid
 
 
+class _NoneScopeConnector:
+    backend: ClassVar[str] = 'internal_backend'
+    supported_types: ClassVar[tuple[str, ...]] = ('internal',)
+    auth_scope: ClassVar[str] = 'none'
+
+    def __init__(
+        self,
+        tenant_uuid: str,
+        provider_config: dict | None = None,
+        connector_config: dict | None = None,
+    ) -> None:
+        self.tenant_uuid = tenant_uuid
+        self.provider_config = provider_config
+        self.connector_config = connector_config
+
+
 def _build_registry(*backends: type) -> ConnectorRegistry:
     registry = ConnectorRegistry()
     for cls in backends:
@@ -77,6 +93,17 @@ class TestConnectorStoreRefresh(unittest.IsolatedAsyncioTestCase):
         auth_client.external.get_config.assert_called_once_with(
             'sms_backend', tenant_uuid=TENANT_A
         )
+
+    async def test_none_scope_backend_skips_auth_fetch(self) -> None:
+        auth_client = Mock()
+        store = ConnectorStore(auth_client, _build_registry(_NoneScopeConnector))
+
+        result = await store.refresh('internal_backend', TENANT_A)
+
+        assert result is not None
+        assert result.tenant_uuid == TENANT_A  # type: ignore[attr-defined]
+        assert result.provider_config == {}  # type: ignore[attr-defined]
+        auth_client.external.get_config.assert_not_called()
 
     async def test_skips_fresh_entry(self) -> None:
         auth_client = Mock()

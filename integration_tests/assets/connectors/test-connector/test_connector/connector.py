@@ -11,9 +11,10 @@ from typing import Any, ClassVar
 import requests
 
 from wazo_chatd.database.delivery import DeliveryStatus
-from wazo_chatd.plugins.connectors.types import BackendIdentity, ConfigField
 from wazo_chatd.plugins.connectors.exceptions import ConnectorSendError
 from wazo_chatd.plugins.connectors.types import (
+    BackendIdentity,
+    ConfigField,
     InboundMessage,
     OutboundMessage,
     StatusUpdate,
