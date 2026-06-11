@@ -484,6 +484,27 @@ class ConnectorIntegrationTest(_BaseIntegrationTest):
         super().reset_clients()
         cls.connector_mock = cls.asset_cls.make_connector_mock()
 
+    def post_inbound(
+        self,
+        payload: dict,
+        backend: str | None = None,
+        headers: dict | None = None,
+    ) -> requests.Response:
+        port = self.asset_cls.service_port(9304, 'chatd')
+
+        path = '/1.0/connectors/incoming'
+        if backend is not None:
+            path = f'{path}/{backend}'
+
+        if headers is None:
+            headers = {'X-Test-Connector': 'true'}
+
+        return requests.post(
+            f'http://127.0.0.1:{port}{path}',
+            json=payload,
+            headers=headers,
+        )
+
 
 class PollingConnectorIntegrationTest(ConnectorIntegrationTest):
     asset_cls = PollingConnectorAssetLaunchingTestCase

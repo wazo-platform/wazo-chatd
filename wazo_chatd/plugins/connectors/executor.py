@@ -400,6 +400,16 @@ class DeliveryExecutor:
         tenant_uuid = str(recipient_user.tenant_uuid)
 
         sender_user = resolved.get(sender_identity)
+        if sender_user and str(sender_user.tenant_uuid) != tenant_uuid:
+            logger.debug(
+                'Sender %s resolves to a user in tenant %s but recipient is in %s; '
+                'treating sender as external',
+                sender_identity,
+                sender_user.tenant_uuid,
+                tenant_uuid,
+            )
+            sender_user = None
+
         sender_participant = RoomUser(
             uuid=(
                 sender_user.uuid

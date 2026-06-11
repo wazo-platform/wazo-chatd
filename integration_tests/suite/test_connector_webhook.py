@@ -6,7 +6,6 @@ from __future__ import annotations
 import time
 import uuid
 
-import requests
 from sqlalchemy import select
 from wazo_test_helpers import until
 
@@ -16,6 +15,7 @@ from wazo_chatd.database.models import (
     MessageMeta,
     RoomMessage,
 )
+from wazo_chatd.plugin_helpers.tenant import make_uuid5
 
 from .helpers import fixtures
 from .helpers.base import (
@@ -27,6 +27,7 @@ from .helpers.base import (
 
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
+OTHER_TENANT_UUID = uuid.uuid4()
 EXTERNAL_IDENTITY = 'test:+15559876'
 
 
@@ -47,12 +48,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             'message_id': 'ext-msg-001',
         }
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_inbound(webhook_data)
 
         assert response.status_code == 204
 
@@ -71,6 +67,59 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         until.assert_(message_persisted, timeout=5, interval=0.1)
 
+    @fixtures.db.tenant(uuid=OTHER_TENANT_UUID)
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=OTHER_TENANT_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        backend='test',
+        identity='test:+15551234',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_2,
+        tenant_uuid=OTHER_TENANT_UUID,
+        backend='test',
+        identity='test:+15559876',
+    )
+    def test_webhook_cross_tenant_sender_rendered_as_external(
+        self, foreign_tenant, recipient, sender, recipient_identity, sender_identity
+    ):
+
+        webhook_data = {
+            'from': 'test:+15559876',
+            'to': 'test:+15551234',
+            'body': 'Cross-tenant inbound',
+            'message_id': 'ext-msg-cross-tenant',
+        }
+
+        response = self.post_inbound(webhook_data)
+
+        assert response.status_code == 204
+
+        expected_uuid = str(make_uuid5(str(TOKEN_TENANT_UUID), 'test:+15559876'))
+
+        def room_rendered_with_external_sender():
+            messages = self.chatd.rooms.search_messages_from_user(
+                search='Cross-tenant inbound'
+            )['items']
+            assert messages
+            room_uuid = messages[0]['room']['uuid']
+
+            rooms = self.chatd.rooms.list_from_user()['items']
+            room = next((r for r in rooms if r['uuid'] == room_uuid), None)
+            assert room is not None
+            assert room['tenant_uuid'] == str(TOKEN_TENANT_UUID)
+
+            sender_participant = next(
+                u for u in room['users'] if u['uuid'] != str(TOKEN_USER_UUID)
+            )
+            assert sender_participant['identity'] == 'test:+15559876'
+            assert sender_participant['uuid'] == expected_uuid
+            assert sender_participant['uuid'] != str(USER_UUID_2)
+            assert sender_participant['tenant_uuid'] == str(TOKEN_TENANT_UUID)
+
+        until.assert_(room_rendered_with_external_sender, timeout=5, interval=0.1)
+
     @fixtures.db.user(uuid=USER_UUID_1)
     @fixtures.db.user_identity(
         user_uuid=USER_UUID_1,
@@ -86,12 +135,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             'message_id': 'ext-msg-002',
         }
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming/test',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_inbound(webhook_data, backend='test')
 
         assert response.status_code == 204
 
@@ -104,11 +148,8 @@ class TestInboundWebhook(ConnectorIntegrationTest):
         until.assert_(message_persisted, timeout=5, interval=0.1)
 
     def test_webhook_unrecognized_payload_returns_400(self):
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={'body': 'hello'},
-            headers={'Content-Type': 'application/json'},
+        response = self.post_inbound(
+            {'body': 'hello'}, headers={'Content-Type': 'application/json'}
         )
 
         assert response.status_code == 400
@@ -129,13 +170,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
             'idempotency_key': 'unique-key-001',
         }
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_inbound(webhook_data)
         assert response.status_code == 204
 
         def first_message_persisted():
@@ -148,11 +183,7 @@ class TestInboundWebhook(ConnectorIntegrationTest):
 
         until.assert_(first_message_persisted, timeout=5, interval=0.1)
 
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json=webhook_data,
-            headers={'X-Test-Connector': 'true'},
-        )
+        response = self.post_inbound(webhook_data)
         assert response.status_code == 204
 
         def still_one_message():
@@ -332,14 +363,11 @@ class TestStatusUpdate(ConnectorIntegrationTest):
 
         self._assert_delivery_status(message['uuid'], 'accepted')
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={
+        response = self.post_inbound(
+            {
                 'external_id': 'ext-status-001',
                 'status': 'delivered',
-            },
-            headers={'X-Test-Connector': 'true'},
+            }
         )
         assert response.status_code == 204
 
@@ -374,15 +402,12 @@ class TestStatusUpdate(ConnectorIntegrationTest):
 
         self._assert_delivery_status(message['uuid'], 'accepted')
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={
+        response = self.post_inbound(
+            {
                 'external_id': 'ext-status-002',
                 'status': 'failed',
                 'error_code': '30003',
-            },
-            headers={'X-Test-Connector': 'true'},
+            }
         )
         assert response.status_code == 204
 
@@ -426,14 +451,11 @@ class TestStatusUpdate(ConnectorIntegrationTest):
 
         self._assert_delivery_status(message['uuid'], 'accepted')
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={
+        response = self.post_inbound(
+            {
                 'external_id': 'ext-status-003',
                 'status': 'queued',
-            },
-            headers={'X-Test-Connector': 'true'},
+            }
         )
         assert response.status_code == 204
 
@@ -479,7 +501,6 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         )
 
         room_uuid = room['uuid']
-        port = self.asset_cls.service_port(9304, 'chatd')
 
         self.chatd.rooms.create_message_from_user(
             room_uuid, {'content': 'Internal hello'}
@@ -496,15 +517,13 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
 
         until.assert_(mock_received_outbound, timeout=5, interval=0.1)
 
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={
+        response = self.post_inbound(
+            {
                 'from': 'test:+15559876',
                 'to': 'test:+15551234',
                 'body': 'SMS reply from user B',
                 'message_id': 'ext-msg-multichannel',
-            },
-            headers={'X-Test-Connector': 'true'},
+            }
         )
         assert response.status_code == 204
 
@@ -548,7 +567,6 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         )
 
         room_uuid = room['uuid']
-        port = self.asset_cls.service_port(9304, 'chatd')
 
         self.chatd.rooms.create_message_from_user(
             room_uuid,
@@ -564,15 +582,13 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
 
         until.assert_(outbound_sent, timeout=5, interval=0.1)
 
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={
+        response = self.post_inbound(
+            {
                 'from': 'test:+15551234',
                 'to': 'test:+15559876',
                 'body': 'Echo test message',
                 'message_id': 'ext-echo-inbound',
-            },
-            headers={'X-Test-Connector': 'true'},
+            }
         )
         assert response.status_code == 204
 
@@ -772,12 +788,7 @@ class TestMessageVisibility(ConnectorIntegrationTest):
 
         until.assert_(accepted, timeout=5, interval=0.1)
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={'external_id': 'ext-vis-003', 'status': 'delivered'},
-            headers={'X-Test-Connector': 'true'},
-        )
+        self.post_inbound({'external_id': 'ext-vis-003', 'status': 'delivered'})
 
         chatd_b = self._make_user_b_client()
 

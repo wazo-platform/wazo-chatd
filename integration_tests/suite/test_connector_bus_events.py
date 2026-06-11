@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import uuid
 
-import requests
 from wazo_test_helpers import until
 
 from .helpers import fixtures
@@ -77,16 +76,13 @@ class TestInboundMessageEvent(ConnectorIntegrationTest):
             headers={'name': 'chatd_user_room_message_created'}
         )
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        response = requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={
+        response = self.post_inbound(
+            {
                 'from': EXTERNAL_IDENTITY,
                 'to': SENDER_IDENTITY,
                 'body': 'Inbound event test',
                 'message_id': f'ext-bus-{uuid.uuid4()}',
-            },
-            headers={'X-Test-Connector': 'true'},
+            }
         )
         assert response.status_code == 204
 
@@ -144,14 +140,11 @@ class TestDeliveryStatusEvent(ConnectorIntegrationTest):
 
         until.assert_(accepted_event_received, timeout=5, interval=0.1)
 
-        port = self.asset_cls.service_port(9304, 'chatd')
-        requests.post(
-            f'http://127.0.0.1:{port}/1.0/connectors/incoming',
-            json={
+        self.post_inbound(
+            {
                 'external_id': 'ext-bus-status-001',
                 'status': 'delivered',
-            },
-            headers={'X-Test-Connector': 'true'},
+            }
         )
 
         def delivered_event_received():
