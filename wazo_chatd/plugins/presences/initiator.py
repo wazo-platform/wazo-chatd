@@ -98,11 +98,12 @@ def extract_endpoint_from_line(line):
     if not line['name']:
         return
 
-    if line.get('endpoint_sip'):
+    protocol = line.get('protocol')
+    if protocol == 'sip':
         return f'PJSIP/{line["name"]}'
-    elif line.get('endpoint_sccp'):
+    elif protocol == 'sccp':
         return f'SCCP/{line["name"]}'
-    elif line.get('endpoint_custom'):
+    elif protocol == 'custom':
         return line['name']
 
 
@@ -129,8 +130,8 @@ class Initiator:
     def in_progress(self):
         return self._in_progress.is_set()
 
-    def _paginate_proxy(self, callback, limit=1000):
-        callback = partial(callback, recurse=True, limit=limit)
+    def _paginate_proxy(self, callback, limit=1000, **list_params):
+        callback = partial(callback, recurse=True, limit=limit, **list_params)
         result = callback(limit=limit, offset=0)
         total = result['total']
         items = result['items']
@@ -172,7 +173,9 @@ class Initiator:
         self._milestone_tracker.mark(Resource.TENANT, Stage.FETCHED)
 
         logger.debug('Fetching users...')
-        users = self._paginate_proxy(self._confd.users.list, limit=1000)['items']
+        users = self._paginate_proxy(
+            self._confd.users.list, limit=1000, view='line_presence'
+        )['items']
         self._milestone_tracker.mark(Resource.USER, Stage.FETCHED)
 
         logger.debug('Fetching sesions...')
