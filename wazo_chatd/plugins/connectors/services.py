@@ -80,8 +80,12 @@ class ConnectorService:
         self._dao.user_identity.ensure_tenant_and_user_exist(tenant_uuid, user_uuid)
         return tenant_uuid
 
-    def resolve_users_by_identities(self, identities: Iterable[str]) -> dict[str, User]:
-        return self._dao.user_identity.resolve_users_by_identities(identities)
+    def resolve_users_by_identities(
+        self, identities: Iterable[str], tenant_uuid: str | None = None
+    ) -> dict[str, User]:
+        return self._dao.user_identity.resolve_users_by_identities(
+            identities, tenant_uuid=tenant_uuid
+        )
 
     def resolve_room_participants(self, body: dict, tenant_uuid: str) -> None:
         users = body.get('users', [])
@@ -90,7 +94,7 @@ class ConnectorService:
             return
 
         identities = {u['identity'] for u in to_resolve}
-        resolved = self.resolve_users_by_identities(identities)
+        resolved = self.resolve_users_by_identities(identities, tenant_uuid=tenant_uuid)
 
         for user in to_resolve:
             identity = user['identity']

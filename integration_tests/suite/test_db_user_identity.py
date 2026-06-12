@@ -175,6 +175,41 @@ class TestUserIdentity(DBIntegrationTest):
         tenant_uuid=TENANT_1,
         backend='sms_backend',
         type_='sms',
+        identity='+15551111111',
+    )
+    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=TENANT_2)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_2,
+        tenant_uuid=TENANT_2,
+        backend='sms_backend',
+        type_='sms',
+        identity='+15552222222',
+    )
+    def test_resolve_users_by_identities_scoped_to_tenant(
+        self, user_1, identity_1, user_2, identity_2
+    ):
+        scoped = self._dao.user_identity.resolve_users_by_identities(
+            [identity_1.identity, identity_2.identity], tenant_uuid=str(TENANT_1)
+        )
+        scoped_uuids = {str(u.uuid) for u in scoped.values()}
+        assert set(scoped) == {identity_1.identity}
+        assert str(USER_UUID_1) in scoped_uuids
+        assert str(USER_UUID_2) not in scoped_uuids
+
+        unscoped = self._dao.user_identity.resolve_users_by_identities(
+            [identity_1.identity, identity_2.identity]
+        )
+        unscoped_uuids = {str(u.uuid) for u in unscoped.values()}
+        assert set(unscoped) == {identity_1.identity, identity_2.identity}
+        assert str(USER_UUID_1) in unscoped_uuids
+        assert str(USER_UUID_2) in unscoped_uuids
+
+    @fixtures.db.user(uuid=USER_UUID_1, tenant_uuid=TENANT_1)
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_1,
+        tenant_uuid=TENANT_1,
+        backend='sms_backend',
+        type_='sms',
         identity='+15551234567',
     )
     def test_find_tenant_by_identity(self, user, identity):

@@ -194,12 +194,15 @@ class UserIdentityDAO:
     def resolve_users_by_identities(
         self,
         identities: Iterable[str],
+        tenant_uuid: str | None = None,
     ) -> dict[str, User]:
         statement = (
             select(UserIdentity)
             .options(selectinload(UserIdentity.user))
             .where(UserIdentity.identity.in_(list(identities)))
         )
+        if tenant_uuid is not None:
+            statement = statement.where(UserIdentity.tenant_uuid == tenant_uuid)
         return {
             str(r.identity): r.user
             for r in self.session.execute(statement).scalars().all()
