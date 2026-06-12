@@ -401,7 +401,7 @@ class DeliveryExecutor:
 
         sender_user = resolved.get(sender_identity)
         if sender_user and str(sender_user.tenant_uuid) != tenant_uuid:
-            logger.debug(
+            logger.info(
                 'Sender %s resolves to a user in tenant %s but recipient is in %s; '
                 'treating sender as external',
                 sender_identity,

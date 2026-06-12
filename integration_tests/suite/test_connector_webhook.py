@@ -602,6 +602,61 @@ class TestMultiChannelRoom(ConnectorIntegrationTest):
         echo_messages = [m for m in messages if m.content == 'Echo test message']
         assert len(echo_messages) == 1
 
+    @fixtures.db.tenant(uuid=OTHER_TENANT_UUID)
+    @fixtures.db.user(uuid=TOKEN_USER_UUID)
+    @fixtures.db.user(uuid=USER_UUID_2, tenant_uuid=OTHER_TENANT_UUID)
+    @fixtures.db.user_identity(
+        user_uuid=TOKEN_USER_UUID,
+        backend='test',
+        identity='test:+15551234',
+    )
+    @fixtures.db.user_identity(
+        user_uuid=USER_UUID_2,
+        tenant_uuid=OTHER_TENANT_UUID,
+        backend='test',
+        identity='test:+15559876',
+    )
+    @fixtures.http.room(
+        users=[
+            {'uuid': str(TOKEN_USER_UUID)},
+            {'identity': 'test:+15559876'},
+        ],
+    )
+    def test_outbound_then_inbound_cross_tenant_converge_on_one_room(
+        self,
+        foreign_tenant,
+        recipient,
+        sender,
+        recipient_identity,
+        sender_identity,
+        room,
+    ):
+        room_uuid = room['uuid']
+        expected_uuid = str(make_uuid5(str(TOKEN_TENANT_UUID), 'test:+15559876'))
+
+        sender_participant = next(
+            u for u in room['users'] if u['uuid'] != str(TOKEN_USER_UUID)
+        )
+        assert sender_participant['uuid'] == expected_uuid
+        assert sender_participant['uuid'] != str(USER_UUID_2)
+
+        response = self.post_inbound(
+            {
+                'from': 'test:+15559876',
+                'to': 'test:+15551234',
+                'body': 'Cross-tenant reply converges',
+                'message_id': 'ext-msg-cross-tenant-converge',
+            }
+        )
+        assert response.status_code == 204
+
+        def reply_lands_in_outbound_room():
+            messages = self.chatd.rooms.list_messages_from_user(room_uuid)['items']
+            contents = [m['content'] for m in messages]
+            assert 'Cross-tenant reply converges' in contents
+
+        until.assert_(reply_lands_in_outbound_room, timeout=5, interval=0.1)
+
 
 @use_asset('connectors')
 class TestMessageSchemaFields(ConnectorIntegrationTest):

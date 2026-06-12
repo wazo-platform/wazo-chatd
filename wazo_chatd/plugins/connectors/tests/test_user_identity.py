@@ -290,3 +290,14 @@ class TestConnectorServiceResolveRoomParticipants(unittest.TestCase):
         service.resolve_room_participants(body, 'tenant-uuid')
 
         assert body == {}
+
+    def test_resolution_scoped_to_requester_tenant(self) -> None:
+        service = self._build_service()
+        service._dao.user_identity.resolve_users_by_identities.return_value = {}
+        body = {'users': [{'identity': '+15559876'}]}
+
+        service.resolve_room_participants(body, 'tenant-uuid')
+
+        service._dao.user_identity.resolve_users_by_identities.assert_called_once_with(
+            {'+15559876'}, tenant_uuid='tenant-uuid'
+        )

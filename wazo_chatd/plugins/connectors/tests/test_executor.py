@@ -593,6 +593,7 @@ class TestDeliveryExecutorRouteInbound(unittest.IsolatedAsyncioTestCase):
         assert sender_participant.tenant_uuid == 'tenant-uuid'
         assert sender_participant.uuid == make_uuid5('tenant-uuid', '+15559876')
         assert str(sender_participant.uuid) != 'sender-wazo-uuid'
+        self.executor._dao.room.find_matching_signature.assert_not_awaited()
 
     async def test_route_inbound_unresolved_sender_stays_external(self) -> None:
         recipient = Mock(uuid='recipient-uuid', tenant_uuid='tenant-uuid')
