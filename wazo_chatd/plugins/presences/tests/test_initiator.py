@@ -1,3 +1,6 @@
+# Copyright 2025-2026 The Wazo Authors  (see the AUTHORS file)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from unittest import mock
 
 import pytest
@@ -6,7 +9,11 @@ from wazo_auth_client import Client as AuthClient
 from wazo_confd_client import Client as ConfdClient
 
 from wazo_chatd.database.queries import DAO
-from wazo_chatd.plugins.presences.initiator import Initiator
+from wazo_chatd.plugins.presences.initiator import (
+    Initiator,
+    extract_endpoint_from_line,
+    extract_endpoint_from_line_presence_view,
+)
 
 
 @pytest.fixture
@@ -18,6 +25,45 @@ def initiator():
         confd=mock.create_autospec(ConfdClient, instance=True),
         token_expiration=10,
     )
+
+
+@pytest.mark.parametrize(
+    'protocol, expected',
+    [
+        ('sip', 'PJSIP/line-name'),
+        ('sccp', 'SCCP/line-name'),
+        ('custom', 'line-name'),
+        ('unknown', None),
+    ],
+)
+def test_extract_endpoint_from_line_presence_view(protocol, expected):
+    line = {'name': 'line-name', 'protocol': protocol}
+    assert extract_endpoint_from_line_presence_view(line) == expected
+
+
+def test_extract_endpoint_from_line_presence_view_without_name():
+    assert extract_endpoint_from_line_presence_view({'name': None}) is None
+
+
+@pytest.mark.parametrize(
+    'endpoint_key, expected',
+    [
+        ('endpoint_sip', 'PJSIP/line-name'),
+        ('endpoint_sccp', 'SCCP/line-name'),
+        ('endpoint_custom', 'line-name'),
+    ],
+)
+def test_extract_endpoint_from_line(endpoint_key, expected):
+    line = {'name': 'line-name', endpoint_key: {'id': 1}}
+    assert extract_endpoint_from_line(line) == expected
+
+
+def test_extract_endpoint_from_line_without_name():
+    assert extract_endpoint_from_line({'name': None}) is None
+
+
+def test_extract_endpoint_from_line_without_endpoint():
+    assert extract_endpoint_from_line({'name': 'line-name'}) is None
 
 
 def test_paginate_proxy(initiator: Initiator):

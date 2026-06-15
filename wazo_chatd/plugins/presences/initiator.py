@@ -94,17 +94,33 @@ def extract_endpoint_from_channel(channel_name):
     return endpoint_name
 
 
+def _endpoint_name_for_protocol(protocol, line_name):
+    match protocol:
+        case 'sip':
+            return f'PJSIP/{line_name}'
+        case 'sccp':
+            return f'SCCP/{line_name}'
+        case 'custom':
+            return line_name
+        case _:
+            return None
+
+
+def extract_endpoint_from_line_presence_view(line):
+    if not line['name']:
+        return
+    return _endpoint_name_for_protocol(line.get('protocol'), line['name'])
+
+
 def extract_endpoint_from_line(line):
     if not line['name']:
         return
-
-    protocol = line.get('protocol')
-    if protocol == 'sip':
-        return f'PJSIP/{line["name"]}'
-    elif protocol == 'sccp':
-        return f'SCCP/{line["name"]}'
-    elif protocol == 'custom':
-        return line['name']
+    if line.get('endpoint_sip'):
+        return _endpoint_name_for_protocol('sip', line['name'])
+    if line.get('endpoint_sccp'):
+        return _endpoint_name_for_protocol('sccp', line['name'])
+    if line.get('endpoint_custom'):
+        return _endpoint_name_for_protocol('custom', line['name'])
 
 
 class Initiator:
@@ -309,7 +325,7 @@ class Initiator:
 
     def _add_missing_endpoints(self, users):
         lines = {
-            (line['id'], extract_endpoint_from_line(line))
+            (line['id'], extract_endpoint_from_line_presence_view(line))
             for user in users
             for line in user['lines']
         }
@@ -328,7 +344,7 @@ class Initiator:
 
     def _associate_line_endpoint(self, users):
         lines = {
-            (line['id'], extract_endpoint_from_line(line))
+            (line['id'], extract_endpoint_from_line_presence_view(line))
             for user in users
             for line in user['lines']
         }

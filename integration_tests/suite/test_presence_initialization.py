@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import random
@@ -34,7 +34,6 @@ USER_UUID_2 = uuid.uuid4()
 LINE_ID_1 = 6
 LINE_ID_2 = 42
 ENDPOINT_NAME = 'CUSTOM/name'
-FAKE_UUID_STR = str(uuid.uuid4())
 
 
 @use_asset('initialization')
@@ -109,17 +108,17 @@ class TestPresenceInitialization(InitIntegrationTest):
                     {
                         'id': line_1_created_id,
                         'name': line_1_created_name,
-                        'endpoint_sip': {'uuid': FAKE_UUID_STR},
+                        'protocol': 'sip',
                     },
                     {
                         'id': line_2_created_id,
                         'name': line_2_created_name,
-                        'endpoint_sccp': {'id': 1},
+                        'protocol': 'sccp',
                     },
                     {
                         'id': line_bugged_id,
                         'name': None,
-                        'endpoint_sip': {'uuid': FAKE_UUID_STR},
+                        'protocol': 'sip',
                     },
                 ],
                 'services': {'dnd': {'enabled': True}},
@@ -131,7 +130,7 @@ class TestPresenceInitialization(InitIntegrationTest):
                     {
                         'id': line_unchanged.id,
                         'name': ENDPOINT_NAME,
-                        'endpoint_custom': {'id': 1},
+                        'protocol': 'custom',
                     }
                 ],
                 'services': {'dnd': {'enabled': False}},
