@@ -19,7 +19,7 @@ from wazo_chatd.plugins.presences.initiator import (
 @pytest.fixture
 def initiator():
     return Initiator(
-        dao=mock.create_autospec(DAO, instance=True),
+        dao=mock.create_autospec(DAO(), instance=True),
         auth=mock.create_autospec(AuthClient, instance=True),
         amid=mock.create_autospec(AmidClient, instance=True),
         confd=mock.create_autospec(ConfdClient, instance=True),
@@ -64,6 +64,51 @@ def test_extract_endpoint_from_line_without_name():
 
 def test_extract_endpoint_from_line_without_endpoint():
     assert extract_endpoint_from_line({'name': 'line-name'}) is None
+
+
+def test_initiate_endpoints_dedupes_duplicate_devices(initiator: Initiator):
+    events = [
+        {'Event': 'DeviceStateChange', 'Device': 'PJSIP/abc', 'State': 'INUSE'},
+        {'Event': 'DeviceStateChange', 'Device': 'PJSIP/abc', 'State': 'UNAVAILABLE'},
+    ]
+
+    with mock.patch('wazo_chatd.plugins.presences.initiator.session_scope'):
+        initiator.initiate_endpoints(events)
+
+    initiator._dao.endpoint.create_all.assert_called_once()
+    (endpoints,) = initiator._dao.endpoint.create_all.call_args[0]
+    assert len(endpoints) == 1
+    assert endpoints[0].name == 'PJSIP/abc'
+    assert endpoints[0].state == 'unavailable'
+
+
+def test_initiate_channels_dedupes_duplicate_channels(initiator: Initiator):
+    line = mock.Mock(id=42, endpoint_name='PJSIP/abc')
+    initiator._dao.line.list_.return_value = [line]
+    events = [
+        {
+            'Event': 'CoreShowChannel',
+            'Channel': 'PJSIP/abc-00000001',
+            'ChannelStateDesc': 'Up',
+            'ChanVariable': {},
+        },
+        {
+            'Event': 'CoreShowChannel',
+            'Channel': 'PJSIP/abc-00000001',
+            'ChannelStateDesc': 'Up',
+            'ChanVariable': {},
+        },
+    ]
+
+    with mock.patch('wazo_chatd.plugins.presences.initiator.session_scope'):
+        initiator.initiate_channels(events)
+
+    initiator._dao.channel.create_all.assert_called_once()
+    (channels,) = initiator._dao.channel.create_all.call_args[0]
+    assert len(channels) == 1
+    assert channels[0].name == 'PJSIP/abc-00000001'
+    assert channels[0].state == 'talking'
+    assert channels[0].line_id == 42
 
 
 def test_paginate_proxy(initiator: Initiator):

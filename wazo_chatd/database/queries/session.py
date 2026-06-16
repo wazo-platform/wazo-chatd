@@ -1,9 +1,12 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from sqlalchemy import Boolean
 from sqlalchemy.orm import joinedload
+from sqlalchemy_utils import UUIDType
 
 from ...exceptions import UnknownSessionException
+from ..helpers import bulk_delete, bulk_insert, bulk_update
 from ..models import Session
 
 
@@ -38,3 +41,18 @@ class SessionDAO:
     def update(self, session):
         self.session.add(session)
         self.session.flush()
+
+    def create_all(self, sessions):
+        bulk_insert(self.session, sessions)
+
+    def delete_by_uuids(self, uuids):
+        bulk_delete(self.session, Session, Session.uuid, uuids)
+
+    def update_all(self, sessions):
+        bulk_update(
+            self.session,
+            Session,
+            columns=[('uuid', UUIDType()), ('mobile', Boolean)],
+            rows=[(session['uuid'], session['mobile']) for session in sessions],
+            key_columns=['uuid'],
+        )

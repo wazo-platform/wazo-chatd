@@ -1,7 +1,8 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from ...exceptions import UnknownEndpointException
+from ..helpers import bulk_insert
 from ..models import Endpoint
 
 
@@ -17,6 +18,12 @@ class EndpointDAO:
         self.session.add(endpoint)
         self.session.flush()
         return endpoint
+
+    def create_all(self, endpoints):
+        bulk_insert(self.session, endpoints)
+
+    def list_names(self):
+        return {name for (name,) in self.session.query(Endpoint.name).all()}
 
     def find_by(self, **kwargs):
         return self._find_by(**kwargs)

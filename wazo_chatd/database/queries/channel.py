@@ -1,6 +1,7 @@
-# Copyright 2020-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2020-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from ..helpers import bulk_insert
 from ..models import Channel
 
 
@@ -26,6 +27,9 @@ class ChannelDAO:
     def update(self, channel):
         self.session.add(channel)
         self.session.flush()
+
+    def create_all(self, channels):
+        bulk_insert(self.session, channels)
 
     def delete_all(self):
         self.session.query(Channel).delete()

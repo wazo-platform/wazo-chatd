@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from typing import TYPE_CHECKING
@@ -76,6 +76,16 @@ class TestEndpoint(DBIntegrationTest):
 
         self._session.expire_all()
         assert_that(endpoint.state, equal_to(state))
+
+    def test_create_all_applies_model_default_state(self):
+        endpoint = Endpoint(name='PJSIP/bulk')
+        self._dao.endpoint.create_all([endpoint])
+
+        self._session.expire_all()
+        result = self._dao.endpoint.get_by(name='PJSIP/bulk')
+        assert result.state == 'unavailable'
+
+        self._dao.endpoint.delete_all()
 
     @fixtures.db.endpoint()
     @fixtures.db.endpoint()

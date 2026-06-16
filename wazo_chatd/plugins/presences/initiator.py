@@ -3,6 +3,7 @@
 
 import logging
 import threading
+import time
 from enum import Enum, auto
 from functools import partial
 
@@ -17,14 +18,6 @@ from wazo_chatd.database.models import (
     Session,
     Tenant,
     User,
-)
-from wazo_chatd.exceptions import (
-    UnknownEndpointException,
-    UnknownLineException,
-    UnknownRefreshTokenException,
-    UnknownSessionException,
-    UnknownTenantException,
-    UnknownUserException,
 )
 
 logger = logging.getLogger(__name__)
@@ -176,6 +169,7 @@ class Initiator:
         return self._milestone_tracker.has_passed(resource, Stage.FETCHED)
 
     def initiate(self):
+        start = time.monotonic()
         self._milestone_tracker.reset()
         self._in_progress.set()
 
@@ -224,29 +218,27 @@ class Initiator:
         self.execute_post_hooks()
         self._in_progress.clear()
         self._is_initialized.set()
-        logger.info('Initialization completed')
+        logger.info(
+            'Presence initialization completed in %.2fs', time.monotonic() - start
+        )
 
     def initiate_tenants(self, tenants):
         tenants = {tenant['uuid'] for tenant in tenants}
         tenants_cached = {str(tenant.uuid) for tenant in self._dao.tenant.list_()}
 
         tenants_missing = tenants - tenants_cached
+        tenants_expired = tenants_cached - tenants
+
         with session_scope():
+            new_tenants = []
             for uuid in tenants_missing:
                 logger.debug('Create tenant "%s"', uuid)
-                tenant = Tenant(uuid=uuid)
-                self._dao.tenant.create(tenant)
+                new_tenants.append(Tenant(uuid=uuid))
+            self._dao.tenant.create_all(new_tenants)
 
-        tenants_expired = tenants_cached - tenants
-        with session_scope():
             for uuid in tenants_expired:
-                try:
-                    tenant = self._dao.tenant.get(uuid)
-                except UnknownTenantException as e:
-                    logger.warning(e)
-                    continue
                 logger.debug('Delete tenant "%s"', uuid)
-                self._dao.tenant.delete(tenant)
+            self._dao.tenant.delete_by_uuids(list(tenants_expired))
 
     def initiate_users(self, users):
         self._add_and_remove_users(users)
@@ -258,30 +250,32 @@ class Initiator:
     def _add_and_remove_users(self, users):
         users = {(user['uuid'], user['tenant_uuid']) for user in users}
         users_cached = {
-            (str(u.uuid), str(u.tenant_uuid))
-            for u in self._dao.user.list_(tenant_uuids=None)
+            (str(uuid), str(tenant_uuid))
+            for uuid, tenant_uuid in self._dao.user.list_uuids_with_tenant_uuids()
         }
 
         users_missing = users - users_cached
-        with session_scope():
-            for uuid, tenant_uuid in users_missing:
-                # Avoid race condition between init tenant and init user
-                tenant = self._dao.tenant.find_or_create(tenant_uuid)
-
-                logger.debug('Create user "%s"', uuid)
-                user = User(uuid=uuid, tenant=tenant, state='unavailable')
-                self._dao.user.create(user)
-
         users_expired = users_cached - users
+
         with session_scope():
+            # Avoid race condition between init tenant and init user
+            existing_tenants = self._dao.tenant.list_uuids()
+            missing_tenants = {t for _, t in users_missing} - existing_tenants
+            self._dao.tenant.create_all([Tenant(uuid=t) for t in missing_tenants])
+
+            new_users = []
+            for uuid, tenant_uuid in users_missing:
+                logger.debug('Create user "%s"', uuid)
+                new_users.append(
+                    User(uuid=uuid, tenant_uuid=tenant_uuid, state='unavailable')
+                )
+            self._dao.user.create_all(new_users)
+
+            expired_uuids = []
             for uuid, tenant_uuid in users_expired:
-                try:
-                    user = self._dao.user.get([tenant_uuid], uuid)
-                except UnknownUserException as e:
-                    logger.warning(e)
-                    continue
                 logger.debug('Delete user "%s"', uuid)
-                self._dao.user.delete(user)
+                expired_uuids.append(uuid)
+            self._dao.user.delete_by_uuids(expired_uuids)
 
     def _add_and_remove_lines(self, users):
         lines = {
@@ -295,94 +289,86 @@ class Initiator:
         }
 
         lines_missing = lines - lines_cached
+        lines_expired = lines_cached - lines
+        existing_line_ids = {id_ for id_, _, _ in lines_cached}
+
         with session_scope():
+            user_uuids = self._dao.user.list_uuids()
+            new_lines = []
+            new_line_ids = set()
             for id_, user_uuid, tenant_uuid in lines_missing:
-                try:
-                    user = self._dao.user.get([tenant_uuid], user_uuid)
-                except UnknownUserException as e:
-                    logger.warning(e)
+                if user_uuid not in user_uuids:
+                    logger.warning('Line "%s" has no valid user "%s"', id_, user_uuid)
                     continue
-                if self._dao.line.find(id_):
+                if id_ in existing_line_ids or id_ in new_line_ids:
                     logger.warning(
                         'Line "%s" already created. Line multi-users not supported', id_
                     )
                     continue
-                line = Line(id=id_)
                 logger.debug('Create line "%s"', id_)
-                self._dao.user.add_line(user, line)
+                new_line_ids.add(id_)
+                new_lines.append(Line(id=id_, user_uuid=user_uuid))
+            self._dao.line.create_all(new_lines)
 
-        lines_expired = lines_cached - lines
-        with session_scope():
+            expired_ids = []
             for id_, user_uuid, tenant_uuid in lines_expired:
-                try:
-                    user = self._dao.user.get([tenant_uuid], user_uuid)
-                    line = self._dao.line.get(id_)
-                except UnknownUserException:
-                    logger.debug('Line "%s" already deleted', id_)
-                    continue
                 logger.debug('Delete line "%s"', id_)
-                self._dao.user.remove_session(user, line)
+                expired_ids.append(id_)
+            self._dao.line.delete_by_ids(expired_ids)
 
     def _add_missing_endpoints(self, users):
-        lines = {
-            (line['id'], extract_endpoint_from_line_presence_view(line))
-            for user in users
-            for line in user['lines']
-        }
-        with session_scope():
-            for line_id, endpoint_name in lines:
+        endpoint_names = set()
+        for user in users:
+            for line in user['lines']:
+                endpoint_name = extract_endpoint_from_line_presence_view(line)
                 if not endpoint_name:
-                    logger.warning('Line "%s" doesn\'t have name', line_id)
+                    logger.warning('Line "%s" doesn\'t have name', line['id'])
                     continue
 
-                endpoint = self._dao.endpoint.find_by(name=endpoint_name)
-                if endpoint:
-                    continue
+                endpoint_names.add(endpoint_name)
 
-                logger.debug('Create endpoint "%s"', endpoint_name)
-                self._dao.endpoint.create(Endpoint(name=endpoint_name))
+        with session_scope():
+            existing = self._dao.endpoint.list_names()
+            missing = []
+            for name in endpoint_names - existing:
+                logger.debug('Create endpoint "%s"', name)
+                missing.append(Endpoint(name=name))
+            self._dao.endpoint.create_all(missing)
 
     def _associate_line_endpoint(self, users):
-        lines = {
-            (line['id'], extract_endpoint_from_line_presence_view(line))
-            for user in users
-            for line in user['lines']
-        }
+        desired = {}
+        for user in users:
+            for line in user['lines']:
+                endpoint_name = extract_endpoint_from_line_presence_view(line)
+                if endpoint_name:
+                    desired[line['id']] = endpoint_name
+
         with session_scope():
-            for line_id, endpoint_name in lines:
-                try:
-                    line = self._dao.line.get(line_id)
-                    endpoint = self._dao.endpoint.get_by(name=endpoint_name)
-                except (UnknownLineException, UnknownEndpointException):
-                    logger.debug(
-                        'Unable to associate line "%s" with endpoint "%s"',
-                        line_id,
-                        endpoint_name,
-                    )
+            cached = {line.id: line.endpoint_name for line in self._dao.line.list_()}
+            associations = []
+            for line_id, endpoint_name in desired.items():
+                if cached.get(line_id) == endpoint_name:
                     continue
                 logger.debug(
-                    'Associate line "%s" with endpoint "%s"', line.id, endpoint.name
+                    'Associate line "%s" with endpoint "%s"', line_id, endpoint_name
                 )
-                self._dao.line.associate_endpoint(line, endpoint)
+                associations.append({'id': line_id, 'endpoint_name': endpoint_name})
+            self._dao.line.associate_endpoints(associations)
 
     def _update_services_users(self, users):
-        with session_scope() as session:
-            for confd_user in users:
-                try:
-                    user = self._dao.user.get(
-                        [confd_user['tenant_uuid']], confd_user['uuid']
-                    )
-                except UnknownUserException as e:
-                    logger.warning(e)
+        desired = {user['uuid']: user['services']['dnd']['enabled'] for user in users}
+
+        with session_scope():
+            cached = self._dao.user.list_dnd()
+            changed = []
+            for uuid, do_not_disturb in desired.items():
+                if cached.get(uuid) == do_not_disturb:
                     continue
-                do_not_disturb_status = confd_user['services']['dnd']['enabled']
                 logger.debug(
-                    'Updating user "%s" DND status to "%s"',
-                    user.uuid,
-                    do_not_disturb_status,
+                    'Updating user "%s" DND status to "%s"', uuid, do_not_disturb
                 )
-                user.do_not_disturb = do_not_disturb_status
-                session.flush()
+                changed.append((uuid, do_not_disturb))
+            self._dao.user.update_dnd(changed)
 
     def initiate_sessions(self, sessions):
         self._add_and_remove_sessions(sessions)
@@ -399,38 +385,37 @@ class Initiator:
         }
 
         sessions_missing = sessions - sessions_cached
+        sessions_expired = sessions_cached - sessions
+
         with session_scope():
+            user_uuids = self._dao.user.list_uuids()
+            new_sessions = []
             for uuid, user_uuid, tenant_uuid in sessions_missing:
-                try:
-                    user = self._dao.user.get([tenant_uuid], user_uuid)
-                except UnknownUserException:
+                if user_uuid not in user_uuids:
                     logger.debug('Session "%s" has no valid user "%s"', uuid, user_uuid)
                     continue
 
                 logger.debug('Create session "%s" for user "%s"', uuid, user_uuid)
-                session = Session(uuid=uuid, user_uuid=user_uuid)
-                self._dao.user.add_session(user, session)
+                new_sessions.append(Session(uuid=uuid, user_uuid=user_uuid))
+            self._dao.session.create_all(new_sessions)
 
-        sessions_expired = sessions_cached - sessions
-        with session_scope():
+            expired_uuids = []
             for uuid, user_uuid, tenant_uuid in sessions_expired:
-                try:
-                    user = self._dao.user.get([tenant_uuid], user_uuid)
-                    session = self._dao.session.get(uuid)
-                except (UnknownUserException, UnknownSessionException) as e:
-                    logger.warning(e)
-                    continue
-
                 logger.debug('Delete session "%s" for user "%s"', uuid, user_uuid)
-                self._dao.user.remove_session(user, session)
+                expired_uuids.append(uuid)
+            self._dao.session.delete_by_uuids(expired_uuids)
 
     def _update_sessions(self, sessions):
+        sessions_by_uuid = {session['uuid']: session for session in sessions}
         with session_scope():
-            for session in sessions:
-                cached_session = self._dao.session.find(session['uuid'])
-                if cached_session and session['mobile'] != cached_session.mobile:
-                    cached_session.mobile = session['mobile']
-                    self._dao.session.update(cached_session)
+            updates = []
+            for cached_session in self._dao.session.list_():
+                session = sessions_by_uuid.get(str(cached_session.uuid))
+                if session is not None and session['mobile'] != cached_session.mobile:
+                    updates.append(
+                        {'uuid': cached_session.uuid, 'mobile': session['mobile']}
+                    )
+            self._dao.session.update_all(updates)
 
     def initiate_refresh_tokens(self, tokens):
         self._add_and_remove_refresh_tokens(tokens)
@@ -447,11 +432,13 @@ class Initiator:
         }
 
         tokens_missing = tokens - tokens_cached
+        tokens_expired = tokens_cached - tokens
+
         with session_scope():
+            user_uuids = self._dao.user.list_uuids()
+            new_tokens = []
             for client_id, user_uuid, tenant_uuid in tokens_missing:
-                try:
-                    user = self._dao.user.get([tenant_uuid], user_uuid)
-                except UnknownUserException:
+                if user_uuid not in user_uuids:
                     logger.debug(
                         'Refresh token "%s" has no valid user "%s"',
                         client_id,
@@ -462,69 +449,77 @@ class Initiator:
                 logger.debug(
                     'Create refresh token "%s" for user "%s"', client_id, user_uuid
                 )
-                token = RefreshToken(client_id=client_id, user_uuid=user_uuid)
-                self._dao.user.add_refresh_token(user, token)
+                new_tokens.append(
+                    RefreshToken(client_id=client_id, user_uuid=user_uuid)
+                )
+            self._dao.refresh_token.create_all(new_tokens)
 
-        tokens_expired = tokens_cached - tokens
-        with session_scope():
+            expired_keys = []
             for client_id, user_uuid, tenant_uuid in tokens_expired:
-                try:
-                    user = self._dao.user.get([tenant_uuid], user_uuid)
-                    token = self._dao.refresh_token.get(user_uuid, client_id)
-                except (UnknownUserException, UnknownRefreshTokenException) as e:
-                    logger.warning(e)
-                    continue
-
                 logger.debug(
                     'Delete refresh token "%s" for user "%s"', client_id, user_uuid
                 )
-                self._dao.user.remove_refresh_token(user, token)
+                expired_keys.append((client_id, user_uuid))
+            self._dao.refresh_token.delete_by_keys(expired_keys)
 
     def _update_refresh_tokens(self, tokens):
+        tokens_by_key = {
+            (token['user_uuid'], token['client_id']): token for token in tokens
+        }
         with session_scope():
-            for token in tokens:
-                cached_token = self._dao.refresh_token.find(
-                    token['user_uuid'], token['client_id']
-                )
-                if cached_token and token['mobile'] != cached_token.mobile:
-                    cached_token.mobile = token['mobile']
-                    self._dao.refresh_token.update(cached_token)
+            updates = []
+            for cached_token in self._dao.refresh_token.list_():
+                key = (str(cached_token.user_uuid), cached_token.client_id)
+                token = tokens_by_key.get(key)
+                if token is not None and token['mobile'] != cached_token.mobile:
+                    updates.append(
+                        {
+                            'client_id': cached_token.client_id,
+                            'user_uuid': cached_token.user_uuid,
+                            'mobile': token['mobile'],
+                        }
+                    )
+            self._dao.refresh_token.update_all(updates)
 
     def initiate_endpoints(self, events):
+        endpoints = {}
+        for event in events:
+            if event.get('Event') != 'DeviceStateChange':
+                continue
+
+            endpoint_name = event['Device']
+            if endpoint_name.startswith('Custom:'):
+                continue
+
+            state = DEVICE_STATE_MAP.get(event['State'], 'unavailable')
+            logger.debug('Create endpoint "%s" with state "%s"', endpoint_name, state)
+            endpoints[endpoint_name] = Endpoint(name=endpoint_name, state=state)
+
         with session_scope():
             logger.debug('Delete all endpoints')
             self._dao.endpoint.delete_all()
-            for event in events:
-                if event.get('Event') != 'DeviceStateChange':
-                    continue
-
-                endpoint_name = event['Device']
-                if endpoint_name.startswith('Custom:'):
-                    continue
-
-                endpoint_args = {
-                    'name': endpoint_name,
-                    'state': DEVICE_STATE_MAP.get(event['State'], 'unavailable'),
-                }
-                logger.debug(
-                    'Create endpoint "%s" with state "%s"',
-                    endpoint_args['name'],
-                    endpoint_args['state'],
-                )
-                self._dao.endpoint.create(Endpoint(**endpoint_args))
+            self._dao.endpoint.create_all(list(endpoints.values()))
 
     def initiate_channels(self, events):
         with session_scope():
             logger.debug('Delete all channels')
             self._dao.channel.delete_all()
+
+            line_id_by_endpoint = {
+                line.endpoint_name: line.id
+                for line in self._dao.line.list_()
+                if line.endpoint_name
+            }
+
+            channels = {}
             for event in events:
                 if event.get('Event') != 'CoreShowChannel':
                     continue
 
                 channel_name = event['Channel']
                 endpoint_name = extract_endpoint_from_channel(channel_name)
-                line = self._dao.line.find_by(endpoint_name=endpoint_name)
-                if not line:
+                line_id = line_id_by_endpoint.get(endpoint_name)
+                if line_id is None:
                     logger.debug(
                         'Unknown line with endpoint "%s" for channel "%s"',
                         endpoint_name,
@@ -536,14 +531,9 @@ class Initiator:
                 if event['ChanVariable'].get('XIVO_ON_HOLD') == '1':
                     state = 'holding'
 
-                channel_args = {
-                    'name': channel_name,
-                    'state': state,
-                }
-                logger.debug(
-                    'Create channel "%s" with state "%s"',
-                    channel_args['name'],
-                    channel_args['state'],
+                logger.debug('Create channel "%s" with state "%s"', channel_name, state)
+                channels[channel_name] = Channel(
+                    name=channel_name, state=state, line_id=line_id
                 )
-                channel = Channel(**channel_args)
-                self._dao.line.add_channel(line, channel)
+
+            self._dao.channel.create_all(list(channels.values()))
