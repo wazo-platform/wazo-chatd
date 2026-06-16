@@ -392,7 +392,11 @@ definitions:
         description: Messaging types this backend can handle
       configured:
         type: boolean
-        description: Whether wazo-auth has external credentials for this tenant
+        description: |
+          Whether the backend is ready to use for this tenant. For backends
+          that require per-tenant credentials, this is true once wazo-auth has
+          external credentials stored. Backends with no credential requirement
+          (auth scope ``none``) are always reported as configured.
       mode:
         type: string
         enum: [webhook, poll, listen]
