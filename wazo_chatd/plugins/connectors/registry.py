@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from importlib.metadata import EntryPoint
 from typing import cast, get_args
 
@@ -23,11 +24,16 @@ NAMESPACE = 'wazo_chatd.connectors'
 _VALID_AUTH_SCOPES = get_args(AuthScope)
 
 
+@dataclass(frozen=True)
+class _RegisteredBackend:
+    cls: type[Connector]
+    auth_schema: tuple[str, str]
+    mode: TransportMode
+
+
 class ConnectorRegistry:
     def __init__(self) -> None:
-        self._backends: dict[str, type[Connector]] = {}
-        self._auth_schemas: dict[str, tuple[str, str]] = {}
-        self._modes: dict[str, TransportMode] = {}
+        self._backends: dict[str, _RegisteredBackend] = {}
         self._reachable_types_cache: dict[str, frozenset[str]] = {}
 
     def discover(
@@ -86,37 +92,35 @@ class ConnectorRegistry:
             name,
             ', '.join(cls.supported_types),
         )
-        self._backends[name] = cls
-        self._auth_schemas[name] = (payload, etag)
-        self._modes[name] = mode
+        self._backends[name] = _RegisteredBackend(cls, (payload, etag), mode)
         self._reachable_types_cache.clear()
 
     def transport_mode(self, name: str) -> TransportMode:
-        return self._modes[name]
+        return self._backends[name].mode
 
     def get_auth_schema(self, name: str) -> tuple[str, str]:
-        return self._auth_schemas[name]
+        return self._backends[name].auth_schema
 
     def get_backend(self, name: str) -> type[Connector]:
-        return self._backends[name]
+        return self._backends[name].cls
 
     def requires_auth(self, name: str) -> bool:
-        return getattr(self._backends[name], 'auth_scope', 'tenant') != 'none'
+        return getattr(self._backends[name].cls, 'auth_scope', 'tenant') != 'none'
 
     def available_backends(self) -> list[str]:
         return list(self._backends.keys())
 
     def types_for_backend(self, backend: str) -> set[str]:
-        cls = self._backends.get(backend)
-        if not cls:
+        entry = self._backends.get(backend)
+        if not entry:
             return set()
-        return set(cls.supported_types)
+        return set(entry.cls.supported_types)
 
     def backends_for_types(self, types: set[str]) -> set[str]:
         return {
             name
-            for name, cls in self._backends.items()
-            if types & set(cls.supported_types)
+            for name, entry in self._backends.items()
+            if types & set(entry.cls.supported_types)
         }
 
     def resolve_reachable_types(self, identity: str) -> set[str]:
@@ -124,12 +128,12 @@ class ConnectorRegistry:
             return set(cached)
 
         reachable: set[str] = set()
-        for backend_name, cls in self._backends.items():
+        for entry in self._backends.values():
             try:
-                cls.normalize_identity(identity)
+                entry.cls.normalize_identity(identity)
             except (ValueError, TypeError):
                 continue
-            reachable.update(cls.supported_types)
+            reachable.update(entry.cls.supported_types)
 
         self._reachable_types_cache[identity] = frozenset(reachable)
         return reachable
