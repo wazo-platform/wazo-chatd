@@ -8,14 +8,14 @@ import json
 import logging
 from collections.abc import Sequence
 from importlib.metadata import EntryPoint
-from typing import get_args
+from typing import cast, get_args
 
 from stevedore import ExtensionManager
 
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.helpers import VALID_TRANSPORT_MODES
 from wazo_chatd.plugins.connectors.schemas import connector_auth_schema
-from wazo_chatd.plugins.connectors.types import AuthScope, ConfigField
+from wazo_chatd.plugins.connectors.types import AuthScope, ConfigField, TransportMode
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class ConnectorRegistry:
     def __init__(self) -> None:
         self._backends: dict[str, type[Connector]] = {}
         self._auth_schemas: dict[str, tuple[str, str]] = {}
+        self._modes: dict[str, TransportMode] = {}
         self._reachable_types_cache: dict[str, frozenset[str]] = {}
 
     def discover(
@@ -57,7 +58,7 @@ class ConnectorRegistry:
                 )
                 continue
 
-            self.register_backend(extension.plugin)
+            self.register_backend(extension.plugin, mode=cast(TransportMode, mode))
 
             verifies = getattr(extension.plugin, 'verifies_signatures', True)
             if mode == 'webhook' and not verifies:
@@ -67,7 +68,9 @@ class ConnectorRegistry:
                     extension.name,
                 )
 
-    def register_backend(self, cls: type[Connector]) -> None:
+    def register_backend(
+        self, cls: type[Connector], mode: TransportMode = 'webhook'
+    ) -> None:
         name = cls.backend
         if name in self._backends:
             raise ValueError(f'Connector backend {name!r} already registered')
@@ -85,7 +88,11 @@ class ConnectorRegistry:
         )
         self._backends[name] = cls
         self._auth_schemas[name] = (payload, etag)
+        self._modes[name] = mode
         self._reachable_types_cache.clear()
+
+    def transport_mode(self, name: str) -> TransportMode:
+        return self._modes[name]
 
     def get_auth_schema(self, name: str) -> tuple[str, str]:
         return self._auth_schemas[name]

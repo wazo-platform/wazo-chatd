@@ -415,11 +415,17 @@ class TestConnectorRouterListConnectors(unittest.TestCase):
         assert all(item['configured'] for item in result)
 
     def test_includes_backend_mode(self) -> None:
-        self.router._store.peek.return_value = Mock()
+        registry = ConnectorRegistry()
+        registry.register_backend(_SmsConnector, mode='poll')  # type: ignore[arg-type]
+        registry.register_backend(_EmailConnector)  # type: ignore[arg-type]
+        router = _build_router(registry=registry)
+        router._store = Mock()
+        router._store.peek.return_value = Mock()
 
-        result = self.router.list_connectors('tenant-uuid')
+        result = router.list_connectors('tenant-uuid')
 
-        assert all(item['mode'] == 'webhook' for item in result)
+        modes = {item['name']: item['mode'] for item in result}
+        assert modes == {'sms_backend': 'poll', 'email_backend': 'webhook'}
 
     def test_returns_configured_false_when_peek_returns_none(self) -> None:
         self.router._store.peek.return_value = None

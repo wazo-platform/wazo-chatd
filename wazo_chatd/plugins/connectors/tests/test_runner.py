@@ -17,8 +17,13 @@ import pytest
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict
 from wazo_chatd.plugins.connectors import runner as runner_module
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
+from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.runner import DeliveryRunner, ListenerRunner, Runner
-from wazo_chatd.plugins.connectors.types import InboundMessage, StatusUpdate
+from wazo_chatd.plugins.connectors.types import (
+    InboundMessage,
+    StatusUpdate,
+    TransportMode,
+)
 
 
 def _make_config() -> ConfigDict:
@@ -781,7 +786,19 @@ class TestDeliveryRunnerPollerJitter(unittest.IsolatedAsyncioTestCase):
         )
 
 
-def _build_loop_for_modes(connectors_config: dict) -> DeliveryRunner:
+def _registry_with_modes(modes: dict[str, TransportMode]) -> ConnectorRegistry:
+    registry = ConnectorRegistry()
+    for backend, mode in modes.items():
+        cls = type(
+            f'_Connector_{backend}',
+            (),
+            {'backend': backend, 'supported_types': ('sms',)},
+        )
+        registry.register_backend(cls, mode=mode)
+    return registry
+
+
+def _build_loop_for_modes(modes: dict[str, TransportMode]) -> DeliveryRunner:
     with unittest.mock.patch(
         'wazo_chatd.plugins.connectors.runner.init_async_db',
         return_value=(AsyncMock(), _mock_session_factory()),
@@ -790,10 +807,9 @@ def _build_loop_for_modes(connectors_config: dict) -> DeliveryRunner:
     ) as mock_bus:
         mock_bus.from_config.return_value = Mock()
         config = _make_config()
-        config['connectors'] = connectors_config
         store = Mock()
         store.items.return_value = []
-        loop = DeliveryRunner(config, Mock(), store)
+        loop = DeliveryRunner(config, _registry_with_modes(modes), store)
         loop._loop = asyncio.get_event_loop()
         return loop
 
@@ -806,7 +822,7 @@ def _mock_instance(backend: str) -> Mock:
 
 class TestListenerRunnerReconcile(unittest.IsolatedAsyncioTestCase):
     def _make_runner(self) -> ListenerRunner:
-        runner = ListenerRunner(_make_config(), Mock(), Mock())
+        runner = ListenerRunner(_make_config(), Mock(), Mock(), Mock())
         runner._loop = asyncio.get_event_loop()
         return runner
 
@@ -855,7 +871,7 @@ class TestListenerRunnerReconcile(unittest.IsolatedAsyncioTestCase):
 
 class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
     async def test_spawns_poller_for_poll_mode_instance(self) -> None:
-        loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
+        loop = _build_loop_for_modes({'sms_backend': 'poll'})
         key = ('tenant-a', 'sms_backend')
         loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 
@@ -866,7 +882,7 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
         loop._pollers[key].cancel()
 
     async def test_does_not_spawn_poller_for_webhook_mode(self) -> None:
-        loop = _build_loop_for_modes({'sms_backend': {'mode': 'webhook'}})
+        loop = _build_loop_for_modes({'sms_backend': 'webhook'})
         key = ('tenant-a', 'sms_backend')
         loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 
@@ -875,7 +891,7 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
         assert key not in loop._pollers
 
     async def test_idempotent_does_not_spawn_duplicate(self) -> None:
-        loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
+        loop = _build_loop_for_modes({'sms_backend': 'poll'})
         key = ('tenant-a', 'sms_backend')
         loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 
@@ -888,7 +904,7 @@ class TestDeliveryRunnerSynchronizePollers(unittest.IsolatedAsyncioTestCase):
         first_task.cancel()
 
     async def test_cancels_poller_for_evicted_instance(self) -> None:
-        loop = _build_loop_for_modes({'sms_backend': {'mode': 'poll'}})
+        loop = _build_loop_for_modes({'sms_backend': 'poll'})
         key = ('tenant-a', 'sms_backend')
         loop._store.items.return_value = [(key, _mock_instance('sms_backend'))]
 

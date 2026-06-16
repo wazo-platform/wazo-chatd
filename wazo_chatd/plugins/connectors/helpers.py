@@ -6,23 +6,11 @@ from __future__ import annotations
 import hashlib
 import itertools
 import random
-from collections.abc import Mapping
-from typing import cast, get_args
+from typing import get_args
 
 from wazo_chatd.plugins.connectors.types import TransportMode
 
 VALID_TRANSPORT_MODES: tuple[TransportMode, ...] = get_args(TransportMode)
-_DEFAULT_MODE: TransportMode = 'webhook'
-
-
-def transport_mode(
-    connectors_config: Mapping[str, Mapping[str, str | bool] | None],
-    backend: str,
-) -> TransportMode:
-    mode = (connectors_config.get(backend) or {}).get('mode', _DEFAULT_MODE)
-    if mode in VALID_TRANSPORT_MODES:
-        return cast(TransportMode, mode)
-    return _DEFAULT_MODE
 
 
 def apply_jitter(

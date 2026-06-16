@@ -68,6 +68,20 @@ class TestConnectorRegistry(unittest.TestCase):
         with pytest.raises(KeyError):
             self.registry.get_backend('nonexistent')
 
+    def test_register_backend_defaults_mode_to_webhook(self) -> None:
+        self.registry.register_backend(_FakeConnectorA)  # type: ignore[arg-type]
+
+        assert self.registry.transport_mode('fake_a') == 'webhook'
+
+    def test_register_backend_stores_mode(self) -> None:
+        self.registry.register_backend(_FakeConnectorA, mode='poll')  # type: ignore[arg-type]
+
+        assert self.registry.transport_mode('fake_a') == 'poll'
+
+    def test_transport_mode_unknown_backend_raises_keyerror(self) -> None:
+        with pytest.raises(KeyError):
+            self.registry.transport_mode('nonexistent')
+
     def test_register_backend_raises_on_duplicate(self) -> None:
         class _DuplicateConnector:
             backend: ClassVar[str] = 'fake_a'
@@ -254,3 +268,28 @@ class TestConnectorRegistry(unittest.TestCase):
             )
 
         assert self.registry.available_backends() == ['fake_a']
+
+    def test_discover_stores_resolved_mode_per_backend(self) -> None:
+        mock_ext_a = Mock(spec=['name', 'plugin'])
+        mock_ext_a.name = 'fake_a'
+        mock_ext_a.plugin = _FakeConnectorA
+        mock_ext_b = Mock(spec=['name', 'plugin'])
+        mock_ext_b.name = 'fake_b'
+        mock_ext_b.plugin = _FakeConnectorB
+
+        mock_manager = MagicMock()
+        mock_manager.__iter__.return_value = iter([mock_ext_a, mock_ext_b])
+
+        with unittest.mock.patch(
+            'wazo_chatd.plugins.connectors.registry.ExtensionManager',
+            return_value=mock_manager,
+        ):
+            self.registry.discover(
+                connectors_config={
+                    'fake_a': {'enabled': True, 'mode': 'poll'},
+                    'fake_b': {'enabled': True},
+                }
+            )
+
+        assert self.registry.transport_mode('fake_a') == 'poll'
+        assert self.registry.transport_mode('fake_b') == 'webhook'

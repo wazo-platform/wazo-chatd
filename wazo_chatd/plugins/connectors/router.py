@@ -22,7 +22,6 @@ from wazo_chatd.plugins.connectors.exceptions import (
     NoSuchConnectorException,
     UnknownBackendException,
 )
-from wazo_chatd.plugins.connectors.helpers import transport_mode
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.runner import (
     DeliveryRunner,
@@ -76,7 +75,7 @@ class ConnectorRouter:
 
         self._delivery_runner = DeliveryRunner(config, registry, self._store)
         self._listener_runner = ListenerRunner(
-            config, self._store, self._delivery_runner.enqueue_message
+            config, registry, self._store, self._delivery_runner.enqueue_message
         )
 
     def on_auth_available(self, _token: str) -> None:
@@ -114,7 +113,7 @@ class ConnectorRouter:
             configured = (
                 not needs_auth[name] or self._store.peek(name, tenant_uuid) is not None
             )
-            mode = transport_mode(self._connectors_config, name)
+            mode = self._registry.transport_mode(name)
             result.append(
                 {
                     'name': name,

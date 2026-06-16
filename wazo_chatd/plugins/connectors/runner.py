@@ -31,11 +31,7 @@ from wazo_chatd.plugins.connectors.cadence import PollerCadence
 from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.exceptions import ConnectorRateLimited
 from wazo_chatd.plugins.connectors.executor import MAX_RETRY_AFTER, DeliveryExecutor
-from wazo_chatd.plugins.connectors.helpers import (
-    apply_jitter,
-    exponential_backoff,
-    transport_mode,
-)
+from wazo_chatd.plugins.connectors.helpers import apply_jitter, exponential_backoff
 from wazo_chatd.plugins.connectors.notifier import AsyncNotifier
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.store import CacheKey, ConnectorStore
@@ -222,6 +218,7 @@ class DeliveryRunner(Runner):
     ) -> None:
         super().__init__()
         self._config = config
+        self._registry = registry
         self._store = store
         self._max_tasks = int(config['delivery']['max_concurrent_tasks'])
         self._poll_min = float(config['delivery'].get('poll_interval_min', 5))
@@ -574,11 +571,10 @@ class DeliveryRunner(Runner):
                 )
             del self._pollers[key]
 
-        connectors_config = self._config.get('connectors') or {}
         desired: dict[CacheKey, Connector] = {
             key: instance
             for key, instance in self._store.items()
-            if transport_mode(connectors_config, instance.backend) == 'poll'
+            if self._registry.transport_mode(instance.backend) == 'poll'
         }
 
         running = set(self._pollers)
@@ -687,11 +683,13 @@ class ListenerRunner(Runner):
     def __init__(
         self,
         config: ConfigDict,
+        registry: ConnectorRegistry,
         store: ConnectorStore,
         on_message: Callable[[InboundMessage | StatusUpdate], None],
     ) -> None:
         super().__init__()
         self._config = config
+        self._registry = registry
         self._store = store
         self._on_message = on_message
         self._listeners: dict[CacheKey, asyncio.Task[None]] = {}
@@ -713,11 +711,10 @@ class ListenerRunner(Runner):
             self._listeners.clear()
 
     def _build_desired(self) -> dict[CacheKey, Connector]:
-        connectors_config = self._config.get('connectors') or {}
         return {
             key: instance
             for key, instance in self._store.items()
-            if transport_mode(connectors_config, instance.backend) == 'listen'
+            if self._registry.transport_mode(instance.backend) == 'listen'
         }
 
     def resync(self) -> None:
