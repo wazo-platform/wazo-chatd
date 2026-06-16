@@ -98,21 +98,24 @@ class ConnectorRouter:
     def list_connectors(self, tenant_uuid: str) -> list[dict[str, object]]:
         backends = self._registry.available_backends()
         needs_auth = {name: self._registry.requires_auth(name) for name in backends}
-        uncached = [
-            (tenant_uuid, name)
+        cached = {
+            name: self._store.peek(name, tenant_uuid)
             for name in backends
-            if needs_auth[name] and self._store.peek(name, tenant_uuid) is None
+            if needs_auth[name]
+        }
+        uncached = [
+            (tenant_uuid, name) for name, instance in cached.items() if instance is None
         ]
 
         if uncached:
             self._store.batch_find(uncached)
+            for _, name in uncached:
+                cached[name] = self._store.peek(name, tenant_uuid)
 
         result: list[dict[str, object]] = []
         for name in backends:
             cls = self._registry.get_backend(name)
-            configured = (
-                not needs_auth[name] or self._store.peek(name, tenant_uuid) is not None
-            )
+            configured = not needs_auth[name] or cached.get(name) is not None
             mode = self._registry.transport_mode(name)
             result.append(
                 {

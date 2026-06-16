@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from wazo_chatd.plugins.connectors.connector import Connector
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.types import AuthScope, ConfigField
 
@@ -28,7 +29,7 @@ def _make_connector_class(
     name: str = 'sample',
     auth_scope: AuthScope = 'tenant',
     auth_schema: tuple[ConfigField, ...] = (),
-) -> type:
+) -> type[Connector]:
     return type(
         f'_Sample_{name}',
         (),

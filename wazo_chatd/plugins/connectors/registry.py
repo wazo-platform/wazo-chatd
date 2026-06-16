@@ -27,6 +27,7 @@ _VALID_AUTH_SCOPES = get_args(AuthScope)
 @dataclass(frozen=True)
 class _RegisteredBackend:
     cls: type[Connector]
+    auth_scope: AuthScope
     auth_schema: tuple[str, str]
     mode: TransportMode
 
@@ -92,7 +93,9 @@ class ConnectorRegistry:
             name,
             ', '.join(cls.supported_types),
         )
-        self._backends[name] = _RegisteredBackend(cls, (payload, etag), mode)
+        self._backends[name] = _RegisteredBackend(
+            cls, cast(AuthScope, auth_scope), (payload, etag), mode
+        )
         self._reachable_types_cache.clear()
 
     def transport_mode(self, name: str) -> TransportMode:
@@ -105,7 +108,7 @@ class ConnectorRegistry:
         return self._backends[name].cls
 
     def requires_auth(self, name: str) -> bool:
-        return getattr(self._backends[name].cls, 'auth_scope', 'tenant') != 'none'
+        return self._backends[name].auth_scope != 'none'
 
     def available_backends(self) -> list[str]:
         return list(self._backends.keys())
