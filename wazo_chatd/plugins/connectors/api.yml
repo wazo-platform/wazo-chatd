@@ -127,7 +127,15 @@ paths:
         - type
         - identity
       - $ref: '#/parameters/direction'
-      - $ref: '#/parameters/search'
+      - name: search
+        in: query
+        type: string
+        required: false
+        description: |
+          Filter identities whose ``identity`` value contains this term,
+          case-insensitive. Matching is a literal substring search; wildcard
+          characters are escaped and not interpreted. Only the ``identity``
+          column is searched.
       - $ref: '#/parameters/identity_user_uuid_filter'
       - $ref: '#/parameters/identity_backend_filter'
       - $ref: '#/parameters/identity_type_filter'
@@ -167,6 +175,8 @@ paths:
           $ref: '#/responses/NotFoundError'
         '409':
           description: An identity with the same backend/type/identity already exists
+          schema:
+            $ref: '#/definitions/APIError'
         '503':
           $ref: '#/responses/AnotherServiceUnavailable'
   /identities/{identity_uuid}:
@@ -214,6 +224,8 @@ paths:
           $ref: '#/responses/NotFoundError'
         '409':
           description: Another identity with the same value already exists
+          schema:
+            $ref: '#/definitions/APIError'
         '503':
           $ref: '#/responses/AnotherServiceUnavailable'
     delete:
