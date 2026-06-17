@@ -60,13 +60,13 @@ class ConnectorRouter:
         self._registry = registry
         self._service = service
         self._dao = dao
-        connectors_config = config.get('connectors') or {}
+        self._connectors_config = config.get('connectors') or {}
         delivery_config = config.get('delivery') or {}
         self._store = ConnectorStore(
             auth_client,
             registry,
             cache_ttl=float(delivery_config.get('backend_cache_ttl', 300)),
-            connectors_config=connectors_config,
+            connectors_config=self._connectors_config,
         )
         if not registry.available_backends():
             logger.info('No connector backends registered; skipping runner startup')
@@ -75,7 +75,7 @@ class ConnectorRouter:
 
         self._delivery_runner = DeliveryRunner(config, registry, self._store)
         self._listener_runner = ListenerRunner(
-            config, self._store, self._delivery_runner.enqueue_message
+            config, registry, self._store, self._delivery_runner.enqueue_message
         )
 
     def on_auth_available(self, _token: str) -> None:
@@ -97,27 +97,42 @@ class ConnectorRouter:
 
     def list_connectors(self, tenant_uuid: str) -> list[dict[str, object]]:
         backends = self._registry.available_backends()
-        uncached = [
-            (tenant_uuid, name)
+        needs_auth = {name: self._registry.requires_auth(name) for name in backends}
+        cached = {
+            name: self._store.peek(name, tenant_uuid)
             for name in backends
-            if self._store.peek(name, tenant_uuid) is None
+            if needs_auth[name]
+        }
+        uncached = [
+            (tenant_uuid, name) for name, instance in cached.items() if instance is None
         ]
+
         if uncached:
             self._store.batch_find(uncached)
+            for _, name in uncached:
+                cached[name] = self._store.peek(name, tenant_uuid)
 
         result: list[dict[str, object]] = []
         for name in backends:
             cls = self._registry.get_backend(name)
-            configured = self._store.peek(name, tenant_uuid) is not None
+            configured = not needs_auth[name] or cached.get(name) is not None
+            mode = self._registry.transport_mode(name)
             result.append(
                 {
                     'name': name,
                     'supported_types': list(cls.supported_types),
                     'configured': configured,
+                    'mode': mode,
                 }
             )
 
         return result
+
+    def get_auth_schema(self, backend: str) -> tuple[str, str]:
+        try:
+            return self._registry.get_auth_schema(backend)
+        except KeyError:
+            raise NoSuchConnectorException(backend) from None
 
     def list_connector_identities(
         self, tenant_uuid: str, backend: str

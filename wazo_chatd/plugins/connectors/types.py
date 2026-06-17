@@ -5,7 +5,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+FieldType = Literal['string', 'secret', 'select', 'boolean', 'integer', 'url']
+AuthScope = Literal['none', 'tenant']
+TransportMode = Literal['webhook', 'poll', 'listen']
 
 
 @dataclass(frozen=True)
@@ -93,3 +97,41 @@ class StatusUpdate:
 
     def __str__(self) -> str:
         return f'StatusUpdate(backend={self.backend}, external_id={self.external_id}, status={self.status})'
+
+
+@dataclass(frozen=True)
+class BackendIdentity:
+    identity: str
+    capabilities: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ConfigField:
+    name: str
+    label: Mapping[str, str]
+    type: FieldType = 'string'
+    required: bool = True
+    default: str = ''
+    """Default value, always a string regardless of ``type``."""
+    choices: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.label, Mapping) or 'en_US' not in self.label:
+            raise ValueError(f"ConfigField {self.name!r}: label must include 'en_US'")
+
+        if self.type == 'select':
+            if not self.choices:
+                raise ValueError(
+                    f"ConfigField {self.name!r}: type='select' requires "
+                    f"non-empty choices"
+                )
+            if self.default and self.default not in self.choices:
+                raise ValueError(
+                    f"ConfigField {self.name!r}: default {self.default!r} "
+                    f"not in choices"
+                )
+        elif self.choices:
+            raise ValueError(
+                f"ConfigField {self.name!r}: choices only allowed when "
+                f"type='select'"
+            )

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 import uuid
 from typing import ClassVar
@@ -11,7 +12,6 @@ from unittest.mock import Mock
 import pytest
 
 from wazo_chatd.plugin_helpers.dependencies import MessageContext
-from wazo_chatd.plugins.connectors.connector import BackendIdentity
 from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableException,
     BackendNotConfiguredException,
@@ -26,6 +26,7 @@ from wazo_chatd.plugins.connectors.exceptions import (
 from wazo_chatd.plugins.connectors.registry import ConnectorRegistry
 from wazo_chatd.plugins.connectors.router import ConnectorRouter
 from wazo_chatd.plugins.connectors.types import (
+    BackendIdentity,
     InboundMessage,
     StatusUpdate,
     TransportData,
@@ -413,12 +414,71 @@ class TestConnectorRouterListConnectors(unittest.TestCase):
         self.router._store.batch_find.assert_not_called()
         assert all(item['configured'] for item in result)
 
+    def test_includes_backend_mode(self) -> None:
+        registry = ConnectorRegistry()
+        registry.register_backend(_SmsConnector, mode='poll')  # type: ignore[arg-type]
+        registry.register_backend(_EmailConnector)  # type: ignore[arg-type]
+        router = _build_router(registry=registry)
+        router._store = Mock()
+        router._store.peek.return_value = Mock()
+
+        result = router.list_connectors('tenant-uuid')
+
+        modes = {item['name']: item['mode'] for item in result}
+        assert modes == {'sms_backend': 'poll', 'email_backend': 'webhook'}
+
     def test_returns_configured_false_when_peek_returns_none(self) -> None:
         self.router._store.peek.return_value = None
 
         result = self.router.list_connectors('tenant-uuid')
 
         assert not any(item['configured'] for item in result)
+
+    def test_none_scope_backend_reports_configured_true(self) -> None:
+        class _ZeroConfigConnector:
+            backend: ClassVar[str] = 'zero_cfg'
+            supported_types: ClassVar[tuple[str, ...]] = ('internal',)
+            auth_scope: ClassVar[str] = 'none'
+            auth_schema: ClassVar[tuple] = ()
+
+        self.router._registry.register_backend(_ZeroConfigConnector)  # type: ignore[arg-type]
+        self.router._store.peek.return_value = None
+
+        result = self.router.list_connectors('tenant-uuid')
+
+        zero = next(item for item in result if item['name'] == 'zero_cfg')
+        assert zero['configured'] is True
+
+    def test_none_scope_backend_skipped_from_batch_find(self) -> None:
+        class _ZeroConfigConnector:
+            backend: ClassVar[str] = 'zero_cfg'
+            supported_types: ClassVar[tuple[str, ...]] = ('internal',)
+            auth_scope: ClassVar[str] = 'none'
+            auth_schema: ClassVar[tuple] = ()
+
+        self.router._registry.register_backend(_ZeroConfigConnector)  # type: ignore[arg-type]
+        self.router._store.peek.return_value = None
+
+        self.router.list_connectors('tenant-uuid')
+
+        pairs = self.router._store.batch_find.call_args[0][0]
+        assert ('tenant-uuid', 'zero_cfg') not in pairs
+
+
+class TestConnectorRouterGetAuthSchema(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = _build_registry()
+        self.router = _build_router(registry=self.registry)
+
+    def test_returns_body_and_etag_from_registry(self) -> None:
+        body, etag = self.router.get_auth_schema('sms_backend')
+
+        assert json.loads(body) == {'scope': 'tenant', 'fields': []}
+        assert etag
+
+    def test_unknown_backend_raises(self) -> None:
+        with pytest.raises(NoSuchConnectorException):
+            self.router.get_auth_schema('nonexistent')
 
 
 class TestConnectorRouterValidateTenantBackend(unittest.TestCase):

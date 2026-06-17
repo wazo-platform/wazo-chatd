@@ -6,6 +6,11 @@ from __future__ import annotations
 import hashlib
 import itertools
 import random
+from typing import get_args
+
+from wazo_chatd.plugins.connectors.types import TransportMode
+
+VALID_TRANSPORT_MODES: tuple[TransportMode, ...] = get_args(TransportMode)
 
 
 def apply_jitter(

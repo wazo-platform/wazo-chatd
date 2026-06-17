@@ -13,7 +13,10 @@ from wazo_chatd.plugins.connectors.exceptions import (
     ConnectorParseError,
     WebhookParseException,
 )
-from wazo_chatd.plugins.connectors.http import ConnectorWebhookResource
+from wazo_chatd.plugins.connectors.http import (
+    ConnectorAuthSchemaResource,
+    ConnectorWebhookResource,
+)
 from wazo_chatd.plugins.connectors.types import WebhookData
 
 
@@ -204,3 +207,47 @@ class TestConnectorWebhookResource(unittest.TestCase):
         assert data.url == (
             'https://localhost/api/chatd/connectors/incoming/sms_backend?tenant=abc'
         )
+
+
+class TestConnectorAuthSchemaResourceConditional(unittest.TestCase):
+    PAYLOAD = '{"fields":[],"scope":"tenant"}'
+    ETAG = 'abc123'
+
+    def setUp(self) -> None:
+        self.app = Flask(__name__)
+        self.router = Mock()
+        self.router.get_auth_schema.return_value = (self.PAYLOAD, self.ETAG)
+        self.resource = ConnectorAuthSchemaResource(self.router)
+
+    def test_etag_match_returns_304_without_body(self) -> None:
+        with self.app.test_request_context(
+            '/connectors/test/auth-schema',
+            headers={'If-None-Match': f'"{self.ETAG}"'},
+        ):
+            response = self.resource.get(backend='test')
+
+        assert response.status_code == 304
+        assert response.get_data(as_text=True) == ''
+        assert response.headers['ETag'] == f'"{self.ETAG}"'
+
+    def test_weak_etag_match_returns_304(self) -> None:
+        with self.app.test_request_context(
+            '/connectors/test/auth-schema',
+            headers={'If-None-Match': f'W/"{self.ETAG}"'},
+        ):
+            response = self.resource.get(backend='test')
+
+        assert response.status_code == 304
+
+    def test_etag_mismatch_returns_200_with_body(self) -> None:
+        with self.app.test_request_context(
+            '/connectors/test/auth-schema',
+            headers={'If-None-Match': '"stale"'},
+        ):
+            response = self.resource.get(backend='test')
+
+        assert response.status_code == 200
+        assert response.get_data(as_text=True) == self.PAYLOAD
+        assert response.mimetype == 'application/json'
+        assert response.headers['ETag'] == f'"{self.ETAG}"'
+        assert response.headers['Cache-Control'] == 'private, no-cache'

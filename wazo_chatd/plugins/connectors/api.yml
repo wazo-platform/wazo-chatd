@@ -17,6 +17,48 @@ paths:
           description: Connector list
           schema:
             $ref: '#/definitions/ConnectorList'
+  /connectors/{backend}/auth-schema:
+    get:
+      operationId: get_connector_auth_schema
+      summary: Get the credential schema declared by the backend
+      description: |
+        **Required ACL:** `chatd.connectors.{backend}.auth-schema.read`
+
+        Returns the connector's declared credential fields and where the
+        credentials live (`scope`). The body is class-level metadata —
+        identical across tenants.
+      tags:
+      - connectors
+      parameters:
+      - $ref: '#/parameters/tenant_uuid'
+      - name: backend
+        in: path
+        type: string
+        description: The backend name
+        required: true
+      - name: If-None-Match
+        in: header
+        type: string
+        required: false
+        description: Quoted ETag of a previously fetched body
+      responses:
+        '200':
+          description: Auth schema
+          headers:
+            ETag:
+              type: string
+              description: Quoted SHA-256 of the canonical body
+            Cache-Control:
+              type: string
+              description: 'Caching directives (`private, no-cache`)'
+          schema:
+            $ref: '#/definitions/ConnectorAuthSchema'
+        '304':
+          description: Body unchanged since the ETag was issued
+        '404':
+          description: No such connector
+          schema:
+            $ref: '#/definitions/APIError'
   /connectors/{backend}/identities:
     get:
       operationId: list_connector_identities
@@ -85,7 +127,15 @@ paths:
         - type
         - identity
       - $ref: '#/parameters/direction'
-      - $ref: '#/parameters/search'
+      - name: search
+        in: query
+        type: string
+        required: false
+        description: |
+          Filter identities whose ``identity`` value contains this term,
+          case-insensitive. Matching is a literal substring search; wildcard
+          characters are escaped and not interpreted. Only the ``identity``
+          column is searched.
       - $ref: '#/parameters/identity_user_uuid_filter'
       - $ref: '#/parameters/identity_backend_filter'
       - $ref: '#/parameters/identity_type_filter'
@@ -125,6 +175,8 @@ paths:
           $ref: '#/responses/NotFoundError'
         '409':
           description: An identity with the same backend/type/identity already exists
+          schema:
+            $ref: '#/definitions/APIError'
         '503':
           $ref: '#/responses/AnotherServiceUnavailable'
   /identities/{identity_uuid}:
@@ -172,6 +224,8 @@ paths:
           $ref: '#/responses/NotFoundError'
         '409':
           description: Another identity with the same value already exists
+          schema:
+            $ref: '#/definitions/APIError'
         '503':
           $ref: '#/responses/AnotherServiceUnavailable'
     delete:
@@ -350,7 +404,66 @@ definitions:
         description: Messaging types this backend can handle
       configured:
         type: boolean
-        description: Whether wazo-auth has external credentials for this tenant
+        description: |
+          Whether the backend is ready to use for this tenant. For backends
+          that require per-tenant credentials, this is true once wazo-auth has
+          external credentials stored. Backends with no credential requirement
+          (auth scope ``none``) are always reported as configured.
+      mode:
+        type: string
+        enum: [webhook, poll, listen]
+        description: |
+          Transport the backend uses to exchange messages with the provider.
+          ``webhook`` requires configuring a provider-side callback to wazo;
+          ``poll`` and ``listen`` need none.
+
+  ConnectorAuthSchema:
+    title: ConnectorAuthSchema
+    properties:
+      scope:
+        type: string
+        enum: [none, tenant]
+        description: |
+          Where the credentials are stored. `none` means the backend needs
+          no credentials; `tenant` means they live in wazo-auth tenant
+          external config.
+      fields:
+        type: array
+        description: Fields required to collect the credentials.
+        items:
+          $ref: '#/definitions/ConnectorAuthSchemaField'
+
+  ConnectorAuthSchemaField:
+    title: ConnectorAuthSchemaField
+    properties:
+      name:
+        type: string
+        description: Machine-readable field name (used as the form key).
+      type:
+        type: string
+        enum: [string, secret, select, boolean, integer, url]
+      required:
+        type: boolean
+      default:
+        type: string
+      label:
+        type: array
+        items:
+          $ref: '#/definitions/ConnectorLocalizedLabel'
+      choices:
+        type: array
+        items:
+          type: string
+        description: Allowed values; only emitted when `type` is `select`.
+
+  ConnectorLocalizedLabel:
+    title: ConnectorLocalizedLabel
+    properties:
+      language:
+        type: string
+        description: Locale tag, e.g. `en_US`.
+      value:
+        type: string
 
   ConnectorIdentityList:
     title: ConnectorIdentityList

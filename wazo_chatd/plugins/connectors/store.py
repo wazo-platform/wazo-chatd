@@ -92,8 +92,8 @@ class ConnectorStore:
 
                 priority_backends = {
                     backend
-                    for backend, cfg in self._connectors_config.items()
-                    if (cfg or {}).get('mode', 'webhook') != 'webhook'
+                    for backend in registered
+                    if self._registry.transport_mode(backend) != 'webhook'
                 }
 
                 pairs = set(tenant_backends)
@@ -236,19 +236,24 @@ class ConnectorStore:
         with self._fetch_lock:
             epoch_before = self._cache_epoch.get(key, 0)
 
-        try:
-            provider_config = dict(
-                self._auth_client.external.get_config(backend, tenant_uuid=tenant_uuid)
-            )
-        except HTTPError as e:
-            with self._fetch_lock:
-                self._cache.pop(key, None)
-                self._expires_at.pop(key, None)
-            if getattr(e.response, 'status_code', None) == 404:
-                raise BackendNotConfiguredException(backend, tenant_uuid)
-            raise AuthServiceUnavailableException()
-        except RequestException:
-            raise AuthServiceUnavailableException()
+        if self._registry.requires_auth(backend):
+            try:
+                provider_config = dict(
+                    self._auth_client.external.get_config(
+                        backend, tenant_uuid=tenant_uuid
+                    )
+                )
+            except HTTPError as e:
+                with self._fetch_lock:
+                    self._cache.pop(key, None)
+                    self._expires_at.pop(key, None)
+                if getattr(e.response, 'status_code', None) == 404:
+                    raise BackendNotConfiguredException(backend, tenant_uuid)
+                raise AuthServiceUnavailableException()
+            except RequestException:
+                raise AuthServiceUnavailableException()
+        else:
+            provider_config = {}
 
         backend_cls = self._registry.get_backend(backend)
         connector_config = self._connectors_config.get(backend, {})

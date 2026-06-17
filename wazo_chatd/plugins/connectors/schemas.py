@@ -1,10 +1,15 @@
 # Copyright 2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from marshmallow import ValidationError, pre_load, validate
+from __future__ import annotations
+
+from marshmallow import ValidationError, missing, pre_load, validate
+from marshmallow.fields import Function
 from xivo.mallow import fields
 from xivo.mallow_helpers import ListSchema as _ListSchema
 from xivo.mallow_helpers import Schema
+
+from wazo_chatd.plugins.connectors.types import ConfigField
 
 _MAX_EXTRA_KEY_LENGTH = 64
 _MAX_EXTRA_VALUE_LENGTH = 1024
@@ -34,6 +39,18 @@ def _validate_extra(value: dict) -> None:
             raise ValidationError(
                 f'extra total length exceeds {_MAX_EXTRA_TOTAL_LENGTH} chars'
             )
+
+
+def _serialize_label(field: ConfigField) -> list[dict[str, str]]:
+    return [
+        {'language': locale, 'value': value} for locale, value in field.label.items()
+    ]
+
+
+def _serialize_choices(field: ConfigField) -> list[str]:
+    if field.type != 'select':
+        return missing  # type: ignore[return-value]
+    return list(field.choices)
 
 
 class IdentitySchema(Schema):
@@ -103,6 +120,7 @@ class ConnectorSchema(Schema):
     name = fields.String(dump_only=True)
     supported_types = fields.List(fields.String(), dump_only=True)
     configured = fields.Boolean(dump_only=True)
+    mode = fields.String(dump_only=True)
 
 
 class IdentityBindingSchema(Schema):
@@ -116,8 +134,30 @@ class ConnectorIdentityItemSchema(Schema):
     binding = fields.Nested(IdentityBindingSchema, dump_only=True, allow_none=True)
 
 
+class ConfigFieldSchema(Schema):
+    name = fields.String(dump_only=True)
+    type_ = fields.String(dump_only=True, data_key='type', attribute='type')
+    required = fields.Boolean(dump_only=True)
+    default = fields.String(dump_only=True)
+    label = Function(serialize=_serialize_label, dump_only=True)
+    choices = Function(serialize=_serialize_choices, dump_only=True)
+
+
+class ConnectorAuthSchema(Schema):
+    scope = fields.String(dump_only=True)
+    fields_list = fields.Nested(
+        ConfigFieldSchema,
+        many=True,
+        dump_only=True,
+        data_key='fields',
+        attribute='fields',
+    )
+
+
 connector_identity_item_schema = ConnectorIdentityItemSchema()
 connector_schema = ConnectorSchema()
+config_field_schema = ConfigFieldSchema()
+connector_auth_schema = ConnectorAuthSchema()
 identity_create_schema = IdentityCreateSchema()
 identity_list_request_schema = IdentityListRequestSchema()
 identity_schema = IdentitySchema()
