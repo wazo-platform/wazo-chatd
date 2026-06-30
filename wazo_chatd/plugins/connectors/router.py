@@ -7,7 +7,7 @@ import logging
 import threading
 from typing import TYPE_CHECKING
 
-from xivo.status import Status
+from xivo.status import Status, StatusDict
 
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
@@ -236,11 +236,13 @@ class ConnectorRouter:
                 context.room, context.message, identity
             )
 
-    def provide_status(self, status: dict[str, dict[str, str | int]]) -> None:
+    def provide_status(self, status: StatusDict) -> None:
         delivery = self._delivery_runner
         listener = self._listener_runner
         both_running = delivery.is_running and listener.is_running
-        status['connectors'] = {
+        # xivo's StatusDict types values as str, but the status endpoint also
+        # serializes numeric counters reported here.
+        status['connectors'] = {  # type: ignore[assignment]
             'status': Status.ok if both_running else Status.fail,
             'backends_registered': len(self._registry.available_backends()),
             'in_flight': delivery.in_flight_count,
