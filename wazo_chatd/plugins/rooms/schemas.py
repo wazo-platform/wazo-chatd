@@ -89,7 +89,7 @@ class MessageListRequestSchema(_ListSchema):
     @validates_schema
     def search_or_distinct(self, data, **kwargs):
         if not data.get('search') and not data.get('distinct'):
-            raise ValidationError('Missing search or distinct')
+            raise ValidationError({'_schema': 'Missing search or distinct'})
 
 
 class RoomListRequestSchema(Schema):

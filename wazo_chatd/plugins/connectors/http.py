@@ -221,7 +221,7 @@ class UserMeIdentityListResource(AuthResource):
     def get(self) -> tuple[dict[str, Any], int]:
         params = user_identity_list_request_schema.load(request.args)
         user_uuid = str(token.user_uuid)
-        tenant_uuids = [token.tenant_uuid]
+        tenant_uuids = get_tenant_uuids(recurse=False)
 
         if params['room_uuid'] is not None:
             room_uuid = str(params['room_uuid'])
