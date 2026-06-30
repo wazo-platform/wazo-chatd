@@ -293,22 +293,20 @@ class Initiator:
         existing_line_ids = {id_ for id_, _, _ in lines_cached}
 
         with session_scope():
-            user_uuids = self._dao.user.list_uuids()
-            new_lines = []
-            new_line_ids = set()
+            user_uuids = set(self._dao.user.list_uuids())
+            new_lines = {}
             for id_, user_uuid, tenant_uuid in lines_missing:
                 if user_uuid not in user_uuids:
                     logger.warning('Line "%s" has no valid user "%s"', id_, user_uuid)
                     continue
-                if id_ in existing_line_ids or id_ in new_line_ids:
+                if id_ in existing_line_ids or id_ in new_lines:
                     logger.warning(
                         'Line "%s" already created. Line multi-users not supported', id_
                     )
                     continue
                 logger.debug('Create line "%s"', id_)
-                new_line_ids.add(id_)
-                new_lines.append(Line(id=id_, user_uuid=user_uuid))
-            self._dao.line.create_all(new_lines)
+                new_lines[id_] = Line(id=id_, user_uuid=user_uuid)
+            self._dao.line.create_all(list(new_lines.values()))
 
             expired_ids = []
             for id_, user_uuid, tenant_uuid in lines_expired:
@@ -329,10 +327,8 @@ class Initiator:
 
         with session_scope():
             existing = self._dao.endpoint.list_names()
-            missing = []
-            for name in endpoint_names - existing:
-                logger.debug('Create endpoint "%s"', name)
-                missing.append(Endpoint(name=name))
+            missing = [Endpoint(name=name) for name in endpoint_names - existing]
+            logger.debug('missing endpoints: %s', missing)
             self._dao.endpoint.create_all(missing)
 
     def _associate_line_endpoint(self, users):
