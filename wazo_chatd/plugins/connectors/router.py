@@ -240,9 +240,7 @@ class ConnectorRouter:
         delivery = self._delivery_runner
         listener = self._listener_runner
         both_running = delivery.is_running and listener.is_running
-        # xivo's StatusDict types values as str, but the status endpoint also
-        # serializes numeric counters reported here.
-        status['connectors'] = {  # type: ignore[assignment]
+        status['connectors'] = {
             'status': Status.ok if both_running else Status.fail,
             'backends_registered': len(self._registry.available_backends()),
             'in_flight': delivery.in_flight_count,
