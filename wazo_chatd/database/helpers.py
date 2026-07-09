@@ -28,8 +28,14 @@ def _chunked(items: Sequence[T], size: int) -> Iterator[Sequence[T]]:
         yield items[start : start + size]
 
 
-def init_db(db_uri, echo=False, pool_size=16):
-    engine = create_engine(db_uri, echo=echo, pool_size=pool_size, pool_pre_ping=True)
+def init_db(db_uri, echo=False, pool_size=16, max_overflow=10):
+    engine = create_engine(
+        db_uri,
+        echo=echo,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_pre_ping=True,
+    )
     Session.configure(bind=engine)
 
 
