@@ -24,14 +24,17 @@ from .thread_manager import ThreadManager
 
 logger = logging.getLogger(__name__)
 
+DB_POOL_SPARE_CONN = 10
+
 
 class Controller:
     def __init__(self, config):
+        min_threads = config['rest_api']['min_threads']
+        max_threads = config['rest_api']['max_threads']
         init_db(
             config['db_uri'],
-            pool_size=config['rest_api']['min_threads'],
-            max_overflow=config['rest_api']['max_threads']
-            - config['rest_api']['min_threads'],
+            pool_size=min_threads,
+            max_overflow=max_threads - min_threads + DB_POOL_SPARE_CONN,
         )
         self._service_discovery_args = [
             'wazo-chatd',
