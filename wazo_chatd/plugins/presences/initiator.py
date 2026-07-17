@@ -94,16 +94,33 @@ def extract_endpoint_from_channel(channel_name):
     return endpoint_name
 
 
+def _endpoint_name_for_protocol(protocol, line_name):
+    match protocol:
+        case 'sip':
+            return f'PJSIP/{line_name}'
+        case 'sccp':
+            return f'SCCP/{line_name}'
+        case 'custom':
+            return line_name
+        case _:
+            return None
+
+
+def extract_endpoint_from_line_presence_view(line):
+    if not line['name']:
+        return
+    return _endpoint_name_for_protocol(line.get('protocol'), line['name'])
+
+
 def extract_endpoint_from_line(line):
     if not line['name']:
         return
-
     if line.get('endpoint_sip'):
-        return f'PJSIP/{line["name"]}'
-    elif line.get('endpoint_sccp'):
-        return f'SCCP/{line["name"]}'
-    elif line.get('endpoint_custom'):
-        return line['name']
+        return _endpoint_name_for_protocol('sip', line['name'])
+    if line.get('endpoint_sccp'):
+        return _endpoint_name_for_protocol('sccp', line['name'])
+    if line.get('endpoint_custom'):
+        return _endpoint_name_for_protocol('custom', line['name'])
 
 
 class Initiator:
@@ -129,8 +146,8 @@ class Initiator:
     def in_progress(self):
         return self._in_progress.is_set()
 
-    def _paginate_proxy(self, callback, limit=1000):
-        callback = partial(callback, recurse=True, limit=limit)
+    def _paginate_proxy(self, callback, limit=1000, **list_params):
+        callback = partial(callback, recurse=True, limit=limit, **list_params)
         result = callback(limit=limit, offset=0)
         total = result['total']
         items = result['items']
@@ -172,7 +189,9 @@ class Initiator:
         self._milestone_tracker.mark(Resource.TENANT, Stage.FETCHED)
 
         logger.debug('Fetching users...')
-        users = self._paginate_proxy(self._confd.users.list, limit=1000)['items']
+        users = self._paginate_proxy(
+            self._confd.users.list, limit=1000, view='line_presence'
+        )['items']
         self._milestone_tracker.mark(Resource.USER, Stage.FETCHED)
 
         logger.debug('Fetching sesions...')
@@ -205,7 +224,7 @@ class Initiator:
         self.execute_post_hooks()
         self._in_progress.clear()
         self._is_initialized.set()
-        logger.debug('Initialized completed')
+        logger.info('Initialization completed')
 
     def initiate_tenants(self, tenants):
         tenants = {tenant['uuid'] for tenant in tenants}
@@ -306,7 +325,7 @@ class Initiator:
 
     def _add_missing_endpoints(self, users):
         lines = {
-            (line['id'], extract_endpoint_from_line(line))
+            (line['id'], extract_endpoint_from_line_presence_view(line))
             for user in users
             for line in user['lines']
         }
@@ -325,7 +344,7 @@ class Initiator:
 
     def _associate_line_endpoint(self, users):
         lines = {
-            (line['id'], extract_endpoint_from_line(line))
+            (line['id'], extract_endpoint_from_line_presence_view(line))
             for user in users
             for line in user['lines']
         }

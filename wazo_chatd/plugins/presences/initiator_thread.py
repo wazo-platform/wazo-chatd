@@ -1,4 +1,4 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import itertools
@@ -57,7 +57,7 @@ class InitiatorThread:
             self._initiate()
 
     def _initiate(self):
-        logger.debug('Starting presence initialization')
+        logger.info('Starting presence initialization')
         try:
             self._initiator.initiate()
         except requests.ReadTimeout as e:
