@@ -224,7 +224,7 @@ class Initiator:
         self.execute_post_hooks()
         self._in_progress.clear()
         self._is_initialized.set()
-        logger.debug('Initialized completed')
+        logger.info('Initialization completed')
 
     def initiate_tenants(self, tenants):
         tenants = {tenant['uuid'] for tenant in tenants}
