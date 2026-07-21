@@ -19,10 +19,10 @@ class EndpointDAO:
         self.session.flush()
         return endpoint
 
-    def create_all(self, endpoints):
+    def create_all(self, endpoints: list[Endpoint]) -> None:
         bulk_insert(self.session, endpoints)
 
-    def list_names(self):
+    def list_names(self) -> set[str]:
         return {name for (name,) in self.session.query(Endpoint.name).all()}
 
     def find_by(self, **kwargs):

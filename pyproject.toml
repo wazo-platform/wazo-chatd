@@ -11,6 +11,21 @@ ignore_missing_imports = true
 module = ["*.tests.*", "integration_tests.*"]
 disable_error_code = ["method-assign", "attr-defined", "arg-type"]
 
+# Bulk write/read surface added by the presence-init reconcile refactor.
+# Keep it fully typed: any annotated def here must be complete.
+[[tool.mypy.overrides]]
+module = [
+    "wazo_chatd.database.helpers",
+    "wazo_chatd.database.queries.user",
+    "wazo_chatd.database.queries.line",
+    "wazo_chatd.database.queries.session",
+    "wazo_chatd.database.queries.refresh_token",
+    "wazo_chatd.database.queries.tenant",
+    "wazo_chatd.database.queries.endpoint",
+    "wazo_chatd.database.queries.channel",
+]
+disallow_incomplete_defs = true
+
 [tool.black]
 skip-string-normalization = true
 

@@ -28,7 +28,7 @@ class ChannelDAO:
         self.session.add(channel)
         self.session.flush()
 
-    def create_all(self, channels):
+    def create_all(self, channels: list[Channel]) -> None:
         bulk_insert(self.session, channels)
 
     def delete_all(self):

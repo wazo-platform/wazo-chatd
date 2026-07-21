@@ -1,6 +1,9 @@
 # Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Sequence
+from typing import Any
+
 from sqlalchemy import Boolean
 from sqlalchemy.orm import joinedload
 from sqlalchemy_utils import UUIDType
@@ -42,13 +45,13 @@ class SessionDAO:
         self.session.add(session)
         self.session.flush()
 
-    def create_all(self, sessions):
+    def create_all(self, sessions: list[Session]) -> None:
         bulk_insert(self.session, sessions)
 
-    def delete_by_uuids(self, uuids):
+    def delete_by_uuids(self, uuids: Sequence[str]) -> None:
         bulk_delete(self.session, Session, Session.uuid, uuids)
 
-    def update_all(self, sessions):
+    def update_all(self, sessions: Sequence[dict[str, Any]]) -> None:
         bulk_update(
             self.session,
             Session,

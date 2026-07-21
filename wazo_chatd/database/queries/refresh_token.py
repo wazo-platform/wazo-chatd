@@ -1,6 +1,9 @@
 # Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Sequence
+from typing import Any
+
 from sqlalchemy import Boolean, Text, tuple_
 from sqlalchemy.orm import joinedload
 from sqlalchemy_utils import UUIDType
@@ -48,10 +51,10 @@ class RefreshTokenDAO:
         self.session.add(refresh_token)
         self.session.flush()
 
-    def create_all(self, refresh_tokens):
+    def create_all(self, refresh_tokens: list[RefreshToken]) -> None:
         bulk_insert(self.session, refresh_tokens)
 
-    def delete_by_keys(self, keys):
+    def delete_by_keys(self, keys: Sequence[tuple[str, str]]) -> None:
         bulk_delete(
             self.session,
             RefreshToken,
@@ -59,7 +62,7 @@ class RefreshTokenDAO:
             keys,
         )
 
-    def update_all(self, refresh_tokens):
+    def update_all(self, refresh_tokens: Sequence[dict[str, Any]]) -> None:
         bulk_update(
             self.session,
             RefreshToken,
