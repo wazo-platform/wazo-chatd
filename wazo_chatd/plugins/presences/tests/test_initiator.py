@@ -183,3 +183,36 @@ def test_initiate_fetches_users_with_line_presence_view(initiator: Initiator):
     ]
     assert len(users_calls) == 1
     assert users_calls[0].kwargs.get('view') == 'line_presence'
+
+
+def test_add_and_remove_lines_reassigns_line_to_new_user(initiator: Initiator):
+    tenant_uuid = 'tenant-1'
+    user_a = 'user-a'
+    user_b = 'user-b'
+    line_id = 5
+
+    cached_line = mock.Mock(id=line_id, user_uuid=user_a, tenant_uuid=tenant_uuid)
+    initiator._dao.line.list_.return_value = [cached_line]
+    initiator._dao.user.list_uuids.return_value = {user_a, user_b}
+
+    users = [
+        {'uuid': user_a, 'tenant_uuid': tenant_uuid, 'lines': []},
+        {'uuid': user_b, 'tenant_uuid': tenant_uuid, 'lines': [{'id': line_id}]},
+    ]
+
+    with mock.patch('wazo_chatd.plugins.presences.initiator.session_scope'):
+        initiator._add_and_remove_lines(users)
+
+    deleted_ids = set()
+    for call in initiator._dao.line.delete_by_ids.call_args_list:
+        (ids,) = call.args
+        deleted_ids.update(ids)
+
+    created_ids: set = set()
+    for call in initiator._dao.line.create_all.call_args_list:
+        (lines,) = call.args
+        created_ids.update(line.id for line in lines)
+
+    # The line is still desired (moved to user B), so it must not be silently
+    # lost: kept/reassigned (not deleted) or deleted and recreated.
+    assert line_id not in deleted_ids or line_id in created_ids

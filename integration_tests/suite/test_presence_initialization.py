@@ -35,8 +35,11 @@ USER_UUID_3 = uuid.uuid4()
 USER_UUID_4 = uuid.uuid4()
 LINE_ID_1 = 6
 LINE_ID_2 = 42
+USER_UUID_5 = uuid.uuid4()
+USER_UUID_6 = uuid.uuid4()
 LINE_ID_KEPT = 8001
 LINE_ID_DISSOCIATED = 8002
+LINE_ID_REASSIGNED = 8003
 ENDPOINT_NAME = 'CUSTOM/name'
 
 
@@ -440,6 +443,52 @@ class TestPresenceInitialization(InitIntegrationTest):
             lines,
             contains_inanyorder(
                 has_properties(id=LINE_ID_KEPT, user_uuid=USER_UUID_4),
+            ),
+        )
+
+    @fixtures.db.tenant(uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID_5, tenant_uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID_6, tenant_uuid=TENANT_UUID)
+    @fixtures.db.line(id=LINE_ID_REASSIGNED, user_uuid=USER_UUID_5)
+    def test_initialization_reassigns_line_to_different_user(
+        self, tenant, user_from, user_to, line
+    ):
+        self.auth.set_tenants(
+            {
+                'uuid': str(CHATD_TOKEN_TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+        )
+        self.confd.set_users(
+            {
+                'uuid': str(USER_UUID_5),
+                'tenant_uuid': str(TENANT_UUID),
+                'lines': [],
+                'services': {'dnd': {'enabled': False}},
+            },
+            {
+                'uuid': str(USER_UUID_6),
+                'tenant_uuid': str(TENANT_UUID),
+                'lines': [
+                    {'id': LINE_ID_REASSIGNED, 'name': 'reassigned', 'protocol': 'sip'},
+                ],
+                'services': {'dnd': {'enabled': False}},
+            },
+        )
+
+        self.restart_chatd_service()
+        PresenceInitOkWaitStrategy().wait(self)
+        self._session.expire_all()
+
+        lines = self._session.query(models.Line).all()
+        assert_that(
+            lines,
+            contains_inanyorder(
+                has_properties(id=LINE_ID_REASSIGNED, user_uuid=USER_UUID_6),
             ),
         )
 

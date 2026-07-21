@@ -290,16 +290,31 @@ class Initiator:
 
         lines_missing = lines - lines_cached
         lines_expired = lines_cached - lines
-        existing_line_ids = {id_ for id_, _, _ in lines_cached}
+        lines_modified = {
+            id_
+            for id_, _, _ in lines_missing
+            if id_ in {id_ for id_, _, _ in lines_expired}
+        }
+        logger.debug('%d lines were modified (e.g. reassigned)', len(lines_modified))
+
+        expired_ids = {id_ for id_, _, _ in lines_expired}
+        logger.debug(
+            '%d lines expired (deleted or modified) to be flushed', len(expired_ids)
+        )
+        surviving_ids = {id_ for id_, _, _ in lines_cached} - expired_ids
+        logger.debug('%d lines remain valid', len(surviving_ids))
 
         with session_scope():
             user_uuids = set(self._dao.user.list_uuids())
+
+            self._dao.line.delete_by_ids(list(expired_ids))
+
             new_lines = {}
             for id_, user_uuid, tenant_uuid in lines_missing:
                 if user_uuid not in user_uuids:
                     logger.warning('Line "%s" has no valid user "%s"', id_, user_uuid)
                     continue
-                if id_ in existing_line_ids or id_ in new_lines:
+                if id_ in surviving_ids or id_ in new_lines:
                     logger.warning(
                         'Line "%s" already created. Line multi-users not supported', id_
                     )
@@ -307,12 +322,6 @@ class Initiator:
                 logger.debug('Create line "%s"', id_)
                 new_lines[id_] = Line(id=id_, user_uuid=user_uuid)
             self._dao.line.create_all(list(new_lines.values()))
-
-            expired_ids = []
-            for id_, user_uuid, tenant_uuid in lines_expired:
-                logger.debug('Delete line "%s"', id_)
-                expired_ids.append(id_)
-            self._dao.line.delete_by_ids(expired_ids)
 
     def _add_missing_endpoints(self, users):
         endpoint_names = set()
