@@ -154,6 +154,28 @@ def test_paginate_proxy_forwards_list_params(initiator: Initiator):
         assert call.kwargs['recurse'] is True
 
 
+def test_paginate_proxy_terminates_when_total_shrinks(initiator: Initiator):
+    # First page reports total=6 and returns 2 items; the dataset then shrinks
+    # so later pages come back empty. offset stays at 2 < 6, so a naive loop
+    # never advances and spins forever.
+    first_page = {'items': [{'id': 1}, {'id': 2}], 'total': 6}
+    calls = 0
+
+    def paginated_callback(recurse, limit, offset):
+        nonlocal calls
+        calls += 1
+        if calls > 10:
+            raise AssertionError('pagination did not terminate')
+        if offset == 0:
+            return first_page
+        return {'items': [], 'total': 2}
+
+    callback_mock = mock.Mock(side_effect=paginated_callback)
+    result = initiator._paginate_proxy(callback_mock, limit=2)
+
+    assert result['items'] == [{'id': 1}, {'id': 2}]
+
+
 def test_initiate_fetches_users_with_line_presence_view(initiator: Initiator):
     initiator._auth = mock.MagicMock()
     initiator._amid = mock.MagicMock()

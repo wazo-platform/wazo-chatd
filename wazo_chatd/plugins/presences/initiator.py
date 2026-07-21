@@ -140,15 +140,33 @@ class Initiator:
         return self._in_progress.is_set()
 
     def _paginate_proxy(self, callback, limit=1000, **list_params):
+        # NOTE: offset-based pagination cannot guarantee complete result set if resource set changes
         callback = partial(callback, recurse=True, limit=limit, **list_params)
         result = callback(limit=limit, offset=0)
         total = result['total']
         items = result['items']
         offset = len(items)
         while offset < total:
-            new_items = callback(offset=offset)['items']
+            response = callback(offset=offset)
+            new_items = response['items']
             items.extend(new_items)
             offset += len(new_items)
+            if not new_items:
+                logger.warning(
+                    'No new items at offset %d while paginating callback %s',
+                    offset,
+                    str(callback),
+                )
+                break
+            if response['total'] != total:
+                new_total = response['total']
+                logger.warning(
+                    'reported total changed during pagination for %s; was %d, is now %d; result set might be incorrect',
+                    str(callback),
+                    total,
+                    new_total,
+                )
+
         if len(items) != total:
             logger.warning('Fetched %d items but total was %d', len(items), total)
         return {'items': items, 'total': total}
