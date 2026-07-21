@@ -323,7 +323,7 @@ class Initiator:
         logger.debug('%d lines remain valid', len(surviving_ids))
 
         with session_scope():
-            user_uuids = set(self._dao.user.list_uuids())
+            user_uuids = self._dao.user.list_uuids()
 
             self._dao.line.delete_by_ids(list(expired_ids))
 
