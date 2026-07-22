@@ -31,8 +31,15 @@ from .helpers.wait_strategy import ComponentsWaitStrategy, PresenceInitOkWaitStr
 TENANT_UUID = uuid.uuid4()
 USER_UUID_1 = uuid.uuid4()
 USER_UUID_2 = uuid.uuid4()
+USER_UUID_3 = uuid.uuid4()
+USER_UUID_4 = uuid.uuid4()
 LINE_ID_1 = 6
 LINE_ID_2 = 42
+USER_UUID_5 = uuid.uuid4()
+USER_UUID_6 = uuid.uuid4()
+LINE_ID_KEPT = 8001
+LINE_ID_DISSOCIATED = 8002
+LINE_ID_REASSIGNED = 8003
 ENDPOINT_NAME = 'CUSTOM/name'
 
 
@@ -328,6 +335,160 @@ class TestPresenceInitialization(InitIntegrationTest):
             contains_inanyorder(
                 has_properties(name=channel_unchanged_name, state='talking'),
                 has_properties(name=channel_created_name, state='holding'),
+            ),
+        )
+
+    @fixtures.db.tenant(uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID_3, tenant_uuid=TENANT_UUID)
+    @fixtures.db.session(user_uuid=USER_UUID_3, mobile=False)
+    @fixtures.db.refresh_token(
+        client_id='mobile_toggled', user_uuid=USER_UUID_3, mobile=False
+    )
+    def test_initialization_updates_mobile_on_existing_session_and_token(
+        self, tenant, user, session, refresh_token
+    ):
+        self.auth.set_tenants(
+            {
+                'uuid': str(CHATD_TOKEN_TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+        )
+        self.confd.set_users(
+            {
+                'uuid': str(USER_UUID_3),
+                'tenant_uuid': str(TENANT_UUID),
+                'lines': [],
+                'services': {'dnd': {'enabled': False}},
+            },
+        )
+        self.auth.set_sessions(
+            {
+                'uuid': str(session.uuid),
+                'user_uuid': str(USER_UUID_3),
+                'tenant_uuid': str(TENANT_UUID),
+                'mobile': True,
+            },
+        )
+        self.auth.set_refresh_tokens(
+            {
+                'client_id': refresh_token.client_id,
+                'user_uuid': str(USER_UUID_3),
+                'tenant_uuid': str(TENANT_UUID),
+                'mobile': True,
+            },
+        )
+
+        self.restart_chatd_service()
+        PresenceInitOkWaitStrategy().wait(self)
+        self._session.expire_all()
+
+        sessions = self._session.query(models.Session).all()
+        assert_that(
+            sessions,
+            contains_inanyorder(
+                has_properties(uuid=session.uuid, user_uuid=USER_UUID_3, mobile=True)
+            ),
+        )
+
+        refresh_tokens = self._session.query(models.RefreshToken).all()
+        assert_that(
+            refresh_tokens,
+            contains_inanyorder(
+                has_properties(
+                    client_id=refresh_token.client_id,
+                    user_uuid=USER_UUID_3,
+                    mobile=True,
+                )
+            ),
+        )
+
+    @fixtures.db.tenant(uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID_4, tenant_uuid=TENANT_UUID)
+    @fixtures.db.line(id=LINE_ID_KEPT, user_uuid=USER_UUID_4)
+    @fixtures.db.line(id=LINE_ID_DISSOCIATED, user_uuid=USER_UUID_4)
+    def test_initialization_removes_line_dissociated_from_kept_user(
+        self, tenant, user, line_kept, line_dissociated
+    ):
+        self.auth.set_tenants(
+            {
+                'uuid': str(CHATD_TOKEN_TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+        )
+        self.confd.set_users(
+            {
+                'uuid': str(USER_UUID_4),
+                'tenant_uuid': str(TENANT_UUID),
+                'lines': [
+                    {'id': LINE_ID_KEPT, 'name': 'kept', 'protocol': 'sip'},
+                ],
+                'services': {'dnd': {'enabled': False}},
+            },
+        )
+
+        self.restart_chatd_service()
+        PresenceInitOkWaitStrategy().wait(self)
+        self._session.expire_all()
+
+        lines = self._session.query(models.Line).all()
+        assert_that(
+            lines,
+            contains_inanyorder(
+                has_properties(id=LINE_ID_KEPT, user_uuid=USER_UUID_4),
+            ),
+        )
+
+    @fixtures.db.tenant(uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID_5, tenant_uuid=TENANT_UUID)
+    @fixtures.db.user(uuid=USER_UUID_6, tenant_uuid=TENANT_UUID)
+    @fixtures.db.line(id=LINE_ID_REASSIGNED, user_uuid=USER_UUID_5)
+    def test_initialization_reassigns_line_to_different_user(
+        self, tenant, user_from, user_to, line
+    ):
+        self.auth.set_tenants(
+            {
+                'uuid': str(CHATD_TOKEN_TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+            {
+                'uuid': str(TENANT_UUID),
+                'parent_uuid': str(CHATD_TOKEN_TENANT_UUID),
+            },
+        )
+        self.confd.set_users(
+            {
+                'uuid': str(USER_UUID_5),
+                'tenant_uuid': str(TENANT_UUID),
+                'lines': [],
+                'services': {'dnd': {'enabled': False}},
+            },
+            {
+                'uuid': str(USER_UUID_6),
+                'tenant_uuid': str(TENANT_UUID),
+                'lines': [
+                    {'id': LINE_ID_REASSIGNED, 'name': 'reassigned', 'protocol': 'sip'},
+                ],
+                'services': {'dnd': {'enabled': False}},
+            },
+        )
+
+        self.restart_chatd_service()
+        PresenceInitOkWaitStrategy().wait(self)
+        self._session.expire_all()
+
+        lines = self._session.query(models.Line).all()
+        assert_that(
+            lines,
+            contains_inanyorder(
+                has_properties(id=LINE_ID_REASSIGNED, user_uuid=USER_UUID_6),
             ),
         )
 

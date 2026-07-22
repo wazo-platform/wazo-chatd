@@ -1,9 +1,15 @@
-# Copyright 2019-2025 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from collections.abc import Sequence
+from typing import Any
+
+from sqlalchemy import Boolean, Text, tuple_
 from sqlalchemy.orm import joinedload
+from sqlalchemy_utils import UUIDType
 
 from ...exceptions import UnknownRefreshTokenException
+from ..helpers import bulk_delete, bulk_insert, bulk_update
 from ..models import RefreshToken
 
 
@@ -44,3 +50,30 @@ class RefreshTokenDAO:
     def update(self, refresh_token):
         self.session.add(refresh_token)
         self.session.flush()
+
+    def create_all(self, refresh_tokens: list[RefreshToken]) -> None:
+        bulk_insert(self.session, refresh_tokens)
+
+    def delete_by_keys(self, keys: Sequence[tuple[str, str]]) -> None:
+        bulk_delete(
+            self.session,
+            RefreshToken,
+            tuple_(RefreshToken.client_id, RefreshToken.user_uuid),
+            keys,
+        )
+
+    def update_all(self, refresh_tokens: Sequence[dict[str, Any]]) -> None:
+        bulk_update(
+            self.session,
+            RefreshToken,
+            columns=[
+                ('client_id', Text),
+                ('user_uuid', UUIDType()),
+                ('mobile', Boolean),
+            ],
+            rows=[
+                (token['client_id'], token['user_uuid'], token['mobile'])
+                for token in refresh_tokens
+            ],
+            key_columns=['client_id', 'user_uuid'],
+        )

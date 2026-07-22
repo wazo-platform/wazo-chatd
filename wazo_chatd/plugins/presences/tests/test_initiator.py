@@ -19,7 +19,7 @@ from wazo_chatd.plugins.presences.initiator import (
 @pytest.fixture
 def initiator():
     return Initiator(
-        dao=mock.create_autospec(DAO, instance=True),
+        dao=mock.create_autospec(DAO(), instance=True),
         auth=mock.create_autospec(AuthClient, instance=True),
         amid=mock.create_autospec(AmidClient, instance=True),
         confd=mock.create_autospec(ConfdClient, instance=True),
@@ -66,6 +66,51 @@ def test_extract_endpoint_from_line_without_endpoint():
     assert extract_endpoint_from_line({'name': 'line-name'}) is None
 
 
+def test_initiate_endpoints_dedupes_duplicate_devices(initiator: Initiator):
+    events = [
+        {'Event': 'DeviceStateChange', 'Device': 'PJSIP/abc', 'State': 'INUSE'},
+        {'Event': 'DeviceStateChange', 'Device': 'PJSIP/abc', 'State': 'UNAVAILABLE'},
+    ]
+
+    with mock.patch('wazo_chatd.plugins.presences.initiator.session_scope'):
+        initiator.initiate_endpoints(events)
+
+    initiator._dao.endpoint.create_all.assert_called_once()
+    (endpoints,) = initiator._dao.endpoint.create_all.call_args[0]
+    assert len(endpoints) == 1
+    assert endpoints[0].name == 'PJSIP/abc'
+    assert endpoints[0].state == 'unavailable'
+
+
+def test_initiate_channels_dedupes_duplicate_channels(initiator: Initiator):
+    line = mock.Mock(id=42, endpoint_name='PJSIP/abc')
+    initiator._dao.line.list_.return_value = [line]
+    events = [
+        {
+            'Event': 'CoreShowChannel',
+            'Channel': 'PJSIP/abc-00000001',
+            'ChannelStateDesc': 'Up',
+            'ChanVariable': {},
+        },
+        {
+            'Event': 'CoreShowChannel',
+            'Channel': 'PJSIP/abc-00000001',
+            'ChannelStateDesc': 'Up',
+            'ChanVariable': {},
+        },
+    ]
+
+    with mock.patch('wazo_chatd.plugins.presences.initiator.session_scope'):
+        initiator.initiate_channels(events)
+
+    initiator._dao.channel.create_all.assert_called_once()
+    (channels,) = initiator._dao.channel.create_all.call_args[0]
+    assert len(channels) == 1
+    assert channels[0].name == 'PJSIP/abc-00000001'
+    assert channels[0].state == 'talking'
+    assert channels[0].line_id == 42
+
+
 def test_paginate_proxy(initiator: Initiator):
     def paginated_callback(recurse, limit, offset):
         return {
@@ -109,6 +154,28 @@ def test_paginate_proxy_forwards_list_params(initiator: Initiator):
         assert call.kwargs['recurse'] is True
 
 
+def test_paginate_proxy_terminates_when_total_shrinks(initiator: Initiator):
+    # First page reports total=6 and returns 2 items; the dataset then shrinks
+    # so later pages come back empty. offset stays at 2 < 6, so a naive loop
+    # never advances and spins forever.
+    first_page = {'items': [{'id': 1}, {'id': 2}], 'total': 6}
+    calls = 0
+
+    def paginated_callback(recurse, limit, offset):
+        nonlocal calls
+        calls += 1
+        if calls > 10:
+            raise AssertionError('pagination did not terminate')
+        if offset == 0:
+            return first_page
+        return {'items': [], 'total': 2}
+
+    callback_mock = mock.Mock(side_effect=paginated_callback)
+    result = initiator._paginate_proxy(callback_mock, limit=2)
+
+    assert result['items'] == [{'id': 1}, {'id': 2}]
+
+
 def test_initiate_fetches_users_with_line_presence_view(initiator: Initiator):
     initiator._auth = mock.MagicMock()
     initiator._amid = mock.MagicMock()
@@ -138,3 +205,36 @@ def test_initiate_fetches_users_with_line_presence_view(initiator: Initiator):
     ]
     assert len(users_calls) == 1
     assert users_calls[0].kwargs.get('view') == 'line_presence'
+
+
+def test_add_and_remove_lines_reassigns_line_to_new_user(initiator: Initiator):
+    tenant_uuid = 'tenant-1'
+    user_a = 'user-a'
+    user_b = 'user-b'
+    line_id = 5
+
+    cached_line = mock.Mock(id=line_id, user_uuid=user_a, tenant_uuid=tenant_uuid)
+    initiator._dao.line.list_.return_value = [cached_line]
+    initiator._dao.user.list_uuids.return_value = {user_a, user_b}
+
+    users = [
+        {'uuid': user_a, 'tenant_uuid': tenant_uuid, 'lines': []},
+        {'uuid': user_b, 'tenant_uuid': tenant_uuid, 'lines': [{'id': line_id}]},
+    ]
+
+    with mock.patch('wazo_chatd.plugins.presences.initiator.session_scope'):
+        initiator._add_and_remove_lines(users)
+
+    deleted_ids = set()
+    for call in initiator._dao.line.delete_by_ids.call_args_list:
+        (ids,) = call.args
+        deleted_ids.update(ids)
+
+    created_ids: set = set()
+    for call in initiator._dao.line.create_all.call_args_list:
+        (lines,) = call.args
+        created_ids.update(line.id for line in lines)
+
+    # The line is still desired (moved to user B), so it must not be silently
+    # lost: kept/reassigned (not deleted) or deleted and recreated.
+    assert line_id not in deleted_ids or line_id in created_ids

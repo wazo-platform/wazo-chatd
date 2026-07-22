@@ -1,9 +1,14 @@
-# Copyright 2019-2020 The Wazo Authors  (see the AUTHORS file)
+# Copyright 2019-2026 The Wazo Authors  (see the AUTHORS file)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from sqlalchemy import text
+from collections.abc import Iterable, Sequence
+from uuid import UUID
+
+from sqlalchemy import Boolean, text
+from sqlalchemy_utils import UUIDType
 
 from ...exceptions import UnknownUserException
+from ..helpers import bulk_delete, bulk_insert, bulk_update
 from ..models import User
 
 
@@ -19,6 +24,9 @@ class UserDAO:
         self.session.add(user)
         self.session.flush()
         return user
+
+    def create_all(self, users: list[User]) -> None:
+        bulk_insert(self.session, users)
 
     def update(self, user):
         self.session.add(user)
@@ -45,9 +53,33 @@ class UserDAO:
     def count(self, tenant_uuids, **filter_parameters):
         return self._get_users_query(tenant_uuids, **filter_parameters).count()
 
+    def list_uuids(self) -> set[str]:
+        return {str(uuid) for (uuid,) in self.session.query(User.uuid).all()}
+
+    def list_uuids_with_tenant_uuids(self) -> list[tuple[UUID, UUID]]:
+        return self.session.query(User.uuid, User.tenant_uuid).all()
+
+    def list_dnd(self) -> dict[str, bool]:
+        return {
+            str(uuid): dnd
+            for uuid, dnd in self.session.query(User.uuid, User.do_not_disturb).all()
+        }
+
     def delete(self, user):
         self.session.delete(user)
         self.session.flush()
+
+    def delete_by_uuids(self, uuids: Sequence[str]) -> None:
+        bulk_delete(self.session, User, User.uuid, uuids)
+
+    def update_dnd(self, dnd_by_uuid: Iterable[tuple[str, bool]]) -> None:
+        bulk_update(
+            self.session,
+            User,
+            columns=[('uuid', UUIDType()), ('do_not_disturb', Boolean)],
+            rows=list(dnd_by_uuid),
+            key_columns=['uuid'],
+        )
 
     def _get_users_query(self, tenant_uuids=None, uuids=None):
         query = self.session.query(User)
