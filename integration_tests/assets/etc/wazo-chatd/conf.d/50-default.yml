@@ -4,6 +4,8 @@ rest_api:
 db_uri: postgresql://wazo-chatd:Secr7t@postgres/wazo-chatd
 auth:
   host: auth
+  port: 9497
+  prefix: null
   username: chatd-service
   password: chatd-password
 amid:
