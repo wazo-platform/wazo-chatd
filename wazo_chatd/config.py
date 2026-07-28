@@ -31,8 +31,7 @@ _DEFAULT_CONFIG = {
     'db_uri': 'postgresql://asterisk:proformatique@localhost/asterisk?application_name=wazo-chatd',
     'auth': {
         'host': 'localhost',
-        'port': 9497,
-        'prefix': None,
+        'port': 80,
         'https': False,
         'timeout': 10,
         'key_file': '/var/lib/wazo-auth-keys/wazo-chatd-key.yml',
