@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from xivo.status import Status, StatusDict
 
+from wazo_chatd.database.helpers import session_scope
 from wazo_chatd.plugin_helpers.dependencies import ConfigDict, MessageContext
 from wazo_chatd.plugins.connectors.exceptions import (
     AuthServiceUnavailableException,
@@ -90,7 +91,8 @@ class ConnectorRouter:
 
     def _populate_store(self) -> None:
         try:
-            tenant_backends = self._dao.user_identity.list_tenant_backends()
+            with session_scope():
+                tenant_backends = self._dao.user_identity.list_tenant_backends()
             self._store.populate(tenant_backends)
         except Exception:
             logger.exception('Failed to populate connector store')
