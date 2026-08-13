@@ -3,6 +3,7 @@
 
 import logging
 import os
+import threading
 from datetime import timedelta
 
 from flask import Flask
@@ -55,6 +56,7 @@ class CoreRestApi:
         app.permanent_session_lifetime = timedelta(minutes=5)
         self._load_cors()
         self.server = None
+        self._stopped = threading.Event()
 
     def _load_cors(self):
         cors_config = dict(self.config.get('cors', {}))
@@ -88,8 +90,13 @@ class CoreRestApi:
         for route in http_helpers.list_routes(app):
             logger.debug(route)
 
+        if self._stopped.is_set():
+            logger.warning('stop requested during startup: not starting the server')
+            return
+
         self.server.start()
 
     def stop(self):
+        self._stopped.set()
         if self.server:
             self.server.stop()
