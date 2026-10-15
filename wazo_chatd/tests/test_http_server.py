@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from wazo_chatd.http_server import CoreRestApi
+from wazo_chatd.http_server import CoreRestApi, api, app
 
 
 @pytest.fixture
@@ -20,6 +20,7 @@ def rest_api():
             'private_key': None,
             'cors': {'enabled': False},
         },
+        'metrics': {'enabled': False},
     }
     return CoreRestApi(config)
 
@@ -44,3 +45,27 @@ def test_stop_after_run_stops_the_server(wsgi, rest_api):
     rest_api.stop()
 
     wsgi.DynamicWSGIServer.return_value.stop.assert_called_once_with()
+
+
+@patch('wazo_chatd.http_server.init_flask_metrics')
+def test_metrics_enabled_instruments_the_app(init_flask_metrics):
+    config = {
+        'rest_api': {'cors': {'enabled': False}},
+        'metrics': {'enabled': True},
+    }
+
+    CoreRestApi(config)
+
+    init_flask_metrics.assert_called_once_with(app, api)
+
+
+@patch('wazo_chatd.http_server.init_flask_metrics')
+def test_metrics_disabled_does_not_instrument_the_app(init_flask_metrics):
+    config = {
+        'rest_api': {'cors': {'enabled': False}},
+        'metrics': {'enabled': False},
+    }
+
+    CoreRestApi(config)
+
+    init_flask_metrics.assert_not_called()

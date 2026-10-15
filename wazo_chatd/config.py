@@ -89,6 +89,9 @@ _DEFAULT_CONFIG = {
         'token_expiration': 600,
     },
     'teams_presence': {'microsoft_graph_url': 'https://graph.microsoft.com/v1.0'},
+    'metrics': {
+        'enabled': True,
+    },
 }
 
 
