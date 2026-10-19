@@ -7,3 +7,7 @@ services:
       - rabbitmq
     environment:
       TARGETS: "chatd:9304 auth:9497 postgres:5432 rabbitmq:5672"
+
+  chatd:
+    volumes:
+      - ./etc/wazo-chatd/conf.d/61-metrics.yml:/etc/wazo-chatd/conf.d/61-metrics.yml:ro
