@@ -74,6 +74,7 @@ enabled_plugins:
   api: true
   config: true
   connectors: true
+  metrics: false
   presences: true
   rooms: true
   status: true

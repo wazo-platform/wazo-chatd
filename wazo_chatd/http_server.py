@@ -11,7 +11,6 @@ from flask_cors import CORS
 from flask_restful import Api
 from sqlalchemy.exc import SQLAlchemyError
 from xivo import http_helpers, wsgi
-from xivo.flask.metrics import init_flask_metrics
 
 from .database.helpers import Session
 
@@ -56,8 +55,6 @@ class CoreRestApi:
         app.config.update(global_config)
         app.permanent_session_lifetime = timedelta(minutes=5)
         self._load_cors()
-        if global_config['metrics']['enabled']:
-            init_flask_metrics(app, api)
         self.server = None
         self._stopped = threading.Event()
 
