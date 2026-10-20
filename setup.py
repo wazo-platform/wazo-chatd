@@ -22,7 +22,7 @@ setup(
             'api = wazo_chatd.plugins.api.plugin:Plugin',
             'config = wazo_chatd.plugins.config.plugin:Plugin',
             'connectors = wazo_chatd.plugins.connectors.plugin:Plugin',
-            'metrics = wazo_chatd.plugins.metrics.plugin:Plugin',
+            'metrics = xivo.flask.metrics:Plugin',
             'presences = wazo_chatd.plugins.presences.plugin:Plugin',
             'rooms = wazo_chatd.plugins.rooms.plugin:Plugin',
             'status = wazo_chatd.plugins.status.plugin:Plugin',
