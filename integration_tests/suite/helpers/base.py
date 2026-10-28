@@ -84,37 +84,7 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
         super().setUpClass()
         cls.chatd = cls.make_chatd()
         cls.auth = cls.make_auth()
-        cls.create_token()
         cls.wait_strategy.wait(cls)
-
-    @classmethod
-    def create_token(cls):
-        if isinstance(cls.auth, WrongClient):
-            return
-
-        token = MockUserToken(
-            str(TOKEN_UUID),
-            str(TOKEN_USER_UUID),
-            metadata={
-                'uuid': str(TOKEN_USER_UUID),
-                'tenant_uuid': str(TOKEN_TENANT_UUID),
-            },
-        )
-        cls.auth.set_token(token)
-        credential = MockCredentials('chatd-service', 'chatd-password')
-        cls.auth.set_valid_credentials(credential, str(TOKEN_UUID))
-        cls.auth.set_tenants(
-            {
-                'uuid': str(TOKEN_TENANT_UUID),
-                'name': 'name1',
-                'parent_uuid': str(TOKEN_TENANT_UUID),
-            },
-            {
-                'uuid': str(TOKEN_SUBTENANT_UUID),
-                'name': 'name2',
-                'parent_uuid': str(TOKEN_TENANT_UUID),
-            },
-        )
 
     @classmethod
     def create_user_token(
@@ -200,7 +170,6 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
         cls.start_service('auth')
         cls.auth = cls.make_auth()
         until.true(cls.auth.is_up, tries=5)
-        cls.create_token()
 
     @classmethod
     def stop_auth_service(cls):
