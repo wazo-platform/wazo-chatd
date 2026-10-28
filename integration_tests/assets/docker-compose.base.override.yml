@@ -2,8 +2,7 @@ services:
   sync:
     depends_on:
       - auth
-      - chatd
       - postgres
       - rabbitmq
     environment:
-      TARGETS: "chatd:9304 auth:9497 postgres:5432 rabbitmq:5672"
+      TARGETS: "auth:9497 postgres:5432 rabbitmq:5672"

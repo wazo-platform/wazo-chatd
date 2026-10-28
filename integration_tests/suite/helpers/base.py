@@ -78,13 +78,17 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
     assets_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), '..', '..', 'assets')
     )
+    start_service_after_setup = True
+
+    @classmethod
+    def setup_dependencies(cls):
+        cls.auth = cls.make_auth()
+        cls.create_token()
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.chatd = cls.make_chatd()
-        cls.auth = cls.make_auth()
-        cls.create_token()
         cls.wait_strategy.wait(cls)
 
     @classmethod
@@ -224,13 +228,13 @@ class _BaseAssetLaunchingTestCase(AssetLaunchingTestCase):
 class APIAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'base'
     service = 'chatd'
-    wait_strategy = EverythingOkWaitStrategy()
+    wait_strategy = EverythingOkWaitStrategy(timeout=START_TIMEOUT)
 
 
 class TeamsAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'teams'
     service = 'chatd'
-    wait_strategy = EverythingOkWaitStrategy()
+    wait_strategy = EverythingOkWaitStrategy(timeout=START_TIMEOUT)
 
     @classmethod
     def make_microsoft(cls):
@@ -244,7 +248,7 @@ class TeamsAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
 class ConnectorAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'connectors'
     service = 'chatd'
-    wait_strategy = EverythingOkWaitStrategy()
+    wait_strategy = EverythingOkWaitStrategy(timeout=START_TIMEOUT)
 
     @classmethod
     def make_connector_mock(cls):
@@ -262,12 +266,13 @@ class PollingConnectorAssetLaunchingTestCase(ConnectorAssetLaunchingTestCase):
 class InitAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'initialization'
     service = 'chatd'
-    wait_strategy = PresenceInitOkWaitStrategy()
+    wait_strategy = PresenceInitOkWaitStrategy(timeout=START_TIMEOUT)
 
 
 class DBAssetLaunchingTestCase(_BaseAssetLaunchingTestCase):
     asset = 'database'
     service = 'postgres'
+    start_service_after_setup = False
     wait_strategy = NoWaitStrategy()
 
 
