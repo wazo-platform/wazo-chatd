@@ -15,23 +15,25 @@ class ComponentsWaitStrategy(_ComponentsWaitStrategy):
 
 
 class PresenceInitOkWaitStrategy(ComponentsWaitStrategy):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__(
             [
                 'presence_initialization',
                 'rest_api',
                 'bus_consumer',
-            ]
+            ],
+            **kwargs,
         )
 
 
 class EverythingOkWaitStrategy(ComponentsWaitStrategy):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__(
             [
                 # 'presence_initialization',  # disabled for non-related init tests
                 'rest_api',
                 'bus_consumer',
                 'master_tenant',
-            ]
+            ],
+            **kwargs,
         )

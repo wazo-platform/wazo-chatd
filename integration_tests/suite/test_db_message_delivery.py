@@ -486,11 +486,11 @@ class TestAsyncGetRecoverableDeliveries(DBIntegrationTest):
 @use_asset('database')
 class TestVisibilityFilter(DBIntegrationTest):
     @fixtures.db.room(
-        users=[{'uuid': '00000000-0000-0000-0000-000000000001'}],
+        users=[{'uuid': '00000000-0000-4000-8000-000000000001'}],
         messages=[
             {
                 'content': 'sender pending',
-                'user_uuid': '00000000-0000-0000-0000-000000000001',
+                'user_uuid': '00000000-0000-4000-8000-000000000001',
                 'meta': {'type_': 'sms', 'backend': 'twilio'},
                 'deliveries': [
                     {'recipient_identity': '+15559876', 'statuses': ['pending']}
@@ -498,7 +498,7 @@ class TestVisibilityFilter(DBIntegrationTest):
             },
             {
                 'content': 'other user delivered',
-                'user_uuid': '00000000-0000-0000-0000-000000000002',
+                'user_uuid': '00000000-0000-4000-8000-000000000002',
                 'meta': {'type_': 'sms', 'backend': 'twilio'},
                 'deliveries': [
                     {
@@ -509,7 +509,7 @@ class TestVisibilityFilter(DBIntegrationTest):
             },
             {
                 'content': 'other user pending',
-                'user_uuid': '00000000-0000-0000-0000-000000000002',
+                'user_uuid': '00000000-0000-4000-8000-000000000002',
                 'meta': {'type_': 'sms', 'backend': 'twilio'},
                 'deliveries': [
                     {
@@ -521,7 +521,7 @@ class TestVisibilityFilter(DBIntegrationTest):
         ],
     )
     def test_viewer_sees_own_pending_and_others_delivered(self, room):
-        viewer = '00000000-0000-0000-0000-000000000001'
+        viewer = '00000000-0000-4000-8000-000000000001'
         messages = self._dao.room.list_messages(room, viewer_uuid=viewer)
 
         contents = sorted(m.content for m in messages)
