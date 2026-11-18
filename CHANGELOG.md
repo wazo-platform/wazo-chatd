@@ -1,6 +1,6 @@
 # Changelog
 
-## 26.11
+## 26.12
 
 * New endpoint `GET /1.0/metrics`: Prometheus metrics, without authentication.
   It is served by the `metrics` plugin, disabled by default; enable it with
