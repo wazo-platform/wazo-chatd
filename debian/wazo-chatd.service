@@ -1,5 +1,6 @@
 [Unit]
 Description=wazo-chatd daemon
+ConditionPathExists=!/var/lib/wazo/disabled
 After=network.target
 StartLimitBurst=15
 StartLimitIntervalSec=150
